@@ -56,6 +56,9 @@ server.log
 # Sandbox runtime scripts (environment tooling, not project code)
 /.zscripts/
 
+# Agent tool-result caches (session artifacts, not project code)
+/tool-results/
+
 # Test artifacts
 /playwright-report/
 /test-results/

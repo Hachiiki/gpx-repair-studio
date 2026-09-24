@@ -132,3 +132,21 @@ Stage Summary:
   - Architecture impact: lib/map now exists as the isolation boundary the plan specified (§F-4); the hook-facade pattern (types re-exported through hooks/use-map-controller) keeps components off restricted imports; the controller's imperative API (setRoute/highlightGap/fitBounds/startDrawSession-ready surface) is the seam Phase 4's draw editor will extend; ui-store gains its second persisted setting group and its first transient selection state; test bridge + blank fallback style are reusable test infrastructure for Phases 4–8 E2E.
 - Known deviations: maplibre-gl v6 (not v5 — current major, same decision criteria; named exports); kebab-case filenames (Phase 2 convention); MapCanvas receives the ref-callback as a separate prop (react-hooks/refs constraint, documented in-file).
 - Next: await user authorization for Phase 4 — Reconstruction Editor: Drawing.
+
+---
+Task ID: 6
+Agent: Super Z (main agent)
+Task: GitHub publish setup — configure repo identity to the owner's GitHub account, clean history of session artifacts, create the remote repository, and push the full project (phases 0–3) under the owner's name.
+
+Work Log:
+- Received owner's GitHub PAT; verified identity via GitHub API: Hachiiki (Willard James Paluga); set repo-local git identity to `Willard James Paluga <90497788+Hachiiki@users.noreply.github.com>` (GitHub noreply address — guarantees attribution to the account).
+- Audited history before any push: all 8 commits were authored by agent identities (`Z User <z@container>`, `Super Z <dev@gpx-repair-studio.local>`); two commits contained only `tool-results/` session artifacts; the planning commit carried a UUID message; the initial commit included a `.env` (local SQLite path only — no credentials, but scrubbed on principle).
+- Rewrote history via `git filter-branch`: scrubbed `tool-results/` and `.env` from all commits, pruned the two artifact-only commits (now empty), reworded planning commit to `docs: architecture master plan and phased roadmap`, reset author/committer identity on every commit to the owner. Pre-rewrite state preserved locally in `refs/original/`.
+- Verified post-rewrite: 6 commits (Initial → docs master plan → phase(0)…phase(3)) all under the owner's identity with original dates intact; tree diff vs pre-rewrite = tool-results deletions only; `.env` absent from publishable history; secrets scan (ghp_/github_pat_ patterns) clean.
+- Restored `tool-results/` to disk (runtime cache) and added `/tool-results/` to `.gitignore` so environment auto-commits can never re-track session artifacts.
+- Created GitHub repository `Hachiiki/gpx-repair-studio` via API and pushed `main`.
+
+Stage Summary:
+- All commits and pushes now carry the owner's identity; remote authenticated with the owner's PAT (embedded in the local remote URL — rotates with the token).
+- Publishable history is clean: phase-conventional commit messages, no session artifacts, no env files, no secrets.
+- Next: Phase 4 — Reconstruction Editor: Drawing, awaiting user authorization.
