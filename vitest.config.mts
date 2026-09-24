@@ -56,6 +56,10 @@ export default defineConfig({
         "src/lib/geo/**",
         "src/features/gpx/**",
         "src/features/statistics/**",
+        // Phase 4: the pure reconstruction domain (draw model, resample,
+        // snap). The editor store is app-layer state exercised by its own
+        // test file; the MapLibre controller stays browser-only (E2E).
+        "src/features/reconstruction/**",
         "src/lib/utils/xml.ts",
         "src/lib/utils/format.ts",
         // Phase 3: the pure map modules (provider registry, GeoJSON

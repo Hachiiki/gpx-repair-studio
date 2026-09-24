@@ -13,6 +13,13 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
+  // The sandbox has ~4 GB RAM; the dev server (~1.4 GB) plus parallel
+  // WebGL Chromium renderers (~1 GB each) must stay under it or the kernel
+  // OOM-killer takes either the dev server or a renderer down mid-run
+  // (observed with 6 and with 2 workers once the Phase 4 draw specs joined
+  // the suite). Serial execution keeps the whole suite comfortably inside
+  // the budget; CI environments with more RAM can raise this.
+  workers: 1,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

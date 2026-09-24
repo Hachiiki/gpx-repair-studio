@@ -24,6 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isUsableStatsPoint } from "@/features/statistics/distance";
+import { resamplePath } from "@/features/reconstruction/resample";
 import type { BBox } from "@/lib/geo/bbox";
 import {
   MapController,
@@ -32,6 +33,7 @@ import {
 import type {
   GapBoundaryMarker,
   GapSpanPart,
+  ReconstructionPart,
   RouteLinePart,
   RouteViewData,
 } from "@/lib/map/geojson";
@@ -40,8 +42,10 @@ import {
   type TileProviderId,
   type TileProviderOption,
 } from "@/lib/map/styles";
+import { useEditorStore } from "@/state/editor-store";
 import { useUiStore } from "@/state/ui-store";
 import type {
+  DrawVertex,
   GapId,
   GapKind,
   GapSeverity,
@@ -73,6 +77,15 @@ export interface RouteGapRef {
   after: { pointId: PointId; lat: number; lon: number };
 }
 
+/** A committed reconstruction to render (hook join of the editor store). */
+export interface ReconstructionRenderRef {
+  gapId: GapId;
+  vertices: readonly DrawVertex[];
+  spacingM: number | "off";
+  /** True for the gap being edited: suppress its span, render no line. */
+  active?: boolean;
+}
+
 /**
  * Build the renderable route view for one parsed file:
  *
@@ -84,7 +97,11 @@ export interface RouteGapRef {
  *   - `spans`: straight dashed connectors between each gap's boundary
  *     points (kind/severity carried for styling);
  *   - `markers`: clickable boundary markers (before = hollow ring,
- *     after = filled dot in the map styling).
+ *     after = filled dot in the map styling);
+ *   - `reconstructions` (Phase 4): the densified path of every committed
+ *     reconstruction — a gap with a rendered reconstruction loses its
+ *     unknown span (the authored route replaces it; the boundary markers
+ *     stay — they mark the recorded/authored seams).
  *
  * A gap whose boundary points are unusable (e.g. a Null-Island artifact)
  * gets no span and no markers — the hole in the line is the honest signal.
@@ -96,12 +113,15 @@ export interface RouteGapRef {
 export function buildRouteView(
   data: OriginalTrackData,
   gaps: readonly RouteGapRef[],
+  reconstructions: readonly ReconstructionRenderRef[] = [],
 ): RouteViewData {
   const beforeIds = new Set(gaps.map((gap) => gap.before.pointId));
   const afterIds = new Set(gaps.map((gap) => gap.after.pointId));
   const pointById = new Map<PointId, OriginalTrackPoint>();
+  const reconByGap = new Map(reconstructions.map((r) => [r.gapId, r]));
 
   const lines: RouteLinePart[] = [];
+  const reconParts: ReconstructionPart[] = [];
   let usablePointCount = 0;
 
   for (const segment of data.segments) {
@@ -156,6 +176,46 @@ export function buildRouteView(
     ) {
       continue;
     }
+
+    const recon = reconByGap.get(gap.id);
+    if (recon && recon.vertices.length > 0) {
+      // The authored route replaces the unknown span. While its editor is
+      // open (`active`), the controller's draft session renders instead —
+      // no committed line — but the span stays suppressed either way.
+      if (!recon.active) {
+        const path = resamplePath(
+          beforePoint,
+          recon.vertices,
+          afterPoint,
+          recon.spacingM,
+        );
+        reconParts.push({
+          gapId: gap.id,
+          coordinates: path.map((p) => [p.lon, p.lat] as [number, number]),
+        });
+      }
+      // Boundary markers stay — they mark the recorded↔authored seams.
+      markers.push(
+        {
+          gapId: gap.id,
+          pointId: beforePoint.id,
+          role: "before",
+          severity: gap.severity,
+          lat: beforePoint.lat,
+          lon: beforePoint.lon,
+        },
+        {
+          gapId: gap.id,
+          pointId: afterPoint.id,
+          role: "after",
+          severity: gap.severity,
+          lat: afterPoint.lat,
+          lon: afterPoint.lon,
+        },
+      );
+      continue;
+    }
+
     spans.push({
       gapId: gap.id,
       kind: gap.kind,
@@ -185,7 +245,7 @@ export function buildRouteView(
     );
   }
 
-  return { lines, spans, markers, usablePointCount };
+  return { lines, spans, markers, reconstructions: reconParts, usablePointCount };
 }
 
 // ---------------------------------------------------------------------------
@@ -221,6 +281,12 @@ export interface MapBinding {
   setProvider: (provider: TileProviderId) => void;
   retryBasemap: () => void;
   fitToActivity: () => void;
+  /**
+   * Stable accessor for the live controller (Phase 4: the draw-editor
+   * hook drives the controller's draw session through it — components
+   * never call this).
+   */
+  getController: () => MapController | null;
 }
 
 export function useMapController(session: GpxSession): MapBinding {
@@ -230,6 +296,9 @@ export function useMapController(session: GpxSession): MapBinding {
   const [offline, setOffline] = useState(false);
   const selectedGapId = useUiStore((s) => s.selectedGapId);
   const provider = useUiStore((s) => s.tileProvider);
+  const editorReconstructions = useEditorStore((s) => s.reconstructions);
+  const editorActiveGapId = useEditorStore((s) => s.activeGapId);
+  const editorSkipped = useEditorStore((s) => s.skippedGapIds);
 
   const setContainer = useCallback((element: HTMLDivElement | null) => {
     containerRef.current = element;
@@ -272,13 +341,33 @@ export function useMapController(session: GpxSession): MapBinding {
     };
   }, [showMap]);
 
-  // Route data: derive once per (model, gaps) change; drive the controller.
+  // Route data: derive once per (model, gaps, committed reconstructions)
+  // change; drive the controller. The gap being edited renders through the
+  // controller's draw session (draft styling), not as a committed line.
+  const reconstructionRefs = useMemo(() => {
+    const refs: ReconstructionRenderRef[] = [];
+    for (const row of gapRows) {
+      if (editorSkipped.includes(row.id)) continue;
+      const recon = editorReconstructions[row.id];
+      if (!recon || recon.vertices.length === 0) continue;
+      refs.push({
+        gapId: row.id,
+        vertices: recon.vertices,
+        spacingM: recon.resampleSpacingM,
+        // The gap being edited renders through the controller's draw
+        // session (draft styling) — the ref only suppresses its span.
+        ...(row.id === editorActiveGapId ? { active: true } : {}),
+      });
+    }
+    return refs;
+  }, [gapRows, editorReconstructions, editorActiveGapId, editorSkipped]);
+
   const route = useMemo(
     () =>
       showMap && session.data
-        ? buildRouteView(session.data, gapRows)
+        ? buildRouteView(session.data, gapRows, reconstructionRefs)
         : null,
-    [showMap, session.data, gapRows],
+    [showMap, session.data, gapRows, reconstructionRefs],
   );
   useEffect(() => {
     controllerRef.current?.setRoute(route);
@@ -342,6 +431,8 @@ export function useMapController(session: GpxSession): MapBinding {
     useUiStore.getState().selectGap(gapId);
   }, []);
 
+  const getController = useCallback(() => controllerRef.current, []);
+
   const setProvider = useCallback((next: TileProviderId) => {
     useUiStore.getState().setTileProvider(next);
   }, []);
@@ -383,5 +474,6 @@ export function useMapController(session: GpxSession): MapBinding {
     setProvider,
     retryBasemap,
     fitToActivity,
+    getController,
   };
 }

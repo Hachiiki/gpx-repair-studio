@@ -19,9 +19,11 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import { Button } from "@/components/ui/button";
 import { Loader2, MapIcon, WifiOff } from "lucide-react";
+import { DrawDistanceBadge } from "@/components/map/draw-distance-badge";
 import { GapHighlightOverlay } from "@/components/map/gap-highlight-overlay";
 import { MapLegend } from "@/components/map/map-legend";
 import { MapToolbar } from "@/components/map/map-toolbar";
+import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
 import type { MapBinding } from "@/hooks/use-map-controller";
 import type { BBox } from "@/lib/geo/bbox";
 
@@ -44,11 +46,14 @@ export interface MapCanvasProps {
    * dataflow analysis. The hook guarantees a stable identity.
    */
   attachContainer: (element: HTMLDivElement | null) => void;
+  /** Phase 4: the draw-editor binding (badge + Draw/Pan toggle chrome). */
+  draw?: DrawEditorBinding | null;
 }
 
-export function MapCanvas({ map, attachContainer }: MapCanvasProps) {
+export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps) {
   const routeEmpty =
     map.status === "ready" && map.route !== null && map.route.lines.length === 0;
+  const editorActive = draw?.active === true;
 
   return (
     <div className="overflow-hidden rounded-xl border" data-testid="map-canvas">
@@ -132,14 +137,24 @@ export function MapCanvas({ map, attachContainer }: MapCanvasProps) {
         {/* Chrome (hidden while initializing; irrelevant if unsupported). */}
         {map.status === "ready" && (
           <>
+            {editorActive && draw && (
+              <DrawDistanceBadge
+                distanceM={draw.distanceM}
+                vertexCount={draw.vertexCount}
+                maxVertices={draw.maxVertices}
+                drawMode={draw.drawMode}
+              />
+            )}
             <MapToolbar
               provider={map.provider}
               providers={map.providers}
               onProviderChange={map.setProvider}
               onFitActivity={map.fitToActivity}
+              drawMode={editorActive && draw ? draw.drawMode : null}
+              onToggleDrawMode={editorActive && draw ? draw.setDrawMode : undefined}
             />
             <MapLegend />
-            {map.selectedGap && (
+            {map.selectedGap && !editorActive && (
               <GapHighlightOverlay
                 gap={map.selectedGap}
                 onClear={() => map.selectGap(null)}
@@ -158,6 +173,9 @@ export function MapCanvas({ map, attachContainer }: MapCanvasProps) {
         {map.gapCount} detected gap{map.gapCount === 1 ? "" : "s"}. Recorded
         extent: {extentText(map.extent)}. Select gaps from the detected-gaps
         list to highlight and focus them on the map.
+        {editorActive && draw && draw.vertexCount > 0
+          ? ` Reconstruction in progress: ${draw.vertexCount} drawn point${draw.vertexCount === 1 ? "" : "s"}.`
+          : ""}
       </p>
     </div>
   );

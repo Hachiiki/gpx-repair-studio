@@ -27,6 +27,15 @@
  * ("fit-activity", "fit-gap:<id>", "user", …) — asserted by E2E instead of
  * pixel diffs.
  *
+ * Phase 4 — draw session: `startDrawSession`/`updateDrawSession`/
+ * `endDrawSession` + the explicit Draw/Pan `setDrawMode` toggle. The
+ * controller owns pointer interaction and transient rendering only (rubber
+ * band, drag override, midpoint/handle affordances); the authoritative
+ * vertex state lives in the editor store — every commit is a callback into
+ * the hook, which applies a pure command and pushes the result back via
+ * `updateDrawSession`. Snap resolution is injected (`DrawSnapFn`) so no
+ * domain code runs inside the map adapter.
+ *
  * Phase 3 — Map Display. Browser-only (constructed by the React binding
  * hook, never by domain code).
  */
@@ -35,14 +44,27 @@ import type {
   GeoJSONSource,
   Map as MlMap,
   MapLayerMouseEvent,
+  MapMouseEvent,
   StyleSpecification,
   Subscription,
 } from "maplibre-gl";
 import type { BBox } from "@/lib/geo/bbox";
 import {
+  haversineDistanceMeters,
+  interpolateLatLon,
+} from "@/lib/geo/geodesy";
+import type { LatLon, PointId, VertexId } from "@/types/domain";
+import {
+  draftLineCollection,
+  drawHandleCollection,
+  drawMidpointCollection,
   gapMarkerCollection,
   gapSpanCollection,
+  reconstructionLineCollection,
+  rubberBandCollection,
   routeLineCollection,
+  type DrawHandleData,
+  type DrawMidpointData,
   type RouteViewData,
 } from "./geojson";
 import {
@@ -77,6 +99,8 @@ export interface MapTestState {
   routeFeatureCount: number;
   gapSpanCount: number;
   boundaryMarkerCount: number;
+  /** Committed reconstruction lines rendered via the route view. */
+  reconstructionLineCount: number;
   selectedGapId: string | null;
   zoom: number;
   center: { lat: number; lon: number } | null;
@@ -85,24 +109,53 @@ export interface MapTestState {
   spanScreenPositions: { gapId: string; x: number; y: number }[];
   /** True while a camera animation or user gesture is in progress. */
   moving: boolean;
+  /** The active draw session (null when no editor is open). */
+  drawSession: DrawSessionTestState | null;
+}
+
+/** Draw-session snapshot for E2E synthetic-pointer drawing assertions. */
+export interface DrawSessionTestState {
+  gapId: string;
+  drawMode: boolean;
+  vertexCount: number;
+  /** Full draft path `[lon, lat]` (anchors first/last, override applied). */
+  pathCoordinates: [number, number][];
+  /** Screen positions of the vertex handles (for synthetic drags). */
+  handleScreenPositions: { vertexId: string; x: number; y: number }[];
+  /** Screen positions of the midpoint insertion handles. */
+  midpointScreenPositions: { insertIndex: number; x: number; y: number }[];
+  /** Rubber band currently visible (cursor over canvas, not dragging). */
+  rubberBandVisible: boolean;
 }
 
 /** Layer ids — `gpxr` prefix mirrors the export provenance namespace. */
 export const MAP_LAYER_IDS = [
   "gpxr-route",
   "gpxr-gap-span-selected",
+  "gpxr-recon",
+  "gpxr-draft-line",
+  "gpxr-draft-rubber",
   "gpxr-gap-span",
+  "gpxr-draft-midpoint",
+  "gpxr-draft-handle",
   "gpxr-gap-boundary-halo",
   "gpxr-gap-boundary-before",
   "gpxr-gap-boundary-after",
   "gpxr-gap-span-hit",
   "gpxr-gap-boundary-hit",
+  "gpxr-draft-midpoint-hit",
+  "gpxr-draft-handle-hit",
 ] as const;
 
 const SOURCE = {
   route: "gpxr-route",
   spans: "gpxr-gap-spans",
   markers: "gpxr-gap-boundaries",
+  recon: "gpxr-recon",
+  draft: "gpxr-draft",
+  rubber: "gpxr-draft-rubber",
+  handles: "gpxr-draft-handles",
+  midpoints: "gpxr-draft-midpoints",
 } as const;
 
 const LAYER = {
@@ -114,10 +167,27 @@ const LAYER = {
   markerAfter: "gpxr-gap-boundary-after",
   spanHit: "gpxr-gap-span-hit",
   markerHit: "gpxr-gap-boundary-hit",
+  recon: "gpxr-recon",
+  draftLine: "gpxr-draft-line",
+  draftRubber: "gpxr-draft-rubber",
+  draftHandle: "gpxr-draft-handle",
+  draftMidpoint: "gpxr-draft-midpoint",
+  draftHandleHit: "gpxr-draft-handle-hit",
+  draftMidpointHit: "gpxr-draft-midpoint-hit",
 } as const;
 
 /** Recorded-route color (master plan §I-3: original = solid blue). */
 const ROUTE_COLOR = "#2563eb";
+
+/** Reconstruction color (§I-3: reconstructed = dashed, distinct hue). */
+const RECON_COLOR = "#059669"; // emerald-600
+const RECON_COLOR_DRAFT = "#10b981"; // emerald-500 (active session)
+
+/** Snap magnet radius in screen pixels (converted to meters at commit). */
+const SNAP_RADIUS_PX = 14;
+
+/** Minimum pointer travel (px) before a handle press counts as a drag. */
+const DRAG_THRESHOLD_PX = 3;
 
 /** Gap-span colors by severity (dash pattern carries the meaning too). */
 const SEVERITY_COLORS: Record<string, string> = {
@@ -147,6 +217,49 @@ interface FocusTarget {
   action: string;
 }
 
+// ---------------------------------------------------------------------------
+// Draw session (Phase 4) — interaction contract between the controller and
+// the React binding hook (hooks/use-draw-editor.ts)
+// ---------------------------------------------------------------------------
+
+/** A resolved (possibly snapped) vertex position to commit. */
+export interface DrawCommitPosition {
+  lat: number;
+  lon: number;
+  snappedTo?: PointId;
+}
+
+/** Snap resolver injected by the hook (pure domain fn underneath). */
+export type DrawSnapFn = (
+  target: LatLon,
+  maxDistanceM: number,
+) => DrawCommitPosition | null;
+
+export interface DrawSessionOptions {
+  gapId: string;
+  anchors: { before: LatLon; after: LatLon };
+  vertices: readonly { id: VertexId; lat: number; lon: number }[];
+  /** Snap magnet (null/undefined = snapping disabled). */
+  snap?: DrawSnapFn | null;
+  callbacks: {
+    onVertexAdd: (position: DrawCommitPosition) => void;
+    onVertexMove: (vertexId: VertexId, position: DrawCommitPosition) => void;
+    onVertexInsert: (index: number, position: DrawCommitPosition) => void;
+    onVertexDelete: (vertexId: VertexId) => void;
+  };
+}
+
+interface DrawSession extends DrawSessionOptions {
+  vertices: { id: VertexId; lat: number; lon: number }[];
+}
+
+interface HandleDrag {
+  vertexId: VertexId;
+  originXY: { x: number; y: number };
+  override: LatLon | null;
+  moved: boolean;
+}
+
 declare global {
   interface Window {
     /** Test bridge — attached outside production builds only. */
@@ -174,6 +287,14 @@ export class MapController {
   #selectedGapId: string | null = null;
   #pendingFocus: FocusTarget | null = null;
   #lastCameraAction: string | null = null;
+
+  // Draw session (Phase 4)
+  #drawSession: DrawSession | null = null;
+  #drawMode = false;
+  #handleDrag: HandleDrag | null = null;
+  #cursor: LatLon | null = null;
+  /** Set when a committed handle drag must swallow its trailing click. */
+  #suppressNextClick = false;
 
   constructor(options: {
     container: HTMLElement;
@@ -244,15 +365,64 @@ export class MapController {
       map.on("wheel", () => this.#noteUserCamera()),
       map.on("boxzoomstart", () => this.#noteUserCamera()),
       map.on("click", [LAYER.spanHit, LAYER.markerHit], (e) => {
+        // While drawing, clicks are vertex input — never gap selection
+        // (a re-fit of the camera mid-draw would be hostile).
+        if (this.#drawSession && this.#drawMode) return;
         const gapId = this.#gapIdFromEvent(e);
         if (gapId !== null) this.#callbacks.onGapSelected?.(gapId);
       }),
       map.on("mouseenter", [LAYER.spanHit, LAYER.markerHit], () => {
+        if (this.#drawMode) return;
         map.getCanvas().style.cursor = "pointer";
       }),
       map.on("mouseleave", [LAYER.spanHit, LAYER.markerHit], () => {
         map.getCanvas().style.cursor = "";
       }),
+    );
+
+    // -- draw session wiring (Phase 4) ------------------------------------
+    // Layer-scoped handlers for the interactive draft affordances, plus
+    // map-level pointer tracking for add-clicks, the rubber band, and
+    // handle drags. All no-ops unless a session is open AND draw mode is
+    // on (the explicit Draw/Pan toggle — the anti-fat-finger contract of
+    // the plan's risk table #1; gesture hardening arrives in Phase 8).
+    this.#subscriptions.push(
+      map.on("mousedown", LAYER.draftHandleHit, (e) => {
+        if (!this.#drawSession || !this.#drawMode) return;
+        e.preventDefault();
+        const vertexId = e.features?.[0]?.properties?.vertexId;
+        if (typeof vertexId !== "string") return;
+        this.#handleDrag = {
+          vertexId: vertexId as VertexId,
+          originXY: { x: e.point.x, y: e.point.y },
+          override: null,
+          moved: false,
+        };
+      }),
+      map.on("dblclick", LAYER.draftHandleHit, (e) => {
+        if (!this.#drawSession || !this.#drawMode) return;
+        e.preventDefault();
+        const vertexId = e.features?.[0]?.properties?.vertexId;
+        if (typeof vertexId !== "string") return;
+        this.#drawSession.callbacks.onVertexDelete(vertexId as VertexId);
+      }),
+      map.on("click", LAYER.draftMidpointHit, (e) => {
+        if (!this.#drawSession || !this.#drawMode) return;
+        const insertIndex = e.features?.[0]?.properties?.insertIndex;
+        if (typeof insertIndex !== "number") return;
+        const position = this.#snapPosition(
+          { lat: e.lngLat.lat, lon: e.lngLat.lng },
+          e.point,
+        );
+        this.#drawSession.callbacks.onVertexInsert(insertIndex, position);
+      }),
+      map.on("mousemove", (e) => this.#onMouseMove(e)),
+      map.on("mouseout", () => {
+        this.#cursor = null;
+        if (this.#ready) this.#applyRubberBand();
+      }),
+      map.on("click", (e) => this.#onCanvasClick(e)),
+      map.on("mouseup", (e) => this.#onMouseUp(e)),
     );
   }
 
@@ -336,12 +506,107 @@ export class MapController {
     this.#map?.resize();
   }
 
+  // -- draw session (Phase 4) ------------------------------------------------
+
+  /**
+   * Open the interactive draw session for one gap. Idempotent per gap;
+   * switching gaps replaces the session. Safe to call before the map is
+   * ready — the latest session is applied on style load.
+   */
+  startDrawSession(options: DrawSessionOptions): void {
+    this.#drawSession = {
+      ...options,
+      vertices: options.vertices.map((v) => ({ ...v })),
+    };
+    if (this.#ready) this.#applyDrawSession();
+  }
+
+  /**
+   * Push the authoritative vertex list (the store is the source of truth;
+   * the controller re-renders its draft from it after every command).
+   */
+  updateDrawSession(
+    vertices: readonly { id: VertexId; lat: number; lon: number }[],
+  ): void {
+    if (!this.#drawSession) return;
+    this.#drawSession.vertices = vertices.map((v) => ({ ...v }));
+    // A committed change invalidates any transient drag override.
+    this.#handleDrag = null;
+    if (this.#ready) this.#applyDrawSession();
+  }
+
+  /** Close the session: clear draft layers, restore interactions. */
+  endDrawSession(): void {
+    this.#drawSession = null;
+    this.#handleDrag = null;
+    this.#cursor = null;
+    if (this.#drawMode) this.#setDrawModeInternal(false);
+    if (!this.#ready) return;
+    const map = this.#map;
+    if (!map) return;
+    (map.getSource(SOURCE.draft) as GeoJSONSource | undefined)?.setData(
+      draftLineCollection([]),
+    );
+    (map.getSource(SOURCE.rubber) as GeoJSONSource | undefined)?.setData(
+      rubberBandCollection(null, null),
+    );
+    (map.getSource(SOURCE.handles) as GeoJSONSource | undefined)?.setData(
+      drawHandleCollection([]),
+    );
+    (map.getSource(SOURCE.midpoints) as GeoJSONSource | undefined)?.setData(
+      drawMidpointCollection([]),
+    );
+  }
+
+  /**
+   * The explicit Draw/Pan toggle (plan risk #1: touch drawing must never
+   * conflict with map navigation). Draw mode: pointer = draw, drag-pan and
+   * box-zoom disabled (wheel zoom stays available). Pan mode: normal map.
+   */
+  setDrawMode(enabled: boolean): void {
+    if (this.#drawMode === enabled) return;
+    this.#setDrawModeInternal(enabled);
+  }
+
+  #setDrawModeInternal(enabled: boolean): void {
+    this.#drawMode = enabled;
+    const map = this.#map;
+    if (!map) return;
+    const handlers = [map.dragPan, map.doubleClickZoom, map.boxZoom];
+    for (const handler of handlers) {
+      if (!handler) continue;
+      if (enabled) {
+        handler.disable();
+      } else {
+        handler.enable();
+      }
+    }
+    map.getCanvas().style.cursor = enabled ? "crosshair" : "";
+    if (this.#ready) this.#applyRubberBand();
+  }
+
   // -- test bridge ----------------------------------------------------------
 
   /** Programmatic zoom for E2E pan/zoom responsiveness probes. */
   zoomIn(): void {
     this.#lastCameraAction = "zoom-in";
     this.#map?.zoomIn({ duration: 400 });
+  }
+
+  /** Project a geographic position to canvas pixels (E2E click targets). */
+  projectLatLon(lat: number, lon: number): { x: number; y: number } {
+    const map = this.#map;
+    if (!map) return { x: 0, y: 0 };
+    const point = map.project([lon, lat]);
+    return { x: point.x, y: point.y };
+  }
+
+  /** Unproject canvas pixels to a geographic position (E2E assertions). */
+  unprojectXY(x: number, y: number): { lat: number; lon: number } {
+    const map = this.#map;
+    if (!map) return { lat: NaN, lon: NaN };
+    const lngLat = map.unproject([x, y]);
+    return { lat: lngLat.lat, lon: lngLat.lng };
   }
 
   getTestState(): MapTestState {
@@ -359,6 +624,7 @@ export class MapController {
       routeFeatureCount: route?.lines.length ?? 0,
       gapSpanCount: route?.spans.length ?? 0,
       boundaryMarkerCount: route?.markers.length ?? 0,
+      reconstructionLineCount: route?.reconstructions.length ?? 0,
       selectedGapId: this.#selectedGapId,
       zoom: map ? map.getZoom() : 0,
       center: map
@@ -367,6 +633,7 @@ export class MapController {
       lastCameraAction: this.#lastCameraAction,
       spanScreenPositions: this.#spanScreenPositions(),
       moving: map ? map.isMoving() : false,
+      drawSession: this.#drawSessionTestState(),
     };
   }
 
@@ -420,6 +687,8 @@ export class MapController {
     this.#addLayers();
     this.#applyRoute();
     this.#applySelection();
+    this.#applyDrawSession();
+    if (this.#drawMode) this.#setDrawModeInternal(true);
     if (!this.#ready) {
       this.#ready = true;
       this.#setStatus("ready");
@@ -466,6 +735,26 @@ export class MapController {
       map.addSource(SOURCE.markers, {
         type: "geojson",
         data: gapMarkerCollection([]),
+      });
+      map.addSource(SOURCE.recon, {
+        type: "geojson",
+        data: reconstructionLineCollection([]),
+      });
+      map.addSource(SOURCE.draft, {
+        type: "geojson",
+        data: draftLineCollection([]),
+      });
+      map.addSource(SOURCE.rubber, {
+        type: "geojson",
+        data: rubberBandCollection(null, null),
+      });
+      map.addSource(SOURCE.handles, {
+        type: "geojson",
+        data: drawHandleCollection([]),
+      });
+      map.addSource(SOURCE.midpoints, {
+        type: "geojson",
+        data: drawMidpointCollection([]),
       });
     }
 
@@ -555,6 +844,90 @@ export class MapController {
       source: SOURCE.markers,
       paint: { "circle-opacity": 0, "circle-radius": 16 },
     });
+
+    // -- Phase 4: reconstruction + draw-session layers ---------------------
+    // Committed reconstructions — dashed emerald (distinct hue + dash vs.
+    // the solid recorded blue; the legend spells out the difference).
+    map.addLayer({
+      id: LAYER.recon,
+      type: "line",
+      source: SOURCE.recon,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": RECON_COLOR,
+        "line-width": 3.5,
+        "line-dasharray": [3, 2],
+        "line-opacity": 0.95,
+      },
+    });
+
+    // Active draft path — brighter, wider, with a white casing.
+    map.addLayer({
+      id: LAYER.draftLine,
+      type: "line",
+      source: SOURCE.draft,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": RECON_COLOR_DRAFT,
+        "line-width": 4.5,
+        "line-dasharray": [3, 2],
+      },
+    });
+
+    // Rubber band — thin, subdued.
+    map.addLayer({
+      id: LAYER.draftRubber,
+      type: "line",
+      source: SOURCE.rubber,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": RECON_COLOR_DRAFT,
+        "line-width": 1.5,
+        "line-dasharray": [1.5, 2],
+        "line-opacity": 0.7,
+      },
+    });
+
+    // Midpoint insertion handles ("+" affordances between path points).
+    map.addLayer({
+      id: LAYER.draftMidpoint,
+      type: "circle",
+      source: SOURCE.midpoints,
+      paint: {
+        "circle-radius": 4.5,
+        "circle-color": "#ffffff",
+        "circle-stroke-color": RECON_COLOR_DRAFT,
+        "circle-stroke-width": 1.5,
+        "circle-opacity": 0.9,
+      },
+    });
+
+    // Vertex handles — white fill, emerald stroke.
+    map.addLayer({
+      id: LAYER.draftHandle,
+      type: "circle",
+      source: SOURCE.handles,
+      paint: {
+        "circle-radius": 5.5,
+        "circle-color": "#ffffff",
+        "circle-stroke-color": RECON_COLOR,
+        "circle-stroke-width": 2.5,
+      },
+    });
+
+    // Draft hit targets (on top of everything else).
+    map.addLayer({
+      id: LAYER.draftMidpointHit,
+      type: "circle",
+      source: SOURCE.midpoints,
+      paint: { "circle-opacity": 0, "circle-radius": 12 },
+    });
+    map.addLayer({
+      id: LAYER.draftHandleHit,
+      type: "circle",
+      source: SOURCE.handles,
+      paint: { "circle-opacity": 0, "circle-radius": 12 },
+    });
   }
 
   #applyRoute(): void {
@@ -569,6 +942,12 @@ export class MapController {
       | GeoJSONSource
       | undefined;
     markerSource?.setData(gapMarkerCollection(route?.markers ?? []));
+    const reconSource = map.getSource(SOURCE.recon) as
+      | GeoJSONSource
+      | undefined;
+    reconSource?.setData(
+      reconstructionLineCollection(route?.reconstructions ?? []),
+    );
   }
 
   #applySelection(): void {
@@ -609,6 +988,223 @@ export class MapController {
       const point = map.project([(lon0 + lon1) / 2, (lat0 + lat1) / 2]);
       return { gapId: span.gapId as string, x: point.x, y: point.y };
     });
+  }
+
+  // -- draw internals (Phase 4) ----------------------------------------------
+
+  /**
+   * Screen-space resolution at `point`, in meters per pixel, measured by
+   * unprojecting a 100 px horizontal offset (exact at the queried spot —
+   * no tile-size math, no latitude assumptions).
+   */
+  #metersPerPixelAt(point: { x: number; y: number }): number {
+    const map = this.#map;
+    if (!map) return Infinity;
+    const a = map.unproject([point.x, point.y]);
+    const b = map.unproject([point.x + 100, point.y]);
+    const meters = haversineDistanceMeters(
+      { lat: a.lat, lon: a.lng },
+      { lat: b.lat, lon: b.lng },
+    );
+    return Number.isFinite(meters) ? meters / 100 : Infinity;
+  }
+
+  /** Resolve a commit position: raw, or snapped when a magnet is close. */
+  #snapPosition(
+    target: LatLon,
+    point: { x: number; y: number },
+  ): DrawCommitPosition {
+    const session = this.#drawSession;
+    const snap = session?.snap;
+    if (!session || !snap) return { ...target };
+    const maxMeters = this.#metersPerPixelAt(point) * SNAP_RADIUS_PX;
+    if (!Number.isFinite(maxMeters)) return { ...target };
+    return snap(target, maxMeters) ?? { ...target };
+  }
+
+  /** Canvas click in draw mode → add a vertex (unless on an affordance). */
+  #onCanvasClick(e: MapMouseEvent): void {
+    const session = this.#drawSession;
+    if (!session || !this.#drawMode) return;
+    // The click that follows a committed handle drag is not an add.
+    if (this.#suppressNextClick) {
+      this.#suppressNextClick = false;
+      return;
+    }
+    const map = this.#map;
+    if (!map) return;
+    // Clicking a handle or midpoint is a different edit — never both.
+    const hits = map.queryRenderedFeatures(e.point, {
+      layers: [LAYER.draftHandleHit, LAYER.draftMidpointHit],
+    });
+    if (hits.length > 0) return;
+    const position = this.#snapPosition(
+      { lat: e.lngLat.lat, lon: e.lngLat.lng },
+      e.point,
+    );
+    session.callbacks.onVertexAdd(position);
+  }
+
+  /** Pointer tracking: rubber band while idle, override while dragging. */
+  #onMouseMove(e: MapMouseEvent): void {
+    const session = this.#drawSession;
+    if (!session || !this.#drawMode) return;
+    this.#cursor = { lat: e.lngLat.lat, lon: e.lngLat.lng };
+
+    const drag = this.#handleDrag;
+    if (drag) {
+      const map = this.#map;
+      if (map) {
+        const dx = e.point.x - drag.originXY.x;
+        const dy = e.point.y - drag.originXY.y;
+        if (drag.moved || Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
+          drag.moved = true;
+          drag.override = { lat: e.lngLat.lat, lon: e.lngLat.lng };
+          this.#applyDrawSession();
+        }
+      }
+      return;
+    }
+    if (this.#ready) this.#applyRubberBand();
+  }
+
+  /** End of a handle drag → commit the (snapped) move as one command. */
+  #onMouseUp(e: MapMouseEvent): void {
+    const drag = this.#handleDrag;
+    const session = this.#drawSession;
+    this.#handleDrag = null;
+    if (!drag || !session || !drag.moved || !drag.override) return;
+    // The browser fires a trailing click after this mouseup — swallow it.
+    this.#suppressNextClick = true;
+    const position = this.#snapPosition(
+      { lat: e.lngLat.lat, lon: e.lngLat.lng },
+      e.point,
+    );
+    session.callbacks.onVertexMove(drag.vertexId, position);
+    this.#applyDrawSession();
+  }
+
+  /** The authoritative path points with any drag override applied. */
+  #draftPathPoints(): LatLon[] {
+    const session = this.#drawSession;
+    if (!session) return [];
+    const override = this.#handleDrag?.override ?? null;
+    const overrideId = this.#handleDrag?.vertexId ?? null;
+    const points: LatLon[] = [session.anchors.before];
+    for (const vertex of session.vertices) {
+      points.push(
+        override && vertex.id === overrideId
+          ? { lat: override.lat, lon: override.lon }
+          : { lat: vertex.lat, lon: vertex.lon },
+      );
+    }
+    points.push(session.anchors.after);
+    return points;
+  }
+
+  /** Re-render every draft source from the current session state. */
+  #applyDrawSession(): void {
+    const map = this.#map;
+    if (!map || !this.#ready) return;
+    const session = this.#drawSession;
+    if (!session) return;
+
+    const path = this.#draftPathPoints();
+    const coordinates: [number, number][] = path.map((p) => [p.lon, p.lat]);
+    const handles: DrawHandleData[] = session.vertices.map((vertex, index) => {
+      const overridden =
+        this.#handleDrag?.vertexId === vertex.id && this.#handleDrag?.override;
+      return {
+        gapId: session.gapId as never,
+        vertexId: vertex.id,
+        index,
+        lat: overridden ? this.#handleDrag!.override!.lat : vertex.lat,
+        lon: overridden ? this.#handleDrag!.override!.lon : vertex.lon,
+      };
+    });
+    const midpoints: DrawMidpointData[] = [];
+    for (let j = 0; j + 1 < path.length; j += 1) {
+      const mid = interpolateLatLon(path[j], path[j + 1], 0.5);
+      midpoints.push({
+        gapId: session.gapId as never,
+        insertIndex: j,
+        lat: mid.lat,
+        lon: mid.lon,
+      });
+    }
+
+    (map.getSource(SOURCE.draft) as GeoJSONSource | undefined)?.setData(
+      draftLineCollection(coordinates),
+    );
+    (map.getSource(SOURCE.handles) as GeoJSONSource | undefined)?.setData(
+      drawHandleCollection(handles),
+    );
+    (map.getSource(SOURCE.midpoints) as GeoJSONSource | undefined)?.setData(
+      drawMidpointCollection(midpoints),
+    );
+    this.#applyRubberBand();
+  }
+
+  /**
+   * Rubber band: last path point → cursor. Visible only in draw mode with
+   * the pointer over the canvas and no drag in progress.
+   */
+  #applyRubberBand(): void {
+    const map = this.#map;
+    if (!map || !this.#ready) return;
+    const session = this.#drawSession;
+    const visible =
+      session !== null && this.#drawMode && this.#cursor !== null && !this.#handleDrag;
+    if (!visible || !session) {
+      (map.getSource(SOURCE.rubber) as GeoJSONSource | undefined)?.setData(
+        rubberBandCollection(null, null),
+      );
+      return;
+    }
+    const path = this.#draftPathPoints();
+    const last = path[path.length - 1] ?? null;
+    (map.getSource(SOURCE.rubber) as GeoJSONSource | undefined)?.setData(
+      rubberBandCollection(last, this.#cursor),
+    );
+  }
+
+  #drawSessionTestState(): DrawSessionTestState | null {
+    const session = this.#drawSession;
+    const map = this.#map;
+    if (!session) return null;
+    const path = this.#draftPathPoints();
+    const coordinates: [number, number][] = path.map((p) => [p.lon, p.lat]);
+    const handleScreenPositions = session.vertices.map((vertex) => {
+      const overridden =
+        this.#handleDrag?.vertexId === vertex.id && this.#handleDrag?.override;
+      const lat = overridden ? this.#handleDrag!.override!.lat : vertex.lat;
+      const lon = overridden ? this.#handleDrag!.override!.lon : vertex.lon;
+      if (!map) return { vertexId: vertex.id as string, x: 0, y: 0 };
+      const point = map.project([lon, lat]);
+      return { vertexId: vertex.id as string, x: point.x, y: point.y };
+    });
+    const midpointScreenPositions: { insertIndex: number; x: number; y: number }[] =
+      [];
+    for (let j = 0; j + 1 < path.length; j += 1) {
+      if (!map) break;
+      const mid = interpolateLatLon(path[j], path[j + 1], 0.5);
+      const point = map.project([mid.lon, mid.lat]);
+      midpointScreenPositions.push({
+        insertIndex: j,
+        x: point.x,
+        y: point.y,
+      });
+    }
+    return {
+      gapId: session.gapId,
+      drawMode: this.#drawMode,
+      vertexCount: session.vertices.length,
+      pathCoordinates: coordinates,
+      handleScreenPositions,
+      midpointScreenPositions,
+      rubberBandVisible:
+        this.#drawMode && this.#cursor !== null && !this.#handleDrag,
+    };
   }
 
   #attachTestBridge(): void {

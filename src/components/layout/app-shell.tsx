@@ -27,8 +27,10 @@ import { SegmentList } from "@/components/gpx/segment-list";
 import { SessionErrorAlert } from "@/components/gpx/session-error-alert";
 import { UploadZone } from "@/components/gpx/upload-zone";
 import { ValidationReport } from "@/components/gpx/validation-report";
+import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import { GapList } from "@/components/reconstruction/gap-list";
 import { StatsPanel } from "@/components/statistics/stats-panel";
+import { useDrawEditor } from "@/hooks/use-draw-editor";
 import { useGpxSession } from "@/hooks/use-gpx-session";
 import { useMapController } from "@/hooks/use-map-controller";
 import { useUiStore } from "@/state/ui-store";
@@ -36,6 +38,7 @@ import { useUiStore } from "@/state/ui-store";
 export function AppShell() {
   const session = useGpxSession();
   const map = useMapController(session);
+  const draw = useDrawEditor(session, map);
 
   // Rehydrate persisted settings after mount — the prerendered HTML and
   // the first client render both use defaults, so there is no hydration
@@ -66,9 +69,16 @@ export function AppShell() {
                 <SegmentList rows={session.segmentRows} />
               </>
             }
-            map={<MapCanvas map={map} attachContainer={map.setContainer} />}
+            map={
+              <MapCanvas
+                map={map}
+                attachContainer={map.setContainer}
+                draw={draw}
+              />
+            }
             findings={
               <>
+                <DrawEditorPanel draw={draw} />
                 <GapList
                   rows={session.gapRows}
                   thresholds={session.gapThresholds}
@@ -76,6 +86,8 @@ export function AppShell() {
                   onThresholdsReset={session.resetGapThresholds}
                   selectedGapId={map.selectedGapId}
                   onSelectGap={map.selectGap}
+                  statusById={draw.statusById}
+                  onOpenEditor={draw.openEditor}
                 />
                 {session.distanceStats && session.timeStats && (
                   <StatsPanel

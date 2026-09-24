@@ -1,11 +1,14 @@
 /**
- * MapToolbar — compact map controls (Phase 3 scope: "tile provider config
- * … attribution, legend").
+ * MapToolbar — compact map controls (Phase 3: "tile provider config …
+ * attribution, legend"; Phase 4: the Draw/Pan toggle).
  *
  * - Basemap picker: OpenFreeMap (default) / OSM Standard raster, each with
  *   its usage-policy note (§E-1). Built as a popover of plain buttons
  *   (matches the Phase 2 threshold-settings pattern and stays RTL-friendly).
  * - Fit-activity button: re-frame the whole recorded route.
+ * - Draw/Pan toggle (Phase 4): rendered only while an editor session is
+ *   open. The explicit toggle is the plan's anti-fat-finger contract —
+ *   drawing and map navigation must never fight over the pointer.
  *
  * Props in, intents out — no map or store access here.
  */
@@ -17,7 +20,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Check, Layers, Maximize } from "lucide-react";
+import { Check, Hand, Layers, Maximize, PenLine } from "lucide-react";
 import type { TileProviderId, TileProviderOption } from "@/hooks/use-map-controller";
 
 export interface MapToolbarProps {
@@ -25,6 +28,9 @@ export interface MapToolbarProps {
   providers: readonly TileProviderOption[];
   onProviderChange: (provider: TileProviderId) => void;
   onFitActivity: () => void;
+  /** Phase 4: null = no editor session (toggle hidden). */
+  drawMode?: boolean | null;
+  onToggleDrawMode?: (on: boolean) => void;
 }
 
 export function MapToolbar({
@@ -32,6 +38,8 @@ export function MapToolbar({
   providers,
   onProviderChange,
   onFitActivity,
+  drawMode = null,
+  onToggleDrawMode,
 }: MapToolbarProps) {
   const current =
     providers.find((option) => option.id === provider) ?? null;
@@ -41,6 +49,46 @@ export function MapToolbar({
       className="absolute right-2 top-2 z-10 flex items-center gap-1.5"
       data-testid="map-toolbar"
     >
+      {drawMode !== null && onToggleDrawMode && (
+        <div
+          className="flex overflow-hidden rounded-md border bg-background/85 shadow-sm backdrop-blur-sm"
+          role="group"
+          aria-label="Pointer mode"
+          data-testid="draw-mode-toggle"
+        >
+          <button
+            type="button"
+            aria-pressed={drawMode === true}
+            data-testid="draw-mode-draw"
+            title="Draw mode — click the map to add points"
+            className={`flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors focus-visible:outline-2 ${
+              drawMode
+                ? "bg-emerald-600 text-white"
+                : "text-foreground hover:bg-accent"
+            }`}
+            onClick={() => onToggleDrawMode(true)}
+          >
+            <PenLine className="size-3.5" aria-hidden="true" />
+            <span className="hidden sm:inline">Draw</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={drawMode === false}
+            data-testid="draw-mode-pan"
+            title="Pan mode — normal map navigation"
+            className={`flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors focus-visible:outline-2 ${
+              !drawMode
+                ? "bg-primary text-primary-foreground"
+                : "text-foreground hover:bg-accent"
+            }`}
+            onClick={() => onToggleDrawMode(false)}
+          >
+            <Hand className="size-3.5" aria-hidden="true" />
+            <span className="hidden sm:inline">Pan</span>
+          </button>
+        </div>
+      )}
+
       <Popover>
         <PopoverTrigger asChild>
           <Button

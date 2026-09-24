@@ -1,0 +1,357 @@
+/**
+ * Editor store (docs/MASTER_PLAN.md §D-4, Phase 4) — the state container
+ * for reconstruction editing.
+ *
+ * Holds:
+ *   - `activeGapId` — the gap whose draw session is open (transient);
+ *   - `reconstructions` — the per-gap user repairs (vertices + settings),
+ *     keyed by `GapId`. Small by construction; replaced immutably, never
+ *     mutated in place;
+ *   - `skippedGapIds` — gaps the user explicitly declined to repair;
+ *   - `history` — the undo/redo command stack of the ACTIVE gap only
+ *     (closing the editor drops it — undo does not span sessions);
+ *   - `drawMode` / `snapEnabled` — transient editing aids (not persisted:
+ *     they are about the interaction, not the data).
+ *
+ * The store is a thin wrapper over the pure `features/reconstruction/
+ * drawModel` command machinery — every vertex edit flows through
+ * `commitCommand`, so the stack invariants hold by construction.
+ *
+ * Gap status (§G `DetectedGap.status`) is DERIVED, never stored: the pure
+ * `deriveGapStatus` join below maps (base detection status, editor state)
+ * → the user-facing status. The detected gaps in the session store stay
+ * untouched — re-running detection with different thresholds does not
+ * corrupt repair state (gap ids are deterministic per boundary pair, so
+ * surviving gaps keep their reconstructions; vanished ones are pruned).
+ *
+ * Phase 4 — Reconstruction Editor: Drawing. Zustand store, usable outside
+ * React (unit tests included).
+ */
+
+import { create } from "zustand";
+import {
+  addVertexCommand,
+  clearVerticesCommand,
+  commitCommand,
+  deleteVertexCommand,
+  EMPTY_HISTORY,
+  emptyReconstruction,
+  insertVertexCommand,
+  moveVertexCommand,
+  redoCommand,
+  undoCommand,
+  type DrawCommand,
+  type DrawHistory,
+  type VertexPosition,
+} from "@/features/reconstruction/drawModel";
+import type {
+  GapId,
+  Reconstruction,
+  VertexId,
+} from "@/types/domain";
+import { vertexId } from "@/types/ids";
+
+/** The user-facing repair status of a gap (§G `DetectedGap.status`). */
+export type GapStatus =
+  | "new"
+  | "in-progress"
+  | "reconstructed"
+  | "skipped";
+
+interface EditorState {
+  activeGapId: GapId | null;
+  drawMode: boolean;
+  snapEnabled: boolean;
+  reconstructions: Readonly<Record<string, Reconstruction>>;
+  skippedGapIds: readonly GapId[];
+  history: DrawHistory;
+  /** Monotonic vertex-id allocator (never reused within a session). */
+  vertexSeq: number;
+
+  /** Open the draw editor for a gap (creates an empty repair if needed). */
+  openEditor: (gapId: GapId) => void;
+  /** Close the active editor (keeps the reconstruction; drops history). */
+  closeEditor: () => void;
+  setDrawMode: (on: boolean) => void;
+  setSnapEnabled: (on: boolean) => void;
+  /** Commit a command for the active gap (pure drawModel underneath). */
+  submitCommand: (command: DrawCommand | null) => void;
+  addVertex: (position: VertexPosition) => void;
+  insertVertex: (index: number, position: VertexPosition) => void;
+  moveVertex: (vertexId: VertexId, to: VertexPosition) => void;
+  deleteVertex: (vertexId: VertexId) => void;
+  clearVertices: () => void;
+  undo: () => void;
+  redo: () => void;
+  /** Settings (§D-3.5) — not commands, never undoable. */
+  setResampleSpacing: (gapId: GapId, spacing: number | "off") => void;
+  /** Toggle the skip mark; skipping the active gap closes its editor. */
+  toggleSkip: (gapId: GapId) => void;
+  /** Drop state for gaps that no longer exist after re-detection. */
+  prune: (knownGapIds: readonly GapId[]) => void;
+  /** Full reset (new file / session reset). */
+  reset: () => void;
+}
+
+const INITIAL = {
+  activeGapId: null,
+  drawMode: false,
+  snapEnabled: true,
+  reconstructions: {} as Readonly<Record<string, Reconstruction>>,
+  skippedGapIds: [] as readonly GapId[],
+  history: EMPTY_HISTORY,
+  vertexSeq: 0,
+};
+
+/** The reconstruction of the active gap, or `null` when none is open. */
+export function activeReconstruction(
+  state: Pick<EditorState, "activeGapId" | "reconstructions">,
+): Reconstruction | null {
+  return state.activeGapId === null
+    ? null
+    : (state.reconstructions[state.activeGapId] ?? null);
+}
+
+export const useEditorStore = create<EditorState>()((set, get) => ({
+  ...INITIAL,
+
+  openEditor: (gapId) =>
+    set((state) => {
+      const existing = state.reconstructions[gapId];
+      return {
+        activeGapId: gapId,
+        drawMode: true,
+        history: EMPTY_HISTORY,
+        reconstructions: existing
+          ? state.reconstructions
+          : {
+              ...state.reconstructions,
+              [gapId]: emptyReconstruction(gapId),
+            },
+        // Editing a gap implies repairing it — an explicit skip mark from
+        // before is withdrawn (the derived status shows "in-progress").
+        skippedGapIds: state.skippedGapIds.filter((id) => id !== gapId),
+      };
+    }),
+
+  closeEditor: () =>
+    set({
+      activeGapId: null,
+      history: EMPTY_HISTORY,
+      drawMode: false,
+    }),
+
+  setDrawMode: (drawMode) => set({ drawMode }),
+  setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
+
+  submitCommand: (command) => {
+    const state = get();
+    const current = activeReconstruction(state);
+    if (!current || !command) return;
+    const next = commitCommand(
+      { reconstruction: current, history: state.history },
+      command,
+    );
+    set({
+      reconstructions: {
+        ...state.reconstructions,
+        [current.gapId]: next.reconstruction,
+      },
+      history: next.history,
+    });
+  },
+
+  addVertex: (position) => {
+    const state = get();
+    const current = activeReconstruction(state);
+    if (!current) return;
+    const seq = state.vertexSeq + 1;
+    const command = addVertexCommand(current, position, vertexId(seq));
+    if (!command) return;
+    const next = commitCommand(
+      { reconstruction: current, history: state.history },
+      command,
+    );
+    set({
+      vertexSeq: seq,
+      reconstructions: {
+        ...state.reconstructions,
+        [current.gapId]: next.reconstruction,
+      },
+      history: next.history,
+    });
+  },
+
+  insertVertex: (index, position) => {
+    const state = get();
+    const current = activeReconstruction(state);
+    if (!current) return;
+    const seq = state.vertexSeq + 1;
+    const command = insertVertexCommand(
+      current,
+      index,
+      position,
+      vertexId(seq),
+    );
+    if (!command) return;
+    const next = commitCommand(
+      { reconstruction: current, history: state.history },
+      command,
+    );
+    set({
+      vertexSeq: seq,
+      reconstructions: {
+        ...state.reconstructions,
+        [current.gapId]: next.reconstruction,
+      },
+      history: next.history,
+    });
+  },
+
+  moveVertex: (vertexId, to) => {
+    const state = get();
+    const current = activeReconstruction(state);
+    if (!current) return;
+    const command = moveVertexCommand(current, vertexId, to);
+    get().submitCommand(command);
+  },
+
+  deleteVertex: (vertexId) => {
+    const state = get();
+    const current = activeReconstruction(state);
+    if (!current) return;
+    const command = deleteVertexCommand(current, vertexId);
+    get().submitCommand(command);
+  },
+
+  clearVertices: () => {
+    const state = get();
+    const current = activeReconstruction(state);
+    if (!current) return;
+    const command = clearVerticesCommand(current);
+    get().submitCommand(command);
+  },
+
+  undo: () => {
+    const state = get();
+    const current = activeReconstruction(state);
+    if (!current) return;
+    const next = undoCommand({
+      reconstruction: current,
+      history: state.history,
+    });
+    set({
+      reconstructions: {
+        ...state.reconstructions,
+        [current.gapId]: next.reconstruction,
+      },
+      history: next.history,
+    });
+  },
+
+  redo: () => {
+    const state = get();
+    const current = activeReconstruction(state);
+    if (!current) return;
+    const next = redoCommand({
+      reconstruction: current,
+      history: state.history,
+    });
+    set({
+      reconstructions: {
+        ...state.reconstructions,
+        [current.gapId]: next.reconstruction,
+      },
+      history: next.history,
+    });
+  },
+
+  setResampleSpacing: (gapId, spacing) =>
+    set((state) => {
+      const current = state.reconstructions[gapId];
+      if (!current || current.resampleSpacingM === spacing) return state;
+      // A settings change, not geometry: geometryRevision stays untouched
+      // (§D-3.5 — elevation fetched for the vertices stays valid).
+      return {
+        reconstructions: {
+          ...state.reconstructions,
+          [gapId]: { ...current, resampleSpacingM: spacing },
+        },
+      };
+    }),
+
+  toggleSkip: (gapId) =>
+    set((state) => {
+      const skipped = state.skippedGapIds.includes(gapId);
+      return {
+        skippedGapIds: skipped
+          ? state.skippedGapIds.filter((id) => id !== gapId)
+          : [...state.skippedGapIds, gapId],
+        // Skipping the gap being edited abandons the session (the
+        // reconstruction itself is kept — unskipping brings it back).
+        ...(state.activeGapId === gapId && !skipped
+          ? { activeGapId: null, history: EMPTY_HISTORY, drawMode: false }
+          : {}),
+      };
+    }),
+
+  prune: (knownGapIds) =>
+    set((state) => {
+      const known = new Set<string>(knownGapIds);
+      const reconstructions = Object.fromEntries(
+        Object.entries(state.reconstructions).filter(([id]) =>
+          known.has(id),
+        ),
+      );
+      const skippedGapIds = state.skippedGapIds.filter((id) =>
+        known.has(id),
+      );
+      const activeGone =
+        state.activeGapId !== null && !known.has(state.activeGapId);
+      const changed =
+        Object.keys(reconstructions).length !==
+          Object.keys(state.reconstructions).length ||
+        skippedGapIds.length !== state.skippedGapIds.length ||
+        activeGone;
+      if (!changed) return state;
+      return {
+        reconstructions,
+        skippedGapIds,
+        ...(activeGone
+          ? { activeGapId: null, history: EMPTY_HISTORY, drawMode: false }
+          : {}),
+      };
+    }),
+
+  reset: () => set({ ...INITIAL }),
+}));
+
+// ---------------------------------------------------------------------------
+// Derived status (pure — the join the UI renders)
+// ---------------------------------------------------------------------------
+
+/** Everything needed to derive a gap's user-facing repair status. */
+export interface GapStatusInput {
+  gapId: GapId;
+  activeGapId: GapId | null;
+  reconstruction?: Reconstruction;
+  skipped: boolean;
+}
+
+/**
+ * The repair status of one gap. Priority (documented semantics):
+ *
+ *   1. `in-progress` — its editor is open (even if previously skipped:
+ *      editing implies repairing);
+ *   2. `skipped` — the user declined to repair it;
+ *   3. `reconstructed` — vertices exist and no editor is open;
+ *   4. `new` — untouched.
+ */
+export function deriveGapStatus(input: GapStatusInput): GapStatus {
+  if (input.gapId === input.activeGapId) return "in-progress";
+  if (input.skipped) return "skipped";
+  if ((input.reconstruction?.vertices.length ?? 0) > 0) {
+    return "reconstructed";
+  }
+  return "new";
+}

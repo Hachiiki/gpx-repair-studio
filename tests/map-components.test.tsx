@@ -15,16 +15,18 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DrawDistanceBadge } from "@/components/map/draw-distance-badge";
 import { GapHighlightOverlay } from "@/components/map/gap-highlight-overlay";
 import { MapCanvas } from "@/components/map/map-canvas";
 import { MapLegend } from "@/components/map/map-legend";
 import { MapToolbar } from "@/components/map/map-toolbar";
 import { GapList } from "@/components/reconstruction/gap-list";
+import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
 import type { MapBinding } from "@/hooks/use-map-controller";
 import type { GapRow, GapThresholds } from "@/hooks/use-gpx-session";
 import { USER_TILE_PROVIDER_OPTIONS } from "@/lib/map/styles";
 import type { BBox } from "@/lib/geo/bbox";
-import type { GapId } from "@/types/domain";
+import type { GapId, VertexId } from "@/types/domain";
 
 afterEach(() => cleanup());
 
@@ -57,6 +59,7 @@ function makeBinding(
       ],
       spans: [],
       markers: [],
+      reconstructions: [],
       usablePointCount: 2,
     },
     selectedGapId: null,
@@ -68,6 +71,44 @@ function makeBinding(
     setProvider: () => {},
     retryBasemap: () => {},
     fitToActivity: () => {},
+    getController: () => null,
+    ...overrides,
+  };
+}
+
+/** A fake draw-editor binding for the MapCanvas chrome tests. */
+function makeDrawBinding(
+  overrides: Partial<DrawEditorBinding> = {},
+): DrawEditorBinding {
+  return {
+    active: true,
+    activeGap: GAP_ROW,
+    drawMode: true,
+    snapEnabled: true,
+    vertices: [],
+    vertexCount: 0,
+    maxVertices: 128,
+    atVertexCap: false,
+    distanceM: 623.4,
+    straightLine: false,
+    resampleSpacing: "off",
+    canUndo: false,
+    canRedo: false,
+    undoCount: 0,
+    redoCount: 0,
+    statusById: {},
+    reconstructedCount: 0,
+    skippedCount: 0,
+    openEditor: () => {},
+    closeEditor: () => {},
+    setDrawMode: () => {},
+    setSnapEnabled: () => {},
+    undo: () => {},
+    redo: () => {},
+    clearVertices: () => {},
+    setResampleSpacing: () => {},
+    toggleSkip: () => {},
+    deleteVertex: (_vertexId: VertexId) => {},
     ...overrides,
   };
 }
@@ -140,7 +181,13 @@ describe("MapCanvas", () => {
     render(
       <MapCanvas
         map={makeBinding({
-          route: { lines: [], spans: [], markers: [], usablePointCount: 0 },
+          route: {
+            lines: [],
+            spans: [],
+            markers: [],
+            reconstructions: [],
+            usablePointCount: 0,
+          },
         })}
         attachContainer={() => {}}
       />,
@@ -202,6 +249,124 @@ describe("MapToolbar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Fit activity in view" }));
     expect(onFitActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the Draw/Pan toggle without an editor session", () => {
+    render(
+      <MapToolbar
+        provider="openfreemap"
+        providers={USER_TILE_PROVIDER_OPTIONS}
+        onProviderChange={() => {}}
+        onFitActivity={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId("draw-mode-toggle")).toBeNull();
+  });
+
+  it("renders the Draw/Pan toggle and fires mode intents", () => {
+    const onToggle = vi.fn();
+    render(
+      <MapToolbar
+        provider="openfreemap"
+        providers={USER_TILE_PROVIDER_OPTIONS}
+        onProviderChange={() => {}}
+        onFitActivity={() => {}}
+        drawMode={true}
+        onToggleDrawMode={onToggle}
+      />,
+    );
+    const toggle = screen.getByTestId("draw-mode-toggle");
+    expect(toggle).toBeVisible();
+    expect(screen.getByTestId("draw-mode-draw")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByTestId("draw-mode-pan")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    fireEvent.click(screen.getByTestId("draw-mode-pan"));
+    expect(onToggle).toHaveBeenCalledWith(false);
+    fireEvent.click(screen.getByTestId("draw-mode-draw"));
+    expect(onToggle).toHaveBeenCalledWith(true);
+  });
+});
+
+describe("DrawDistanceBadge", () => {
+  it("shows the live distance, estimated badge, and draw hints", () => {
+    render(
+      <DrawDistanceBadge
+        distanceM={1234.5}
+        vertexCount={3}
+        maxVertices={128}
+        drawMode={true}
+      />,
+    );
+    const badge = screen.getByTestId("draw-distance-badge");
+    expect(screen.getByTestId("badge-distance")).toHaveTextContent("1.23 km");
+    expect(screen.getByTestId("badge-vertex-count")).toHaveTextContent(
+      "3/128 pts",
+    );
+    expect(badge).toHaveTextContent("Estimated");
+    expect(badge).toHaveTextContent("Click to add");
+  });
+
+  it("switches to the pan-mode hint when drawing is off", () => {
+    render(
+      <DrawDistanceBadge
+        distanceM={50}
+        vertexCount={1}
+        maxVertices={128}
+        drawMode={false}
+      />,
+    );
+    expect(screen.getByTestId("draw-distance-badge")).toHaveTextContent(
+      "Pan mode",
+    );
+  });
+});
+
+describe("MapCanvas draw chrome (Phase 4)", () => {
+  it("shows the distance badge and Draw/Pan toggle during an editor session", () => {
+    render(
+      <MapCanvas
+        map={makeBinding()}
+        attachContainer={() => {}}
+        draw={makeDrawBinding({ vertexCount: 2, distanceM: 432.1 })}
+      />,
+    );
+    expect(screen.getByTestId("draw-distance-badge")).toBeVisible();
+    expect(screen.getByTestId("badge-distance")).toHaveTextContent("432 m");
+    expect(screen.getByTestId("draw-mode-toggle")).toBeVisible();
+  });
+
+  it("hides the selected-gap chip while editing (the draft owns the map)", () => {
+    render(
+      <MapCanvas
+        map={makeBinding({
+          selectedGapId: GAP_ROW.id,
+          selectedGap: GAP_ROW,
+          gapCount: 1,
+        })}
+        attachContainer={() => {}}
+        draw={makeDrawBinding()}
+      />,
+    );
+    expect(screen.queryByTestId("gap-highlight-overlay")).toBeNull();
+  });
+
+  it("announces the reconstruction in the screen-reader summary", () => {
+    render(
+      <MapCanvas
+        map={makeBinding()}
+        attachContainer={() => {}}
+        draw={makeDrawBinding({ vertexCount: 4 })}
+      />,
+    );
+    expect(screen.getByTestId("map-sr-summary")).toHaveTextContent(
+      "Reconstruction in progress: 4 drawn points",
+    );
   });
 });
 

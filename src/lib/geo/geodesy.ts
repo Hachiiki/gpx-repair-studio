@@ -188,3 +188,90 @@ export function polylineLengthMeters(points: readonly LatLon[]): number {
   }
   return total;
 }
+
+/** Initial bearing (forward azimuth) from `p1` to `p2`, in radians [0, 2π). */
+function initialBearingRad(p1: LatLon, p2: LatLon): number {
+  const phi1 = p1.lat * deg2rad;
+  const phi2 = p2.lat * deg2rad;
+  const dLambda = (p2.lon - p1.lon) * deg2rad;
+  const y = Math.sin(dLambda) * Math.cos(phi2);
+  const x =
+    Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
+  return Math.atan2(y, x);
+}
+
+/**
+ * Interpolate a position at fraction `t ∈ [0, 1]` along the great circle
+ * between `p1` and `p2` (spherical nlerp on unit vectors + renormalize).
+ *
+ * `t` is clamped; coincident endpoints return `p1`; antipodal endpoints
+ * (undefined great circle) degrade to linear interpolation. Used for
+ * resample fill points (features/reconstruction/resample.ts) and draw
+ * midpoint handles (lib/map) — one implementation, both consumers.
+ */
+export function interpolateLatLon(p1: LatLon, p2: LatLon, t: number): LatLon {
+  const clamped = Math.min(1, Math.max(0, t));
+  const phi1 = p1.lat * deg2rad;
+  const lambda1 = p1.lon * deg2rad;
+  const phi2 = p2.lat * deg2rad;
+  const lambda2 = p2.lon * deg2rad;
+
+  const x1 = Math.cos(phi1) * Math.cos(lambda1);
+  const y1 = Math.cos(phi1) * Math.sin(lambda1);
+  const z1 = Math.sin(phi1);
+  const x2 = Math.cos(phi2) * Math.cos(lambda2);
+  const y2 = Math.cos(phi2) * Math.sin(lambda2);
+  const z2 = Math.sin(phi2);
+
+  const x = x1 + (x2 - x1) * clamped;
+  const y = y1 + (y2 - y1) * clamped;
+  const z = z1 + (z2 - z1) * clamped;
+  const norm = Math.sqrt(x * x + y * y + z * z);
+  if (norm === 0) return { lat: p1.lat, lon: p1.lon };
+
+  const phi = Math.asin(Math.min(1, Math.max(-1, z / norm)));
+  const lambda = Math.atan2(y, x);
+  return {
+    lat: phi / deg2rad,
+    lon: ((((lambda / deg2rad) + 540) % 360) - 180),
+  };
+}
+
+/**
+ * Signed cross-track distance of `p` from the great-circle path
+ * `from → to`, in meters (spherical mean-Earth approximation).
+ *
+ * Positive when `p` lies right of the travel direction, negative when left,
+ * zero when on the path. Coincident `from`/`to` (no defined track) degrades
+ * to the plain distance `from → p` (unsigned). Non-finite inputs → NaN.
+ *
+ * Used by the draw editor's straight-line heuristic (Phase 4) — a warning
+ * aid, not a reported statistic, hence the spherical approximation is more
+ * than sufficient (≪ 0.5 % error at running scale).
+ */
+export function crossTrackDistanceMeters(
+  p: LatLon,
+  from: LatLon,
+  to: LatLon,
+): number {
+  if (
+    !hasFiniteCoords(p) ||
+    !hasFiniteCoords(from) ||
+    !hasFiniteCoords(to)
+  ) {
+    return NaN;
+  }
+  const theta12 = initialBearingRad(from, to);
+  const theta13 = initialBearingRad(from, p);
+  const delta13 = haversineDistanceMeters(from, p) / MEAN_EARTH_RADIUS_M;
+  if (delta13 === 0) return 0;
+  // Degenerate track (coincident anchors): no direction defined — the
+  // honest fallback is the plain distance to the anchor.
+  if (haversineDistanceMeters(from, to) < 1e-9) {
+    return haversineDistanceMeters(from, p);
+  }
+  const sinDxt = Math.sin(delta13) * Math.sin(theta13 - theta12);
+  const clamped = Math.min(1, Math.max(-1, sinDxt));
+  return Math.asin(clamped) * MEAN_EARTH_RADIUS_M;
+}

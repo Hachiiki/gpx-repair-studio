@@ -40,3 +40,13 @@ export function pointId(seg: SegmentId, index: number): PointId {
 export function gapId(beforePoint: PointId, afterPoint: PointId): GapId {
   return `gap/${beforePoint}/${afterPoint}` as GapId;
 }
+
+/**
+ * `v{sequence}` — a reconstruction vertex id. Sequence numbers are allocated
+ * monotonically by the editor store for the whole editing session (never
+ * reused, even after undo/delete), so ids stay unique across every gap's
+ * reconstruction and command history never aliases two different vertices.
+ */
+export function vertexId(sequence: number): VertexId {
+  return `v${sequence}` as VertexId;
+}

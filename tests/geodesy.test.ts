@@ -19,6 +19,8 @@ import {
   haversineDistanceMeters,
   polylineLengthMeters,
   hasFiniteCoords,
+  interpolateLatLon,
+  crossTrackDistanceMeters,
   MEAN_EARTH_RADIUS_M,
 } from "@/lib/geo/geodesy";
 import { bboxOf, unionBBox } from "@/lib/geo/bbox";
@@ -206,5 +208,93 @@ describe("bboxOf / unionBBox", () => {
         { minLat: -5, minLon: 5, maxLat: 5, maxLon: 20 },
       ]),
     ).toEqual({ minLat: -5, minLon: 0, maxLat: 10, maxLon: 20 });
+  });
+});
+
+describe("crossTrackDistanceMeters — Phase 4 goldens (spherical)", () => {
+  it("point 1° east of a north-going equatorial track ≈ 1° of arc", () => {
+    // Track: (0°, 0°) → (10°, 0°) heads due north along the meridian.
+    // Point (5°, 1°) sits exactly one degree of longitude east of it.
+    const dxt = crossTrackDistanceMeters(
+      { lat: 5, lon: 1 },
+      { lat: 0, lon: 0 },
+      { lat: 10, lon: 0 },
+    );
+    const oneDegree = (MEAN_EARTH_RADIUS_M * Math.PI) / 180;
+    expect(dxt).toBeCloseTo(oneDegree, -3); // ≈ 111 194.9 m
+  });
+
+  it("sign: east of a north-going track is positive, west negative", () => {
+    const trackFrom = { lat: 0, lon: 0 };
+    const trackTo = { lat: 10, lon: 0 };
+    expect(
+      crossTrackDistanceMeters({ lat: 5, lon: 0.01 }, trackFrom, trackTo),
+    ).toBeGreaterThan(0);
+    expect(
+      crossTrackDistanceMeters({ lat: 5, lon: -0.01 }, trackFrom, trackTo),
+    ).toBeLessThan(0);
+  });
+
+  it("zero on the track; NaN propagation; coincident-track fallback", () => {
+    expect(
+      crossTrackDistanceMeters(
+        { lat: 5, lon: 0 },
+        { lat: 0, lon: 0 },
+        { lat: 10, lon: 0 },
+      ),
+    ).toBeCloseTo(0, 6);
+    expect(
+      crossTrackDistanceMeters(
+        { lat: NaN, lon: 0 },
+        { lat: 0, lon: 0 },
+        { lat: 10, lon: 0 },
+      ),
+    ).toBeNaN();
+    // Degenerate track: distance to the anchor, unsigned.
+    const fallback = crossTrackDistanceMeters(
+      { lat: 0, lon: 0.001 },
+      { lat: 0, lon: 0 },
+      { lat: 0, lon: 0 },
+    );
+    expect(fallback).toBeGreaterThan(100);
+    expect(fallback).toBeLessThan(120);
+  });
+});
+
+describe("interpolateLatLon — Phase 4 (shared spherical interpolation)", () => {
+  it("t=0.5 on a meridian arc is the latitude midpoint", () => {
+    const mid = interpolateLatLon(
+      { lat: 10, lon: 20 },
+      { lat: 20, lon: 20 },
+      0.5,
+    );
+    expect(mid.lat).toBeCloseTo(15, 9);
+    expect(mid.lon).toBeCloseTo(20, 9);
+  });
+
+  it("quarter point of a long equatorial arc matches the analytic position (nlerp bound)", () => {
+    const q = interpolateLatLon(
+      { lat: 0, lon: 0 },
+      { lat: 0, lon: 4 },
+      0.25,
+    );
+    expect(q.lat).toBeCloseTo(0, 9);
+    // nlerp interpolates the CHORD, not the arc: on a 4° leg (~445 km —
+    // far beyond running-scale legs) the angular position lags by
+    // ≈ θ²/8 ≈ 0.03 %. Tighter than 3 decimals would test slerp, not nlerp.
+    expect(q.lon).toBeCloseTo(1, 3);
+  });
+
+  it("keeps sub-millimeter consistency with the geodesic distance split", () => {
+    const a = { lat: 52.52, lon: 13.405 };
+    const b = { lat: 48.8566, lon: 2.3522 };
+    const mid = interpolateLatLon(a, b, 0.5);
+    const total = geodesicDistanceMeters(a, b);
+    const firstHalf = geodesicDistanceMeters(a, mid);
+    const secondHalf = geodesicDistanceMeters(mid, b);
+    // Spherical interpolation vs ellipsoidal distance: the split must be
+    // near-equal (relative error far below running-scale relevance).
+    expect(Math.abs(firstHalf - secondHalf) / total).toBeLessThan(0.002);
+    expect(firstHalf + secondHalf).toBeCloseTo(total, -3);
   });
 });

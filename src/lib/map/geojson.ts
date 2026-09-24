@@ -14,7 +14,8 @@
  *
  * Coordinate order is GeoJSON's: `[lon, lat]`.
  *
- * Phase 3 — Map Display.
+ * Phase 3 — Map Display. Phase 4 — reconstruction lines + draw-session
+ * sources (handles, midpoints, draft line, rubber band).
  */
 
 import type {
@@ -23,6 +24,7 @@ import type {
   GapSeverity,
   PointId,
   SegmentId,
+  VertexId,
 } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
@@ -77,11 +79,24 @@ export interface GapBoundaryMarker {
   lon: number;
 }
 
+/**
+ * The rendered geometry of one committed reconstruction (hook-built via
+ * `resamplePath` — anchors included, spacing applied). A gap with a
+ * rendered reconstruction no longer draws its unknown dashed span.
+ */
+export interface ReconstructionPart {
+  gapId: GapId;
+  /** `[lon, lat]` pairs: before-anchor → path → after-anchor. */
+  coordinates: [number, number][];
+}
+
 /** Everything the map renders for one parsed file. */
 export interface RouteViewData {
   lines: readonly RouteLinePart[];
   spans: readonly GapSpanPart[];
   markers: readonly GapBoundaryMarker[];
+  /** Committed reconstructions (active editor gap excluded — draft mode). */
+  reconstructions: readonly ReconstructionPart[];
   /** Usable recorded points represented by `lines` (for text alternatives). */
   usablePointCount: number;
 }
@@ -162,5 +177,136 @@ export function gapMarkerCollection(
         coordinates: [marker.lon, marker.lat],
       },
     })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Reconstruction + draw-session builders (Phase 4)
+// ---------------------------------------------------------------------------
+
+/** Committed reconstruction lines — dashed emerald, one feature per gap. */
+export function reconstructionLineCollection(
+  parts: readonly ReconstructionPart[],
+): GeoJsonFeatureCollection<GeoJsonLineFeature<{ gapId: GapId }>> {
+  return {
+    type: "FeatureCollection",
+    features: parts.map((part) => ({
+      type: "Feature" as const,
+      properties: { gapId: part.gapId },
+      geometry: {
+        type: "LineString" as const,
+        coordinates: part.coordinates,
+      },
+    })),
+  };
+}
+
+/** A draggable/deletable vertex handle of the active draft. */
+export interface DrawHandleData {
+  gapId: GapId;
+  vertexId: VertexId;
+  index: number;
+  lat: number;
+  lon: number;
+}
+
+/**
+ * A "+"-style insertion handle at the geodesic midpoint of one path leg.
+ * `insertIndex` is the vertex-list index a click will insert at (the leg
+ * between path[j] and path[j+1] inserts at vertex index j).
+ */
+export interface DrawMidpointData {
+  gapId: GapId;
+  insertIndex: number;
+  lat: number;
+  lon: number;
+}
+
+export function drawHandleCollection(
+  handles: readonly DrawHandleData[],
+): GeoJsonFeatureCollection<
+  GeoJsonPointFeature<{ gapId: GapId; vertexId: VertexId; index: number }>
+> {
+  return {
+    type: "FeatureCollection",
+    features: handles.map((handle) => ({
+      type: "Feature" as const,
+      properties: {
+        gapId: handle.gapId,
+        vertexId: handle.vertexId,
+        index: handle.index,
+      },
+      geometry: {
+        type: "Point" as const,
+        coordinates: [handle.lon, handle.lat],
+      },
+    })),
+  };
+}
+
+export function drawMidpointCollection(
+  midpoints: readonly DrawMidpointData[],
+): GeoJsonFeatureCollection<GeoJsonPointFeature<{ gapId: GapId; insertIndex: number }>> {
+  return {
+    type: "FeatureCollection",
+    features: midpoints.map((midpoint) => ({
+      type: "Feature" as const,
+      properties: {
+        gapId: midpoint.gapId,
+        insertIndex: midpoint.insertIndex,
+      },
+      geometry: {
+        type: "Point" as const,
+        coordinates: [midpoint.lon, midpoint.lat],
+      },
+    })),
+  };
+}
+
+/** The active draft path (anchors + vertices, drag override applied). */
+export function draftLineCollection(
+  coordinates: readonly [number, number][],
+): GeoJsonFeatureCollection<GeoJsonLineFeature<{ draft: true }>> {
+  return {
+    type: "FeatureCollection",
+    features:
+      coordinates.length >= 2
+        ? [
+            {
+              type: "Feature" as const,
+              properties: { draft: true },
+              geometry: {
+                type: "LineString" as const,
+                coordinates: coordinates as [number, number][],
+              },
+            },
+          ]
+        : [],
+  };
+}
+
+/** The rubber band: last path point → cursor (empty when hidden). */
+export function rubberBandCollection(
+  from: { lat: number; lon: number } | null,
+  to: { lat: number; lon: number } | null,
+): GeoJsonFeatureCollection<GeoJsonLineFeature<{ rubber: true }>> {
+  if (!from || !to) {
+    return { type: "FeatureCollection", features: [] };
+  }
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature" as const,
+        properties: { rubber: true },
+        geometry: {
+          type: "LineString" as const,
+          coordinates: [
+            [from.lon, from.lat],
+            [to.lon, to.lat],
+          ],
+        },
+      },
+    ],
   };
 }

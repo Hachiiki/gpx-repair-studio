@@ -45,6 +45,20 @@ export function MapLegend() {
           />
           Gap boundaries (ring = before, dot = after)
         </li>
+        <li className="flex items-center gap-2">
+          <span
+            className={`${SAMPLE_LINE_CLASS} bg-[repeating-linear-gradient(90deg,#059669_0_6px,transparent_6px_11px)]`}
+            aria-hidden="true"
+          />
+          Reconstructed route (dashed)
+        </li>
+        <li className="flex items-center gap-2">
+          <span
+            className="size-2.5 rounded-full border-2 border-[#059669] bg-white"
+            aria-hidden="true"
+          />
+          Drawn point (drag to move)
+        </li>
       </ul>
     </div>
   );
