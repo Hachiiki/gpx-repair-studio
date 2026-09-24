@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="MultiTracker" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Two Loops</name>
+    <time>2024-05-01T07:00:00Z</time>
+  </metadata>
+  <trk>
+    <name>Loop A</name>
+    <type>running</type>
+    <trkseg>
+      <trkpt lat="52.520006" lon="13.404954"><ele>41.6</ele><time>2024-05-01T07:00:00Z</time></trkpt>
+      <trkpt lat="52.520051" lon="13.405024"><ele>41.7</ele><time>2024-05-01T07:00:03Z</time></trkpt>
+      <trkpt lat="52.520096" lon="13.405094"><ele>41.9</ele><time>2024-05-01T07:00:05Z</time></trkpt>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>Loop B</name>
+    <type>running</type>
+    <trkseg>
+      <trkpt lat="52.530006" lon="13.414954"><ele>43.1</ele><time>2024-05-01T07:10:00Z</time></trkpt>
+      <trkpt lat="52.530051" lon="13.415024"><ele>43.2</ele><time>2024-05-01T07:10:03Z</time></trkpt>
+      <trkpt lat="52.530096" lon="13.415094"><ele>43.4</ele><time>2024-05-01T07:10:05Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

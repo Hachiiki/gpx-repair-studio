@@ -20,5 +20,21 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts", "src/**/*.test.ts"],
+    coverage: {
+      provider: "v8",
+      // Phase 1 acceptance (docs/MASTER_PLAN.md §C-3): >= 90% line coverage on
+      // domain modules. Scope measurement to the domain surface; fixture data
+      // files (.gpx) are not code.
+      include: [
+        "src/types/**",
+        "src/lib/geo/**",
+        "src/features/gpx/**",
+        "src/lib/utils/xml.ts",
+      ],
+      exclude: ["src/features/gpx/fixtures/files/**"],
+      thresholds: {
+        lines: 90,
+      },
+    },
   },
 });

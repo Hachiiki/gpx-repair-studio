@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Garmin Connect" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1" xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3">
+  <metadata>
+    <name>Garmin Run</name>
+    <time>2024-05-01T07:00:00Z</time>
+    <extensions>
+      <gpxx:WaypointExtension>
+        <gpxx:DisplayColor>Red</gpxx:DisplayColor>
+      </gpxx:WaypointExtension>
+    </extensions>
+  </metadata>
+  <trk>
+    <name>Garmin Run</name>
+    <type>running</type>
+    <extensions>
+      <gpxx:TrackStatsExtension>
+        <gpxx:Distance>1240.5</gpxx:Distance>
+        <gpxx:TimerTime>600</gpxx:TimerTime>
+      </gpxx:TrackStatsExtension>
+    </extensions>
+    <trkseg>
+      <trkpt lat="52.520006" lon="13.404954">
+        <ele>41.6</ele>
+        <time>2024-05-01T07:00:00Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>152</gpxtpx:hr>
+            <gpxtpx:cad>84</gpxtpx:cad>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="52.520051" lon="13.405024">
+        <ele>41.7</ele>
+        <time>2024-05-01T07:00:03Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>155</gpxtpx:hr>
+            <gpxtpx:cad>86</gpxtpx:cad>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="52.520096" lon="13.405094">
+        <ele>41.9</ele>
+        <time>2024-05-01T07:00:06Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>158</gpxtpx:hr>
+            <gpxtpx:cad>84</gpxtpx:cad>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="52.520141" lon="13.405164">
+        <ele>42.0</ele>
+        <time>2024-05-01T07:00:09Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>160</gpxtpx:hr>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

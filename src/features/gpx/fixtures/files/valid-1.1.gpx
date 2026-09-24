@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Garmin Connect" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Morning Run</name>
+    <time>2024-05-01T07:00:00Z</time>
+  </metadata>
+  <trk>
+    <name>Morning Run</name>
+    <type>running</type>
+    <trkseg>
+      <trkpt lat="52.520006" lon="13.404954">
+        <ele>41.6</ele>
+        <time>2024-05-01T07:00:00Z</time>
+      </trkpt>
+      <trkpt lat="52.520051" lon="13.405024">
+        <ele>41.7</ele>
+        <time>2024-05-01T07:00:03Z</time>
+      </trkpt>
+      <trkpt lat="52.520096" lon="13.405094">
+        <ele>41.9</ele>
+        <time>2024-05-01T07:00:06Z</time>
+      </trkpt>
+      <trkpt lat="52.520141" lon="13.405164">
+        <ele>42.0</ele>
+        <time>2024-05-01T07:00:09Z</time>
+      </trkpt>
+      <trkpt lat="52.520186" lon="13.405234">
+        <ele>42.1</ele>
+        <time>2024-05-01T07:00:12Z</time>
+      </trkpt>
+      <trkpt lat="52.520231" lon="13.405304">
+        <ele>42.3</ele>
+        <time>2024-05-01T07:00:15Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

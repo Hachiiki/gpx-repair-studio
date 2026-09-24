@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="One Shot" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Single</name>
+    <trkseg>
+      <trkpt lat="48.858370" lon="2.294480"><ele>57.0</ele><time>2024-05-01T07:00:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

@@ -150,6 +150,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "skills",
     ".zscripts/**",
     ".build-verify/**",
+    "coverage/**",
     "playwright-report/**",
     "test-results/**",
   ],

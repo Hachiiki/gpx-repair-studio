@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Messy Watch" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Kitchen Sink</name>
+    <trkseg>
+      <trkpt lat="52.520006" lon="13.404954"><ele>41.6</ele><time>2024-05-01T07:00:00Z</time></trkpt>
+      <trkpt lat="52.520006" lon="13.404954"><ele>41.6</ele><time>2024-05-01T07:00:03Z</time></trkpt>
+      <trkpt lat="0.0" lon="0.0"><ele>0.0</ele><time>2024-05-01T07:00:06Z</time></trkpt>
+      <trkpt lat="0.0" lon="0.0"><ele>0.0</ele><time>2024-05-01T07:00:09Z</time></trkpt>
+      <trkpt lat="52.530096" lon="13.415094"><ele>44.0</ele><time>2024-05-01T07:00:02Z</time></trkpt>
+      <trkpt lat="52.530141" lon="13.415164"><ele>44.1</ele><time>2024-05-01T07:00:05Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx:gpx xmlns:gpx="http://www.topografix.com/GPX/1/1" version="1.1" creator="Prefixer 3000">
+  <gpx:trk>
+    <gpx:name>Prefix Run</gpx:name>
+    <gpx:trkseg>
+      <gpx:trkpt lat="52.520006" lon="13.404954"><gpx:ele>41.6</gpx:ele><gpx:time>2024-05-01T07:00:00Z</gpx:time></gpx:trkpt>
+      <gpx:trkpt lat="52.520051" lon="13.405024"><gpx:ele>41.7</gpx:ele><gpx:time>2024-05-01T07:00:03Z</gpx:time></gpx:trkpt>
+      <gpx:trkpt lat="52.520096" lon="13.405094"><gpx:ele>41.9</gpx:ele><gpx:time>2024-05-01T07:00:06Z</gpx:time></gpx:trkpt>
+    </gpx:trkseg>
+  </gpx:trk>
+</gpx:gpx>

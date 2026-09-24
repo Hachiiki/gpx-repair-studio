@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.0" creator="Garmin eTrex 20" xmlns="http://www.topografix.com/GPX/1/0">
+  <name>Old Trail</name>
+  <time>2019-07-06T05:30:00Z</time>
+  <trk>
+    <name>Old Trail</name>
+    <trkseg>
+      <trkpt lat="47.123456" lon="11.234567"><ele>1020.5</ele><time>2019-07-06T05:30:00Z</time></trkpt>
+      <trkpt lat="47.123501" lon="11.234652"><ele>1021.0</ele><time>2019-07-06T05:30:05Z</time></trkpt>
+      <trkpt lat="47.123546" lon="11.234737"><ele>1021.8</ele><time>2019-07-06T05:30:10Z</time></trkpt>
+      <trkpt lat="47.123591" lon="11.234822"><ele>1022.4</ele><time>2019-07-06T05:30:15Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
