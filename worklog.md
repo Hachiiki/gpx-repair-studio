@@ -180,3 +180,21 @@ Stage Summary:
   - Architecture impact: features/reconstruction now exists as the third feature domain (pure, coverage-scoped); the editor store establishes the pattern for repair state (keyed by deterministic gap ids, prunable, reset-on-new-file); MapBinding.getController opens a sanctioned controller-access channel for sibling hooks (components still cannot import lib/map); the active-flag render ref documents the draft/committed split that Phase 5 (timestamps over the same path) and Phase 7 (merge/export from the same reconstructions map) will build on; E2E bridge gained projectLatLon/unprojectXY — reusable for Phase 5+ assertions.
 - Known deviations: MAX_VERTICES=128 and SNAP_RADIUS_PX=14 are Phase-4 constants (tunable later via settings if users ask); drag-commit snapping applies once at mouseup (no live snap preview during drag — documented in-controller); Playwright runs serially in this sandbox (memory budget, config-documented).
 - Next: await user authorization for Phase 5 — Time & Pace Reconstruction.
+
+---
+Task ID: 8
+Agent: Super Z (main agent)
+Task: Manual-testing support — user asked "how can I test everything we have done?" and clarified the push workflow (commit + push per BIG change, not batched per phase). Deliver small, friendly demo GPX samples a human can upload through the real UI, pinned by tests, and push this change on its own as the first application of the per-change flow.
+
+Work Log:
+- Confirmed repo state first: Phase 4 (Task ID 7) already committed `phase(4): reconstruction drawing editor` and pushed; clean tree; 0/0 ahead/behind; dev server healthy (GET / 200s).
+- Reused mulberry32 from src/features/gpx/fixtures/generators.ts as the single random source (no new PRNG) — the e2e generator only expresses single-gap perf files, so a dedicated small script was required for multi-gap manual samples.
+- scripts/generate-demo-gpx.ts: deterministic demo-sample generator. QC Circle (Quezon City) runs at ~2.8 m/s, 1 Hz, gentle meander + pace noise, smooth elevation; recording holes = time jump + straight-line spatial jump (paused-watch signature). Outputs to download/: demo-qc-run-with-gaps.gpx (1260 pts, legs 420/480/360 s; hole 1 = 240 s + 550 m -> suspect time-gap; hole 2 = 1560 s + 2100 m -> severe time-gap) and demo-clean-run.gpx (900 pts, no anomalies).
+- tests/demo-samples.test.ts: runs both samples through the REAL parseGpx + detectGaps (reuse of makeIo test helper). Asserts: with-gaps parses clean (no issues), 1260 points, exactly 2 gaps sorted severe->suspect with elapsedMs 1_561_000 / 241_000, implied speeds < 25 km/h (pure time evidence), anchors distinct; clean file = 900 points, zero gaps. Manual-testing expectations can never silently go stale.
+- Verification: typecheck PASS; lint PASS; vitest 318/318 PASS (315 + 3 new).
+- Committed and pushed as its own change immediately (per the user's clarified per-big-change push flow): `chore: demo GPX samples for manual testing`.
+
+Stage Summary:
+- Manual testers now have two small committed samples (download/demo-*.gpx) with pinned, printed expectations; regenerable via `bun scripts/generate-demo-gpx.ts`.
+- Push workflow going forward: every big change = own commit, pushed as soon as it is green (not accumulated per phase). Phase 4 predates this clarification and sits on the remote as one commit; splitting it would require a history rewrite (force-push) — offered to the user, awaiting their call.
+- Next: await user authorization for Phase 5 — Time & Pace Reconstruction.
