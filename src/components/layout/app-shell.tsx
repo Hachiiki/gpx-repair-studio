@@ -11,7 +11,8 @@
  *     see state/ui-store.ts), and
  *   - the four session states (idle hero / loading / error / workspace).
  *
- * Phase 2 — Upload & Inspection UI.
+ * Phase 3 — Map Display: composes the map binding (useMapController) and
+ * distributes selection state to the map canvas and the gap list.
  */
 
 "use client";
@@ -19,8 +20,8 @@
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { AppHeader } from "@/components/layout/header";
-import { MapPlaceholder } from "@/components/layout/map-placeholder";
 import { PanelGrid } from "@/components/layout/panel-grid";
+import { MapCanvas } from "@/components/map/map-canvas";
 import { GpxSummaryCard } from "@/components/gpx/gpx-summary-card";
 import { SegmentList } from "@/components/gpx/segment-list";
 import { SessionErrorAlert } from "@/components/gpx/session-error-alert";
@@ -29,10 +30,12 @@ import { ValidationReport } from "@/components/gpx/validation-report";
 import { GapList } from "@/components/reconstruction/gap-list";
 import { StatsPanel } from "@/components/statistics/stats-panel";
 import { useGpxSession } from "@/hooks/use-gpx-session";
+import { useMapController } from "@/hooks/use-map-controller";
 import { useUiStore } from "@/state/ui-store";
 
 export function AppShell() {
   const session = useGpxSession();
+  const map = useMapController(session);
 
   // Rehydrate persisted settings after mount — the prerendered HTML and
   // the first client render both use defaults, so there is no hydration
@@ -63,7 +66,7 @@ export function AppShell() {
                 <SegmentList rows={session.segmentRows} />
               </>
             }
-            map={<MapPlaceholder extent={session.extent} />}
+            map={<MapCanvas map={map} attachContainer={map.setContainer} />}
             findings={
               <>
                 <GapList
@@ -71,6 +74,8 @@ export function AppShell() {
                   thresholds={session.gapThresholds}
                   onThresholdsChange={session.setGapThresholds}
                   onThresholdsReset={session.resetGapThresholds}
+                  selectedGapId={map.selectedGapId}
+                  onSelectGap={map.selectGap}
                 />
                 {session.distanceStats && session.timeStats && (
                   <StatsPanel

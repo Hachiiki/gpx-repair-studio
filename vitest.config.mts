@@ -12,13 +12,30 @@ import { defineConfig } from "vitest/config";
  *   `// @vitest-environment jsdom` per file or via a projects setup.
  */
 export default defineConfig({
+  // Vitest must never run the app's PostCSS/Tailwind pipeline (component
+  // tests import maplibre-gl's stylesheet, which is a build-time concern
+  // only). An inline empty postcss config also stops Vite from trying to
+  // load postcss.config.mjs, whose Tailwind 4 plugin it cannot parse.
+  css: {
+    postcss: { plugins: [] },
+  },
   resolve: {
     alias: {
       "@": path.resolve(process.cwd(), "src"),
+      // maplibre-gl's stylesheet is a build-time concern; alias it to a
+      // stub so component tests don't drag the PostCSS pipeline in.
+      "maplibre-gl/dist/maplibre-gl.css": path.resolve(
+        process.cwd(),
+        "tests/helpers/empty-stub.css",
+      ),
     },
   },
   test: {
     environment: "node",
+    // Component tests import maplibre-gl's stylesheet (a build-time
+    // concern); vitest must not drag the app's PostCSS/Tailwind pipeline
+    // into unit runs — replace all CSS with empty modules.
+    css: false,
     // .test.ts = domain/architecture tests (node); .test.tsx = RTL
     // component tests (each carries a `// @vitest-environment jsdom`
     // docblock, Phase 2+).
@@ -41,6 +58,11 @@ export default defineConfig({
         "src/features/statistics/**",
         "src/lib/utils/xml.ts",
         "src/lib/utils/format.ts",
+        // Phase 3: the pure map modules (provider registry, GeoJSON
+        // builders). The MapLibre controller itself is browser-only
+        // (WebGL) and covered by E2E, so it stays out of the scope.
+        "src/lib/map/styles.ts",
+        "src/lib/map/geojson.ts",
       ],
       exclude: ["src/features/gpx/fixtures/files/**"],
       thresholds: {

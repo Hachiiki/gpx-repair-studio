@@ -1,11 +1,14 @@
 /**
- * GapList — textual listing of detected repair sites
- * (Phase 2 scope: "detected gaps … textual, with times/elapsed/coords").
+ * GapList — textual listing of detected repair sites (Phase 2) with
+ * selection sync (Phase 3: "GapList ↔ map selection sync").
  *
- * Phase 2 is inspection only: rows show kind, severity, elapsed time,
- * straight-line diagnostics, and the boundary points' coordinates and
- * timestamps. Selection ↔ map focus sync arrives with the map (Phase 3);
- * repair actions arrive with the draw editor (Phase 4).
+ * Rows show kind, severity, elapsed time, straight-line diagnostics, and
+ * the boundary points' coordinates and timestamps. Selecting a row
+ * highlights the gap on the map and focuses it (the map binding owns the
+ * controller); selecting a gap on the map highlights the row here — both
+ * directions flow through the shared `selectedGapId` in the UI store.
+ *
+ * Repair actions arrive with the draw editor (Phase 4).
  */
 
 import {
@@ -19,11 +22,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { CircleCheck } from "lucide-react";
 import { GapThresholdSettings } from "@/components/gpx/gap-threshold-settings";
 import {
-  StatusBadge,
-  type StatusTone,
-} from "@/components/shared/status-badge";
+  GAP_KIND_LABELS,
+  GapSeverityBadge,
+} from "@/components/shared/gap-vocabulary";
 import type { GapRow, GapThresholds } from "@/hooks/use-gpx-session";
-import type { GapKind, GapSeverity } from "@/types/domain";
+import type { GapId } from "@/types/domain";
 import {
   formatDateTime,
   formatDistanceMeters,
@@ -31,22 +34,6 @@ import {
   formatLatLon,
   formatSpeedKmh,
 } from "@/lib/utils/format";
-
-const KIND_LABELS: Record<GapKind, string> = {
-  "time-gap": "Time gap",
-  "speed-anomaly": "Speed anomaly",
-  "segment-break": "Segment break",
-};
-
-const SEVERITY_TONE: Record<GapSeverity, StatusTone> = {
-  severe: "danger",
-  suspect: "warning",
-  info: "neutral",
-};
-
-function SeverityBadge({ severity }: { severity: GapSeverity }) {
-  return <StatusBadge tone={SEVERITY_TONE[severity]}>{severity}</StatusBadge>;
-}
 
 function BoundaryLine({
   role,
@@ -70,6 +57,10 @@ export interface GapListProps {
   thresholds: GapThresholds;
   onThresholdsChange: (patch: Partial<GapThresholds>) => void;
   onThresholdsReset: () => void;
+  /** The gap currently highlighted on the map (shared selection). */
+  selectedGapId: GapId | null;
+  /** Select (or, when already selected, deselect) a gap. */
+  onSelectGap: (gapId: GapId | null) => void;
 }
 
 export function GapList({
@@ -77,6 +68,8 @@ export function GapList({
   thresholds,
   onThresholdsChange,
   onThresholdsReset,
+  selectedGapId,
+  onSelectGap,
 }: GapListProps) {
   return (
     <Card data-testid="gap-list">
@@ -107,40 +100,58 @@ export function GapList({
         ) : (
           <ScrollArea className="max-h-96 -mx-2">
             <ul className="grid gap-3 px-2">
-              {rows.map((row) => (
-                <li
-                  key={row.id}
-                  className="grid gap-1.5 rounded-lg border px-3 py-2.5"
-                  data-testid="gap-row"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <SeverityBadge severity={row.severity} />
-                    <span className="text-sm font-medium">
-                      {KIND_LABELS[row.kind]}
-                    </span>
-                    <span className="ml-auto text-sm tabular-nums">
-                      {row.elapsedMs !== undefined
-                        ? `${formatDurationMs(row.elapsedMs)} elapsed`
-                        : "elapsed unknown"}
-                    </span>
-                  </div>
-                  <BoundaryLine role="From" point={row.before} />
-                  <BoundaryLine role="To" point={row.after} />
-                  <p className="text-xs text-muted-foreground">
-                    Straight-line:{" "}
-                    {row.impliedDistanceM !== undefined
-                      ? formatDistanceMeters(row.impliedDistanceM)
-                      : "—"}
-                    {row.impliedSpeed !== undefined && (
-                      <>
-                        {" "}
-                        · implied speed{" "}
-                        {formatSpeedKmh(row.impliedSpeed * 3.6)}
-                      </>
-                    )}
-                  </p>
-                </li>
-              ))}
+              {rows.map((row) => {
+                const selected = row.id === selectedGapId;
+                return (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      data-testid="gap-row"
+                      data-selected={selected}
+                      aria-pressed={selected}
+                      aria-label={`Gap ${GAP_KIND_LABELS[row.kind]}, ${row.severity}. ${selected ? "Deselect" : "Select and focus on map"}.`}
+                      className={`grid w-full gap-1.5 rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-2 ${
+                        selected
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/40"
+                          : "hover:bg-accent"
+                      }`}
+                      onClick={() => onSelectGap(selected ? null : row.id)}
+                      ref={(el) => {
+                        if (selected && el?.scrollIntoView) {
+                          el.scrollIntoView({ block: "nearest" });
+                        }
+                      }}
+                    >
+                      <span className="flex flex-wrap items-center gap-2">
+                        <GapSeverityBadge severity={row.severity} />
+                        <span className="text-sm font-medium">
+                          {GAP_KIND_LABELS[row.kind]}
+                        </span>
+                        <span className="ml-auto text-sm tabular-nums">
+                          {row.elapsedMs !== undefined
+                            ? `${formatDurationMs(row.elapsedMs)} elapsed`
+                            : "elapsed unknown"}
+                        </span>
+                      </span>
+                      <BoundaryLine role="From" point={row.before} />
+                      <BoundaryLine role="To" point={row.after} />
+                      <span className="text-xs text-muted-foreground">
+                        Straight-line:{" "}
+                        {row.impliedDistanceM !== undefined
+                          ? formatDistanceMeters(row.impliedDistanceM)
+                          : "—"}
+                        {row.impliedSpeed !== undefined && (
+                          <>
+                            {" "}
+                            · implied speed{" "}
+                            {formatSpeedKmh(row.impliedSpeed * 3.6)}
+                          </>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </ScrollArea>
         )}

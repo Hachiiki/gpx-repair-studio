@@ -1,0 +1,8 @@
+{
+  "package": "maplibre-gl",
+  "version": "6.11.1",
+  "files": {
+    "maplibre-gl-worker.mjs": "9b59b123156783b3abc6d2d83f1ff02699a87ffd058557bbf22a62123de4dcac",
+    "maplibre-gl-shared.mjs": "43110afea7c453d547855a562558f39e41d7abdc70e6853734bc8967974d716b"
+  }
+}

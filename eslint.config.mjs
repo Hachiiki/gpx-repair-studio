@@ -153,6 +153,9 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "coverage/**",
     "playwright-report/**",
     "test-results/**",
+    // Vendored MapLibre worker assets (minified, synced from node_modules by
+    // scripts/sync-maplibre-worker.mjs — not project source).
+    "public/vendor/**",
   ],
 }];
 

@@ -24,6 +24,7 @@ beforeEach(() => {
   act(() => {
     useSessionStore.getState().reset();
     useUiStore.getState().resetGapThresholds();
+    useUiStore.setState({ selectedGapId: null, tileProvider: "openfreemap" });
   });
   window.localStorage.clear();
 });
@@ -73,7 +74,10 @@ describe("inspection flow", () => {
       "1 segment across 1 track",
     );
     expect(screen.getByTestId("validation-report")).toBeVisible();
-    expect(screen.getByTestId("map-placeholder")).toBeVisible();
+    // The map panel mounts; without WebGL (jsdom) the controller settles
+    // into the textual fallback, proving the slot and state machine work.
+    expect(screen.getByTestId("map-canvas")).toBeVisible();
+    expect(await screen.findByTestId("map-fallback")).toBeVisible();
   });
 
   it("shows a precise, actionable error for malformed XML", async () => {
