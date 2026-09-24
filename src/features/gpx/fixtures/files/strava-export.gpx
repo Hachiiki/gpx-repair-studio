@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="StravaGPX" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <time>2026-09-20T21:00:00Z</time>
+  </metadata>
+  <trk>
+    <name>QC Circle Morning Run</name>
+    <type>9</type>
+    <trkseg>
+      <trkpt lat="14.648800" lon="121.037700">
+        <ele>22.5</ele>
+        <time>2026-09-20T21:00:00Z</time>
+      </trkpt>
+      <trkpt lat="14.649020" lon="121.037820">
+        <ele>22.6</ele>
+        <time>2026-09-20T21:00:10Z</time>
+      </trkpt>
+      <trkpt lat="14.649240" lon="121.037940">
+        <ele>22.8</ele>
+        <time>2026-09-20T21:00:20Z</time>
+      </trkpt>
+      <trkpt lat="14.649460" lon="121.038060">
+        <ele>23.0</ele>
+        <time>2026-09-20T21:00:30Z</time>
+      </trkpt>
+      <trkpt lat="14.649680" lon="121.038180">
+        <ele>23.1</ele>
+        <time>2026-09-20T21:00:40Z</time>
+      </trkpt>
+      <trkpt lat="14.649900" lon="121.038300">
+        <ele>23.3</ele>
+        <time>2026-09-20T21:00:50Z</time>
+      </trkpt>
+      <trkpt lat="14.650120" lon="121.038420">
+        <ele>23.5</ele>
+        <time>2026-09-20T21:01:00Z</time>
+      </trkpt>
+      <trkpt lat="14.650340" lon="121.038540">
+        <ele>23.6</ele>
+        <time>2026-09-20T21:01:10Z</time>
+      </trkpt>
+      <trkpt lat="14.650560" lon="121.038660">
+        <ele>23.8</ele>
+        <time>2026-09-20T21:01:20Z</time>
+      </trkpt>
+      <trkpt lat="14.650780" lon="121.038780">
+        <ele>24.0</ele>
+        <time>2026-09-20T21:01:30Z</time>
+      </trkpt>
+      <trkpt lat="14.651000" lon="121.038900">
+        <ele>24.1</ele>
+        <time>2026-09-20T21:01:40Z</time>
+      </trkpt>
+      <trkpt lat="14.651220" lon="121.039020">
+        <ele>24.3</ele>
+        <time>2026-09-20T21:01:50Z</time>
+      </trkpt>
+      <trkpt lat="14.653520" lon="121.040320">
+        <ele>24.6</ele>
+        <time>2026-09-20T21:07:00Z</time>
+      </trkpt>
+      <trkpt lat="14.653740" lon="121.040440">
+        <ele>24.8</ele>
+        <time>2026-09-20T21:07:10Z</time>
+      </trkpt>
+      <trkpt lat="14.653960" lon="121.040560">
+        <ele>25.0</ele>
+        <time>2026-09-20T21:07:20Z</time>
+      </trkpt>
+      <trkpt lat="14.654180" lon="121.040680">
+        <ele>25.1</ele>
+        <time>2026-09-20T21:07:30Z</time>
+      </trkpt>
+      <trkpt lat="14.654400" lon="121.040800">
+        <ele>25.3</ele>
+        <time>2026-09-20T21:07:40Z</time>
+      </trkpt>
+      <trkpt lat="14.654620" lon="121.040920">
+        <ele>25.4</ele>
+        <time>2026-09-20T21:07:50Z</time>
+      </trkpt>
+      <trkpt lat="14.654840" lon="121.041040">
+        <ele>25.6</ele>
+        <time>2026-09-20T21:08:00Z</time>
+      </trkpt>
+      <trkpt lat="14.655060" lon="121.041160">
+        <ele>25.8</ele>
+        <time>2026-09-20T21:08:10Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

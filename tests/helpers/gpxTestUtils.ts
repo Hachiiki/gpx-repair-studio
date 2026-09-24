@@ -202,4 +202,6 @@ export const PARSEABLE_FIXTURES = [
   "cdata.gpx",
   "pretty-indented.gpx",
   "extra-children.gpx",
+  "strava-export.gpx",
+  "strava-original-garmin.gpx",
 ] as const;

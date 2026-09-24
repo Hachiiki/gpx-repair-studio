@@ -198,3 +198,24 @@ Stage Summary:
 - Manual testers now have two small committed samples (download/demo-*.gpx) with pinned, printed expectations; regenerable via `bun scripts/generate-demo-gpx.ts`.
 - Push workflow going forward: every big change = own commit, pushed as soon as it is green (not accumulated per phase). Phase 4 predates this clarification and sits on the remote as one commit; splitting it would require a history rewrite (force-push) — offered to the user, awaiting their call.
 - Next: await user authorization for Phase 5 — Time & Pace Reconstruction.
+
+---
+Task ID: 9
+Agent: Super Z (main agent)
+Task: Strava compatibility verification. User reported concern that "only certain GPX formats can be understood" and attempted to supply two real Strava exports (processed "Export GPX" + "Export original") — but the attachments never reached the filesystem (upload/ empty; announced by the IM gateway, bytes never landed). Work: (1) audit the ingest path against documented Strava structures, (2) add permanent regression coverage for both Strava shapes, (3) request the real files again for direct verification.
+
+Work Log:
+- Audited the full ingest path: UploadZone (accept=".gpx,.xml", no MIME gate) → useGpxSession.loadFile (File#text, empty-file guard only) → parseGpx (namespace-tolerant localName structure navigation; BOM tolerated) → validateGpx → detectGaps. No size/MIME/format gates exist that could reject a well-formed Strava file.
+- Confirmed no UI consumer of TrackMeta.type (captured verbatim, preserved on export) — Strava's numeric <type>9</type> activity code is harmless.
+- Reuse check (rule 4): garmin-extensions.gpx already covers gpxtpx/gpxx point extensions + prefixed namespaces; prefixed-namespace.gpx covers fully-prefixed documents. NOT covered: the Strava-specific shapes — creator "StravaGPX", metadata with time but no name, numeric <type>9</type>; and a device-original with extensions AND a recording hole.
+- Added two committed fixtures: strava-export.gpx (Strava processed export: StravaGPX creator, nameless metadata, type "9", ele+time-only points, 20 pts, 310 s hole -> suspect time-gap) and strava-original-garmin.gpx (device original: "Garmin Forerunner 265" creator, gpxtpx hr/cad on all 18 pts, type "running", 1810 s hole -> severe time-gap). Both use QC Circle geometry, 10 s smart-recording cadence, hole jumps below the speed-anomaly threshold (pure time evidence, like real paused-watch recordings).
+- Registered both in PARSEABLE_FIXTURES (corpus-wide identity round-trip now covers them: verbatim raw strings, export stability, no gpxr markers).
+- tests/strava-formats.test.ts: full-pipeline coverage mirroring use-gpx-session exactly (parseGpx -> validateGpx -> detectGaps -> distance stats -> identity export -> reparse). Asserts: StravaGPX quirks (nameless metadata, type "9" verbatim, bare points), device-original quirks (type word, every point's gpxtpx extension snapshot with hr/cad), gap expectations (1 suspect 310_000 ms / 1 severe 1_810_000 ms, implied speeds < 25 km/h), stats > 400 m, round-trip preserves type code + extensions.
+- Verification: typecheck PASS; lint PASS; vitest 326/326 PASS (318 + 6 new + 2 corpus round-trip additions).
+- Committed and pushed as its own change: `test: strava export format regression coverage`.
+- Push initially rejected (non-fast-forward): the sandbox environment was rebuilt between sessions and restored every file with +x mode bits, so the local demo-samples commit was re-created with identical content but polluted 100755 modes (different hash) while the remote kept the clean original. Resolved WITHOUT force-push: rebased the Strava commit onto the remote tip with clean 100644 modes (verified `git diff origin/main --summary` shows zero mode changes) and set repo-local `core.fileMode=false` so environment chmod drift can never pollute the index again. Safety branch backup-strava-rebuild kept the pre-rebuild commit until the push landed.
+- Asked the user to re-attach the two real Strava files (never arrived) for direct verification against the actual bytes.
+
+Stage Summary:
+- Both documented Strava export shapes are now pinned by tests and pass the entire pipeline on first run — the app demonstrably understands standard Strava GPX exports. If the user's real files still fail, the cause is in their specific bytes (e.g. FIT renamed to .gpx, gzip from the bulk export, or a device quirk) and will be diagnosed from the actual file.
+- Next: re-verify with the user's real files when re-uploaded; otherwise await authorization for Phase 5 — Time & Pace Reconstruction.
