@@ -86,4 +86,29 @@ test.describe("real Strava files", () => {
     await expect(page.getByTestId("stats-panel")).toContainText("3.6");
     await expect(page.getByTestId("map-canvas")).toBeVisible();
   });
+
+  test("GloryFit original never overflows the mobile viewport (URI wrap)", async ({
+    page,
+  }) => {
+    // Regression: the undeclared-namespace warning embeds
+    // xmlns:gpxtpx="http://www.garmin.com/xmlschemas/…" — one long
+    // unbreakable token. It used to push the workspace grid to ~614 px
+    // on a 390 px viewport (the reported "UI and layout is broken").
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await upload(page, join(DOCS, "strava_gpx_original.gpx"));
+
+    // The warning (and its URI) is present…
+    const report = page.getByTestId("validation-report");
+    await expect(report).toBeVisible();
+    await expect(report).toContainText("Undeclared namespace prefix");
+    await expect(report).toContainText("garmin.com/xmlschemas");
+
+    // …and the page never scrolls horizontally because of it.
+    const overflow = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth);
+  });
 });

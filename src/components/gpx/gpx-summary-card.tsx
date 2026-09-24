@@ -25,9 +25,16 @@ export interface GpxSummaryCardProps {
 
 function CountRow({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium tabular-nums">{value}</dd>
+    <div className="flex min-w-0 items-baseline justify-between gap-4">
+      <dt className="shrink-0 text-muted-foreground">{label}</dt>
+      {/*
+        Values are arbitrary device/platform strings (creator names can be
+        long URLs or sentences). `overflow-wrap: anywhere` keeps the row's
+        min-content small so it can never overflow the panel on mobile.
+      */}
+      <dd className="min-w-0 text-right [overflow-wrap:anywhere] font-medium tabular-nums">
+        {value}
+      </dd>
     </div>
   );
 }
@@ -52,9 +59,9 @@ export function GpxSummaryCard({
       </CardHeader>
       <CardContent>
         <dl className="grid gap-2 text-sm">
-          <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-muted-foreground">Format</dt>
-            <dd>
+          <div className="flex min-w-0 items-baseline justify-between gap-4">
+            <dt className="shrink-0 text-muted-foreground">Format</dt>
+            <dd className="min-w-0">
               <Badge variant="secondary">GPX {data.fileMeta.version}</Badge>
             </dd>
           </div>
@@ -67,9 +74,9 @@ export function GpxSummaryCard({
           <CountRow label="Track points" value={pointCount} />
           <CountRow label="Waypoints" value={data.waypoints.length} />
           <CountRow label="Routes" value={data.routes.length} />
-          <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-muted-foreground">Timing</dt>
-            <dd>
+          <div className="flex min-w-0 items-baseline justify-between gap-4">
+            <dt className="shrink-0 text-muted-foreground">Timing</dt>
+            <dd className="min-w-0">
               {timeStats === null ? null : timeStats.hasTimingData ? (
                 <span className="font-medium tabular-nums">
                   {timeStats.pointsWithTime.toLocaleString()} of{" "}

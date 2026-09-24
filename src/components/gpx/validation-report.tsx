@@ -112,7 +112,7 @@ export function ValidationReport({
               {ordered.map((issue, index) => (
                 <li
                   key={`${issue.kind}-${index}`}
-                  className="grid gap-1 text-sm"
+                  className="grid min-w-0 gap-1 text-sm"
                 >
                   <div className="flex items-center gap-2">
                     <SeverityBadge severity={issue.severity} />
@@ -120,7 +120,16 @@ export function ValidationReport({
                       {KIND_LABELS[issue.kind]}
                     </span>
                   </div>
-                  <p className="text-muted-foreground">{issue.message}</p>
+                  {/*
+                    Messages can embed long unbreakable tokens (namespace
+                    URIs, point ids, file names). `overflow-wrap: anywhere`
+                    — not `break-words` — is required: only `anywhere`
+                    participates in min-content sizing, so a long token can
+                    never blow out the panel grid on narrow viewports.
+                  */}
+                  <p className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]">
+                    {issue.message}
+                  </p>
                 </li>
               ))}
             </ul>
