@@ -261,6 +261,7 @@ export type ValidationIssueKind =
   | "invalid-ele" // parse: <ele> unparseable
   | "out-of-range-ele" // ele outside the sanity window
   | "unreliable-time" // parse: <time> not strict ISO-8601-with-tz
+  | "undeclared-namespace" // parse: prefix used without xmlns (bound for parsing)
   | "time-reversed" // time earlier than the previous point's
   | "speed-spike" // implied leg speed above threshold
   | "duplicate-point" // consecutive identical coordinates

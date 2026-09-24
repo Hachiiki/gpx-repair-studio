@@ -26,6 +26,9 @@
  *     schema order are normalized to it.
  *   - No-namespace inputs are emitted in their version's canonical GPX
  *     namespace; prefixed-namespace inputs become default-namespace.
+ *   - Documents recovered from undeclared namespace prefixes (parse-time
+ *     `undeclared-namespace` warning) re-export with the recovery bindings
+ *     materialized explicitly on the affected extension elements.
  *   - CDATA sections re-serialize as escaped text; XML comments and
  *     processing instructions inside tracks/segments/points are not kept.
  *

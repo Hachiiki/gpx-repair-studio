@@ -32,6 +32,7 @@ const KIND_LABELS: Record<ValidationIssueKind, string> = {
   "invalid-ele": "Invalid elevation",
   "out-of-range-ele": "Out-of-range elevation",
   "unreliable-time": "Unreliable timestamp",
+  "undeclared-namespace": "Undeclared namespace prefix",
   "time-reversed": "Reversed timestamps",
   "speed-spike": "Speed spike",
   "duplicate-point": "Duplicate points",

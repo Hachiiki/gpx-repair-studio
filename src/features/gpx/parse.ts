@@ -8,7 +8,14 @@
  *     default namespace (1.1), GPX 1.0 namespace, prefixed namespaces, and
  *     no namespace at all are all accepted. Element lookup is by
  *     `localName` through explicit structure navigation
- *     (`gpx → trk → trkseg → trkpt`), never by deep tag search.
+ *     (`gpx → trk → trkseg → trkpt`), never by deep tag search. When a
+ *     document is rejected as malformed AND uses namespace prefixes it
+ *     never declares (a real device bug — GloryFit watches emit Garmin-style
+ *     `gpxtpx:` extensions with no `xmlns:gpxtpx`), the missing
+ *     declarations are injected on the root and the parse retried; the
+ *     recovery is always surfaced as an `undeclared-namespace` warning.
+ *     If the retry still fails, the ORIGINAL error is reported — recovery
+ *     never masks a genuine malformation.
  *   - **Hard failures are typed.** Malformed XML (parsererror document or
  *     throwing parser), a non-`<gpx>` root, or a missing/unknown `version`
  *     produce `{ ok: false, error }`. Everything else is modeled
@@ -182,6 +189,104 @@ function extractParserError(doc: Document): GpxParseError | null {
 }
 
 // ---------------------------------------------------------------------------
+// Undeclared-prefix recovery (GloryFit-class device bugs)
+// ---------------------------------------------------------------------------
+
+/**
+ * Standard bindings for prefixes that real-world devices use without
+ * declaring. GloryFit watches (and siblings) clone Garmin's extension
+ * schemas verbatim but omit the `xmlns:` declarations, so the prefixes bind
+ * to Garmin's canonical URIs — the meaning every other consumer assumes.
+ */
+const KNOWN_UNDECLARED_PREFIX_BINDINGS: Readonly<Record<string, string>> = {
+  gpxtpx: "http://www.garmin.com/xmlschemas/TrackPointExtension/v1",
+  gpxx: "http://www.garmin.com/xmlschemas/GpxExtensions/v3",
+};
+
+/** Clearly-marked synthetic URN for unknown undeclared prefixes. */
+const SYNTHETIC_PREFIX_BASE = "urn:gpx-repair-studio:undeclared-prefix:";
+
+/**
+ * Prefixes used in element or attribute names but never declared via
+ * `xmlns:prefix` anywhere in the document. The `xml` prefix is pre-declared
+ * by the XML spec and never counts.
+ */
+function findUndeclaredPrefixes(text: string): string[] {
+  const used = new Set<string>();
+  // Prefixed element names: <prefix:name ...> (opening or closing tags).
+  for (const m of text.matchAll(/<\/?\s*([A-Za-z_][\w.-]*):/g)) {
+    used.add(m[1]);
+  }
+  // Prefixed attribute names, scoped to start-tags only (a `<tag …>` span
+  // cannot contain a raw `>` outside quotes, so this under-approximates
+  // harmlessly on pathological values and never matches text content).
+  for (const tag of text.matchAll(/<[A-Za-z_][^>]*>/g)) {
+    for (const attr of tag[0].matchAll(/\s([A-Za-z_][\w.-]*):[\w.-]+\s*=/g)) {
+      used.add(attr[1]);
+    }
+  }
+  const declared = new Set<string>();
+  for (const m of text.matchAll(/xmlns:([A-Za-z_][\w.-]*)\s*=/g)) {
+    declared.add(m[1]);
+  }
+  used.delete("xml");
+  return [...used].filter((p) => !declared.has(p)).sort();
+}
+
+/**
+ * Inject `xmlns:prefix="uri"` declarations into the root element's
+ * start-tag (right after the element name). Returns the repaired text, or
+ * null when no injectable root start-tag can be located (recovery then
+ * simply does not happen and the original error stands).
+ */
+function injectNamespaceDeclarations(
+  text: string,
+  bindings: readonly { prefix: string; uri: string }[],
+): string | null {
+  let i = 0;
+  while (i < text.length) {
+    const lt = text.indexOf("<", i);
+    if (lt === -1) return null;
+    const next = text[lt + 1];
+    if (next === "?" || next === "!") {
+      // Skip prolog / comments / doctype to their respective closers.
+      const closer = next === "?" ? "?>" : "-->";
+      const closeIdx = text.indexOf(closer, lt);
+      if (closeIdx === -1) return null;
+      i = closeIdx + closer.length;
+      continue;
+    }
+    if (next === "/") {
+      i = lt + 1; // stray closing tag before any opening one: keep scanning
+      continue;
+    }
+    // Root start-tag: find its terminating `>` outside quoted values.
+    let j = lt + 1;
+    let quote: string | null = null;
+    while (j < text.length) {
+      const c = text[j];
+      if (quote !== null) {
+        if (c === quote) quote = null;
+      } else if (c === '"' || c === "'") {
+        quote = c;
+      } else if (c === ">") {
+        break;
+      }
+      j += 1;
+    }
+    if (j >= text.length) return null;
+    // Insertion point: end of the root element's name.
+    let k = lt + 1;
+    while (k < j && !/[\s/>]/.test(text[k])) k += 1;
+    const injected = bindings
+      .map((b) => `xmlns:${b.prefix}="${b.uri}"`)
+      .join(" ");
+    return text.slice(0, k) + " " + injected + text.slice(k);
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Element parsers
 // ---------------------------------------------------------------------------
 
@@ -287,21 +392,57 @@ export function parseGpx(xml: string, io: XmlIo): ParseOutcome {
   // Tolerate a UTF-8 BOM (decoded to U+FEFF) at the start of the string.
   const text = xml.charCodeAt(0) === 0xfeff ? xml.slice(1) : xml;
 
-  let doc: Document;
+  let doc: Document | null = null;
+  let parseError: GpxParseError | null = null;
   try {
     doc = io.parse(text);
   } catch (err) {
-    return {
-      ok: false,
-      error: {
-        kind: "malformed-xml",
-        message: `XML parser threw: ${(err as Error).message}`,
-      },
+    parseError = {
+      kind: "malformed-xml",
+      message: `XML parser threw: ${(err as Error).message}`,
     };
   }
+  if (doc !== null) {
+    parseError = extractParserError(doc);
+  }
 
-  const parserError = extractParserError(doc);
-  if (parserError !== null) return { ok: false, error: parserError };
+  // Undeclared-prefix recovery: only when the strict parse rejected the
+  // document AND the document actually uses prefixes it never declares.
+  // A successful recovery is surfaced as a warning; a failed one keeps the
+  // original error (recovery must never mask a genuine malformation).
+  let prefixRecovery: { prefix: string; uri: string }[] = [];
+  if (parseError !== null && parseError.kind === "malformed-xml") {
+    const undeclared = findUndeclaredPrefixes(text);
+    if (undeclared.length > 0) {
+      const bindings = undeclared.map((prefix) => ({
+        prefix,
+        uri:
+          KNOWN_UNDECLARED_PREFIX_BINDINGS[prefix] ??
+          SYNTHETIC_PREFIX_BASE + prefix,
+      }));
+      const repaired = injectNamespaceDeclarations(text, bindings);
+      if (repaired !== null) {
+        try {
+          const retryDoc = io.parse(repaired);
+          if (extractParserError(retryDoc) === null) {
+            doc = retryDoc;
+            parseError = null;
+            prefixRecovery = bindings;
+          }
+        } catch {
+          // Recovery attempt itself failed — the original error stands.
+        }
+      }
+    }
+  }
+
+  if (parseError !== null || doc === null) {
+    return {
+      ok: false,
+      error:
+        parseError ?? { kind: "malformed-xml", message: "XML could not be parsed" },
+    };
+  }
 
   const root = doc.documentElement;
   if (root === null || root.localName !== "gpx") {
@@ -435,6 +576,19 @@ export function parseGpx(xml: string, io: XmlIo): ParseOutcome {
         "ISO-8601 with timezone; values are kept verbatim but excluded from " +
         "time computations.",
       points: unreliableTimeRefs,
+    });
+  }
+  if (prefixRecovery.length > 0) {
+    const list = prefixRecovery
+      .map((b) => `xmlns:${b.prefix}="${b.uri}"`)
+      .join(", ");
+    issues.push({
+      kind: "undeclared-namespace",
+      severity: "warning",
+      message:
+        `This file uses namespace prefix(es) it never declares (a device ` +
+        `export bug). They were bound for parsing — ${list}. All recorded ` +
+        `values are preserved; re-exports carry the bindings explicitly.`,
     });
   }
 

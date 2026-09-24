@@ -151,7 +151,16 @@ export function projectModel(data: OriginalTrackData): unknown {
       raw: data.fileMeta.raw,
       metadataExtras: data.fileMeta.metadataExtras.map(normalizeXml),
     },
-    issues: data.issues,
+    // Issues that describe the DATA survive export and must round-trip.
+    // The undeclared-namespace recovery warning is different: it reports a
+    // defect of the INPUT document that the exporter genuinely fixes
+    // (bindings materialize on the affected elements), so it correctly
+    // disappears after export — excluded from the identity projection.
+    // (Its disappearance is asserted explicitly in
+    // gpx-undeclared-prefix.test.ts and strava-real-files.test.ts.)
+    issues: data.issues.filter(
+      (i) => i.kind !== "undeclared-namespace",
+    ),
   };
 }
 
@@ -204,4 +213,5 @@ export const PARSEABLE_FIXTURES = [
   "extra-children.gpx",
   "strava-export.gpx",
   "strava-original-garmin.gpx",
+  "undeclared-prefix.gpx",
 ] as const;
