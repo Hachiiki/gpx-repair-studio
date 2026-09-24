@@ -19,17 +19,28 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts", "src/**/*.test.ts"],
+    // .test.ts = domain/architecture tests (node); .test.tsx = RTL
+    // component tests (each carries a `// @vitest-environment jsdom`
+    // docblock, Phase 2+).
+    include: [
+      "tests/**/*.test.ts",
+      "tests/**/*.test.tsx",
+      "src/**/*.test.ts",
+      "src/**/*.test.tsx",
+    ],
     coverage: {
       provider: "v8",
       // Phase 1 acceptance (docs/MASTER_PLAN.md §C-3): >= 90% line coverage on
       // domain modules. Scope measurement to the domain surface; fixture data
-      // files (.gpx) are not code.
+      // files (.gpx) are not code. Phase 2 extends the scope with
+      // features/statistics and the format utility.
       include: [
         "src/types/**",
         "src/lib/geo/**",
         "src/features/gpx/**",
+        "src/features/statistics/**",
         "src/lib/utils/xml.ts",
+        "src/lib/utils/format.ts",
       ],
       exclude: ["src/features/gpx/fixtures/files/**"],
       thresholds: {

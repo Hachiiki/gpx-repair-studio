@@ -1,17 +1,15 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Phase 0 smoke test — the application shell renders.
+ * Application smoke test — the shell renders and stays healthy.
  *
- * The shell is the only user-visible surface in Phase 0: header with the app
- * name, a main placeholder region, and a footer with the privacy note.
- * No product features exist yet (upload arrives in Phase 2).
+ * Phase 2 shell: header with the app name, the upload hero (empty state),
+ * and the footer with the privacy note. Deeper flow coverage lives in
+ * upload-inspection.spec.ts.
  */
 
 test.describe("app shell", () => {
-  test("renders header, main, and footer with the app name", async ({
-    page,
-  }) => {
+  test("renders header, upload hero, and footer", async ({ page }) => {
     await page.goto("/");
 
     const banner = page.getByRole("banner");
@@ -20,10 +18,15 @@ test.describe("app shell", () => {
       page.getByRole("heading", { level: 1, name: "GPX Repair Studio" }),
     ).toBeVisible();
 
-    await expect(page.getByRole("main")).toBeVisible();
+    const main = page.getByRole("main");
+    await expect(main).toBeVisible();
     await expect(
-      page.getByRole("heading", { level: 2, name: "Foundation ready" }),
+      page.getByRole("heading", {
+        level: 2,
+        name: "Repair incomplete GPS recordings",
+      }),
     ).toBeVisible();
+    await expect(page.getByTestId("upload-zone")).toBeVisible();
 
     const footer = page.getByRole("contentinfo");
     await expect(footer).toBeVisible();
@@ -38,7 +41,7 @@ test.describe("app shell", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "GPX Repair Studio" }),
     ).toBeVisible();
-    await expect(page.getByRole("main")).toBeVisible();
+    await expect(page.getByTestId("upload-zone")).toBeVisible();
     await expect(page.getByRole("contentinfo")).toBeVisible();
   });
 

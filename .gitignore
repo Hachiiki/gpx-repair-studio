@@ -63,3 +63,7 @@ server.log
 
 # Isolated static-export build verification workspace (Phase 0)
 /.build-verify/
+
+# Generated E2E fixtures (large synthetic files, rebuilt deterministically
+# by the spec setup from the seeded generator)
+/e2e/fixtures/*.generated.gpx
