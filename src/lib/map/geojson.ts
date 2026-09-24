@@ -310,3 +310,27 @@ export function rubberBandCollection(
     ],
   };
 }
+
+/**
+ * The first picked span anchor (span-pick mode). A single marker — the
+ * second pick completes the span and ends the mode, so no list is needed.
+ */
+export function pickAnchorCollection(
+  anchor: { lat: number; lon: number } | null,
+): GeoJsonFeatureCollection<GeoJsonPointFeature<{ pick: true }>> {
+  return {
+    type: "FeatureCollection",
+    features: anchor
+      ? [
+          {
+            type: "Feature" as const,
+            properties: { pick: true },
+            geometry: {
+              type: "Point" as const,
+              coordinates: [anchor.lon, anchor.lat],
+            },
+          },
+        ]
+      : [],
+  };
+}

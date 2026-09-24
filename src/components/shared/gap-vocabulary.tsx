@@ -18,6 +18,7 @@ export const GAP_KIND_LABELS: Record<GapKind, string> = {
   "time-gap": "Time gap",
   "speed-anomaly": "Speed anomaly",
   "segment-break": "Segment break",
+  manual: "Manual repair",
 };
 
 export const GAP_SEVERITY_TONE: Record<GapSeverity, StatusTone> = {

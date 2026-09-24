@@ -36,8 +36,13 @@ import {
   nearestSnap,
   type SnapCandidate,
 } from "@/features/reconstruction/snap";
+import { isUsableStatsPoint } from "@/features/statistics/distance";
+import { geodesicDistanceMeters } from "@/lib/geo/geodesy";
 import type { MapController } from "@/lib/map/mapController";
-import type { DrawCommitPosition } from "@/lib/map/mapController";
+import type {
+  DrawCommitPosition,
+  PickTarget,
+} from "@/lib/map/mapController";
 import {
   deriveGapStatus,
   useEditorStore,
@@ -47,6 +52,9 @@ import { useUiStore } from "@/state/ui-store";
 import type {
   DrawVertex,
   GapId,
+  OriginalTrackPoint,
+  PointId,
+  SegmentId,
   VertexId,
 } from "@/types/domain";
 import type { GapRow, GpxSession } from "@/hooks/use-gpx-session";
@@ -87,8 +95,19 @@ export interface DrawEditorBinding {
   /** Gaps explicitly marked as skipped (count). */
   skippedCount: number;
 
+  /** Manual repair spans joined into rows (resolved against the model). */
+  manualRows: readonly GapRow[];
+  /** Span-pick mode: the map is collecting two anchor clicks. */
+  pickMode: boolean;
+
   openEditor: (gapId: GapId) => void;
   closeEditor: () => void;
+  /** Enter span-pick mode (draw-anywhere — see ManualSpan). */
+  beginPickSpan: () => void;
+  /** Leave span-pick mode without creating a span. */
+  cancelPickSpan: () => void;
+  /** Remove a manual repair span and all of its repair state. */
+  removeManualSpan: (gapId: GapId) => void;
   setDrawMode: (on: boolean) => void;
   setSnapEnabled: (on: boolean) => void;
   undo: () => void;
@@ -110,16 +129,89 @@ export function useDrawEditor(
   const reconstructions = useEditorStore((s) => s.reconstructions);
   const skippedGapIds = useEditorStore((s) => s.skippedGapIds);
   const history = useEditorStore((s) => s.history);
+  const manualSpans = useEditorStore((s) => s.manualSpans);
+  const pickMode = useEditorStore((s) => s.pickMode);
 
   const gapRows = session.gapRows;
   const mapReady = map.status === "ready";
+
+  // Point index for manual-span joins: coordinates, segment, document
+  // order, and track — everything needed to turn a picked pair into a row
+  // (and to fix which point is "before").
+  const pointIndex = useMemo(() => {
+    const byId = new Map<
+      PointId,
+      {
+        point: OriginalTrackPoint;
+        segmentId: SegmentId;
+        ordinal: number;
+        trackIndex: number;
+      }
+    >();
+    let ordinal = 0;
+    if (session.data) {
+      for (const segment of session.data.segments) {
+        for (const point of segment.points) {
+          byId.set(point.id, {
+            point,
+            segmentId: segment.id,
+            ordinal: ordinal++,
+            trackIndex: segment.trackIndex,
+          });
+        }
+      }
+    }
+    return byId;
+  }, [session.data]);
+
+  const manualRows = useMemo<GapRow[]>(() => {
+    const rows: GapRow[] = [];
+    for (const span of manualSpans) {
+      const b = pointIndex.get(span.beforePointId);
+      const a = pointIndex.get(span.afterPointId);
+      if (!b || !a) continue;
+      rows.push({
+        id: span.id,
+        kind: "manual",
+        severity: "info",
+        status: "new",
+        ...(isUsableStatsPoint(b.point) && isUsableStatsPoint(a.point)
+          ? {
+              impliedDistanceM: geodesicDistanceMeters(b.point, a.point),
+            }
+          : {}),
+        before: {
+          pointId: b.point.id,
+          segmentId: b.segmentId,
+          lat: b.point.lat,
+          lon: b.point.lon,
+          ...(b.point.time !== undefined ? { time: b.point.time } : {}),
+        },
+        after: {
+          pointId: a.point.id,
+          segmentId: a.segmentId,
+          lat: a.point.lat,
+          lon: a.point.lon,
+          ...(a.point.time !== undefined ? { time: a.point.time } : {}),
+        },
+      });
+    }
+    return rows;
+  }, [manualSpans, pointIndex]);
+
+  // Every repairable row, detected or manual — the join basis for the
+  // active editor session and the status map.
+  const allRows = useMemo(
+    () => [...gapRows, ...manualRows],
+    [gapRows, manualRows],
+  );
 
   const activeGap = useMemo(
     () =>
       activeGapId === null
         ? null
-        : (gapRows.find((row) => row.id === activeGapId) ?? null),
-    [activeGapId, gapRows],
+        : (allRows.find((row) => row.id === activeGapId) ?? null),
+    [activeGapId, allRows],
   );
 
   const activeRecon = activeGapId === null ? null : reconstructions[activeGapId] ?? null;
@@ -135,13 +227,61 @@ export function useDrawEditor(
     }
   }, [session.status]);
 
-  // Re-detection may remove gaps: drop their repairs (gap ids are
-  // deterministic per boundary pair, so surviving gaps keep theirs) and
-  // close the editor if its gap vanished.
+  // Re-detection may remove gaps: drop their repairs. Manual spans anchor
+  // their own repairs — their ids join the known set, so a repair over a
+  // user-picked stretch survives threshold changes even when detection
+  // stops flagging anything there. Gap ids are deterministic per boundary
+  // pair, so surviving gaps keep theirs.
   useEffect(() => {
-    if (gapRows.length === 0) return;
-    useEditorStore.getState().prune(gapRows.map((row) => row.id));
-  }, [gapRows]);
+    const known = [
+      ...gapRows.map((row) => row.id),
+      ...manualSpans.map((span) => span.id),
+    ];
+    useEditorStore.getState().prune(known);
+  }, [gapRows, manualSpans]);
+
+  // -- span-pick session driving (draw-anywhere) ------------------------------
+
+  // While pickMode is on, the controller collects clicks on recorded
+  // points; the hook turns the picked pair into a manual span + editor
+  // session. Document-order fixing happens here — the map layer knows
+  // nothing of the file's order.
+  useEffect(() => {
+    const controller: MapController | null = map.getController();
+    if (!controller) return;
+    if (!pickMode || !session.data) {
+      controller.endPickSession();
+      return;
+    }
+    const targets: PickTarget[] = [];
+    for (const segment of session.data.segments) {
+      for (const point of segment.points) {
+        if (!isUsableStatsPoint(point)) continue;
+        targets.push({
+          pointId: point.id,
+          lat: point.lat,
+          lon: point.lon,
+          trackIndex: segment.trackIndex,
+        });
+      }
+    }
+    controller.startPickSession({
+      targets,
+      callbacks: {
+        onSpanPicked: (a, b) => {
+          const entryA = pointIndex.get(a);
+          const entryB = pointIndex.get(b);
+          if (!entryA || !entryB) return;
+          const [before, after] =
+            entryA.ordinal <= entryB.ordinal ? [a, b] : [b, a];
+          useEditorStore.getState().addManualSpan(before, after);
+        },
+        onCancel: () => useEditorStore.getState().cancelPickMode(),
+      },
+    });
+    return () => controller.endPickSession();
+    // pointIndex is derived from session.data — stable per file.
+  }, [pickMode, mapReady, map.getController, session.data, pointIndex]);
 
   // -- snap magnet (pure domain, injected into the controller) ----------------
 
@@ -256,7 +396,7 @@ export function useDrawEditor(
 
   const statusById = useMemo(() => {
     const byId: Record<string, GapStatus> = {};
-    for (const row of gapRows) {
+    for (const row of allRows) {
       byId[row.id] = deriveGapStatus({
         gapId: row.id,
         activeGapId,
@@ -265,11 +405,11 @@ export function useDrawEditor(
       });
     }
     return byId;
-  }, [gapRows, activeGapId, reconstructions, skippedGapIds]);
+  }, [allRows, activeGapId, reconstructions, skippedGapIds]);
 
   const reconstructedCount = useMemo(
     () =>
-      gapRows.filter((row) => {
+      allRows.filter((row) => {
         const recon = reconstructions[row.id];
         return (
           row.id !== activeGapId &&
@@ -277,13 +417,13 @@ export function useDrawEditor(
           (recon?.vertices.length ?? 0) > 0
         );
       }).length,
-    [gapRows, reconstructions, activeGapId, skippedGapIds],
+    [allRows, reconstructions, activeGapId, skippedGapIds],
   );
 
   const skippedCount = useMemo(
     () =>
-      gapRows.filter((row) => skippedGapIds.includes(row.id)).length,
-    [gapRows, skippedGapIds],
+      allRows.filter((row) => skippedGapIds.includes(row.id)).length,
+    [allRows, skippedGapIds],
   );
 
   // -- intents -------------------------------------------------------------------
@@ -296,6 +436,18 @@ export function useDrawEditor(
 
   const closeEditor = useCallback(() => {
     useEditorStore.getState().closeEditor();
+  }, []);
+
+  const beginPickSpan = useCallback(() => {
+    useEditorStore.getState().startPickMode();
+  }, []);
+
+  const cancelPickSpan = useCallback(() => {
+    useEditorStore.getState().cancelPickMode();
+  }, []);
+
+  const removeManualSpan = useCallback((gapId: GapId) => {
+    useEditorStore.getState().removeManualSpan(gapId);
   }, []);
 
   const setDrawMode = useCallback((on: boolean) => {
@@ -351,8 +503,13 @@ export function useDrawEditor(
     statusById,
     reconstructedCount,
     skippedCount,
+    manualRows,
+    pickMode,
     openEditor,
     closeEditor,
+    beginPickSpan,
+    cancelPickSpan,
+    removeManualSpan,
     setDrawMode,
     setSnapEnabled,
     undo,

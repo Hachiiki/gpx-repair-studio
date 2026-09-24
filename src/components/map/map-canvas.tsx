@@ -18,7 +18,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { Button } from "@/components/ui/button";
-import { Loader2, MapIcon, WifiOff } from "lucide-react";
+import { Loader2, MapIcon, WifiOff, Crosshair } from "lucide-react";
 import { DrawDistanceBadge } from "@/components/map/draw-distance-badge";
 import { GapHighlightOverlay } from "@/components/map/gap-highlight-overlay";
 import { MapLegend } from "@/components/map/map-legend";
@@ -144,6 +144,21 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
                 maxVertices={draw.maxVertices}
                 drawMode={draw.drawMode}
               />
+            )}
+            {draw?.pickMode && (
+              <div
+                className="pointer-events-none absolute inset-x-2 top-2 z-20 mx-auto w-fit max-w-full rounded-lg border border-emerald-600/40 bg-emerald-50/95 px-3 py-1.5 text-xs font-medium text-emerald-800 shadow-sm dark:border-emerald-500/40 dark:bg-emerald-950/90 dark:text-emerald-100"
+                data-testid="pick-mode-chip"
+                role="status"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Crosshair
+                    className="size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  Pick two points on the recorded route — Esc cancels
+                </span>
+              </div>
             )}
             <MapToolbar
               provider={map.provider}

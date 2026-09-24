@@ -60,6 +60,7 @@ import {
   drawMidpointCollection,
   gapMarkerCollection,
   gapSpanCollection,
+  pickAnchorCollection,
   reconstructionLineCollection,
   rubberBandCollection,
   routeLineCollection,
@@ -111,6 +112,8 @@ export interface MapTestState {
   moving: boolean;
   /** The active draw session (null when no editor is open). */
   drawSession: DrawSessionTestState | null;
+  /** The active span-pick session (null when not picking). */
+  pickSession: { active: boolean; hasAnchor: boolean } | null;
 }
 
 /** Draw-session snapshot for E2E synthetic-pointer drawing assertions. */
@@ -145,6 +148,7 @@ export const MAP_LAYER_IDS = [
   "gpxr-gap-boundary-hit",
   "gpxr-draft-midpoint-hit",
   "gpxr-draft-handle-hit",
+  "gpxr-pick-anchor",
 ] as const;
 
 const SOURCE = {
@@ -156,6 +160,7 @@ const SOURCE = {
   rubber: "gpxr-draft-rubber",
   handles: "gpxr-draft-handles",
   midpoints: "gpxr-draft-midpoints",
+  pickAnchor: "gpxr-pick-anchor",
 } as const;
 
 const LAYER = {
@@ -174,6 +179,7 @@ const LAYER = {
   draftMidpoint: "gpxr-draft-midpoint",
   draftHandleHit: "gpxr-draft-handle-hit",
   draftMidpointHit: "gpxr-draft-midpoint-hit",
+  pickAnchor: "gpxr-pick-anchor",
 } as const;
 
 /** Recorded-route color (master plan §I-3: original = solid blue). */
@@ -185,6 +191,9 @@ const RECON_COLOR_DRAFT = "#10b981"; // emerald-500 (active session)
 
 /** Snap magnet radius in screen pixels (converted to meters at commit). */
 const SNAP_RADIUS_PX = 14;
+
+/** Click tolerance when picking span anchors (screen pixels). */
+const PICK_RADIUS_PX = 16;
 
 /** Minimum pointer travel (px) before a handle press counts as a drag. */
 const DRAG_THRESHOLD_PX = 3;
@@ -249,6 +258,38 @@ export interface DrawSessionOptions {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Span-pick session (manual repair spans) — the controller side of "draw
+// anywhere": collect two clicks on recorded points, report the pair.
+// ---------------------------------------------------------------------------
+
+/** A pickable recorded point (span-anchor candidate). */
+export interface PickTarget {
+  pointId: PointId;
+  lat: number;
+  lon: number;
+  /** Track scoping — a span may not cross <trk> boundaries. */
+  trackIndex: number;
+}
+
+export interface PickSessionOptions {
+  targets: readonly PickTarget[];
+  callbacks: {
+    /** Both anchors picked. Document-order fixing is the hook's job. */
+    onSpanPicked: (a: PointId, b: PointId) => void;
+    /** The user cancelled (Esc or mode left). */
+    onCancel: () => void;
+  };
+}
+
+interface PickSession {
+  options: PickSessionOptions;
+  /** Set after the first successful pick; rendered as a marker. */
+  anchor: PickTarget | null;
+  /** The window Esc listener (removed when the session ends). */
+  escListener: (() => void) | null;
+}
+
 interface DrawSession extends DrawSessionOptions {
   vertices: { id: VertexId; lat: number; lon: number }[];
 }
@@ -295,6 +336,9 @@ export class MapController {
   #cursor: LatLon | null = null;
   /** Set when a committed handle drag must swallow its trailing click. */
   #suppressNextClick = false;
+
+  // Span-pick session (manual repair spans)
+  #pickSession: PickSession | null = null;
 
   constructor(options: {
     container: HTMLElement;
@@ -365,9 +409,12 @@ export class MapController {
       map.on("wheel", () => this.#noteUserCamera()),
       map.on("boxzoomstart", () => this.#noteUserCamera()),
       map.on("click", [LAYER.spanHit, LAYER.markerHit], (e) => {
-        // While drawing, clicks are vertex input — never gap selection
-        // (a re-fit of the camera mid-draw would be hostile).
-        if (this.#drawSession && this.#drawMode) return;
+        // While drawing or picking span anchors, clicks are edit input —
+        // never gap selection (a re-fit of the camera mid-interaction
+        // would be hostile).
+        if ((this.#drawSession && this.#drawMode) || this.#pickSession) {
+          return;
+        }
         const gapId = this.#gapIdFromEvent(e);
         if (gapId !== null) this.#callbacks.onGapSelected?.(gapId);
       }),
@@ -429,6 +476,8 @@ export class MapController {
   destroy(): void {
     if (this.#destroyed) return;
     this.#destroyed = true;
+    this.#detachPickEscListener(this.#pickSession);
+    this.#pickSession = null;
     for (const subscription of this.#subscriptions) {
       try {
         subscription.unsubscribe();
@@ -568,6 +617,112 @@ export class MapController {
     this.#setDrawModeInternal(enabled);
   }
 
+  // -- span-pick session (manual repair spans) ----------------------------
+
+  /**
+   * Start collecting two span-anchor clicks on recorded points. Safe to
+   * call before the map is ready — the session is applied on style load.
+   * Pan and wheel-zoom stay available (the user may need to travel to the
+   * second anchor); double-click zoom is disabled so a hurried second
+   * click cannot zoom the map instead of completing the span.
+   */
+  startPickSession(options: PickSessionOptions): void {
+    this.#detachPickEscListener(this.#pickSession);
+    const escListener = () => {
+      this.#pickSession?.options.callbacks.onCancel();
+      // The hook ends the session when pickMode flips; ending here too
+      // keeps the controller consistent even if the callback does not.
+      this.endPickSession();
+    };
+    this.#pickSession = { options, anchor: null, escListener };
+    if (typeof window !== "undefined") {
+      window.addEventListener("keydown", escListener);
+    }
+    const map = this.#map;
+    if (map) {
+      map.doubleClickZoom?.disable();
+      map.getCanvas().style.cursor = "crosshair";
+      if (this.#ready) this.#applyPickAnchor();
+    }
+  }
+
+  /** End the session: clear the anchor marker, restore interactions. */
+  endPickSession(): void {
+    const session = this.#pickSession;
+    this.#pickSession = null;
+    this.#detachPickEscListener(session);
+    const map = this.#map;
+    if (!map) return;
+    if (!this.#drawMode) map.doubleClickZoom?.enable();
+    if (!this.#drawSession) map.getCanvas().style.cursor = "";
+    (map.getSource(SOURCE.pickAnchor) as GeoJSONSource | undefined)?.setData(
+      pickAnchorCollection(null),
+    );
+  }
+
+  /** Canvas click while picking → nearest target within PICK_RADIUS_PX. */
+  #handlePickClick(e: MapMouseEvent): void {
+    const session = this.#pickSession;
+    const map = this.#map;
+    if (!session || !map) return;
+    const target = this.#nearestPickTarget(e.point);
+    if (!target) return; // empty space — keep waiting
+    if (!session.anchor) {
+      session.anchor = target;
+      this.#applyPickAnchor();
+      return;
+    }
+    // A valid second anchor: a different point on the same track.
+    if (target.pointId === session.anchor.pointId) return;
+    if (target.trackIndex !== session.anchor.trackIndex) return;
+    const a = session.anchor.pointId;
+    const b = target.pointId;
+    session.options.callbacks.onSpanPicked(a, b);
+    // The hook flips pickMode off (which ends the session via its effect);
+    // ending here as well makes the controller immediately consistent.
+    this.endPickSession();
+  }
+
+  /** Nearest pick target within the click tolerance, or null. */
+  #nearestPickTarget(
+    point: { x: number; y: number },
+  ): PickTarget | null {
+    const map = this.#map;
+    const session = this.#pickSession;
+    if (!map || !session) return null;
+    let best: PickTarget | null = null;
+    let bestDistance = PICK_RADIUS_PX;
+    for (const target of session.options.targets) {
+      const projected = map.project([target.lon, target.lat]);
+      const distance = Math.hypot(
+        projected.x - point.x,
+        projected.y - point.y,
+      );
+      if (distance <= bestDistance) {
+        best = target;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  }
+
+  /** Render (or clear) the first-anchor marker. */
+  #applyPickAnchor(): void {
+    const map = this.#map;
+    if (!map || !this.#ready) return;
+    const anchor = this.#pickSession?.anchor ?? null;
+    (map.getSource(SOURCE.pickAnchor) as GeoJSONSource | undefined)?.setData(
+      pickAnchorCollection(anchor ? { lat: anchor.lat, lon: anchor.lon } : null),
+    );
+  }
+
+  #detachPickEscListener(session: PickSession | null): void {
+    if (!session?.escListener) return;
+    if (typeof window !== "undefined") {
+      window.removeEventListener("keydown", session.escListener);
+    }
+  }
+
   #setDrawModeInternal(enabled: boolean): void {
     this.#drawMode = enabled;
     const map = this.#map;
@@ -634,6 +789,9 @@ export class MapController {
       spanScreenPositions: this.#spanScreenPositions(),
       moving: map ? map.isMoving() : false,
       drawSession: this.#drawSessionTestState(),
+      pickSession: this.#pickSession
+        ? { active: true, hasAnchor: this.#pickSession.anchor !== null }
+        : null,
     };
   }
 
@@ -688,6 +846,13 @@ export class MapController {
     this.#applyRoute();
     this.#applySelection();
     this.#applyDrawSession();
+    if (this.#pickSession) {
+      // Style swaps recreate sources — restore the pick affordances.
+      this.#pickSession.anchor = null;
+      map.doubleClickZoom?.disable();
+      map.getCanvas().style.cursor = "crosshair";
+      this.#applyPickAnchor();
+    }
     if (this.#drawMode) this.#setDrawModeInternal(true);
     if (!this.#ready) {
       this.#ready = true;
@@ -755,6 +920,13 @@ export class MapController {
       map.addSource(SOURCE.midpoints, {
         type: "geojson",
         data: drawMidpointCollection([]),
+      });
+    }
+
+    if (!map.getSource(SOURCE.pickAnchor)) {
+      map.addSource(SOURCE.pickAnchor, {
+        type: "geojson",
+        data: pickAnchorCollection(null),
       });
     }
 
@@ -928,6 +1100,19 @@ export class MapController {
       source: SOURCE.handles,
       paint: { "circle-opacity": 0, "circle-radius": 12 },
     });
+
+    // Span-pick first anchor — white fill, emerald ring (draw-anywhere).
+    map.addLayer({
+      id: LAYER.pickAnchor,
+      type: "circle",
+      source: SOURCE.pickAnchor,
+      paint: {
+        "circle-radius": 6,
+        "circle-color": "#ffffff",
+        "circle-stroke-color": RECON_COLOR_DRAFT,
+        "circle-stroke-width": 3,
+      },
+    });
   }
 
   #applyRoute(): void {
@@ -1024,6 +1209,12 @@ export class MapController {
 
   /** Canvas click in draw mode → add a vertex (unless on an affordance). */
   #onCanvasClick(e: MapMouseEvent): void {
+    // Span picking owns the click while active (mutually exclusive with
+    // the draw session — pick mode closes any open editor first).
+    if (this.#pickSession) {
+      this.#handlePickClick(e);
+      return;
+    }
     const session = this.#drawSession;
     if (!session || !this.#drawMode) return;
     // The click that follows a committed handle drag is not an add.

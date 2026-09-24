@@ -293,7 +293,11 @@ export interface ValidationIssue {
 // Gaps (§H-4)
 // ---------------------------------------------------------------------------
 
-export type GapKind = "time-gap" | "speed-anomaly" | "segment-break";
+export type GapKind =
+  | "time-gap"
+  | "speed-anomaly"
+  | "segment-break"
+  | "manual";
 
 export type GapSeverity = "info" | "suspect" | "severe";
 
@@ -316,6 +320,22 @@ export interface DetectedGap {
   impliedSpeed?: number;
   severity: GapSeverity;
   status: "new" | "in-progress" | "reconstructed" | "skipped";
+}
+
+/**
+ * A user-created repair span: two recorded points picked on the map that
+ * bound a stretch to redraw — regardless of whether detection flagged
+ * anything there. The id uses the same scheme as detected gaps, so a
+ * manual span over an already-detected boundary deduplicates into that
+ * gap's editor session and reconstruction (detection is a helper, never
+ * a gate).
+ */
+export interface ManualSpan {
+  id: GapId;
+  /** The earlier of the two points, in document order. */
+  beforePointId: PointId;
+  /** The later of the two points, in document order. */
+  afterPointId: PointId;
 }
 
 // ---------------------------------------------------------------------------

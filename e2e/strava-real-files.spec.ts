@@ -54,6 +54,13 @@ test.describe("real Strava files", () => {
     await expect(page.getByTestId("stats-panel")).toContainText("3.6");
     await expect(page.getByTestId("map-canvas")).toBeVisible();
 
+    // No gaps detected here — and the repair tools are available anyway
+    // (draw-anywhere; detection is a helper, never a gate).
+    await expect(page.getByTestId("gap-list")).toContainText(
+      "No gaps detected",
+    );
+    await expect(page.getByTestId("begin-pick-button")).toBeVisible();
+
     await page.screenshot({ path: "download/strava-gloryfit-recovered.png" });
   });
 

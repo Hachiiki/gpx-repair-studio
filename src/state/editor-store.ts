@@ -46,10 +46,11 @@ import {
 } from "@/features/reconstruction/drawModel";
 import type {
   GapId,
+  ManualSpan,
   Reconstruction,
   VertexId,
 } from "@/types/domain";
-import { vertexId } from "@/types/ids";
+import { gapId, vertexId } from "@/types/ids";
 
 /** The user-facing repair status of a gap (§G `DetectedGap.status`). */
 export type GapStatus =
@@ -67,11 +68,27 @@ interface EditorState {
   history: DrawHistory;
   /** Monotonic vertex-id allocator (never reused within a session). */
   vertexSeq: number;
+  /** User-created repair spans (draw-anywhere; see ManualSpan). */
+  manualSpans: readonly ManualSpan[];
+  /** Span-pick mode: the map is collecting two anchor clicks. */
+  pickMode: boolean;
 
   /** Open the draw editor for a gap (creates an empty repair if needed). */
   openEditor: (gapId: GapId) => void;
   /** Close the active editor (keeps the reconstruction; drops history). */
   closeEditor: () => void;
+  /** Enter span-pick mode (closes any open editor — picking replaces it). */
+  startPickMode: () => void;
+  /** Leave span-pick mode without creating a span. */
+  cancelPickMode: () => void;
+  /**
+   * Create (or reopen) the manual span for a boundary pair and open its
+   * editor. Idempotent per boundary: an existing span — detected or manual —
+   * keeps its repair state and is simply reopened.
+   */
+  addManualSpan: (beforePointId: ManualSpan["beforePointId"], afterPointId: ManualSpan["afterPointId"]) => void;
+  /** Remove a manual span and all of its repair state. */
+  removeManualSpan: (gapId: GapId) => void;
   setDrawMode: (on: boolean) => void;
   setSnapEnabled: (on: boolean) => void;
   /** Commit a command for the active gap (pure drawModel underneath). */
@@ -101,6 +118,8 @@ const INITIAL = {
   skippedGapIds: [] as readonly GapId[],
   history: EMPTY_HISTORY,
   vertexSeq: 0,
+  manualSpans: [] as readonly ManualSpan[],
+  pickMode: false,
 };
 
 /** The reconstruction of the active gap, or `null` when none is open. */
@@ -139,6 +158,60 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       activeGapId: null,
       history: EMPTY_HISTORY,
       drawMode: false,
+    }),
+
+  startPickMode: () =>
+    set({
+      pickMode: true,
+      // Picking replaces any open editor session (the panel closes; the
+      // abandoned reconstruction is kept, as with closeEditor).
+      activeGapId: null,
+      history: EMPTY_HISTORY,
+      drawMode: false,
+    }),
+
+  cancelPickMode: () => set({ pickMode: false }),
+
+  addManualSpan: (beforePointId, afterPointId) => {
+    if (beforePointId === afterPointId) return;
+    const id = gapId(beforePointId, afterPointId);
+    set((state) => ({
+      pickMode: false,
+      // The same openEditor contract as gap rows: editing implies
+      // repairing, an empty reconstruction is created on first touch, and
+      // a stale skip mark is withdrawn.
+      activeGapId: id,
+      drawMode: true,
+      history: EMPTY_HISTORY,
+      manualSpans: state.manualSpans.some((span) => span.id === id)
+        ? state.manualSpans
+        : [...state.manualSpans, { id, beforePointId, afterPointId }],
+      reconstructions: state.reconstructions[id]
+        ? state.reconstructions
+        : { ...state.reconstructions, [id]: emptyReconstruction(id) },
+      skippedGapIds: state.skippedGapIds.filter((skipped) => skipped !== id),
+    }));
+  },
+
+  removeManualSpan: (gapIdToRemove) =>
+    set((state) => {
+      if (!state.manualSpans.some((span) => span.id === gapIdToRemove)) {
+        return state;
+      }
+      const reconstructions = { ...state.reconstructions };
+      delete reconstructions[gapIdToRemove];
+      return {
+        manualSpans: state.manualSpans.filter(
+          (span) => span.id !== gapIdToRemove,
+        ),
+        reconstructions,
+        skippedGapIds: state.skippedGapIds.filter(
+          (skipped) => skipped !== gapIdToRemove,
+        ),
+        ...(state.activeGapId === gapIdToRemove
+          ? { activeGapId: null, history: EMPTY_HISTORY, drawMode: false }
+          : {}),
+      };
     }),
 
   setDrawMode: (drawMode) => set({ drawMode }),

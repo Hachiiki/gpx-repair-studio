@@ -103,6 +103,16 @@ export interface ReconstructionRenderRef {
  *     unknown span (the authored route replaces it; the boundary markers
  *     stay — they mark the recorded/authored seams).
  *
+ * Manual repair spans (draw-anywhere) join as a fourth kind of input:
+ * they never split the recorded line and never draw an unknown span —
+ * the stretch between their anchors IS recorded; the user merely wants
+ * to redraw it. They contribute boundary markers (the recorded↔authored
+ * seams) and, once committed, their reconstruction renders on top of the
+ * recorded line (both stay visible — the original is immutable truth, the
+ * repair is the user's claim). A manual span whose id matches a detected
+ * gap is skipped here: the detected rendering wins (the caller already
+ * dedupes; this is the defensive second gate).
+ *
  * A gap whose boundary points are unusable (e.g. a Null-Island artifact)
  * gets no span and no markers — the hole in the line is the honest signal.
  *
@@ -114,11 +124,13 @@ export function buildRouteView(
   data: OriginalTrackData,
   gaps: readonly RouteGapRef[],
   reconstructions: readonly ReconstructionRenderRef[] = [],
+  manualSpans: readonly RouteGapRef[] = [],
 ): RouteViewData {
   const beforeIds = new Set(gaps.map((gap) => gap.before.pointId));
   const afterIds = new Set(gaps.map((gap) => gap.after.pointId));
   const pointById = new Map<PointId, OriginalTrackPoint>();
   const reconByGap = new Map(reconstructions.map((r) => [r.gapId, r]));
+  const detectedIds = new Set(gaps.map((gap) => gap.id));
 
   const lines: RouteLinePart[] = [];
   const reconParts: ReconstructionPart[] = [];
@@ -166,6 +178,31 @@ export function buildRouteView(
 
   const spans: GapSpanPart[] = [];
   const markers: GapBoundaryMarker[] = [];
+  const renderMarkers = (
+    gapId: GapId,
+    beforePoint: OriginalTrackPoint,
+    afterPoint: OriginalTrackPoint,
+    severity: GapSeverity,
+  ) => {
+    markers.push(
+      {
+        gapId,
+        pointId: beforePoint.id,
+        role: "before",
+        severity,
+        lat: beforePoint.lat,
+        lon: beforePoint.lon,
+      },
+      {
+        gapId,
+        pointId: afterPoint.id,
+        role: "after",
+        severity,
+        lat: afterPoint.lat,
+        lon: afterPoint.lon,
+      },
+    );
+  };
   for (const gap of gaps) {
     const beforePoint = pointById.get(gap.before.pointId);
     const afterPoint = pointById.get(gap.after.pointId);
@@ -195,24 +232,7 @@ export function buildRouteView(
         });
       }
       // Boundary markers stay — they mark the recorded↔authored seams.
-      markers.push(
-        {
-          gapId: gap.id,
-          pointId: beforePoint.id,
-          role: "before",
-          severity: gap.severity,
-          lat: beforePoint.lat,
-          lon: beforePoint.lon,
-        },
-        {
-          gapId: gap.id,
-          pointId: afterPoint.id,
-          role: "after",
-          severity: gap.severity,
-          lat: afterPoint.lat,
-          lon: afterPoint.lon,
-        },
-      );
+      renderMarkers(gap.id, beforePoint, afterPoint, gap.severity);
       continue;
     }
 
@@ -225,24 +245,37 @@ export function buildRouteView(
         [afterPoint.lon, afterPoint.lat],
       ],
     });
-    markers.push(
-      {
-        gapId: gap.id,
-        pointId: beforePoint.id,
-        role: "before",
-        severity: gap.severity,
-        lat: beforePoint.lat,
-        lon: beforePoint.lon,
-      },
-      {
-        gapId: gap.id,
-        pointId: afterPoint.id,
-        role: "after",
-        severity: gap.severity,
-        lat: afterPoint.lat,
-        lon: afterPoint.lon,
-      },
-    );
+    renderMarkers(gap.id, beforePoint, afterPoint, gap.severity);
+  }
+
+  // Manual repair spans: markers + committed reconstruction only — the
+  // recorded line between the anchors stays (the stretch is recorded; the
+  // user redraws it by choice, not because nothing exists there).
+  for (const span of manualSpans) {
+    if (detectedIds.has(span.id)) continue; // detected rendering wins
+    const beforePoint = pointById.get(span.before.pointId);
+    const afterPoint = pointById.get(span.after.pointId);
+    if (!beforePoint || !afterPoint) continue;
+    if (
+      !isUsableStatsPoint(beforePoint) ||
+      !isUsableStatsPoint(afterPoint)
+    ) {
+      continue;
+    }
+    const recon = reconByGap.get(span.id);
+    if (recon && recon.vertices.length > 0 && !recon.active) {
+      const path = resamplePath(
+        beforePoint,
+        recon.vertices,
+        afterPoint,
+        recon.spacingM,
+      );
+      reconParts.push({
+        gapId: span.id,
+        coordinates: path.map((p) => [p.lon, p.lat] as [number, number]),
+      });
+    }
+    renderMarkers(span.id, beforePoint, afterPoint, span.severity);
   }
 
   return { lines, spans, markers, reconstructions: reconParts, usablePointCount };
@@ -299,6 +332,7 @@ export function useMapController(session: GpxSession): MapBinding {
   const editorReconstructions = useEditorStore((s) => s.reconstructions);
   const editorActiveGapId = useEditorStore((s) => s.activeGapId);
   const editorSkipped = useEditorStore((s) => s.skippedGapIds);
+  const editorManualSpans = useEditorStore((s) => s.manualSpans);
 
   const setContainer = useCallback((element: HTMLDivElement | null) => {
     containerRef.current = element;
@@ -344,9 +378,43 @@ export function useMapController(session: GpxSession): MapBinding {
   // Route data: derive once per (model, gaps, committed reconstructions)
   // change; drive the controller. The gap being edited renders through the
   // controller's draw session (draft styling), not as a committed line.
+
+  // Manual repair spans as render refs — resolved against the frozen
+  // model, deduplicated against currently-detected gaps (the detected
+  // rendering wins for a shared boundary).
+  const manualGapRefs = useMemo(() => {
+    if (!session.data) return [] as RouteGapRef[];
+    const pointById = new Map<PointId, OriginalTrackPoint>();
+    for (const segment of session.data.segments) {
+      for (const point of segment.points) pointById.set(point.id, point);
+    }
+    const detectedIds = new Set(gapRows.map((row) => row.id));
+    const refs: RouteGapRef[] = [];
+    for (const span of editorManualSpans) {
+      if (detectedIds.has(span.id)) continue;
+      const before = pointById.get(span.beforePointId);
+      const after = pointById.get(span.afterPointId);
+      if (!before || !after) continue;
+      if (!isUsableStatsPoint(before) || !isUsableStatsPoint(after)) {
+        continue;
+      }
+      refs.push({
+        id: span.id,
+        kind: "manual",
+        severity: "info",
+        before: { pointId: before.id, lat: before.lat, lon: before.lon },
+        after: { pointId: after.id, lat: after.lat, lon: after.lon },
+      });
+    }
+    return refs;
+  }, [session.data, editorManualSpans, gapRows]);
+
   const reconstructionRefs = useMemo(() => {
     const refs: ReconstructionRenderRef[] = [];
-    for (const row of gapRows) {
+    const seen = new Set<string>();
+    for (const row of [...gapRows, ...manualGapRefs]) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
       if (editorSkipped.includes(row.id)) continue;
       const recon = editorReconstructions[row.id];
       if (!recon || recon.vertices.length === 0) continue;
@@ -360,14 +428,14 @@ export function useMapController(session: GpxSession): MapBinding {
       });
     }
     return refs;
-  }, [gapRows, editorReconstructions, editorActiveGapId, editorSkipped]);
+  }, [gapRows, manualGapRefs, editorReconstructions, editorActiveGapId, editorSkipped]);
 
   const route = useMemo(
     () =>
       showMap && session.data
-        ? buildRouteView(session.data, gapRows, reconstructionRefs)
+        ? buildRouteView(session.data, gapRows, reconstructionRefs, manualGapRefs)
         : null,
-    [showMap, session.data, gapRows, reconstructionRefs],
+    [showMap, session.data, gapRows, reconstructionRefs, manualGapRefs],
   );
   useEffect(() => {
     controllerRef.current?.setRoute(route);
@@ -391,16 +459,18 @@ export function useMapController(session: GpxSession): MapBinding {
   }, [provider]);
 
   // Selection hygiene: clear a selection that no longer exists (new file,
-  // reset, or re-detection removed the gap).
+  // reset, or re-detection removed the gap). Manual spans count too — a
+  // picked span is selectable exactly like a detected gap.
   useEffect(() => {
     if (selectedGapId === null) return;
     if (
       session.status !== "parsed" ||
-      !gapRows.some((row) => row.id === selectedGapId)
+      (!gapRows.some((row) => row.id === selectedGapId) &&
+        !manualGapRefs.some((ref) => ref.id === selectedGapId))
     ) {
       useUiStore.getState().selectGap(null);
     }
-  }, [selectedGapId, gapRows, session.status]);
+  }, [selectedGapId, gapRows, manualGapRefs, session.status]);
 
   // Selection → map: highlight (casing + halo) and focus the gap region.
   useEffect(() => {
@@ -408,7 +478,9 @@ export function useMapController(session: GpxSession): MapBinding {
     if (!controller) return;
     controller.highlightGap(selectedGapId);
     if (selectedGapId !== null) {
-      const row = gapRows.find((r) => r.id === selectedGapId);
+      const row =
+        gapRows.find((r) => r.id === selectedGapId) ??
+        manualGapRefs.find((r) => r.id === selectedGapId);
       if (row) {
         controller.fitBounds(
           {
@@ -425,7 +497,7 @@ export function useMapController(session: GpxSession): MapBinding {
         );
       }
     }
-  }, [selectedGapId, gapRows]);
+  }, [selectedGapId, gapRows, manualGapRefs]);
 
   const selectGap = useCallback((gapId: GapId | null) => {
     useUiStore.getState().selectGap(gapId);
@@ -450,6 +522,11 @@ export function useMapController(session: GpxSession): MapBinding {
     }
   }, [session.extent]);
 
+  // The highlight chip stays a detected-gap affordance: its copy ("the path
+  // … was not recorded") would be a lie for manual spans, where the stretch
+  // IS recorded and the user redraws it by choice. Manual spans get their
+  // map highlight + camera focus through `selectedGapId` and the refs
+  // above; their context lives in the manual-repairs card and the editor.
   const selectedGap = useMemo(
     () =>
       selectedGapId === null

@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Crosshair, TriangleAlert, X } from "lucide-react";
+import { Crosshair, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   GAP_KIND_LABELS,
   GapSeverityBadge,
@@ -91,6 +91,7 @@ function VertexRow({
 export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
   if (!draw.active || !draw.activeGap) return null;
   const gap = draw.activeGap;
+  const isManual = gap.kind === "manual";
 
   return (
     <Card data-testid="draw-editor-panel">
@@ -100,7 +101,7 @@ export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
           Reconstruct route
         </h3>
         <CardDescription className="flex flex-wrap items-center gap-1.5">
-          <GapSeverityBadge severity={gap.severity} />
+          {!isManual && <GapSeverityBadge severity={gap.severity} />}
           <span className="text-sm font-medium">
             {GAP_KIND_LABELS[gap.kind]}
           </span>
@@ -235,16 +236,30 @@ export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
         )}
 
         <div className="flex items-center justify-between gap-2 border-t pt-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 text-muted-foreground hover:text-foreground"
-            data-testid="skip-gap-button"
-            onClick={draw.toggleSkip}
-          >
-            Mark as skipped
-          </Button>
+          {isManual ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-muted-foreground hover:text-destructive"
+              data-testid="remove-span-button"
+              onClick={() => draw.removeManualSpan(gap.id)}
+            >
+              <Trash2 className="size-3.5" aria-hidden="true" />
+              Remove repair span
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-muted-foreground hover:text-foreground"
+              data-testid="skip-gap-button"
+              onClick={draw.toggleSkip}
+            >
+              Mark as skipped
+            </Button>
+          )}
           <Button
             type="button"
             size="sm"

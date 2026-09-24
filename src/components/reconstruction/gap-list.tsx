@@ -161,6 +161,11 @@ export interface GapListProps {
   statusById?: Readonly<Record<string, GapStatus>>;
   /** Open the draw editor for a gap (Phase 4; omitted hides the buttons). */
   onOpenEditor?: (gapId: GapId) => void;
+  /**
+   * Start a manual repair span (draw-anywhere). Offered exactly where it
+   * matters most: the empty state of a clean-looking file.
+   */
+  onBeginPick?: () => void;
 }
 
 export function GapList({
@@ -172,6 +177,7 @@ export function GapList({
   onSelectGap,
   statusById,
   onOpenEditor,
+  onBeginPick,
 }: GapListProps) {
   return (
     <Card data-testid="gap-list">
@@ -192,13 +198,26 @@ export function GapList({
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <CircleCheck
-              className="size-4 shrink-0 text-emerald-600"
-              aria-hidden="true"
-            />
-            No gaps detected with the current thresholds.
-          </p>
+          <div className="grid gap-2">
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CircleCheck
+                className="size-4 shrink-0 text-emerald-600"
+                aria-hidden="true"
+              />
+              No gaps detected with the current thresholds.
+            </p>
+            {onBeginPick && (
+              <button
+                type="button"
+                data-testid="empty-list-begin-pick"
+                className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-600/10 focus-visible:outline-2 dark:text-emerald-400"
+                onClick={onBeginPick}
+              >
+                <PenLine className="size-3.5" aria-hidden="true" />
+                Something still looks wrong? Draw a repair manually
+              </button>
+            )}
+          </div>
         ) : (
           <ScrollArea className="max-h-96 -mx-2">
             <ul className="grid gap-3 px-2">

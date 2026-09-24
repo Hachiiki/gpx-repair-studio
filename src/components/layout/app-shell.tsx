@@ -29,6 +29,7 @@ import { UploadZone } from "@/components/gpx/upload-zone";
 import { ValidationReport } from "@/components/gpx/validation-report";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import { GapList } from "@/components/reconstruction/gap-list";
+import { ManualRepairsCard } from "@/components/reconstruction/manual-repairs-card";
 import { StatsPanel } from "@/components/statistics/stats-panel";
 import { useDrawEditor } from "@/hooks/use-draw-editor";
 import { useGpxSession } from "@/hooks/use-gpx-session";
@@ -79,6 +80,16 @@ export function AppShell() {
             findings={
               <>
                 <DrawEditorPanel draw={draw} />
+                <ManualRepairsCard
+                  rows={draw.manualRows}
+                  detectedGapIds={session.gapRows.map((row) => row.id)}
+                  pickMode={draw.pickMode}
+                  onBeginPick={draw.beginPickSpan}
+                  onCancelPick={draw.cancelPickSpan}
+                  onOpenEditor={draw.openEditor}
+                  onRemoveSpan={draw.removeManualSpan}
+                  statusById={draw.statusById}
+                />
                 <GapList
                   rows={session.gapRows}
                   thresholds={session.gapThresholds}
@@ -88,6 +99,7 @@ export function AppShell() {
                   onSelectGap={map.selectGap}
                   statusById={draw.statusById}
                   onOpenEditor={draw.openEditor}
+                  onBeginPick={draw.beginPickSpan}
                 />
                 {session.distanceStats && session.timeStats && (
                   <StatsPanel
