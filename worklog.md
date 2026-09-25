@@ -394,3 +394,30 @@ Stage Summary:
   - Duplication check: one tooltip component, one mode chip, one rail; grep-verified no leftover title-only hints duplicated on HintTip-wrapped controls.
   - Architecture impact: Phase 5 (time & pace) panels slot into the tools column unchanged; the sticky column's max-height/scroll budget grows as editor cards gain content; mobile single-column order (map → editor → manual → gaps → cue → details) is now a pinned e2e/mobile contract.
 - Next: user tests the new layout; Phase 5 (time & pace reconstruction) still awaits authorization.
+
+---
+Task ID: 17
+Agent: Super Z (main agent)
+Task: UI refactor, next phase — AppShell reorganization: make the composition root pure, extract the non-workspace session states, bring the landing page up to the Task-16 design language, and fix issues found along the way.
+
+Work Log:
+- Surveyed the shell trio (app-shell, header, workspace-layout), the session store's state shapes, every test/e2e contract touching the idle/loading/error states (exact hero heading text, upload-zone/session-error/loading-state testids, footer regex), and the ESLint/architecture boundary rules.
+- New layout/session-views.tsx: SessionIdleView (hero + UploadZone + a "How it works" trio teaching Inspect / Repair / Honest-by-default — copy promises only shipped behavior, no export claim) and SessionLoadingView. AppShell now only wires hooks and picks the view (parsed → WorkspaceLayout, loading → LoadingView, idle/error → IdleView).
+- New layout/shell-container.ts: SHELL_CONTAINER const — the page measure was duplicated in header/main/footer (gutter-drift risk); now one authoritative definition composed via cn().
+- Fixes: loading card got role="status" (screen readers previously stayed silent through the parse); skip-to-content link + main id/tabIndex=-1; hero copy updated honestly ("then draw the missing route yourself" — drawing shipped in Phase 4/15, old copy said "later"); footer softened to "the file never leaves this device" (road-follow sends clicked points to routing — absolute "no data uploaded" was no longer strictly true); margin-based centering (mt-auto/mb-auto) instead of justify-center to avoid the flex-centering overflow clip now that the landing page is taller; text-pretty on step descriptions (VLM-flagged orphan words).
+- Micro-interaction: CSS-only hero entrance (gpxr-hero-in, 0.55s, prefers-reduced-motion guarded) — the load-time sibling of RevealOnScroll; replays on "New file" reset. The trio reveals on scroll like the details section.
+- Tests: new tests/session-views.test.tsx (6: hero+zone, error-retry path, trio contents + 3 li, onFile intent, role=status announcement, null-fileName fallback); skip-link assertion added to inspection-flow; smoke e2e pins the workflow trio + skip link. 427/427 unit, typecheck + lint clean, 37/37 e2e.
+- Live verification (scripts/verify-appshell-idle.mjs): idle desktop (full page), skip-link focus → Enter → focus lands on #main-content, error state (alert above hero, zone alive), idle mobile (full page, scrollWidth 390 = no overflow). Screenshots: download/appshell-{idle-desktop,idle-mobile,error-state,skip-link}.png.
+- VLM review: desktop clean (only orphan-word nit → fixed with text-pretty); mobile "N button clipping" investigated with a bounding-box probe (script since removed): zero app-DOM overlaps — the "N" is the Next.js dev-mode badge (dev-only portal; production e2e unaffected); zone→trio gap measured 144px (not cramped); muted-foreground contrast computed ≈4.7:1 (AA pass).
+- Committed ae37608 and pushed to origin/main.
+
+Stage Summary:
+- AppShell is now what its docblock always claimed: hooks + view picker + three fixed shell regions sharing one measure. The landing page (the first screen every new user sees) finally matches the workspace's design quality and teaches the pipeline before upload.
+- The four session states each have a home: WorkspaceLayout (parsed), SessionIdleView (idle + error retry), SessionLoadingView (loading).
+- ARCHITECTURE REPORT (user rule §20):
+  - Reused: the composition-root seam (§D-6) with views extracted rather than logic moved; RevealOnScroll for below-fold entrance; the bordered-card/chip/muted-hierarchy design language; the minmax(0,1fr) grid discipline on the trio; the one-implementation-per-concept pattern (SHELL_CONTAINER mirrors gap-vocabulary); CSS-only, reduced-motion-guarded animation (no React state, react-hooks rules untouched).
+  - New modules: layout/session-views.tsx and layout/shell-container.ts — both presentation-layer only, props in / intents out; no new logic below the presentation layer. Probe script deleted after use.
+  - Reuse decisions: the skip link lives in AppShell (shell-level a11y, not a view concern); the error alert stays a gpx/ component composed by the idle view (retry = landing state, not a separate screen); session-views imports state types only for prop shapes (type-only import, boundary-safe).
+  - Duplication check: one shell measure (was 3), one landing hero, one loading card; grep-verified no other idle/loading JSX remains (app-shell renders only view picks).
+  - Architecture impact: Phase 5/6 panels are unaffected (workspace branch untouched); future dark-mode or locale work now has single-point hooks (tokens in globals.css, measure in shell-container, landing copy in one WORKFLOW_STEPS table).
+- Next: user reviews the new landing state; the remaining UI-refactor candidates are the workspace cards' internal consistency (draw-editor-panel / gap-list / manual-repairs headings and spacing rhythm) and Phase 5 (time & pace reconstruction) still awaits authorization.
