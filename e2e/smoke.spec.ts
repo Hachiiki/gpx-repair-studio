@@ -28,6 +28,18 @@ test.describe("app shell", () => {
     ).toBeVisible();
     await expect(page.getByTestId("upload-zone")).toBeVisible();
 
+    // The landing page teaches the three-step workflow (AppShell
+    // reorganization pass) — Inspect, Repair, and the honesty promise.
+    const steps = page.getByTestId("workflow-steps");
+    await expect(steps).toBeVisible();
+    await expect(steps).toContainText("Inspect");
+    await expect(steps).toContainText("Repair");
+    await expect(steps).toContainText("Honest by default");
+
+    // Keyboard users can jump past the header to the main landmark.
+    const skip = page.getByRole("link", { name: "Skip to content" });
+    await expect(skip).toHaveAttribute("href", "#main-content");
+
     const footer = page.getByRole("contentinfo");
     await expect(footer).toBeVisible();
     await expect(

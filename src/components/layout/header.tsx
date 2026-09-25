@@ -14,6 +14,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
+import { SHELL_CONTAINER } from "@/components/layout/shell-container";
+import { cn } from "@/lib/utils";
 import type { SessionStatus } from "@/state/session-store";
 
 export interface AppHeaderProps {
@@ -27,7 +29,12 @@ export function AppHeader({ fileName, status, onReset }: AppHeaderProps) {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75">
-      <div className="mx-auto flex w-full max-w-[92rem] items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <div
+        className={cn(
+          SHELL_CONTAINER,
+          "flex items-center justify-between gap-4 py-3",
+        )}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <h1 className="text-lg font-semibold tracking-tight">
             GPX Repair Studio

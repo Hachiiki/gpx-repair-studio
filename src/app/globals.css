@@ -148,3 +148,26 @@
     }
   }
 }
+
+/*
+ * Landing hero entrance (AppShell reorganization pass) — the load-time
+ * sibling of the scroll reveal above: one soft rise as the page comes
+ * in. CSS only (works on the prerendered HTML, replays when the user
+ * returns to the start via "New file"), skipped entirely for reduced
+ * motion.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-entrance {
+    animation: gpxr-hero-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes gpxr-hero-in {
+    from {
+      opacity: 0;
+      translate: 0 0.875rem;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+}

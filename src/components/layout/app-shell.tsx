@@ -2,35 +2,41 @@
  * AppShell — the composition root of the application (§D-6 "App.tsx rule").
  *
  * This is the only component allowed to wire the top-level session: it
- * calls `useGpxSession` and distributes data/intents to the panels as
- * props. It contains no GPX logic, no math, no parsing — composition
- * only, per the master plan.
+ * calls `useGpxSession`, `useMapController`, and `useDrawEditor`, and
+ * distributes data/intents to the views as props. It contains no GPX
+ * logic, no math, no parsing — composition only, per the master plan.
  *
- * Also owns two app-level behaviors:
- *   - rehydrating persisted settings after mount (skipHydration pattern,
- *     see state/ui-store.ts), and
- *   - the four session states (idle hero / loading / error / workspace).
+ * The shell is three fixed regions (skip link / header / main / footer)
+ * sharing one measure (SHELL_CONTAINER), and `main` hosts exactly one
+ * of the four session states:
  *
- * QoL pass — two-section workspace: section 1 is the tall map with the
- * repair tools in a sticky side panel (everything needed to repair on
- * the first screen); section 2 (reached by scrolling) carries the file
- * details and statistics.
+ *   - parsed  → the two-section workspace (layout/workspace-layout.tsx)
+ *   - loading → SessionLoadingView
+ *   - idle or error → SessionIdleView (the landing page, which is also
+ *     the retry surface — the error alert sits above the hero and the
+ *     upload zone stays available)
  *
- * Phase 3 — Map Display: composes the map binding (useMapController) and
- * distributes selection state to the map canvas and the gap list.
+ * The non-workspace views live in layout/session-views.tsx; the shell
+ * only picks between them (AppShell reorganization pass).
+ *
+ * Also owns one app-level behavior: rehydrating persisted settings
+ * after mount (skipHydration pattern, see state/ui-store.ts).
  */
 
 "use client";
 
 import { useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { AppHeader } from "@/components/layout/header";
+import {
+  SessionIdleView,
+  SessionLoadingView,
+} from "@/components/layout/session-views";
+import { SHELL_CONTAINER } from "@/components/layout/shell-container";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { MapCanvas } from "@/components/map/map-canvas";
 import { GpxSummaryCard } from "@/components/gpx/gpx-summary-card";
 import { SegmentList } from "@/components/gpx/segment-list";
-import { SessionErrorAlert } from "@/components/gpx/session-error-alert";
-import { UploadZone } from "@/components/gpx/upload-zone";
 import { ValidationReport } from "@/components/gpx/validation-report";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import { GapList } from "@/components/reconstruction/gap-list";
@@ -41,6 +47,7 @@ import { useGpxSession } from "@/hooks/use-gpx-session";
 import { useMapController } from "@/hooks/use-map-controller";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { useUiStore } from "@/state/ui-store";
+import { cn } from "@/lib/utils";
 
 export function AppShell() {
   const session = useGpxSession();
@@ -56,13 +63,25 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
+      {/* Keyboard users jump straight past the header. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-lg"
+      >
+        Skip to content
+      </a>
+
       <AppHeader
         fileName={session.fileName}
         status={session.status}
         onReset={session.reset}
       />
 
-      <main className="mx-auto flex w-full max-w-[92rem] flex-1 flex-col px-4 py-6 sm:px-6">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className={cn(SHELL_CONTAINER, "flex flex-1 flex-col py-6")}
+      >
         {session.status === "parsed" && session.data ? (
           <WorkspaceLayout
             map={
@@ -119,48 +138,25 @@ export function AppShell() {
               </RevealOnScroll>
             }
           />
+        ) : session.status === "loading" ? (
+          <SessionLoadingView fileName={session.fileName} />
         ) : (
-          <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center gap-6 py-8">
-            {session.status === "loading" ? (
-              <div
-                className="flex flex-col items-center gap-3 rounded-xl border bg-card px-8 py-10 text-center"
-                data-testid="loading-state"
-              >
-                <Loader2
-                  className="size-6 animate-spin text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <p className="font-medium">Parsing {session.fileName}…</p>
-                <p className="text-sm text-muted-foreground">
-                  Everything happens locally in your browser.
-                </p>
-              </div>
-            ) : (
-              <>
-                {session.status === "error" && session.error && (
-                  <SessionErrorAlert error={session.error} />
-                )}
-                <div className="space-y-2 text-center">
-                  <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    Repair incomplete GPS recordings
-                  </h2>
-                  <p className="text-balance text-muted-foreground">
-                    Upload a GPX activity with gaps or damage, inspect what
-                    was recorded, and later draw the missing route — with a
-                    clear line between recorded and reconstructed data.
-                  </p>
-                </div>
-                <UploadZone onFile={session.loadFile} />
-              </>
-            )}
-          </div>
+          <SessionIdleView error={session.error} onFile={session.loadFile} />
         )}
       </main>
 
       <footer className="mt-auto border-t">
-        <div className="mx-auto w-full max-w-[92rem] px-4 py-4 text-xs text-muted-foreground sm:px-6">
-          All processing happens in your browser. No GPX data is uploaded to
-          any server.
+        <div
+          className={cn(
+            SHELL_CONTAINER,
+            "flex items-center gap-1.5 py-4 text-xs text-muted-foreground",
+          )}
+        >
+          <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            All processing happens in your browser — the file never leaves
+            this device.
+          </span>
         </div>
       </footer>
     </div>

@@ -189,4 +189,12 @@ describe("inspection flow", () => {
     const segments = await screen.findByTestId("segment-list");
     expect(segments).toHaveTextContent(/flagged/);
   });
+
+  it("exposes a skip link that targets the main content landmark", () => {
+    render(<AppShell />);
+
+    const skip = screen.getByRole("link", { name: "Skip to content" });
+    expect(skip).toHaveAttribute("href", "#main-content");
+    expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
+  });
 });
