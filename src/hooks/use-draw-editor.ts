@@ -26,18 +26,23 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import {
-  isStraightLine,
-  MAX_VERTICES,
-  reconstructionDistanceMeters,
-} from "@/features/reconstruction/drawModel";
+import { MAX_VERTICES } from "@/features/reconstruction/drawModel";
 import {
   buildSnapCandidates,
   nearestSnap,
   type SnapCandidate,
 } from "@/features/reconstruction/snap";
+import {
+  closingLegCoordinates,
+  isStraightLinePath,
+  joinDrawChain,
+  RoadFollowRouter,
+} from "@/features/reconstruction/roadFollow";
 import { isUsableStatsPoint } from "@/features/statistics/distance";
-import { geodesicDistanceMeters } from "@/lib/geo/geodesy";
+import {
+  geodesicDistanceMeters,
+  polylineLengthMeters,
+} from "@/lib/geo/geodesy";
 import type { MapController } from "@/lib/map/mapController";
 import type {
   DrawCommitPosition,
@@ -53,13 +58,32 @@ import { useUiStore } from "@/state/ui-store";
 import type {
   DrawVertex,
   GapId,
+  LatLon,
   OriginalTrackPoint,
   PointId,
+  RoadFollowMode,
+  RoadLeg,
   SegmentId,
   VertexId,
 } from "@/types/domain";
 import type { GapRow, GpxSession } from "@/hooks/use-gpx-session";
 import type { MapBinding } from "@/hooks/use-map-controller";
+
+/**
+ * The road-follow router (app layer owns the network): one shared
+ * instance per page — its cache makes undo/redo and vertex re-drags of the
+ * same leg instant. The browser `fetch` is injected (features/** must stay
+ * fetch-free).
+ */
+let sharedRoadRouter: RoadFollowRouter | null = null;
+function getRoadRouter(): RoadFollowRouter {
+  if (!sharedRoadRouter) {
+    sharedRoadRouter = new RoadFollowRouter({
+      fetch: (input, init) => fetch(input, init),
+    });
+  }
+  return sharedRoadRouter;
+}
 
 /** App-layer facade: the draw-editor view consumed by components. */
 export interface DrawEditorBinding {
@@ -71,6 +95,12 @@ export interface DrawEditorBinding {
   drawMode: boolean;
   /** Snap-to-original-points magnet enabled. */
   snapEnabled: boolean;
+  /** Road-follow mode for drawn legs (car roads / footpaths / straight). */
+  roadFollow: RoadFollowMode;
+  /** A road leg request is in flight for the active chain. */
+  routingPending: boolean;
+  /** The latest road request failed (straight lines until it recovers). */
+  routingFailed: boolean;
   /** The authoritative vertices of the active reconstruction. */
   vertices: readonly DrawVertex[];
   vertexCount: number;
@@ -113,6 +143,7 @@ export interface DrawEditorBinding {
   removeManualSpan: (gapId: GapId) => void;
   setDrawMode: (on: boolean) => void;
   setSnapEnabled: (on: boolean) => void;
+  setRoadFollow: (mode: RoadFollowMode) => void;
   undo: () => void;
   redo: () => void;
   clearVertices: () => void;
@@ -140,6 +171,9 @@ export function useDrawEditor(
   const activeGapId = useEditorStore((s) => s.activeGapId);
   const drawMode = useEditorStore((s) => s.drawMode);
   const snapEnabled = useEditorStore((s) => s.snapEnabled);
+  const roadFollow = useEditorStore((s) => s.roadFollow);
+  const roadLegs = useEditorStore((s) => s.roadLegs);
+  const roadRouting = useEditorStore((s) => s.roadRouting);
   const reconstructions = useEditorStore((s) => s.reconstructions);
   const skippedGapIds = useEditorStore((s) => s.skippedGapIds);
   const history = useEditorStore((s) => s.history);
@@ -270,6 +304,12 @@ export function useDrawEditor(
 
   const activeRecon = activeGapId === null ? null : reconstructions[activeGapId] ?? null;
   const vertices = activeRecon?.vertices ?? [];
+
+  /** Resolved road legs of the ACTIVE gap (empty when none/off). */
+  const activeRoadLegs = useMemo(
+    () => (activeGapId === null ? [] : (roadLegs[activeGapId] ?? [])),
+    [activeGapId, roadLegs],
+  );
 
   // Resolved anchors of the active row: the near anchor always exists (it
   // is the picked/recorded point the chain attaches to); the far anchor
@@ -424,6 +464,18 @@ export function useDrawEditor(
 
   // -- controller draw-session driving ----------------------------------------
 
+  // Road-follow joins injected into the controller (the DrawSnapFn
+  // pattern: the map adapter runs no domain code). Fresh closures whenever
+  // the resolved legs change; straight legs while a resolution is pending.
+  const makeJoins = useCallback(
+    (legs: readonly RoadLeg[]) => ({
+      chainJoin: (nodes: readonly LatLon[]) => joinDrawChain(nodes, legs),
+      closingJoin: (from: LatLon, to: LatLon) =>
+        closingLegCoordinates(from, to, legs),
+    }),
+    [],
+  );
+
   // Open/switch/close the controller session when the active gap changes
   // (also fires once the map becomes ready — startDrawSession is deferred
   // internally until then). The chain always starts at the row's anchor;
@@ -438,6 +490,7 @@ export function useDrawEditor(
     }
     const store = useEditorStore.getState();
     const initial = store.reconstructions[activeGap.id]?.vertices ?? [];
+    const initialLegs = store.roadLegs[activeGap.id] ?? [];
     controller.startDrawSession({
       gapId: activeGap.id,
       anchors: {
@@ -448,6 +501,7 @@ export function useDrawEditor(
       },
       vertices: initial,
       snap: snapFn,
+      ...makeJoins(initialLegs),
       callbacks: {
         onVertexAdd: (position) =>
           useEditorStore.getState().addVertex(position),
@@ -462,12 +516,91 @@ export function useDrawEditor(
     return () => {
       controller.endDrawSession();
     };
-  }, [activeGap, nearAnchor, farAnchor, mapReady, map.getController, snapFn]);
+  }, [activeGap, nearAnchor, farAnchor, mapReady, map.getController, snapFn, makeJoins]);
 
-  // Push every authoritative vertex change into the controller.
+  // Push every authoritative vertex change (and every resolved road leg)
+  // into the controller. A leg resolution mid-session re-renders the draft
+  // with the road geometry without touching the session.
   useEffect(() => {
-    map.getController()?.updateDrawSession(vertices);
-  }, [vertices, map.getController]);
+    map.getController()?.updateDrawSession(vertices, makeJoins(activeRoadLegs));
+  }, [vertices, activeRoadLegs, map.getController, makeJoins]);
+
+  // -- road-follow leg resolution (snap to road) --------------------------------
+
+  // The chain's node pairs (anchor → vertices → far anchor) are routed
+  // through the shared router as long as road-follow is on. Resolved legs
+  // land in the store side table (rendering + distance + commit all read
+  // it); failures fall back to straight legs — WYSIWYG: a missing road is
+  // honestly straight, never a silent detour. Stale async results are
+  // dropped via a generation counter (vertex moved / gap switched / mode
+  // changed since the request started). Status lives in the store (same
+  // transient-aid contract as drawMode) so this effect never calls React
+  // setState directly.
+  const roadGeneration = useRef(0);
+
+  useEffect(() => {
+    const resetRouting = () => {
+      const state = useEditorStore.getState();
+      if (state.roadRouting.pending !== 0 || state.roadRouting.failed) {
+        state.setRoadRouting({ pending: 0, failed: false });
+      }
+    };
+    if (!activeGap || !nearAnchor) {
+      resetRouting();
+      return;
+    }
+    const gapId = activeGap.id;
+    if (roadFollow === "off") {
+      const legs = useEditorStore.getState().roadLegs[gapId] ?? [];
+      if (legs.length > 0) useEditorStore.getState().setRoadLegs(gapId, []);
+      resetRouting();
+      return;
+    }
+    const nodes: LatLon[] = [
+      { lat: nearAnchor.lat, lon: nearAnchor.lon },
+      ...vertices,
+      ...(farAnchor ? [{ lat: farAnchor.lat, lon: farAnchor.lon }] : []),
+    ];
+    const pairs: { a: LatLon; b: LatLon }[] = [];
+    for (let i = 0; i + 1 < nodes.length; i += 1) {
+      pairs.push({ a: nodes[i], b: nodes[i + 1] });
+    }
+    const router = getRoadRouter();
+    const resolved: RoadLeg[] = [];
+    const missing: { a: LatLon; b: LatLon }[] = [];
+    for (const pair of pairs) {
+      const leg = router.cached(roadFollow, pair.a, pair.b);
+      if (leg) resolved.push(leg);
+      else missing.push(pair);
+    }
+    useEditorStore.getState().setRoadLegs(gapId, resolved);
+    useEditorStore.getState().setRoadRouting({
+      pending: missing.length,
+      failed: false,
+    });
+    if (missing.length === 0) return;
+    const generation = (roadGeneration.current += 1);
+    let pending = missing.length;
+    for (const pair of missing) {
+      void router.segment(roadFollow, pair.a, pair.b).then((leg) => {
+        if (roadGeneration.current !== generation) return; // stale
+        const state = useEditorStore.getState();
+        if (state.activeGapId !== gapId || state.roadFollow !== roadFollow) {
+          return;
+        }
+        pending -= 1;
+        if (leg) {
+          state.setRoadLegs(gapId, [...(state.roadLegs[gapId] ?? []), leg]);
+          state.setRoadRouting({ pending, failed: false });
+        } else {
+          state.setRoadRouting({ pending, failed: true });
+        }
+      });
+    }
+    // vertices identity changes per command; activeGap/nearAnchor/farAnchor
+    // are stable per session — the effect re-runs on every edit, which is
+    // exactly when the wanted leg set changes.
+  }, [activeGap, nearAnchor, farAnchor, vertices, roadFollow]);
 
   // Draw/Pan toggle → controller interaction handlers.
   useEffect(() => {
@@ -476,34 +609,37 @@ export function useDrawEditor(
 
   // -- derived view data --------------------------------------------------------
 
-  // Distance runs anchor-to-anchor for bounded rows; an open extension
-  // measures its chain (anchor → vertices) and nothing beyond — the number
-  // is exactly the drawn route.
-  const distanceM = useMemo(
-    () =>
-      nearAnchor
-        ? reconstructionDistanceMeters(
-            vertices,
-            { lat: nearAnchor.lat, lon: nearAnchor.lon },
-            farAnchor ? { lat: farAnchor.lat, lon: farAnchor.lon } : null,
-          )
-        : null,
-    [vertices, nearAnchor, farAnchor],
-  );
+  // Distance runs over the RENDERED path (nodes with road legs
+  // substituted): anchor-to-anchor for bounded rows, the drawn chain for
+  // open extensions — the number the line draws is the number the badge
+  // shows (WYSIWYG honesty).
+  const distanceM = useMemo(() => {
+    if (!nearAnchor) return null;
+    const nodes: LatLon[] = [
+      { lat: nearAnchor.lat, lon: nearAnchor.lon },
+      ...vertices,
+      ...(farAnchor ? [{ lat: farAnchor.lat, lon: farAnchor.lon }] : []),
+    ];
+    return polylineLengthMeters(joinDrawChain(nodes, activeRoadLegs).points);
+  }, [nearAnchor, farAnchor, vertices, activeRoadLegs]);
 
-  // Open extensions have no straight line to hug — the warning only
-  // applies to bounded rows.
-  const straightLine = useMemo(
-    () =>
-      nearAnchor && farAnchor
-        ? isStraightLine(
-            vertices,
-            { lat: nearAnchor.lat, lon: nearAnchor.lon },
-            { lat: farAnchor.lat, lon: farAnchor.lon },
-          )
-        : false,
-    [vertices, nearAnchor, farAnchor],
-  );
+  // Straight-line honesty over the RENDERED path (road interiors count): a
+  // chain whose clicks hug the chord but whose ROAD curves is fine, and a
+  // road that straightens out is not flagged. Open extensions have no
+  // straight line to hug — always false.
+  const straightLine = useMemo(() => {
+    if (!nearAnchor || !farAnchor || vertices.length === 0) return false;
+    const nodes: LatLon[] = [
+      { lat: nearAnchor.lat, lon: nearAnchor.lon },
+      ...vertices,
+      { lat: farAnchor.lat, lon: farAnchor.lon },
+    ];
+    return isStraightLinePath(
+      joinDrawChain(nodes, activeRoadLegs).points,
+      { lat: nearAnchor.lat, lon: nearAnchor.lon },
+      { lat: farAnchor.lat, lon: farAnchor.lon },
+    );
+  }, [nearAnchor, farAnchor, vertices, activeRoadLegs]);
 
   const statusById = useMemo(() => {
     const byId: Record<string, GapStatus> = {};
@@ -573,6 +709,10 @@ export function useDrawEditor(
     useEditorStore.getState().setSnapEnabled(on);
   }, []);
 
+  const setRoadFollow = useCallback((mode: RoadFollowMode) => {
+    useEditorStore.getState().setRoadFollow(mode);
+  }, []);
+
   const undo = useCallback(() => useEditorStore.getState().undo(), []);
   const redo = useCallback(() => useEditorStore.getState().redo(), []);
   const clearVertices = useCallback(
@@ -604,6 +744,9 @@ export function useDrawEditor(
     activeGap,
     drawMode,
     snapEnabled,
+    roadFollow,
+    routingPending: roadRouting.pending > 0,
+    routingFailed: roadRouting.failed && roadFollow !== "off",
     vertices,
     vertexCount: vertices.length,
     maxVertices: MAX_VERTICES,
@@ -628,6 +771,7 @@ export function useDrawEditor(
     removeManualSpan,
     setDrawMode,
     setSnapEnabled,
+    setRoadFollow,
     undo,
     redo,
     clearVertices,

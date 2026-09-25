@@ -59,6 +59,9 @@ function makeBinding(
     activeGap: GAP_ROW,
     drawMode: true,
     snapEnabled: true,
+    roadFollow: "car",
+    routingPending: false,
+    routingFailed: false,
     vertices: [],
     vertexCount: 0,
     maxVertices: 128,
@@ -83,6 +86,7 @@ function makeBinding(
     removeManualSpan: () => {},
     setDrawMode: () => {},
     setSnapEnabled: () => {},
+    setRoadFollow: () => {},
     undo: () => {},
     redo: () => {},
     clearVertices: () => {},
@@ -337,5 +341,82 @@ describe("DrawEditorPanel — open-ended extensions (one-anchor add)", () => {
     // Manual-kind rows offer "Remove repair span", not "Mark as skipped".
     expect(screen.getByTestId("remove-span-button")).toBeVisible();
     expect(screen.queryByTestId("skip-gap-button")).toBeNull();
+  });
+});
+
+describe("DrawEditorPanel — road follow (snap to road)", () => {
+  it("renders the mode group with the active choice pressed", () => {
+    render(<DrawEditorPanel draw={makeBinding({ roadFollow: "car" })} />);
+    const group = screen.getByTestId("road-follow-group");
+    expect(group).toHaveTextContent("Between clicks, follow");
+    expect(screen.getByTestId("road-follow-car")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByTestId("road-follow-foot")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByTestId("road-follow-off")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    // The privacy disclosure is part of the affordance itself.
+    expect(group).toHaveTextContent("never leaves this browser");
+  });
+
+  it("switching modes dispatches setRoadFollow", () => {
+    const setRoadFollow = vi.fn();
+    render(
+      <DrawEditorPanel draw={makeBinding({ roadFollow: "car", setRoadFollow })} />,
+    );
+    fireEvent.click(screen.getByTestId("road-follow-foot"));
+    expect(setRoadFollow).toHaveBeenCalledWith("foot");
+    fireEvent.click(screen.getByTestId("road-follow-off"));
+    expect(setRoadFollow).toHaveBeenCalledWith("off");
+  });
+
+  it("surfaces routing status: finding, failure, and the drag hint", () => {
+    const { rerender } = render(
+      <DrawEditorPanel draw={makeBinding({ roadFollow: "car", routingPending: true })} />,
+    );
+    expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
+      "Finding the road",
+    );
+
+    rerender(
+      <DrawEditorPanel
+        draw={makeBinding({ roadFollow: "car", routingPending: false, routingFailed: true })}
+      />,
+    );
+    expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
+      "unavailable right now",
+    );
+
+    rerender(
+      <DrawEditorPanel
+        draw={makeBinding({ roadFollow: "car", routingPending: false, routingFailed: false })}
+      />,
+    );
+    expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
+      "Drag any point to adjust",
+    );
+  });
+
+  it("hides the status line when road follow is off", () => {
+    render(<DrawEditorPanel draw={makeBinding({ roadFollow: "off" })} />);
+    expect(screen.queryByTestId("road-follow-status")).toBeNull();
+  });
+
+  it("the drawn-points header teaches drag and double-click editing", () => {
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({
+          vertices: [{ id: vertexId(1), lat: 52.5205, lon: 13.4055 }],
+          vertexCount: 1,
+        })}
+      />,
+    );
+    expect(screen.getByText(/drag on the map to adjust/i)).toBeVisible();
   });
 });

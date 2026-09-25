@@ -52,6 +52,7 @@ import type {
   OriginalTrackData,
   OriginalTrackPoint,
   PointId,
+  RoadLeg,
 } from "@/types/domain";
 import type { GapRow, GpxSession } from "@/hooks/use-gpx-session";
 
@@ -84,6 +85,8 @@ export interface ReconstructionRenderRef {
   spacingM: number | "off";
   /** True for the gap being edited: suppress its span, render no line. */
   active?: boolean;
+  /** Resolved road-follow legs (the committed line follows the road). */
+  roadLegs?: readonly RoadLeg[];
 }
 
 /**
@@ -236,6 +239,7 @@ export function buildRouteView(
           recon.vertices,
           afterPoint,
           recon.spacingM,
+          recon.roadLegs,
         );
         reconParts.push({
           gapId: gap.id,
@@ -280,6 +284,7 @@ export function buildRouteView(
         recon.vertices,
         afterPoint,
         recon.spacingM,
+        recon.roadLegs,
       );
       reconParts.push({
         gapId: span.id,
@@ -298,7 +303,13 @@ export function buildRouteView(
     if (!anchorPoint || !isUsableStatsPoint(anchorPoint)) continue;
     const recon = reconByGap.get(span.id);
     if (recon && recon.vertices.length > 0 && !recon.active) {
-      const path = resamplePath(anchorPoint, recon.vertices, null, recon.spacingM);
+      const path = resamplePath(
+        anchorPoint,
+        recon.vertices,
+        null,
+        recon.spacingM,
+        recon.roadLegs,
+      );
       reconParts.push({
         gapId: span.id,
         coordinates: path.map((p) => [p.lon, p.lat] as [number, number]),
@@ -369,6 +380,7 @@ export function useMapController(session: GpxSession): MapBinding {
   const editorActiveGapId = useEditorStore((s) => s.activeGapId);
   const editorSkipped = useEditorStore((s) => s.skippedGapIds);
   const editorManualSpans = useEditorStore((s) => s.manualSpans);
+  const editorRoadLegs = useEditorStore((s) => s.roadLegs);
 
   const setContainer = useCallback((element: HTMLDivElement | null) => {
     containerRef.current = element;
@@ -478,6 +490,7 @@ export function useMapController(session: GpxSession): MapBinding {
       if (editorSkipped.includes(row.id)) continue;
       const recon = editorReconstructions[row.id];
       if (!recon || recon.vertices.length === 0) continue;
+      const legs = editorRoadLegs[row.id] ?? [];
       refs.push({
         gapId: row.id,
         vertices: recon.vertices,
@@ -485,10 +498,11 @@ export function useMapController(session: GpxSession): MapBinding {
         // The gap being edited renders through the controller's draw
         // session (draft styling) — the ref only suppresses its span.
         ...(row.id === editorActiveGapId ? { active: true } : {}),
+        ...(legs.length > 0 ? { roadLegs: legs } : {}),
       });
     }
     return refs;
-  }, [gapRows, manualGapRefs, extendGapRefs, editorReconstructions, editorActiveGapId, editorSkipped]);
+  }, [gapRows, manualGapRefs, extendGapRefs, editorReconstructions, editorActiveGapId, editorSkipped, editorRoadLegs]);
 
   const route = useMemo(
     () =>

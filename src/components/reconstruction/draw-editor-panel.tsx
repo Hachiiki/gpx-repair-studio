@@ -47,6 +47,16 @@ const SPACING_CHOICES: readonly { value: string; label: string }[] = [
   { value: "50", label: "Every 50 m" },
 ];
 
+/** Road-follow mode choices (what the line does between your clicks). */
+const ROAD_FOLLOW_CHOICES: readonly {
+  value: DrawEditorBinding["roadFollow"];
+  label: string;
+}[] = [
+  { value: "car", label: "Roads" },
+  { value: "foot", label: "Footpaths" },
+  { value: "off", label: "Straight lines" },
+];
+
 function VertexRow({
   vertex,
   index,
@@ -161,6 +171,51 @@ export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
           </p>
         )}
 
+        {/* Road follow: what the line does between clicks. */}
+        <div
+          className="grid gap-1.5"
+          data-testid="road-follow-group"
+          role="group"
+          aria-label="Road follow"
+        >
+          <p className="text-xs font-medium">Between clicks, follow</p>
+          <div className="flex flex-wrap gap-1.5">
+            {ROAD_FOLLOW_CHOICES.map((choice) => (
+              <Button
+                key={choice.value}
+                type="button"
+                size="sm"
+                variant={draw.roadFollow === choice.value ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                aria-pressed={draw.roadFollow === choice.value}
+                data-testid={`road-follow-${choice.value}`}
+                onClick={() => draw.setRoadFollow(choice.value)}
+              >
+                {choice.label}
+              </Button>
+            ))}
+          </div>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Click before and after a curve — the line snaps to the road
+            between your clicks. Roads/Footpaths send only the points you
+            click to a public routing service (OSRM / Valhalla); your GPX
+            file never leaves this browser.
+          </p>
+          {draw.roadFollow !== "off" && (
+            <p
+              className="text-[11px] text-muted-foreground"
+              data-testid="road-follow-status"
+              role="status"
+            >
+              {draw.routingPending
+                ? "Finding the road…"
+                : draw.routingFailed
+                  ? "Road follow unavailable right now — straight lines until it recovers."
+                  : "Drag any point to adjust it — the road re-finds itself."}
+            </p>
+          )}
+        </div>
+
         {/* Live stats: distance + vertex cap. */}
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <p className="flex items-baseline gap-1.5" data-testid="draw-distance">
@@ -241,7 +296,7 @@ export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
         {draw.vertexCount > 0 && (
           <div className="grid gap-1.5">
             <p className="text-xs font-medium text-muted-foreground">
-              Drawn points
+              Drawn points — drag on the map to adjust, double-click to remove
             </p>
             <ScrollArea className="max-h-40 -mx-2">
               <ul className="grid gap-0.5 px-2">

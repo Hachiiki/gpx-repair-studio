@@ -293,14 +293,15 @@ export function draftLineCollection(
 /**
  * The open closing segment of a draft: last chain point → after-anchor.
  * Dashed and subdued on the map so it reads as "this connection closes
- * when you finish" — never as a segment the user clicked. Empty when the
- * far anchor is absent (open-ended extension) or either end is null.
+ * when you finish" — never as a segment the user clicked. The geometry is
+ * supplied by the caller (straight chord, or the road-follow path when a
+ * leg resolved — the preview and the commit share one join). Empty when
+ * the far anchor is absent (open-ended extension).
  */
 export function draftClosingCollection(
-  from: { lat: number; lon: number } | null,
-  to: { lat: number; lon: number } | null,
+  coordinates: readonly [number, number][] | null,
 ): GeoJsonFeatureCollection<GeoJsonLineFeature<{ closing: true }>> {
-  if (!from || !to) {
+  if (!coordinates || coordinates.length < 2) {
     return { type: "FeatureCollection", features: [] };
   }
   return {
@@ -311,10 +312,7 @@ export function draftClosingCollection(
         properties: { closing: true },
         geometry: {
           type: "LineString" as const,
-          coordinates: [
-            [from.lon, from.lat],
-            [to.lon, to.lat],
-          ],
+          coordinates: [...coordinates],
         },
       },
     ],

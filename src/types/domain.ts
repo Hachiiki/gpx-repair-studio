@@ -419,6 +419,35 @@ export interface ReconstructedPoint {
   cumDistanceM: number;
 }
 
+// ---------------------------------------------------------------------------
+// Road-follow legs (draw editor "snap to road")
+// ---------------------------------------------------------------------------
+
+/**
+ * How the draw editor renders the path between two clicked points:
+ * `"car"` follows drivable roads (public OSRM), `"foot"` follows footpaths
+ * and pedestrian ways (public Valhalla), `"off"` draws straight geodesics.
+ */
+export type RoadFollowMode = "car" | "foot" | "off";
+
+/**
+ * One road-followed leg of a drawn chain: the road geometry the routing
+ * service returned for the node pair (`a` → `b`). Derived, network-resolved
+ * data — kept in a store side table keyed by gap id, NEVER inside the
+ * undoable `Reconstruction` (§D-3: derived data is never stored as truth).
+ * `coordinates` are `[lon, lat]` in GeoJSON order, `a` → `b`; the provider
+ * snaps waypoints onto the road, so the first/last points can sit a few
+ * meters off `a`/`b` — consumers stitch the exact nodes around the interior.
+ */
+export interface RoadLeg {
+  a: LatLon;
+  b: LatLon;
+  /** `[lon, lat]` road geometry, provider-snapped endpoints included. */
+  coordinates: [number, number][];
+  /** Route length reported by the provider (meters) — diagnostic only. */
+  routeDistanceM: number;
+}
+
 /** One entry of the ordered merged view (Phase 7 export basis). */
 export interface MergedPointView {
   point: OriginalTrackPoint | ReconstructedPoint;

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { join } from "node:path";
+import { abortRoadRouting } from "./helpers/road-follow";
 
 /**
  * Phase 4 E2E — the reconstruction drawing editor acceptance criteria:
@@ -132,6 +133,13 @@ async function canvasBox(page: Page) {
   expect(box).not.toBeNull();
   return box!;
 }
+
+// Road follow defaults to ON ("car"): draw specs must never depend on a
+// live routing service — abort every routing request so the editor draws
+// straight legs deterministically (the WYSIWYG straight fallback).
+test.beforeEach(async ({ page }) => {
+  await abortRoadRouting(page);
+});
 
 test.describe("draw editor — desktop", () => {
   test("drawing connects the anchors exactly, updates live, and never touches the original", async ({

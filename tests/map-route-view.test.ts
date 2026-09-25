@@ -503,3 +503,67 @@ describe("buildRouteView — open-ended extensions (one-anchor add)", () => {
     expect(view.reconstructions).toEqual([]);
   });
 });
+
+describe("buildRouteView — committed reconstructions with road-follow legs", () => {
+  /** The same clean 8-point run the manual-span suite uses. */
+  function cleanRoute() {
+    return xmlRoute(
+      buildGpxXml([
+        { lat: 52.52, lon: 13.405, time: "2024-05-01T10:00:00Z" },
+        { lat: 52.521, lon: 13.406, time: "2024-05-01T10:00:10Z" },
+        { lat: 52.522, lon: 13.407, time: "2024-05-01T10:00:20Z" },
+        { lat: 52.523, lon: 13.408, time: "2024-05-01T10:00:30Z" },
+        { lat: 52.524, lon: 13.409, time: "2024-05-01T10:00:40Z" },
+        { lat: 52.525, lon: 13.41, time: "2024-05-01T10:00:50Z" },
+        { lat: 52.526, lon: 13.411, time: "2024-05-01T10:01:00Z" },
+        { lat: 52.527, lon: 13.412, time: "2024-05-01T10:01:10Z" },
+      ]),
+    );
+  }
+
+  it("road legs contribute their interior to the committed line (WYSIWYG)", () => {
+    const { data } = cleanRoute();
+    const points = [...data.segments[0].points];
+    const before = points[2];
+    const after = points[5];
+    const gapId = `gap/${before.id}/${after.id}` as RouteGapRef["id"];
+    const vertex = { lat: 52.5235, lon: 13.4085 };
+    // A road that bulges south between the before-anchor and the vertex.
+    const road: [number, number][] = [
+      [13.4071, 52.5219], // provider-snapped start (off-node)
+      [13.4075, 52.5215],
+      [13.408, 52.5217],
+      [13.4084, 52.5225],
+    ];
+    const spanRef: RouteGapRef = {
+      id: gapId,
+      kind: "manual",
+      severity: "info",
+      before: { pointId: before.id, lat: before.lat, lon: before.lon },
+      after: { pointId: after.id, lat: after.lat, lon: after.lon },
+    };
+    const view = buildRouteView(data, [], [
+      {
+        gapId,
+        vertices: [{ id: "v1" as never, ...vertex }],
+        spacingM: "off",
+        roadLegs: [
+          {
+            a: { lat: before.lat, lon: before.lon },
+            b: vertex,
+            coordinates: road,
+            routeDistanceM: 400,
+          },
+        ],
+      },
+    ], [spanRef]);
+
+    expect(view.reconstructions).toHaveLength(1);
+    expect(view.reconstructions[0].coordinates).toEqual([
+      [before.lon, before.lat], // exact node, not the snapped road end
+      ...road.slice(1, -1),
+      [vertex.lon, vertex.lat],
+      [after.lon, after.lat],
+    ]);
+  });
+});

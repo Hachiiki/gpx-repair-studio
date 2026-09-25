@@ -124,6 +124,8 @@ export interface DrawSessionTestState {
   vertexCount: number;
   /** Solid chain coordinates — before-anchor → vertices (WYSIWYG clicks). */
   chainCoordinates: [number, number][];
+  /** The RENDERED solid line (road-follow legs applied — what commit gets). */
+  renderedChainCoordinates: [number, number][];
   /** The dashed open closing segment (empty when the far anchor is absent). */
   closingCoordinates: [number, number][];
   /** Full draft path `[lon, lat]` (chain + closing; override applied). */
@@ -256,6 +258,24 @@ export type DrawSnapFn = (
   maxDistanceM: number,
 ) => DrawCommitPosition | null;
 
+/**
+ * Road-follow chain join, injected by the hook (same pattern as DrawSnapFn:
+ * no domain code runs inside the map adapter). Maps the chain NODES to the
+ * rendered line points — straight geodesics when road-follow is off, road
+ * geometry substituted between the nodes when legs resolved. Must return
+ * one insertion midpoint per node leg (ordered by leg index).
+ */
+export type DrawChainJoinFn = (nodes: readonly LatLon[]) => {
+  points: readonly LatLon[];
+  midpoints: readonly LatLon[];
+};
+
+/**
+ * Road-follow closing join (injected): the geometry of the dashed closing
+ * segment (last chain node → far anchor) — straight chord or road path.
+ */
+export type DrawClosingJoinFn = (from: LatLon, to: LatLon) => [number, number][];
+
 export interface DrawSessionOptions {
   gapId: string;
   /** The near anchor the chain starts from (always present). */
@@ -263,6 +283,9 @@ export interface DrawSessionOptions {
   vertices: readonly { id: VertexId; lat: number; lon: number }[];
   /** Snap magnet (null/undefined = snapping disabled). */
   snap?: DrawSnapFn | null;
+  /** Road-follow joins (null/undefined = straight legs). */
+  chainJoin?: DrawChainJoinFn | null;
+  closingJoin?: DrawClosingJoinFn | null;
   callbacks: {
     onVertexAdd: (position: DrawCommitPosition) => void;
     onVertexMove: (vertexId: VertexId, position: DrawCommitPosition) => void;
@@ -314,6 +337,8 @@ interface PickSession {
 
 interface DrawSession extends DrawSessionOptions {
   vertices: { id: VertexId; lat: number; lon: number }[];
+  chainJoin: DrawChainJoinFn | null;
+  closingJoin: DrawClosingJoinFn | null;
 }
 
 interface HandleDrag {
@@ -588,19 +613,30 @@ export class MapController {
     this.#drawSession = {
       ...options,
       vertices: options.vertices.map((v) => ({ ...v })),
+      chainJoin: options.chainJoin ?? null,
+      closingJoin: options.closingJoin ?? null,
     };
     if (this.#ready) this.#applyDrawSession();
   }
 
   /**
    * Push the authoritative vertex list (the store is the source of truth;
-   * the controller re-renders its draft from it after every command).
+   * the controller re-renders its draft from it after every command) and
+   * the current road-follow joins (fresh closures whenever legs resolve).
    */
   updateDrawSession(
     vertices: readonly { id: VertexId; lat: number; lon: number }[],
+    joins?: {
+      chainJoin?: DrawChainJoinFn | null;
+      closingJoin?: DrawClosingJoinFn | null;
+    },
   ): void {
     if (!this.#drawSession) return;
     this.#drawSession.vertices = vertices.map((v) => ({ ...v }));
+    if (joins) {
+      this.#drawSession.chainJoin = joins.chainJoin ?? null;
+      this.#drawSession.closingJoin = joins.closingJoin ?? null;
+    }
     // A committed change invalidates any transient drag override.
     this.#handleDrag = null;
     if (this.#ready) this.#applyDrawSession();
@@ -619,7 +655,7 @@ export class MapController {
       draftLineCollection([]),
     );
     (map.getSource(SOURCE.closing) as GeoJSONSource | undefined)?.setData(
-      draftClosingCollection(null, null),
+      draftClosingCollection(null),
     );
     (map.getSource(SOURCE.rubber) as GeoJSONSource | undefined)?.setData(
       rubberBandCollection(null, null),
@@ -967,7 +1003,7 @@ export class MapController {
       });
       map.addSource(SOURCE.closing, {
         type: "geojson",
-        data: draftClosingCollection(null, null),
+        data: draftClosingCollection(null),
       });
       map.addSource(SOURCE.rubber, {
         type: "geojson",
@@ -1370,6 +1406,46 @@ export class MapController {
     return points;
   }
 
+  /**
+   * The rendered chain geometry: nodes joined by the injected road-follow
+   * fn (straight legs when off/absent). During a handle drag the overridden
+   * node matches no leg, so the dragged legs preview straight — the road
+   * path re-applies when the move commits and the hook re-routes.
+   */
+  #renderedChain(): { points: LatLon[]; midpoints: LatLon[] } {
+    const session = this.#drawSession;
+    const chain = this.#draftChainPoints();
+    if (!session || chain.length === 0) return { points: [], midpoints: [] };
+    if (session.chainJoin) {
+      const joined = session.chainJoin(chain);
+      return {
+        points: [...joined.points],
+        midpoints: [...joined.midpoints],
+      };
+    }
+    // No join injected: straight legs, straight-leg midpoints.
+    const midpoints: LatLon[] = [];
+    for (let j = 0; j + 1 < chain.length; j += 1) {
+      midpoints.push(interpolateLatLon(chain[j], chain[j + 1], 0.5));
+    }
+    return { points: chain, midpoints };
+  }
+
+  /** The closing-segment coordinates: injected join over the far anchor. */
+  #renderedClosing(): [number, number][] {
+    const session = this.#drawSession;
+    if (!session) return [];
+    const after = session.anchors.after;
+    const chain = this.#draftChainPoints();
+    const last = chain[chain.length - 1] ?? null;
+    if (!after || !last) return [];
+    if (session.closingJoin) return session.closingJoin(last, after);
+    return [
+      [last.lon, last.lat],
+      [after.lon, after.lat],
+    ];
+  }
+
   /** The authoritative full path (chain + closing) with any drag override. */
   #draftPathPoints(): LatLon[] {
     const chain = this.#draftChainPoints();
@@ -1385,13 +1461,15 @@ export class MapController {
     const session = this.#drawSession;
     if (!session) return;
 
-    // WYSIWYG split: the solid chain is exactly what the user placed
-    // (before-anchor → vertices); the connection to the after-anchor is a
-    // distinct subdued dashed segment that reads as "closes on finish".
-    const chain = this.#draftChainPoints();
-    const chainCoordinates: [number, number][] = chain.map((p) => [p.lon, p.lat]);
-    const after = session.anchors.after;
-    const lastChain = chain[chain.length - 1] ?? null;
+    // WYSIWYG split: the solid line is the RENDERED chain — exactly what
+    // the user placed with road-follow legs substituted between the nodes
+    // (the same join the commit consumes); the connection to the
+    // after-anchor is a distinct subdued dashed segment (road-followed too
+    // when a leg resolved) that reads as "closes on finish".
+    const rendered = this.#renderedChain();
+    const renderedCoordinates: [number, number][] = rendered.points.map(
+      (p) => [p.lon, p.lat] as [number, number],
+    );
     const handles: DrawHandleData[] = session.vertices.map((vertex, index) => {
       const overridden =
         this.#handleDrag?.vertexId === vertex.id && this.#handleDrag?.override;
@@ -1405,22 +1483,20 @@ export class MapController {
     });
     // Midpoints live on the CHAIN legs only — the closing segment is not
     // user data yet and offers no insertion handle.
-    const midpoints: DrawMidpointData[] = [];
-    for (let j = 0; j + 1 < chain.length; j += 1) {
-      const mid = interpolateLatLon(chain[j], chain[j + 1], 0.5);
-      midpoints.push({
+    const midpoints: DrawMidpointData[] = rendered.midpoints.map(
+      (mid, index) => ({
         gapId: session.gapId as never,
-        insertIndex: j,
+        insertIndex: index,
         lat: mid.lat,
         lon: mid.lon,
-      });
-    }
+      }),
+    );
 
     (map.getSource(SOURCE.draft) as GeoJSONSource | undefined)?.setData(
-      draftLineCollection(chainCoordinates),
+      draftLineCollection(renderedCoordinates),
     );
     (map.getSource(SOURCE.closing) as GeoJSONSource | undefined)?.setData(
-      draftClosingCollection(lastChain, after),
+      draftClosingCollection(this.#renderedClosing()),
     );
     (map.getSource(SOURCE.handles) as GeoJSONSource | undefined)?.setData(
       drawHandleCollection(handles),
@@ -1462,15 +1538,11 @@ export class MapController {
     if (!session) return null;
     const chain = this.#draftChainPoints();
     const chainCoordinates: [number, number][] = chain.map((p) => [p.lon, p.lat]);
-    const after = session.anchors.after;
-    const lastChain = chain[chain.length - 1] ?? null;
-    const closing =
-      after && lastChain
-        ? ([
-            [lastChain.lon, lastChain.lat],
-            [after.lon, after.lat],
-          ] as [number, number][])
-        : [];
+    const rendered = this.#renderedChain();
+    const renderedChainCoordinates: [number, number][] = rendered.points.map(
+      (p) => [p.lon, p.lat] as [number, number],
+    );
+    const closing = this.#renderedClosing();
     const path = this.#draftPathPoints();
     const coordinates: [number, number][] = path.map((p) => [p.lon, p.lat]);
     const handleScreenPositions = session.vertices.map((vertex) => {
@@ -1482,15 +1554,15 @@ export class MapController {
       const point = map.project([lon, lat]);
       return { vertexId: vertex.id as string, x: point.x, y: point.y };
     });
-    // Midpoint hit targets mirror the chain legs (see #applyDrawSession).
+    // Midpoint hit targets mirror the rendered chain legs (see
+    // #applyDrawSession).
     const midpointScreenPositions: { insertIndex: number; x: number; y: number }[] =
       [];
-    for (let j = 0; j + 1 < chain.length; j += 1) {
+    for (const [index, mid] of rendered.midpoints.entries()) {
       if (!map) break;
-      const mid = interpolateLatLon(chain[j], chain[j + 1], 0.5);
       const point = map.project([mid.lon, mid.lat]);
       midpointScreenPositions.push({
-        insertIndex: j,
+        insertIndex: index,
         x: point.x,
         y: point.y,
       });
@@ -1500,6 +1572,7 @@ export class MapController {
       drawMode: this.#drawMode,
       vertexCount: session.vertices.length,
       chainCoordinates,
+      renderedChainCoordinates,
       closingCoordinates: closing,
       pathCoordinates: coordinates,
       handleScreenPositions,

@@ -11,7 +11,13 @@
  *   - `history` — the undo/redo command stack of the ACTIVE gap only
  *     (closing the editor drops it — undo does not span sessions);
  *   - `drawMode` / `snapEnabled` — transient editing aids (not persisted:
- *     they are about the interaction, not the data).
+ *     they are about the interaction, not the data);
+ *   - `roadFollow` — the road-follow mode for drawn legs (transient aid,
+ *     same contract as snapEnabled);
+ *   - `roadLegs` — per-gap RESOLVED road legs (derived, network data in a
+ *     SIDE TABLE: never inside the undoable Reconstruction — §D-3). The
+ *     draw-editor hook is the only writer; rendering, the distance badge,
+ *     and the committed reconstruction read it.
  *
  * The store is a thin wrapper over the pure `features/reconstruction/
  * drawModel` command machinery — every vertex edit flows through
@@ -49,6 +55,8 @@ import type {
   ManualSpan,
   PointId,
   Reconstruction,
+  RoadFollowMode,
+  RoadLeg,
   VertexId,
 } from "@/types/domain";
 import { gapId, gapIdEnd, gapIdStart, vertexId } from "@/types/ids";
@@ -81,6 +89,12 @@ interface EditorState {
   manualSpans: readonly ManualSpan[];
   /** Span-pick mode: which repair tool is collecting map clicks (null = off). */
   pickMode: PickMode | null;
+  /** Road-follow mode for drawn legs (transient editing aid). */
+  roadFollow: RoadFollowMode;
+  /** Resolved road legs per gap (derived side table; hook-written). */
+  roadLegs: Readonly<Record<string, readonly RoadLeg[]>>;
+  /** Road-routing status of the active chain (pending count + last failure). */
+  roadRouting: { pending: number; failed: boolean };
 
   /** Open the draw editor for a gap (creates an empty repair if needed). */
   openEditor: (gapId: GapId) => void;
@@ -111,6 +125,12 @@ interface EditorState {
   removeManualSpan: (gapId: GapId) => void;
   setDrawMode: (on: boolean) => void;
   setSnapEnabled: (on: boolean) => void;
+  /** Road-follow mode for drawn legs (transient, never undoable). */
+  setRoadFollow: (mode: RoadFollowMode) => void;
+  /** Replace the resolved road legs of one gap (no-op when unchanged). */
+  setRoadLegs: (gapId: GapId, legs: readonly RoadLeg[]) => void;
+  /** Update the road-routing status of the active chain. */
+  setRoadRouting: (status: { pending: number; failed: boolean }) => void;
   /** Commit a command for the active gap (pure drawModel underneath). */
   submitCommand: (command: DrawCommand | null) => void;
   addVertex: (position: VertexPosition) => void;
@@ -140,6 +160,9 @@ const INITIAL = {
   vertexSeq: 0,
   manualSpans: [] as readonly ManualSpan[],
   pickMode: null as PickMode | null,
+  roadFollow: "car" as RoadFollowMode,
+  roadLegs: {} as Readonly<Record<string, readonly RoadLeg[]>>,
+  roadRouting: { pending: 0, failed: false },
 };
 
 /** The reconstruction of the active gap, or `null` when none is open. */
@@ -266,11 +289,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       }
       const reconstructions = { ...state.reconstructions };
       delete reconstructions[gapIdToRemove];
+      const roadLegs = { ...state.roadLegs };
+      delete roadLegs[gapIdToRemove];
       return {
         manualSpans: state.manualSpans.filter(
           (span) => span.id !== gapIdToRemove,
         ),
         reconstructions,
+        roadLegs,
         skippedGapIds: state.skippedGapIds.filter(
           (skipped) => skipped !== gapIdToRemove,
         ),
@@ -282,6 +308,20 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   setDrawMode: (drawMode) => set({ drawMode }),
   setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
+
+  setRoadFollow: (roadFollow) => set({ roadFollow }),
+
+  setRoadLegs: (gapId, legs) =>
+    set((state) => {
+      const current = state.roadLegs[gapId] ?? [];
+      const unchanged =
+        current.length === legs.length &&
+        current.every((leg, index) => leg === legs[index]);
+      if (unchanged) return state;
+      return { roadLegs: { ...state.roadLegs, [gapId]: legs } };
+    }),
+
+  setRoadRouting: (roadRouting) => set({ roadRouting }),
 
   submitCommand: (command) => {
     const state = get();
@@ -442,6 +482,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           known.has(id),
         ),
       );
+      const roadLegs = Object.fromEntries(
+        Object.entries(state.roadLegs).filter(([id]) => known.has(id)),
+      );
       const skippedGapIds = state.skippedGapIds.filter((id) =>
         known.has(id),
       );
@@ -450,11 +493,13 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       const changed =
         Object.keys(reconstructions).length !==
           Object.keys(state.reconstructions).length ||
+        Object.keys(roadLegs).length !== Object.keys(state.roadLegs).length ||
         skippedGapIds.length !== state.skippedGapIds.length ||
         activeGone;
       if (!changed) return state;
       return {
         reconstructions,
+        roadLegs,
         skippedGapIds,
         ...(activeGone
           ? { activeGapId: null, history: EMPTY_HISTORY, drawMode: false }

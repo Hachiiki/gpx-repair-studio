@@ -199,3 +199,99 @@ describe("resamplePath — numeric spacing", () => {
     expect(path[path.length - 1].cumDistanceM).toBeCloseTo(direct, -2);
   });
 });
+
+describe("resamplePath — road-follow legs", () => {
+  const ROAD: [number, number][] = [
+    [13.4051, 52.5202], // provider-snapped start (off-node)
+    [13.408, 52.5245],
+    [13.4105, 52.5265],
+    [13.4139, 52.5268], // provider-snapped end (off-node)
+  ];
+  const legs = [
+    {
+      a: BEFORE,
+      b: { lat: 52.523, lon: 13.409 },
+      coordinates: ROAD,
+      routeDistanceM: 900,
+    },
+  ];
+
+  it("contributes road interior as role=road, nodes kept exactly", () => {
+    const path = resamplePath(
+      BEFORE,
+      vertices([52.523, 13.409]),
+      AFTER,
+      "off",
+      legs,
+    );
+    const roles = path.map((p) => p.role);
+    expect(roles).toEqual([
+      "before-anchor",
+      "road",
+      "road",
+      "vertex",
+      "after-anchor",
+    ]);
+    // The nodes are exact (snapped road ends replaced by the clicked nodes).
+    expect(path[0]).toMatchObject({ lat: BEFORE.lat, lon: BEFORE.lon });
+    expect(path[3]).toMatchObject({ lat: 52.523, lon: 13.409 });
+    expect(path[4]).toMatchObject({ lat: AFTER.lat, lon: AFTER.lon });
+    // Road interior is the provider geometry's interior.
+    expect(path[1]).toMatchObject({ lat: 52.5245, lon: 13.408 });
+    expect(path[2]).toMatchObject({ lat: 52.5265, lon: 13.4105 });
+  });
+
+  it("spacing never re-densifies a road leg (already dense)", () => {
+    const path = resamplePath(
+      BEFORE,
+      vertices([52.523, 13.409]),
+      AFTER,
+      10,
+      legs,
+    );
+    // Same node/road points as spacing=off — plus fill ONLY on the straight
+    // closing leg (vertex → AFTER) if it exceeds the spacing.
+    const roadCount = path.filter((p) => p.role === "road").length;
+    expect(roadCount).toBe(2);
+    // The straight leg AFTER the vertex still densifies normally.
+    const closing = path.filter((p) => p.role === "interpolated");
+    expect(closing.length).toBeGreaterThan(0);
+  });
+
+  it("cumulative distances stay monotonic and true along the road", () => {
+    const path = resamplePath(
+      BEFORE,
+      vertices([52.523, 13.409]),
+      null,
+      "off",
+      legs,
+    );
+    expect(path[0].cumDistanceM).toBe(0);
+    for (let i = 1; i < path.length; i += 1) {
+      expect(path[i].cumDistanceM).toBeGreaterThan(path[i - 1].cumDistanceM);
+    }
+    // The final cumulative is the geodesic length of the stitched polyline
+    // (node → road interior → node), not the provider's routeDistanceM.
+    const stitched = [
+      BEFORE,
+      ...ROAD.slice(1, -1).map(([lon, lat]) => ({ lat, lon })),
+      { lat: 52.523, lon: 13.409 },
+    ];
+    let direct = 0;
+    for (let i = 1; i < stitched.length; i += 1) {
+      direct += geodesicDistanceMeters(stitched[i - 1], stitched[i]);
+    }
+    expect(path[path.length - 1].cumDistanceM).toBeCloseTo(direct, -2);
+  });
+
+  it("non-matching legs (wrong endpoints) are ignored", () => {
+    const path = resamplePath(
+      BEFORE,
+      vertices([52.521, 13.406]),
+      null,
+      "off",
+      legs,
+    );
+    expect(path.map((p) => p.role)).toEqual(["before-anchor", "vertex"]);
+  });
+});

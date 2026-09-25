@@ -242,19 +242,32 @@ describe("GeoJSON builders — Phase 4 sources", () => {
     expect(draftLineCollection([]).features).toHaveLength(0);
   });
 
-  it("draftClosingCollection renders one subdued segment only when both ends exist", () => {
-    expect(draftClosingCollection(null, { lat: 1, lon: 1 }).features).toHaveLength(0);
-    expect(draftClosingCollection({ lat: 0, lon: 0 }, null).features).toHaveLength(0);
-    const segment = draftClosingCollection(
-      { lat: 52.5, lon: 13.4 },
-      { lat: 52.51, lon: 13.41 },
-    );
+  it("draftClosingCollection renders one subdued segment only for real geometry", () => {
+    expect(draftClosingCollection(null).features).toHaveLength(0);
+    expect(draftClosingCollection([]).features).toHaveLength(0);
+    expect(draftClosingCollection([[13.4, 52.5]]).features).toHaveLength(0);
+    const segment = draftClosingCollection([
+      [13.4, 52.5],
+      [13.41, 52.51],
+    ]);
     expect(segment.features).toHaveLength(1);
     expect(segment.features[0].properties).toEqual({ closing: true });
     expect(segment.features[0].geometry.coordinates).toEqual([
       [13.4, 52.5],
       [13.41, 52.51],
     ]);
+  });
+
+  it("draftClosingCollection carries road-follow coordinates through verbatim", () => {
+    const road = [
+      [13.4, 52.5],
+      [13.401, 52.502],
+      [13.402, 52.504],
+      [13.41, 52.51],
+    ] as [number, number][];
+    const segment = draftClosingCollection(road);
+    expect(segment.features).toHaveLength(1);
+    expect(segment.features[0].geometry.coordinates).toEqual(road);
   });
 
   it("rubberBandCollection is empty unless both ends exist", () => {

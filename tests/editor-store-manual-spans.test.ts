@@ -256,3 +256,66 @@ describe("editor-store — reset clears manual-span state", () => {
     expect(state.reconstructions).toEqual({});
   });
 });
+
+describe("road-follow state (mode + resolved-leg side table)", () => {
+  const LEG = {
+    a: { lat: 52.52, lon: 13.405 },
+    b: { lat: 52.527, lon: 13.414 },
+    coordinates: [
+      [13.405, 52.52],
+      [13.409, 52.525],
+      [13.414, 52.527],
+    ] as [number, number][],
+    routeDistanceM: 900,
+  };
+
+  it("defaults to car mode with an empty side table", () => {
+    expect(useEditorStore.getState().roadFollow).toBe("car");
+    expect(useEditorStore.getState().roadLegs).toEqual({});
+  });
+
+  it("setRoadFollow switches the mode (a transient aid, never undoable)", () => {
+    useEditorStore.getState().setRoadFollow("foot");
+    expect(useEditorStore.getState().roadFollow).toBe("foot");
+    useEditorStore.getState().setRoadFollow("off");
+    expect(useEditorStore.getState().roadFollow).toBe("off");
+    useEditorStore.getState().setRoadFollow("car");
+  });
+
+  it("setRoadLegs replaces a gap's legs and no-ops on identical content", () => {
+    useEditorStore.getState().setRoadLegs(DETECTED, [LEG]);
+    expect(useEditorStore.getState().roadLegs[DETECTED]).toEqual([LEG]);
+    const before = useEditorStore.getState();
+    useEditorStore.getState().setRoadLegs(DETECTED, [LEG]);
+    // Same leg references → the store object is returned unchanged.
+    expect(useEditorStore.getState().roadLegs).toBe(before.roadLegs);
+  });
+
+  it("removeManualSpan drops the span's road legs with everything else", () => {
+    useEditorStore.getState().addExtendSpan(P1, "after");
+    const extendId = useEditorStore.getState().manualSpans[0].id;
+    useEditorStore.getState().setRoadLegs(extendId, [LEG]);
+    expect(useEditorStore.getState().roadLegs[extendId]).toHaveLength(1);
+    useEditorStore.getState().removeManualSpan(extendId);
+    expect(useEditorStore.getState().roadLegs[extendId]).toBeUndefined();
+  });
+
+  it("prune drops road legs of vanished gaps, keeps the rest", () => {
+    useEditorStore.getState().addExtendSpan(P1, "after");
+    const extendId = useEditorStore.getState().manualSpans[0].id;
+    useEditorStore.getState().setRoadLegs(DETECTED, [LEG]);
+    useEditorStore.getState().setRoadLegs(extendId, [LEG]);
+    useEditorStore.getState().prune([extendId]); // detected gap vanished
+    const legs = useEditorStore.getState().roadLegs;
+    expect(legs[DETECTED]).toBeUndefined();
+    expect(legs[extendId]).toHaveLength(1);
+  });
+
+  it("reset clears the side table and restores car mode", () => {
+    useEditorStore.getState().setRoadFollow("off");
+    useEditorStore.getState().setRoadLegs(DETECTED, [LEG]);
+    useEditorStore.getState().reset();
+    expect(useEditorStore.getState().roadFollow).toBe("car");
+    expect(useEditorStore.getState().roadLegs).toEqual({});
+  });
+});

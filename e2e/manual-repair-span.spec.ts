@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { abortRoadRouting } from "./helpers/road-follow";
 
 /**
  * Manual repair spans (draw-anywhere) — E2E acceptance:
@@ -49,6 +50,7 @@ interface BridgeState {
   boundaryMarkerCount: number;
   reconstructionLineCount: number;
   moving: boolean;
+  lastCameraAction: string | null;
   pickSession: PickSessionState | null;
   drawSession: {
     gapId: string;
@@ -120,6 +122,13 @@ async function clickAt(
   const { x, y } = await project(page, lat, lon);
   await page.mouse.click(box.x + x, box.y + y);
 }
+
+// Road follow defaults to ON ("car"): draw specs must never depend on a
+// live routing service — abort every routing request so the editor draws
+// straight legs deterministically (the WYSIWYG straight fallback).
+test.beforeEach(async ({ page }) => {
+  await abortRoadRouting(page);
+});
 
 test.describe("manual repair spans — draw anywhere, no detection required", () => {
   test("pick two points, draw, commit — the clean-file scenario", async ({
