@@ -383,6 +383,29 @@ test.describe("draw editor — desktop", () => {
     await clickAt(page, DRAW_POINTS[0].lat, DRAW_POINTS[0].lon, box);
     await pollBridge(page, (s) => s.drawSession?.vertexCount === 1);
   });
+
+  test("the mode chip answers “am I drawing?” and toggles (D/P keys too)", async ({ page }) => {
+    await page.goto("/");
+    await upload(page);
+    await pollBridge(page, (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);
+    await openEditor(page);
+
+    // Chip reflects the session's mode and switches it on click.
+    const chip = page.getByTestId("map-mode-chip");
+    await expect(chip).toBeVisible();
+    await expect(chip).toHaveText(/Drawing/);
+    await chip.click();
+    await pollBridge(page, (s) => s.drawSession?.drawMode === false);
+    await expect(chip).toHaveText(/Panning/);
+
+    // Keyboard accelerators mirror the toggle (no form control focused).
+    await page.keyboard.press("d");
+    await pollBridge(page, (s) => s.drawSession?.drawMode === true);
+    await expect(chip).toHaveText(/Drawing/);
+    await page.keyboard.press("p");
+    await pollBridge(page, (s) => s.drawSession?.drawMode === false);
+    await expect(chip).toHaveText(/Panning/);
+  });
 });
 
 test.describe("draw editor — mobile viewport", () => {

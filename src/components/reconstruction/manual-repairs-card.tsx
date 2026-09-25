@@ -32,6 +32,7 @@ import {
   CardDescription,
   CardHeader,
 } from "@/components/ui/card";
+import { HintTip } from "@/components/shared/hint-tip";
 import { Crosshair, MousePointer2, PenLine, Trash2, X } from "lucide-react";
 import {
   GAP_KIND_LABELS,
@@ -184,29 +185,41 @@ export function ManualRepairsCard({
         {/* The two repair tools. Exactly one interaction shape each —
             one click to start adding, two clicks to bound a redraw. */}
         <div className="grid gap-2 sm:grid-cols-2">
-          <Button
-            type="button"
-            size="sm"
-            className="h-9 gap-1.5"
-            data-testid="begin-pick-anchor-button"
-            disabled={pickMode !== null}
-            onClick={onBeginPickAnchor}
+          <HintTip
+            side="left"
+            title="Add missing route"
+            description="One click on any recorded point, then click anywhere on the map — the line follows the road between your clicks. Use it for a missing head, tail, or any stretch the watch never recorded."
           >
-            <PenLine className="size-3.5" aria-hidden="true" />
-            Add missing route
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1.5"
-            data-testid="begin-pick-pair-button"
-            disabled={pickMode !== null}
-            onClick={onBeginPickPair}
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 w-full gap-1.5"
+              data-testid="begin-pick-anchor-button"
+              disabled={pickMode !== null}
+              onClick={onBeginPickAnchor}
+            >
+              <PenLine className="size-3.5" aria-hidden="true" />
+              Add missing route
+            </Button>
+          </HintTip>
+          <HintTip
+            side="left"
+            title="Redraw a stretch"
+            description="Click two points on the recorded route — what's between them gets replaced by your drawing. Use it when the watch drew a straight line over a detour you actually ran."
           >
-            <MousePointer2 className="size-3.5" aria-hidden="true" />
-            Redraw a stretch
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 w-full gap-1.5"
+              data-testid="begin-pick-pair-button"
+              disabled={pickMode !== null}
+              onClick={onBeginPickPair}
+            >
+              <MousePointer2 className="size-3.5" aria-hidden="true" />
+              Redraw a stretch
+            </Button>
+          </HintTip>
         </div>
         {pickMode === "anchor" && (
           <p

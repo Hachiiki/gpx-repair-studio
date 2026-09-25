@@ -11,6 +11,11 @@
  *     see state/ui-store.ts), and
  *   - the four session states (idle hero / loading / error / workspace).
  *
+ * QoL pass — two-section workspace: section 1 is the tall map with the
+ * repair tools in a sticky side panel (everything needed to repair on
+ * the first screen); section 2 (reached by scrolling) carries the file
+ * details and statistics.
+ *
  * Phase 3 — Map Display: composes the map binding (useMapController) and
  * distributes selection state to the map canvas and the gap list.
  */
@@ -20,7 +25,7 @@
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { AppHeader } from "@/components/layout/header";
-import { PanelGrid } from "@/components/layout/panel-grid";
+import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { MapCanvas } from "@/components/map/map-canvas";
 import { GpxSummaryCard } from "@/components/gpx/gpx-summary-card";
 import { SegmentList } from "@/components/gpx/segment-list";
@@ -34,6 +39,7 @@ import { StatsPanel } from "@/components/statistics/stats-panel";
 import { useDrawEditor } from "@/hooks/use-draw-editor";
 import { useGpxSession } from "@/hooks/use-gpx-session";
 import { useMapController } from "@/hooks/use-map-controller";
+import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { useUiStore } from "@/state/ui-store";
 
 export function AppShell() {
@@ -56,20 +62,9 @@ export function AppShell() {
         onReset={session.reset}
       />
 
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-8 sm:px-6">
+      <main className="mx-auto flex w-full max-w-[92rem] flex-1 flex-col px-4 py-6 sm:px-6">
         {session.status === "parsed" && session.data ? (
-          <PanelGrid
-            inspection={
-              <>
-                <GpxSummaryCard
-                  fileName={session.fileName ?? ""}
-                  data={session.data}
-                  timeStats={session.timeStats}
-                />
-                <ValidationReport issues={session.issues} />
-                <SegmentList rows={session.segmentRows} />
-              </>
-            }
+          <WorkspaceLayout
             map={
               <MapCanvas
                 map={map}
@@ -77,7 +72,7 @@ export function AppShell() {
                 draw={draw}
               />
             }
-            findings={
+            tools={
               <>
                 <DrawEditorPanel draw={draw} />
                 <ManualRepairsCard
@@ -102,13 +97,26 @@ export function AppShell() {
                   onOpenEditor={draw.openEditor}
                   onBeginPick={draw.beginPickAnchor}
                 />
+              </>
+            }
+            details={
+              <RevealOnScroll>
+                <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 xl:grid-cols-[repeat(3,minmax(0,1fr))]">
+                  <GpxSummaryCard
+                    fileName={session.fileName ?? ""}
+                    data={session.data}
+                    timeStats={session.timeStats}
+                  />
+                  <ValidationReport issues={session.issues} />
+                  <SegmentList rows={session.segmentRows} />
+                </div>
                 {session.distanceStats && session.timeStats && (
                   <StatsPanel
                     distanceStats={session.distanceStats}
                     timeStats={session.timeStats}
                   />
                 )}
-              </>
+              </RevealOnScroll>
             }
           />
         ) : (
@@ -150,7 +158,7 @@ export function AppShell() {
       </main>
 
       <footer className="mt-auto border-t">
-        <div className="mx-auto w-full max-w-7xl px-4 py-4 text-xs text-muted-foreground sm:px-6">
+        <div className="mx-auto w-full max-w-[92rem] px-4 py-4 text-xs text-muted-foreground sm:px-6">
           All processing happens in your browser. No GPX data is uploaded to
           any server.
         </div>

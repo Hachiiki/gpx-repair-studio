@@ -304,13 +304,12 @@ describe("MapToolbar", () => {
 });
 
 describe("DrawDistanceBadge", () => {
-  it("shows the live distance, estimated badge, and draw hints", () => {
+  it("shows the live distance, estimated badge, and road-length note", () => {
     render(
       <DrawDistanceBadge
         distanceM={1234.5}
         vertexCount={3}
         maxVertices={128}
-        drawMode={true}
       />,
     );
     const badge = screen.getByTestId("draw-distance-badge");
@@ -319,21 +318,14 @@ describe("DrawDistanceBadge", () => {
       "3/128 pts",
     );
     expect(badge).toHaveTextContent("Estimated");
-    expect(badge).toHaveTextContent("Click to add");
+    expect(badge).toHaveTextContent("road length");
   });
 
-  it("switches to the pan-mode hint when drawing is off", () => {
+  it("renders an em dash while inactive", () => {
     render(
-      <DrawDistanceBadge
-        distanceM={50}
-        vertexCount={1}
-        maxVertices={128}
-        drawMode={false}
-      />,
+      <DrawDistanceBadge distanceM={null} vertexCount={0} maxVertices={128} />,
     );
-    expect(screen.getByTestId("draw-distance-badge")).toHaveTextContent(
-      "Pan mode",
-    );
+    expect(screen.getByTestId("badge-distance")).toHaveTextContent("—");
   });
 });
 
@@ -439,5 +431,41 @@ describe("GapList selection sync", () => {
     expect(row).toHaveAttribute("data-selected", "true");
     fireEvent.click(row);
     expect(onSelectGap).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("MapCanvas mode chip (QoL pass)", () => {
+  it("shows the current pointer mode and toggles on click", () => {
+    const setDrawMode = vi.fn();
+    render(
+      <MapCanvas
+        map={makeBinding()}
+        attachContainer={() => {}}
+        draw={makeDrawBinding({ drawMode: true, setDrawMode })}
+      />,
+    );
+    const chip = screen.getByTestId("map-mode-chip");
+    expect(chip).toHaveTextContent("Drawing");
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(chip);
+    expect(setDrawMode).toHaveBeenCalledWith(false);
+  });
+
+  it("reads Panning when the pointer mode is pan", () => {
+    render(
+      <MapCanvas
+        map={makeBinding()}
+        attachContainer={() => {}}
+        draw={makeDrawBinding({ drawMode: false })}
+      />,
+    );
+    const chip = screen.getByTestId("map-mode-chip");
+    expect(chip).toHaveTextContent("Panning");
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("is absent without an editor session", () => {
+    render(<MapCanvas map={makeBinding()} attachContainer={() => {}} />);
+    expect(screen.queryByTestId("map-mode-chip")).toBeNull();
   });
 });

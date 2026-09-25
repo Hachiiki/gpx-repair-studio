@@ -231,6 +231,8 @@ export function drawHandleCollection(
     type: "FeatureCollection",
     features: handles.map((handle) => ({
       type: "Feature" as const,
+      // Top-level id enables feature-state hover styling on the layer.
+      id: handle.vertexId,
       properties: {
         gapId: handle.gapId,
         vertexId: handle.vertexId,

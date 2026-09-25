@@ -383,6 +383,9 @@ export class MapController {
   #cursor: LatLon | null = null;
   /** Set when a committed handle drag must swallow its trailing click. */
   #suppressNextClick = false;
+  /** Feature id of the hovered vertex handle (mouseleave carries no
+   * features — the id is tracked on enter so hover state can clear). */
+  #hoveredHandleId: string | number | null = null;
 
   // Span-pick session (manual repair spans)
   #pickSession: PickSession | null = null;
@@ -477,12 +480,16 @@ export class MapController {
     // -- draw session wiring (Phase 4) ------------------------------------
     // Layer-scoped handlers for the interactive draft affordances, plus
     // map-level pointer tracking for add-clicks, the rubber band, and
-    // handle drags. All no-ops unless a session is open AND draw mode is
-    // on (the explicit Draw/Pan toggle — the anti-fat-finger contract of
-    // the plan's risk table #1; gesture hardening arrives in Phase 8).
+    // handle drags. Add-clicks, midpoints, and double-click delete are
+    // draw-mode-only; handle DRAGS are pointer-targeted and work in both
+    // modes (the explicit Draw/Pan toggle stays the anti-fat-finger
+    // contract for adding points; gesture hardening arrives in Phase 8).
     this.#subscriptions.push(
       map.on("mousedown", LAYER.draftHandleHit, (e) => {
-        if (!this.#drawSession || !this.#drawMode) return;
+        // Dragging a placed point is pointer-TARGETED input — it works in
+        // BOTH draw and pan mode ("I'm moving this point", not "I'm
+        // drawing"), so the mode gate is intentionally absent here.
+        if (!this.#drawSession) return;
         e.preventDefault();
         const vertexId = e.features?.[0]?.properties?.vertexId;
         if (typeof vertexId !== "string") return;
@@ -492,6 +499,47 @@ export class MapController {
           override: null,
           moved: false,
         };
+      }),
+      map.on("mouseenter", LAYER.draftHandleHit, (e) => {
+        // Cursor honesty (QoL): a grab cursor over a point says "this
+        // drags" in either mode; the hover feature-state grows the dot.
+        if (!this.#drawSession || this.#handleDrag) return;
+        map.getCanvas().style.cursor = "grab";
+        const featureId = e.features?.[0]?.id;
+        this.#hoveredHandleId =
+          featureId !== undefined
+            ? featureId
+            : (e.features?.[0]?.properties?.vertexId as string | undefined) ??
+              null;
+        if (this.#hoveredHandleId !== null) {
+          try {
+            map.setFeatureState(
+              { source: SOURCE.handles, id: this.#hoveredHandleId },
+              { hover: true },
+            );
+          } catch {
+            // feature state is best-effort styling only
+          }
+        }
+      }),
+      map.on("mouseleave", LAYER.draftHandleHit, () => {
+        if (!this.#drawSession) return;
+        if (!this.#handleDrag) {
+          map.getCanvas().style.cursor = this.#drawMode ? "crosshair" : "";
+        }
+        // mouseleave events carry no features — clear the tracked id.
+        const hoveredId = this.#hoveredHandleId;
+        this.#hoveredHandleId = null;
+        if (hoveredId !== null) {
+          try {
+            map.setFeatureState(
+              { source: SOURCE.handles, id: hoveredId },
+              { hover: false },
+            );
+          } catch {
+            // feature state is best-effort styling only
+          }
+        }
       }),
       map.on("dblclick", LAYER.draftHandleHit, (e) => {
         if (!this.#drawSession || !this.#drawMode) return;
@@ -1188,16 +1236,34 @@ export class MapController {
       },
     });
 
-    // Vertex handles — white fill, emerald stroke.
+    // Vertex handles — white fill, emerald stroke. Radius/stroke grow on
+    // hover (feature-state driven): the point visibly "picks itself up",
+    // teaching draggability without a single word.
     map.addLayer({
       id: LAYER.draftHandle,
       type: "circle",
       source: SOURCE.handles,
       paint: {
-        "circle-radius": 5.5,
+        "circle-radius": [
+          "interpolate",
+          ["linear"],
+          ["feature-state", "hover"],
+          0,
+          5.5,
+          1,
+          8,
+        ],
         "circle-color": "#ffffff",
         "circle-stroke-color": RECON_COLOR,
-        "circle-stroke-width": 2.5,
+        "circle-stroke-width": [
+          "interpolate",
+          ["linear"],
+          ["feature-state", "hover"],
+          0,
+          2.5,
+          1,
+          3.5,
+        ],
       },
     });
 
@@ -1353,16 +1419,18 @@ export class MapController {
   /** Pointer tracking: rubber band while idle, override while dragging. */
   #onMouseMove(e: MapMouseEvent): void {
     const session = this.#drawSession;
-    if (!session || !this.#drawMode) return;
-    this.#cursor = { lat: e.lngLat.lat, lon: e.lngLat.lng };
-
+    // Handle drags are pointer-targeted edits — they run in BOTH modes,
+    // so drag processing precedes the draw-mode gate.
     const drag = this.#handleDrag;
-    if (drag) {
+    if (session && drag) {
       const map = this.#map;
       if (map) {
         const dx = e.point.x - drag.originXY.x;
         const dy = e.point.y - drag.originXY.y;
         if (drag.moved || Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
+          if (!drag.moved && map.getCanvas().style.cursor !== "grabbing") {
+            map.getCanvas().style.cursor = "grabbing";
+          }
           drag.moved = true;
           drag.override = { lat: e.lngLat.lat, lon: e.lngLat.lng };
           this.#applyDrawSession();
@@ -1370,6 +1438,9 @@ export class MapController {
       }
       return;
     }
+    if (!session || !this.#drawMode) return;
+    this.#cursor = { lat: e.lngLat.lat, lon: e.lngLat.lng };
+
     if (this.#ready) this.#applyRubberBand();
   }
 
@@ -1378,6 +1449,13 @@ export class MapController {
     const drag = this.#handleDrag;
     const session = this.#drawSession;
     this.#handleDrag = null;
+    const map = this.#map;
+    if (map && drag) {
+      // Restore the resting cursor for the active mode (hover affordance
+      // re-asserts itself on the next enter).
+      map.getCanvas().style.cursor =
+        session && this.#drawMode ? "crosshair" : "";
+    }
     if (!drag || !session || !drag.moved || !drag.override) return;
     // The browser fires a trailing click after this mouseup — swallow it.
     this.#suppressNextClick = true;

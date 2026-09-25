@@ -26,7 +26,7 @@ export interface WorkspaceLayoutProps {
 
 export function WorkspaceLayout({ map, tools, details }: WorkspaceLayoutProps) {
   return (
-    <div className="grid gap-12">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-12">
       {/* Section 1 — map + tools. */}
       <section
         id="repair"
@@ -34,7 +34,7 @@ export function WorkspaceLayout({ map, tools, details }: WorkspaceLayoutProps) {
         data-testid="repair-section"
         className="scroll-mt-20"
       >
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="min-w-0 [&>*]:min-w-0">{map}</div>
           {/*
            * Sticky tools column: same visual height as the tall map,

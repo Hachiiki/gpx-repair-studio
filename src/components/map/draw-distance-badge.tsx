@@ -3,9 +3,10 @@
  * session (Phase 4 scope: "live distance badge").
  *
  * Shows the current path length (badged Estimated — it is user-authored
- * geometry, not a measurement), the vertex cap, and the interaction hints.
- * `role="status"` + `aria-live="polite"` announce distance updates to
- * screen readers without stealing focus.
+ * geometry, not a measurement) and the vertex cap. Pointer-mode
+ * communication moved to the dedicated mode chip (QoL pass) — this badge
+ * stays a pure measurement readout. `role="status"` + `aria-live="polite"`
+ * announce distance updates to screen readers without stealing focus.
  *
  * Pure presentation: props in, no imports of stores/domain/map.
  */
@@ -18,14 +19,12 @@ export interface DrawDistanceBadgeProps {
   distanceM: number | null;
   vertexCount: number;
   maxVertices: number;
-  drawMode: boolean;
 }
 
 export function DrawDistanceBadge({
   distanceM,
   vertexCount,
   maxVertices,
-  drawMode,
 }: DrawDistanceBadgeProps) {
   return (
     <div
@@ -47,11 +46,7 @@ export function DrawDistanceBadge({
         </span>
       </p>
       <p className="text-[11px] leading-snug text-muted-foreground">
-        {drawMode ? (
-          <>Click to add · drag points to move · double-click to delete</>
-        ) : (
-          <>Pan mode — switch to Draw to edit the route</>
-        )}
+        road length, not straight line
       </p>
     </div>
   );

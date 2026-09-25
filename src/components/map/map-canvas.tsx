@@ -18,7 +18,14 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { Button } from "@/components/ui/button";
-import { Loader2, MapIcon, WifiOff, Crosshair } from "lucide-react";
+import {
+  Crosshair,
+  Hand,
+  Loader2,
+  MapIcon,
+  PenLine,
+  WifiOff,
+} from "lucide-react";
 import { DrawDistanceBadge } from "@/components/map/draw-distance-badge";
 import { GapHighlightOverlay } from "@/components/map/gap-highlight-overlay";
 import { MapLegend } from "@/components/map/map-legend";
@@ -59,7 +66,7 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
     <div className="overflow-hidden rounded-xl border" data-testid="map-canvas">
       <div
         ref={attachContainer}
-        className="relative h-[380px] w-full bg-muted/40 sm:h-[460px] lg:h-[540px]"
+        className="relative h-[65dvh] min-h-[400px] w-full bg-muted/40 lg:h-[calc(100dvh-12.5rem)] lg:min-h-[520px]"
         role="application"
         aria-label="Interactive map of the recorded route and its gaps"
       >
@@ -142,8 +149,38 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
                 distanceM={draw.distanceM}
                 vertexCount={draw.vertexCount}
                 maxVertices={draw.maxVertices}
-                drawMode={draw.drawMode}
               />
+            )}
+            {/* Current-pointer-mode chip (QoL): always answers "am I
+                drawing or navigating?" at a glance, and toggles on click.
+                Dragging a placed point works in BOTH modes. */}
+            {editorActive && draw && (
+              <button
+                type="button"
+                data-testid="map-mode-chip"
+                aria-pressed={draw.drawMode}
+                onClick={() => draw.setDrawMode(!draw.drawMode)}
+                title={
+                  draw.drawMode
+                    ? "Draw mode — click to add points (D)"
+                    : "Pan mode — drag to navigate (P). Dragging a drawn point still works."
+                }
+                className={`absolute left-2 top-2 z-10 flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm transition-colors focus-visible:outline-2 ${
+                  draw.drawMode
+                    ? "border-emerald-600/40 bg-emerald-50/95 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/90 dark:text-emerald-100"
+                    : "border-border bg-background/85 text-foreground hover:bg-accent"
+                }`}
+              >
+                {draw.drawMode ? (
+                  <PenLine className="size-3.5 shrink-0" aria-hidden="true" />
+                ) : (
+                  <Hand className="size-3.5 shrink-0" aria-hidden="true" />
+                )}
+                {draw.drawMode ? "Drawing" : "Panning"}
+                <span className="text-[10px] font-normal opacity-70">
+                  {draw.drawMode ? "D" : "P"}
+                </span>
+              </button>
             )}
             {draw?.pickMode && (
               <div

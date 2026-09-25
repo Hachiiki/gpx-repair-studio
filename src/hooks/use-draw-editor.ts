@@ -607,6 +607,36 @@ export function useDrawEditor(
     map.getController()?.setDrawMode(drawMode);
   }, [drawMode, map.getController, mapReady]);
 
+  // Keyboard accelerators (QoL): D = draw, P = pan — active only while an
+  // editor session is open, and never while the user is typing in a form
+  // control. Mirrors the toolbar toggle and the on-map mode chip.
+  useEffect(() => {
+    if (activeGapId === null) return;
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "d") {
+        event.preventDefault();
+        useEditorStore.getState().setDrawMode(true);
+      } else if (key === "p") {
+        event.preventDefault();
+        useEditorStore.getState().setDrawMode(false);
+      }
+    };
+    window.addEventListener("keydown", onKeydown);
+    return () => window.removeEventListener("keydown", onKeydown);
+  }, [activeGapId]);
+
   // -- derived view data --------------------------------------------------------
 
   // Distance runs over the RENDERED path (nodes with road legs

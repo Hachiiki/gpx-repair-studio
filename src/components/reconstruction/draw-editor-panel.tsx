@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { HintTip } from "@/components/shared/hint-tip";
 import { Crosshair, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   GAP_KIND_LABELS,
@@ -51,10 +52,23 @@ const SPACING_CHOICES: readonly { value: string; label: string }[] = [
 const ROAD_FOLLOW_CHOICES: readonly {
   value: DrawEditorBinding["roadFollow"];
   label: string;
+  hint: string;
 }[] = [
-  { value: "car", label: "Roads" },
-  { value: "foot", label: "Footpaths" },
-  { value: "off", label: "Straight lines" },
+  {
+    value: "car",
+    label: "Roads",
+    hint: "The line follows drivable roads between your clicks — click before and after a curve and the bend draws itself.",
+  },
+  {
+    value: "foot",
+    label: "Footpaths",
+    hint: "Same idea, but for pedestrian ways — trails, footpaths, stairs. Better for runs through parks or along rivers.",
+  },
+  {
+    value: "off",
+    label: "Straight lines",
+    hint: "No road snapping — the line connects your clicks directly. Nothing leaves the browser in this mode.",
+  },
 ];
 
 function VertexRow({
@@ -181,18 +195,24 @@ export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
           <p className="text-xs font-medium">Between clicks, follow</p>
           <div className="flex flex-wrap gap-1.5">
             {ROAD_FOLLOW_CHOICES.map((choice) => (
-              <Button
+              <HintTip
                 key={choice.value}
-                type="button"
-                size="sm"
-                variant={draw.roadFollow === choice.value ? "default" : "outline"}
-                className="h-7 px-2.5 text-xs"
-                aria-pressed={draw.roadFollow === choice.value}
-                data-testid={`road-follow-${choice.value}`}
-                onClick={() => draw.setRoadFollow(choice.value)}
+                side="left"
+                title={choice.label}
+                description={choice.hint}
               >
-                {choice.label}
-              </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={draw.roadFollow === choice.value ? "default" : "outline"}
+                  className="h-7 px-2.5 text-xs"
+                  aria-pressed={draw.roadFollow === choice.value}
+                  data-testid={`road-follow-${choice.value}`}
+                  onClick={() => draw.setRoadFollow(choice.value)}
+                >
+                  {choice.label}
+                </Button>
+              </HintTip>
             ))}
           </div>
           <p className="text-[11px] leading-snug text-muted-foreground">
@@ -260,7 +280,11 @@ export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
 
         {/* Settings row: spacing + snap. */}
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="grid gap-1 text-xs font-medium" data-testid="spacing-select-label">
+          <label
+            className="grid gap-1 text-xs font-medium"
+            data-testid="spacing-select-label"
+            title="After you finish, the app densifies your drawing into evenly spaced points with this spacing — some platforms want regular points."
+          >
             Resample spacing
             <select
               className="h-8 rounded-md border border-input bg-transparent px-2 text-xs font-normal"
@@ -281,6 +305,7 @@ export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
           <label
             className="flex items-center gap-2 self-end text-xs font-medium"
             data-testid="snap-toggle-label"
+            title="Clicks near a recorded point land exactly on it — handy when tying your repair into the original route."
           >
             <Checkbox
               checked={draw.snapEnabled}
