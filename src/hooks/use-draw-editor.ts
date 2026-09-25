@@ -27,6 +27,12 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { MAX_VERTICES } from "@/features/reconstruction/drawModel";
+import { resamplePath } from "@/features/reconstruction/resample";
+import {
+  resolveGapTimePlan,
+  type GapTimePlan,
+} from "@/features/reconstruction/timestamps";
+import { buildPaceRows, type PaceRow } from "@/features/statistics/pace";
 import {
   buildSnapCandidates,
   nearestSnap,
@@ -64,10 +70,17 @@ import type {
   RoadFollowMode,
   RoadLeg,
   SegmentId,
+  TimeStrategy,
   VertexId,
 } from "@/types/domain";
 import type { GapRow, GpxSession } from "@/hooks/use-gpx-session";
 import type { MapBinding } from "@/hooks/use-map-controller";
+
+// Domain result types re-exported as the app-layer facade: components
+// may not import feature internals (ESLint boundary, §F), so everything
+// they need to type draw props flows through this module.
+export type { GapTimePlan } from "@/features/reconstruction/timestamps";
+export type { PaceRow } from "@/features/statistics/pace";
 
 /**
  * The road-follow router (app layer owns the network): one shared
@@ -83,6 +96,31 @@ function getRoadRouter(): RoadFollowRouter {
     });
   }
   return sharedRoadRouter;
+}
+
+/**
+ * The joined time statistics of every COMMITTED repair (Phase 5): the
+ * rows the stats panel renders next to the original-only buckets.
+ * "Committed" = vertices exist, no editor open on the gap, not skipped
+ * — the same population `reconstructedCount` and the map's committed
+ * lines use. Distances are the RENDERED path lengths (road legs
+ * included — WYSIWYG); durations come from the §J-1 case matrix.
+ */
+export interface RepairTimeStats {
+  /** Committed repairs counted here. */
+  gapCount: number;
+  /** Σ rendered reconstruction distances, meters. */
+  reconstructedDistanceM: number;
+  /** Σ known durations (ms); `null` when no repair has one yet. */
+  reconstructedTimeMs: number | null;
+  /** Committed repairs whose duration is still unknown (the "—" set). */
+  gapsWithoutDuration: number;
+  /** Case 4 flags: manual duration vs. recorded boundary span. */
+  discrepancies: readonly {
+    gapId: GapId;
+    manualMs: number;
+    recordedMs: number;
+  }[];
 }
 
 /** App-layer facade: the draw-editor view consumed by components. */
@@ -113,6 +151,10 @@ export interface DrawEditorBinding {
   straightLine: boolean;
   /** Densification spacing of the active reconstruction. */
   resampleSpacing: number | "off";
+  /** Resolved §J-1 time plan of the active gap (null when inactive). */
+  timePlan: GapTimePlan | null;
+  /** File-level timing entries (no-timing-data files, §J-1 Case 3). */
+  fileTiming: { startMs: number | null; totalDurationMs: number | null };
   canUndo: boolean;
   canRedo: boolean;
   /** Undoable commands on the stack (for labels). */
@@ -125,6 +167,10 @@ export interface DrawEditorBinding {
   reconstructedCount: number;
   /** Gaps explicitly marked as skipped (count). */
   skippedCount: number;
+  /** Time statistics of all committed repairs (stats panel join). */
+  repairTimeStats: RepairTimeStats;
+  /** §L-1 pace rows (recorded / repaired / overall) for the stats panel. */
+  paceRows: readonly PaceRow[];
 
   /** Manual repair spans joined into rows (resolved against the model). */
   manualRows: readonly RepairRow[];
@@ -148,6 +194,13 @@ export interface DrawEditorBinding {
   redo: () => void;
   clearVertices: () => void;
   setResampleSpacing: (spacing: number | "off") => void;
+  /** Time strategy of the ACTIVE gap — a setting, never undoable. */
+  setTimeStrategy: (strategy: TimeStrategy) => void;
+  /** File-level timing entries (no-timing-data files). */
+  setFileTiming: (patch: {
+    startMs?: number | null;
+    totalDurationMs?: number | null;
+  }) => void;
   /** Toggle the skip mark of the ACTIVE gap. */
   toggleSkip: () => void;
   deleteVertex: (vertexId: VertexId) => void;
@@ -703,6 +756,109 @@ export function useDrawEditor(
     [allRows, skippedGapIds],
   );
 
+  // -- Phase 5: time & pace ----------------------------------------------------
+
+  const fileTiming = useEditorStore((s) => s.fileTiming);
+
+  // The resolved §J-1 plan of the ACTIVE gap: which case applies, the
+  // duration feeding the live pace, the anchor, the Case-4 discrepancy.
+  // Rows are route-ordered (before = earlier), so the boundary times map
+  // straight onto the plan's route slots.
+  const timePlan = useMemo<GapTimePlan | null>(() => {
+    if (!activeGap) return null;
+    const strategy: TimeStrategy =
+      activeRecon?.timeStrategy ?? { kind: "distance-proportional" };
+    return resolveGapTimePlan(
+      {
+        routeBeforeMs: activeGap.before?.time,
+        routeAfterMs: activeGap.after?.time,
+      },
+      strategy,
+      fileTiming,
+    );
+  }, [activeGap, activeRecon, fileTiming]);
+
+  // Committed repairs → the stats join. Distances are the RENDERED path
+  // lengths (road legs included); durations from the case matrix.
+  // Extend-before rows carry only `after` — their path runs reversed
+  // against route order (the anchor keeps the latest time).
+  const repairTimeStats = useMemo<RepairTimeStats>(() => {
+    let reconstructedDistanceM = 0;
+    let reconstructedTimeMs: number | null = null;
+    let gapsWithoutDuration = 0;
+    const discrepancies: RepairTimeStats["discrepancies"][number][] = [];
+    let gapCount = 0;
+
+    for (const row of allRows) {
+      if (row.id === activeGapId || skippedGapIds.includes(row.id)) continue;
+      const recon = reconstructions[row.id];
+      if (!recon || recon.vertices.length === 0) continue;
+
+      const near = row.before ?? row.after;
+      if (!near) continue;
+      const far = row.before && row.after ? row.after : null;
+      const path = resamplePath(
+        { lat: near.lat, lon: near.lon },
+        recon.vertices,
+        far ? { lat: far.lat, lon: far.lon } : null,
+        recon.resampleSpacingM,
+        roadLegs[row.id] ?? [],
+      );
+      reconstructedDistanceM += path.length > 0 ? path[path.length - 1].cumDistanceM : 0;
+
+      const plan = resolveGapTimePlan(
+        {
+          routeBeforeMs: row.before?.time,
+          routeAfterMs: row.after?.time,
+        },
+        recon.timeStrategy,
+        fileTiming,
+      );
+      gapCount += 1;
+      if (plan.durationMs === null) {
+        gapsWithoutDuration += 1;
+      } else {
+        reconstructedTimeMs = (reconstructedTimeMs ?? 0) + plan.durationMs;
+      }
+      if (
+        plan.discrepancyMs !== null &&
+        plan.durationMs !== null &&
+        plan.recordedSpanMs !== null
+      ) {
+        discrepancies.push({
+          gapId: row.id,
+          manualMs: plan.durationMs,
+          recordedMs: plan.recordedSpanMs,
+        });
+      }
+    }
+
+    return {
+      gapCount,
+      reconstructedDistanceM,
+      reconstructedTimeMs,
+      gapsWithoutDuration,
+      discrepancies,
+    };
+  }, [allRows, activeGapId, skippedGapIds, reconstructions, roadLegs, fileTiming]);
+
+  // §L-1 pace rows over the session stats + the repair join (+ the
+  // file-level total for no-timing files).
+  const paceRows = useMemo<readonly PaceRow[]>(
+    () =>
+      buildPaceRows({
+        hasTimingData: session.timeStats?.hasTimingData ?? false,
+        recordedMovingTimeMs: session.timeStats?.recordedMovingTimeMs ?? 0,
+        recordedDistanceM: session.distanceStats?.totalDistanceM ?? 0,
+        repairDistanceM: repairTimeStats.reconstructedDistanceM,
+        repairTimeMs: repairTimeStats.reconstructedTimeMs,
+        repairsWithoutDuration: repairTimeStats.gapsWithoutDuration,
+        hasRepairs: repairTimeStats.gapCount > 0,
+        manualTotalDurationMs: fileTiming.totalDurationMs,
+      }),
+    [session.timeStats, session.distanceStats, repairTimeStats, fileTiming],
+  );
+
   // -- intents -------------------------------------------------------------------
 
   const openEditor = useCallback((gapId: GapId) => {
@@ -759,6 +915,19 @@ export function useDrawEditor(
     [],
   );
 
+  const setTimeStrategy = useCallback((strategy: TimeStrategy) => {
+    const gapId = useEditorStore.getState().activeGapId;
+    if (gapId === null) return;
+    useEditorStore.getState().setTimeStrategy(gapId, strategy);
+  }, []);
+
+  const setFileTiming = useCallback(
+    (patch: { startMs?: number | null; totalDurationMs?: number | null }) => {
+      useEditorStore.getState().setFileTiming(patch);
+    },
+    [],
+  );
+
   const toggleSkip = useCallback(() => {
     const gapId = useEditorStore.getState().activeGapId;
     if (gapId === null) return;
@@ -784,6 +953,8 @@ export function useDrawEditor(
     distanceM,
     straightLine,
     resampleSpacing: activeRecon?.resampleSpacingM ?? "off",
+    timePlan,
+    fileTiming,
     canUndo: history.undo.length > 0,
     canRedo: history.redo.length > 0,
     undoCount: history.undo.length,
@@ -791,6 +962,8 @@ export function useDrawEditor(
     statusById,
     reconstructedCount,
     skippedCount,
+    repairTimeStats,
+    paceRows,
     manualRows,
     pickMode,
     openEditor,
@@ -806,6 +979,8 @@ export function useDrawEditor(
     redo,
     clearVertices,
     setResampleSpacing,
+    setTimeStrategy,
+    setFileTiming,
     toggleSkip,
     deleteVertex,
   };

@@ -50,6 +50,7 @@ import {
   type DrawHistory,
   type VertexPosition,
 } from "@/features/reconstruction/drawModel";
+import type { FileTimingContext } from "@/features/reconstruction/timestamps";
 import type {
   GapId,
   ManualSpan,
@@ -57,6 +58,7 @@ import type {
   Reconstruction,
   RoadFollowMode,
   RoadLeg,
+  TimeStrategy,
   VertexId,
 } from "@/types/domain";
 import { gapId, gapIdEnd, gapIdStart, vertexId } from "@/types/ids";
@@ -95,6 +97,16 @@ interface EditorState {
   roadLegs: Readonly<Record<string, readonly RoadLeg[]>>;
   /** Road-routing status of the active chain (pending count + last failure). */
   roadRouting: { pending: number; failed: boolean };
+  /**
+   * File-level timing entries for files without usable timestamps
+   * (§J-1 Case 3, Phase 5): an activity start time and/or a total
+   * duration, entered once per file. Repair state — reset with the
+   * session, never persisted.
+   */
+  fileTiming: FileTimingContext;
+
+  /** Replace the file-level timing entries (patch semantics). */
+  setFileTiming: (patch: Partial<FileTimingContext>) => void;
 
   /** Open the draw editor for a gap (creates an empty repair if needed). */
   openEditor: (gapId: GapId) => void;
@@ -142,6 +154,8 @@ interface EditorState {
   redo: () => void;
   /** Settings (§D-3.5) — not commands, never undoable. */
   setResampleSpacing: (gapId: GapId, spacing: number | "off") => void;
+  /** Time strategy of one reconstruction — a setting, never undoable. */
+  setTimeStrategy: (gapId: GapId, strategy: TimeStrategy) => void;
   /** Toggle the skip mark; skipping the active gap closes its editor. */
   toggleSkip: (gapId: GapId) => void;
   /** Drop state for gaps that no longer exist after re-detection. */
@@ -163,6 +177,7 @@ const INITIAL = {
   roadFollow: "car" as RoadFollowMode,
   roadLegs: {} as Readonly<Record<string, readonly RoadLeg[]>>,
   roadRouting: { pending: 0, failed: false },
+  fileTiming: { startMs: null, totalDurationMs: null } as FileTimingContext,
 };
 
 /** The reconstruction of the active gap, or `null` when none is open. */
@@ -323,6 +338,11 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   setRoadRouting: (roadRouting) => set({ roadRouting }),
 
+  setFileTiming: (patch) =>
+    set((state) => ({
+      fileTiming: { ...state.fileTiming, ...patch },
+    })),
+
   submitCommand: (command) => {
     const state = get();
     const current = activeReconstruction(state);
@@ -455,6 +475,27 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         reconstructions: {
           ...state.reconstructions,
           [gapId]: { ...current, resampleSpacingM: spacing },
+        },
+      };
+    }),
+
+  setTimeStrategy: (gapId, strategy) =>
+    set((state) => {
+      const current = state.reconstructions[gapId];
+      if (!current || current.timeStrategy === strategy) return state;
+      // Settings, not commands (§D-3.5): switching a strategy or editing
+      // a manual duration must never pollute the undo stack. Deep-equal
+      // enough for the object shapes TimeStrategy allows.
+      const unchanged =
+        current.timeStrategy.kind === strategy.kind &&
+        (current.timeStrategy.kind !== "manual-duration" ||
+          strategy.kind !== "manual-duration" ||
+          current.timeStrategy.durationMs === strategy.durationMs);
+      if (unchanged) return state;
+      return {
+        reconstructions: {
+          ...state.reconstructions,
+          [gapId]: { ...current, timeStrategy: strategy },
         },
       };
     }),

@@ -17,14 +17,21 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
 import { loadFixture } from "./helpers/gpxTestUtils";
+import { useEditorStore } from "@/state/editor-store";
 import { useSessionStore } from "@/state/session-store";
 import { useUiStore } from "@/state/ui-store";
+import type { GapId } from "@/types/domain";
 
 beforeEach(() => {
   act(() => {
     useSessionStore.getState().reset();
+    useEditorStore.getState().reset();
     useUiStore.getState().resetGapThresholds();
-    useUiStore.setState({ selectedGapId: null, tileProvider: "openfreemap" });
+    useUiStore.setState({
+      selectedGapId: null,
+      tileProvider: "openfreemap",
+      paceUnit: "km",
+    });
   });
   window.localStorage.clear();
 });
@@ -196,5 +203,152 @@ describe("inspection flow", () => {
     const skip = screen.getByRole("link", { name: "Skip to content" });
     expect(skip).toHaveAttribute("href", "#main-content");
     expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 5 — time & pace reconstruction joins the statistics
+// ---------------------------------------------------------------------------
+
+describe("time & pace reconstruction (Phase 5)", () => {
+  /** The time-gap fixture's single gap: points 3 → 4 (07:00:09 → 07:05:09). */
+  const GAP_ID = "gap/t0s0:3/t0s0:4" as GapId;
+
+  /**
+   * Commit a repair through the REAL stores (the map is unavailable in
+   * jsdom — the store is the authoritative writer anyway): open the
+   * gap's editor, draw two vertices, close.
+   */
+  function commitRepair(vertices: [number, number][]) {
+    act(() => {
+      useEditorStore.getState().openEditor(GAP_ID);
+    });
+    for (const [lat, lon] of vertices) {
+      act(() => {
+        useEditorStore.getState().addVertex({ lat, lon });
+      });
+    }
+    act(() => {
+      useEditorStore.getState().closeEditor();
+    });
+  }
+
+  it("a committed repair joins the stats with derived time and provenance labels", async () => {
+    render(<AppShell />);
+    await dropFile("time-gap.gpx");
+    await screen.findByTestId("gap-list");
+
+    // While editing, the §J-1 controls are part of the editor panel.
+    act(() => {
+      useEditorStore.getState().openEditor(GAP_ID);
+    });
+    expect(
+      await screen.findByTestId("time-strategy-controls"),
+    ).toBeVisible();
+    expect(screen.getByTestId("gap-duration")).toHaveTextContent("5:00");
+
+    act(() => {
+      useEditorStore.getState().addVertex({ lat: 52.5206, lon: 13.4055 });
+      useEditorStore.getState().closeEditor();
+    });
+
+    const stats = await screen.findByTestId("stats-panel");
+    // Distance splits with provenance.
+    expect(stats).toHaveTextContent("Recorded distance");
+    expect(stats).toHaveTextContent("Repaired distance");
+    expect(stats).toHaveTextContent("Total with repairs");
+    // The derived 5-minute gap span becomes the repair time.
+    expect(stats).toHaveTextContent("Repair time");
+    const rows = Array.from(stats.querySelectorAll("tbody tr"));
+    const repairRow = rows.find((r) => r.textContent?.includes("Repair time"));
+    expect(repairRow?.textContent).toContain("5:00");
+    // Moving time incl. repairs = 0:18 recorded + 5:00 repair.
+    const mixedRow = rows.find((r) =>
+      r.textContent?.includes("Moving time incl. repairs"),
+    );
+    expect(mixedRow?.textContent).toContain("5:18");
+    // §L-1 pace rows render with their provenance.
+    expect(stats).toHaveTextContent("Pace (recorded)");
+    expect(stats).toHaveTextContent("Pace (repairs)");
+    expect(stats).toHaveTextContent("Overall pace");
+    const paceCell = rows
+      .find((r) => r.textContent?.includes("Pace (repairs)"))
+      ?.textContent;
+    expect(paceCell).toMatch(/\/km/);
+    expect(paceCell).not.toContain("—");
+  });
+
+  it("the Case 4 override flags the disagreement in the stats footnote", async () => {
+    render(<AppShell />);
+    await dropFile("time-gap.gpx");
+    await screen.findByTestId("gap-list");
+
+    commitRepair([[52.5206, 13.4055]]);
+    act(() => {
+      useEditorStore
+        .getState()
+        .setTimeStrategy(GAP_ID, {
+          kind: "manual-duration",
+          durationMs: 12 * 60_000,
+        });
+    });
+
+    const stats = await screen.findByTestId("stats-panel");
+    expect(stats).toHaveTextContent("12:00"); // the manual value wins
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("duration-discrepancy-note"),
+      ).toHaveTextContent(/disagree/i),
+    );
+  });
+
+  it("a no-timing file prompts for durations and honors the manual total", async () => {
+    render(<AppShell />);
+    await dropFile("no-time.gpx");
+
+    // The file-level mode appears; the overall pace prompts honestly.
+    const card = await screen.findByTestId("file-timing-card");
+    expect(card).toBeVisible();
+    const stats = screen.getByTestId("stats-panel");
+    expect(screen.getByTestId("pace-row-overall")).toHaveTextContent(
+      /enter a total duration/i,
+    );
+
+    // Enter a 30-minute total (blur-commit).
+    fireEvent.change(screen.getByTestId("file-total-minutes"), {
+      target: { value: "30" },
+    });
+    fireEvent.blur(screen.getByTestId("file-total-minutes"));
+
+    await waitFor(() =>
+      expect(stats).toHaveTextContent("Total duration (entered)"),
+    );
+    const rows = Array.from(stats.querySelectorAll("tbody tr"));
+    const enteredRow = rows.find((r) =>
+      r.textContent?.includes("Total duration (entered)"),
+    );
+    expect(enteredRow?.textContent).toContain("30:00");
+    // The overall pace computes from the entered total (mixed).
+    await waitFor(() => {
+      const overall = rows.find((r) =>
+        r.textContent?.includes("Overall pace"),
+      );
+      expect(overall?.textContent).toMatch(/\d+:\d{2} \/km/);
+    });
+
+    // A committed repair without a duration keeps the honest "—".
+    act(() => {
+      useEditorStore.getState().addInsertSpan("t0s0:1" as never, "t0s0:2" as never);
+      useEditorStore.getState().addVertex({ lat: 52.5202, lon: 13.4051 });
+      useEditorStore.getState().closeEditor();
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("repair-duration-note")).toHaveTextContent(
+        /still needs a duration/i,
+      ),
+    );
+    expect(screen.getByTestId("pace-row-repaired")).toHaveTextContent(
+      /still needs a duration/i,
+    );
   });
 });

@@ -32,6 +32,7 @@ import {
   DEFAULT_TILE_PROVIDER,
   type TileProviderId,
 } from "@/lib/map/styles";
+import type { PaceUnit } from "@/lib/utils/format";
 import type { GapId } from "@/types/domain";
 
 /** localStorage key — versioned so future setting renames can migrate. */
@@ -40,12 +41,15 @@ export const UI_SETTINGS_STORAGE_KEY = "gpx-repair-studio.settings.v1";
 interface UiState {
   gapThresholds: GapThresholds;
   tileProvider: TileProviderId;
+  /** Pace display unit (§J-2 min/km with a min/mi toggle). Phase 5. */
+  paceUnit: PaceUnit;
   /** The gap highlighted on the map / gap list; `null` = none. Transient. */
   selectedGapId: GapId | null;
 
   setGapThresholds: (patch: Partial<GapThresholds>) => void;
   resetGapThresholds: () => void;
   setTileProvider: (provider: TileProviderId) => void;
+  setPaceUnit: (unit: PaceUnit) => void;
   selectGap: (gapId: GapId | null) => void;
 }
 
@@ -54,12 +58,14 @@ export const useUiStore = create<UiState>()(
     (set) => ({
       gapThresholds: { ...DEFAULT_GAP_THRESHOLDS },
       tileProvider: DEFAULT_TILE_PROVIDER,
+      paceUnit: "km" as PaceUnit,
       selectedGapId: null,
       setGapThresholds: (patch) =>
         set((state) => ({ gapThresholds: { ...state.gapThresholds, ...patch } })),
       resetGapThresholds: () =>
         set({ gapThresholds: { ...DEFAULT_GAP_THRESHOLDS } }),
       setTileProvider: (tileProvider) => set({ tileProvider }),
+      setPaceUnit: (paceUnit) => set({ paceUnit }),
       selectGap: (selectedGapId) => set({ selectedGapId }),
     }),
     {
@@ -70,6 +76,7 @@ export const useUiStore = create<UiState>()(
       partialize: (state) => ({
         gapThresholds: state.gapThresholds,
         tileProvider: state.tileProvider,
+        paceUnit: state.paceUnit,
       }),
       // Avoid SSR/prerender hydration mismatches; AppShell rehydrates on
       // mount (see components/layout/app-shell.tsx).

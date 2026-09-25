@@ -1,15 +1,20 @@
 /**
- * StatsPanel — original-only statistics table
- * (Phase 2 scope: "original-only StatsPanel"; §L-1/§L-2 honesty rules).
+ * StatsPanel — the provenance-badged statistics table
+ * (§L-1/§L-2; Phase 2 original-only rows, Phase 5 repair + pace rows).
  *
- * Every row carries the mandatory provenance column (all "Recorded" until
- * reconstruction statistics arrive in Phase 5). Unsupported statistics
- * render "—" with a one-line reason — the app never fabricates values.
- * Excluded legs (damaged coordinates) are disclosed in a footnote.
+ * Every row carries the mandatory provenance column (Recorded /
+ * Estimated / Mixed). Unsupported statistics render "—" with their
+ * reason — the app never fabricates values. When committed repairs
+ * exist, the distance rows split (recorded / repaired / total-with) and
+ * the §L-1 pace rows appear with the km/mi unit toggle.
+ *
+ * Pure presentation: stats in (session view models + the repair join
+ * from the draw binding), nothing computed here.
  */
 
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -23,8 +28,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
-import type { DistanceStats, TimeStats } from "@/hooks/use-gpx-session";
-import { formatDistanceMeters, formatDurationMs } from "@/lib/utils/format";
+import type {
+  DistanceStats,
+  TimeStats,
+} from "@/hooks/use-gpx-session";
+import type {
+  PaceRow,
+  RepairTimeStats,
+} from "@/hooks/use-draw-editor";
+import type { PaceUnit } from "@/lib/utils/format";
+import {
+  formatDistanceMeters,
+  formatDurationMs,
+  formatPace,
+} from "@/lib/utils/format";
 
 function emDash(reason: string) {
   return <span title={reason}>—</span>;
@@ -33,18 +50,73 @@ function emDash(reason: string) {
 export interface StatsPanelProps {
   distanceStats: DistanceStats;
   timeStats: TimeStats;
+  /**
+   * Phase 5: the committed-repair time join. Omitted/null → the
+   * original-only table (exact Phase 2 presentation).
+   */
+  repair?: RepairTimeStats | null;
+  /** §L-1 pace rows (recorded / repaired / overall). */
+  paceRows?: readonly PaceRow[];
+  /** File-level manual total (no-timing files), when entered. */
+  manualTotalDurationMs?: number | null;
+  /** §J-2 pace unit toggle. */
+  paceUnit: PaceUnit;
+  onPaceUnitChange: (unit: PaceUnit) => void;
 }
 
-export function StatsPanel({ distanceStats, timeStats }: StatsPanelProps) {
+const PACE_ROW_LABELS: Record<PaceRow["id"], string> = {
+  recorded: "Pace (recorded)",
+  repaired: "Pace (repairs)",
+  overall: "Overall pace",
+};
+
+export function StatsPanel({
+  distanceStats,
+  timeStats,
+  repair = null,
+  paceRows = [],
+  manualTotalDurationMs = null,
+  paceUnit,
+  onPaceUnitChange,
+}: StatsPanelProps) {
   const noTime = !timeStats.hasTimingData;
+  const hasRepairs = (repair?.gapCount ?? 0) > 0;
+  const repairTime = repair?.reconstructedTimeMs ?? null;
 
   return (
     <Card data-testid="stats-panel">
       <CardHeader>
         <h3 className="leading-none font-semibold">Statistics</h3>
         <CardDescription>
-          Original recording only — repairs are not included yet.
+          {hasRepairs
+            ? "Original recording plus committed repairs — every estimated value is labeled with its source."
+            : "Original recording only — repairs are not included yet."}
         </CardDescription>
+        <CardAction>
+          <div
+            className="flex overflow-hidden rounded-md border"
+            role="group"
+            aria-label="Pace unit"
+            data-testid="pace-unit-toggle"
+          >
+            {(["km", "mi"] as const).map((unit) => (
+              <button
+                key={unit}
+                type="button"
+                aria-pressed={paceUnit === unit}
+                data-testid={`pace-unit-${unit}`}
+                className={
+                  paceUnit === unit
+                    ? "bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
+                    : "px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                }
+                onClick={() => onPaceUnitChange(unit)}
+              >
+                /{unit}
+              </button>
+            ))}
+          </div>
+        </CardAction>
       </CardHeader>
       <CardContent>
         <Table>
@@ -56,15 +128,53 @@ export function StatsPanel({ distanceStats, timeStats }: StatsPanelProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow>
-              <TableCell>Total distance</TableCell>
-              <TableCell className="tabular-nums">
-                {formatDistanceMeters(distanceStats.totalDistanceM)}
-              </TableCell>
-              <TableCell>
-                <ProvenanceBadge kind="recorded" />
-              </TableCell>
-            </TableRow>
+            {/* Distance rows. */}
+            {hasRepairs ? (
+              <>
+                <TableRow>
+                  <TableCell>Recorded distance</TableCell>
+                  <TableCell className="tabular-nums">
+                    {formatDistanceMeters(distanceStats.totalDistanceM)}
+                  </TableCell>
+                  <TableCell>
+                    <ProvenanceBadge kind="recorded" />
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>Repaired distance</TableCell>
+                  <TableCell className="tabular-nums">
+                    {formatDistanceMeters(repair!.reconstructedDistanceM)}
+                  </TableCell>
+                  <TableCell>
+                    <ProvenanceBadge kind="estimated" />
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>Total with repairs</TableCell>
+                  <TableCell className="tabular-nums">
+                    {formatDistanceMeters(
+                      distanceStats.totalDistanceM +
+                        repair!.reconstructedDistanceM,
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <ProvenanceBadge kind="mixed" />
+                  </TableCell>
+                </TableRow>
+              </>
+            ) : (
+              <TableRow>
+                <TableCell>Total distance</TableCell>
+                <TableCell className="tabular-nums">
+                  {formatDistanceMeters(distanceStats.totalDistanceM)}
+                </TableCell>
+                <TableCell>
+                  <ProvenanceBadge kind="recorded" />
+                </TableCell>
+              </TableRow>
+            )}
+
+            {/* Time rows. */}
             <TableRow>
               <TableCell>Recorded moving time</TableCell>
               <TableCell className="tabular-nums">
@@ -89,6 +199,69 @@ export function StatsPanel({ distanceStats, timeStats }: StatsPanelProps) {
                 <ProvenanceBadge kind="recorded" />
               </TableCell>
             </TableRow>
+            {hasRepairs && (
+              <TableRow>
+                <TableCell>Repair time</TableCell>
+                <TableCell className="tabular-nums">
+                  {repairTime === null
+                    ? emDash("Repairs still need durations")
+                    : formatDurationMs(repairTime)}
+                </TableCell>
+                <TableCell>
+                  <ProvenanceBadge kind="estimated" />
+                </TableCell>
+              </TableRow>
+            )}
+            {hasRepairs && !noTime && (
+              <TableRow>
+                <TableCell>Moving time incl. repairs</TableCell>
+                <TableCell className="tabular-nums">
+                  {repairTime === null
+                    ? emDash("Repairs still need durations")
+                    : formatDurationMs(
+                        timeStats.recordedMovingTimeMs + repairTime,
+                      )}
+                </TableCell>
+                <TableCell>
+                  <ProvenanceBadge kind="mixed" />
+                </TableCell>
+              </TableRow>
+            )}
+            {noTime && manualTotalDurationMs !== null && (
+              <TableRow>
+                <TableCell>Total duration (entered)</TableCell>
+                <TableCell className="tabular-nums">
+                  {manualTotalDurationMs > 0
+                    ? formatDurationMs(manualTotalDurationMs)
+                    : emDash("Enter a total duration")}
+                </TableCell>
+                <TableCell>
+                  <ProvenanceBadge kind="estimated" />
+                </TableCell>
+              </TableRow>
+            )}
+
+            {/* §L-1 pace rows (Phase 5). */}
+            {paceRows.map((row) => (
+              <TableRow key={row.id} data-testid={`pace-row-${row.id}`}>
+                <TableCell>{PACE_ROW_LABELS[row.id]}</TableCell>
+                <TableCell className="tabular-nums">
+                  {row.durationMs === null ? (
+                    <span
+                      title={row.missingReason ?? "Not computable"}
+                      className="text-muted-foreground"
+                    >
+                      — {row.missingReason ?? "not computable"}
+                    </span>
+                  ) : (
+                    formatPace(row.durationMs, row.distanceM, paceUnit)
+                  )}
+                </TableCell>
+                <TableCell>
+                  <ProvenanceBadge kind={row.provenance} />
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
 
@@ -96,8 +269,26 @@ export function StatsPanel({ distanceStats, timeStats }: StatsPanelProps) {
           {noTime && (
             <p data-testid="no-timing-note">
               No timing data in this file — time and pace statistics are
-              unavailable. A manual duration can be supplied per gap in a
-              later repair step.
+              unavailable unless a duration is entered (per repair, or a
+              total for the whole activity).
+            </p>
+          )}
+          {hasRepairs && (repair?.gapsWithoutDuration ?? 0) > 0 && (
+            <p data-testid="repair-duration-note">
+              {repair!.gapsWithoutDuration} repair
+              {repair!.gapsWithoutDuration === 1 ? "" : "s"} still need
+              {repair!.gapsWithoutDuration === 1 ? "s" : ""} a duration —
+              its time is not counted yet (open the repair&apos;s editor to
+              add one).
+            </p>
+          )}
+          {hasRepairs && (repair?.discrepancies.length ?? 0) > 0 && (
+            <p data-testid="duration-discrepancy-note">
+              {repair!.discrepancies.length} manual duration
+              {repair!.discrepancies.length === 1 ? "" : "s"} disagree
+              {repair!.discrepancies.length === 1 ? "s" : ""} with the
+              recorded gap span — timestamps follow the manual value;
+              recorded timestamps are never changed.
             </p>
           )}
           {!noTime && timeStats.gapLegs > 0 && (

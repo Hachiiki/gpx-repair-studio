@@ -205,9 +205,16 @@ test.describe("manual repair spans — draw anywhere, no detection required", ()
       "Edit route",
     );
 
-    // Immutability: the recorded stats never moved.
+    // Immutability of the recorded values (Phase 5 contract): the
+    // original rows keep their numbers; committed repairs only ADD
+    // estimated/mixed rows — nothing recorded is rewritten.
     const statsAfter = await page.getByTestId("stats-panel").innerText();
-    expect(statsAfter).toBe(statsBefore);
+    expect(statsAfter).toContain("2.51 km"); // the recorded distance value
+    const movingTime = statsBefore.match(/Recorded moving time\s+([^\n]+)/)?.[1];
+    expect(movingTime).toBeTruthy();
+    expect(statsAfter).toContain(movingTime!);
+    expect(statsAfter).toContain("Repaired distance"); // additive join
+    expect(statsAfter).toContain("Repair time");
   });
 
   test("Esc cancels pick mode without creating anything", async ({ page }) => {
@@ -357,8 +364,13 @@ test.describe("manual repair spans — draw anywhere, no detection required", ()
     expect(committed.boundaryMarkerCount).toBe(1);
     await expect(manualCard).toContainText("Reconstructed");
 
-    // Immutability: the recorded stats never moved.
+    // Immutability of the recorded values (Phase 5 contract).
     const statsAfter = await page.getByTestId("stats-panel").innerText();
-    expect(statsAfter).toBe(statsBefore);
+    expect(statsAfter).toContain("2.51 km");
+    const movingTime = statsBefore.match(/Recorded moving time\s+([^\n]+)/)?.[1];
+    expect(movingTime).toBeTruthy();
+    expect(statsAfter).toContain(movingTime!);
+    expect(statsAfter).toContain("Repaired distance");
+    expect(statsAfter).toContain("Repair time");
   });
 });

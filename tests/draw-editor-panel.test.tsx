@@ -22,7 +22,9 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import type { DrawEditorBinding, RepairRow } from "@/hooks/use-draw-editor";
+import { resolveGapTimePlan } from "@/features/reconstruction/timestamps";
 import { useEditorStore } from "@/state/editor-store";
+import { useUiStore } from "@/state/ui-store";
 import type { GapRow } from "@/hooks/use-gpx-session";
 import type { GapId, VertexId } from "@/types/domain";
 import { vertexId } from "@/types/ids";
@@ -69,6 +71,8 @@ function makeBinding(
     distanceM: 0,
     straightLine: false,
     resampleSpacing: "off",
+    timePlan: null,
+    fileTiming: { startMs: null, totalDurationMs: null },
     canUndo: false,
     canRedo: false,
     undoCount: 0,
@@ -76,6 +80,14 @@ function makeBinding(
     statusById: { [GAP_ROW.id]: "in-progress" },
     reconstructedCount: 0,
     skippedCount: 0,
+    repairTimeStats: {
+      gapCount: 0,
+      reconstructedDistanceM: 0,
+      reconstructedTimeMs: null,
+      gapsWithoutDuration: 0,
+      discrepancies: [],
+    },
+    paceRows: [],
     manualRows: [],
     pickMode: null,
     openEditor: () => {},
@@ -91,6 +103,8 @@ function makeBinding(
     redo: () => {},
     clearVertices: () => {},
     setResampleSpacing: () => {},
+    setTimeStrategy: () => {},
+    setFileTiming: () => {},
     toggleSkip: () => {},
     deleteVertex: (_vertexId: VertexId) => {},
     ...overrides,
@@ -341,6 +355,33 @@ describe("DrawEditorPanel — open-ended extensions (one-anchor add)", () => {
     // Manual-kind rows offer "Remove repair span", not "Mark as skipped".
     expect(screen.getByTestId("remove-span-button")).toBeVisible();
     expect(screen.queryByTestId("skip-gap-button")).toBeNull();
+  });
+});
+
+describe("DrawEditorPanel — Phase 5 time strategy embedding", () => {
+  it("renders the time controls inside the panel when a plan exists", () => {
+    const plan = resolveGapTimePlan(
+      { routeBeforeMs: Date.UTC(2024, 4, 1, 7, 0, 9), routeAfterMs: Date.UTC(2024, 4, 1, 7, 5, 9) },
+      { kind: "distance-proportional" },
+      { startMs: null, totalDurationMs: null },
+    );
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({
+          timePlan: plan,
+          distanceM: 1000,
+          vertexCount: 2,
+        })}
+      />,
+    );
+    expect(screen.getByTestId("time-strategy-controls")).toBeVisible();
+    expect(screen.getByTestId("gap-duration")).toHaveTextContent("5:00");
+    expect(screen.getByTestId("gap-pace")).toHaveTextContent("5:00 /km");
+  });
+
+  it("omits the time controls when no plan is resolved", () => {
+    render(<DrawEditorPanel draw={makeBinding({ timePlan: null })} />);
+    expect(screen.queryByTestId("time-strategy-controls")).toBeNull();
   });
 });
 

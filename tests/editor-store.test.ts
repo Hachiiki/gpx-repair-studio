@@ -188,6 +188,67 @@ describe("settings (not commands)", () => {
     useEditorStore.getState().setSnapEnabled(false);
     expect(useEditorStore.getState().snapEnabled).toBe(false);
   });
+
+  it("setTimeStrategy updates the reconstruction without touching history", () => {
+    const store = useEditorStore.getState();
+    store.openEditor(gapA);
+    store.addVertex(pos(1, 2));
+    const historyDepth = useEditorStore.getState().history.undo.length;
+
+    // Default from emptyReconstruction: distance-proportional.
+    expect(useEditorStore.getState().reconstructions[gapA].timeStrategy).toEqual({
+      kind: "distance-proportional",
+    });
+
+    useEditorStore.getState().setTimeStrategy(gapA, { kind: "uniform" });
+    useEditorStore
+      .getState()
+      .setTimeStrategy(gapA, { kind: "manual-duration", durationMs: 300_000 });
+
+    const state = useEditorStore.getState();
+    expect(state.reconstructions[gapA].timeStrategy).toEqual({
+      kind: "manual-duration",
+      durationMs: 300_000,
+    });
+    expect(state.reconstructions[gapA].geometryRevision).toBe(1); // from add only
+    expect(state.history.undo).toHaveLength(historyDepth);
+
+    // No-op when the same manual duration is set again.
+    useEditorStore
+      .getState()
+      .setTimeStrategy(gapA, { kind: "manual-duration", durationMs: 300_000 });
+    expect(useEditorStore.getState().reconstructions[gapA].timeStrategy).toEqual({
+      kind: "manual-duration",
+      durationMs: 300_000,
+    });
+
+    // Unknown gap ids are ignored.
+    useEditorStore.getState().setTimeStrategy(gapB, { kind: "uniform" });
+    expect(useEditorStore.getState().reconstructions[gapB]).toBeUndefined();
+  });
+
+  it("fileTiming patches in place and resets with the session", () => {
+    expect(useEditorStore.getState().fileTiming).toEqual({
+      startMs: null,
+      totalDurationMs: null,
+    });
+
+    useEditorStore.getState().setFileTiming({ startMs: 1_714_547_200_000 });
+    expect(useEditorStore.getState().fileTiming.startMs).toBe(1_714_547_200_000);
+    expect(useEditorStore.getState().fileTiming.totalDurationMs).toBeNull();
+
+    useEditorStore.getState().setFileTiming({ totalDurationMs: 2_700_000 });
+    expect(useEditorStore.getState().fileTiming).toEqual({
+      startMs: 1_714_547_200_000,
+      totalDurationMs: 2_700_000,
+    });
+
+    useEditorStore.getState().reset();
+    expect(useEditorStore.getState().fileTiming).toEqual({
+      startMs: null,
+      totalDurationMs: null,
+    });
+  });
 });
 
 describe("skip transitions", () => {

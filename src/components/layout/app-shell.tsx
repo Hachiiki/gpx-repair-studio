@@ -39,6 +39,7 @@ import { GpxSummaryCard } from "@/components/gpx/gpx-summary-card";
 import { SegmentList } from "@/components/gpx/segment-list";
 import { ValidationReport } from "@/components/gpx/validation-report";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
+import { FileTimingCard } from "@/components/reconstruction/file-timing-card";
 import { GapList } from "@/components/reconstruction/gap-list";
 import { ManualRepairsCard } from "@/components/reconstruction/manual-repairs-card";
 import { StatsPanel } from "@/components/statistics/stats-panel";
@@ -53,6 +54,8 @@ export function AppShell() {
   const session = useGpxSession();
   const map = useMapController(session);
   const draw = useDrawEditor(session, map);
+  const paceUnit = useUiStore((s) => s.paceUnit);
+  const setPaceUnit = useUiStore((s) => s.setPaceUnit);
 
   // Rehydrate persisted settings after mount — the prerendered HTML and
   // the first client render both use defaults, so there is no hydration
@@ -116,6 +119,17 @@ export function AppShell() {
                   onOpenEditor={draw.openEditor}
                   onBeginPick={draw.beginPickAnchor}
                 />
+                {/*
+                 * File-level “no timing data” mode (§J-1 Case 3): only
+                 * when the loaded file carries no usable timestamps.
+                 */}
+                {session.timeStats !== null &&
+                  !session.timeStats.hasTimingData && (
+                    <FileTimingCard
+                      fileTiming={draw.fileTiming}
+                      setFileTiming={draw.setFileTiming}
+                    />
+                  )}
               </>
             }
             details={
@@ -133,6 +147,11 @@ export function AppShell() {
                   <StatsPanel
                     distanceStats={session.distanceStats}
                     timeStats={session.timeStats}
+                    repair={draw.repairTimeStats}
+                    paceRows={draw.paceRows}
+                    manualTotalDurationMs={draw.fileTiming.totalDurationMs}
+                    paceUnit={paceUnit}
+                    onPaceUnitChange={setPaceUnit}
                   />
                 )}
               </RevealOnScroll>

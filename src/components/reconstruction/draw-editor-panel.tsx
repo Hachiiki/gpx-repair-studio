@@ -32,6 +32,7 @@ import {
   GapStatusBadge,
 } from "@/components/shared/gap-vocabulary";
 import { UndoRedoBar } from "@/components/reconstruction/undo-redo-bar";
+import { TimeStrategyControls } from "@/components/reconstruction/time-strategy-controls";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
 import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
 import type { DrawVertex } from "@/types/domain";
@@ -235,6 +236,17 @@ export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
             </p>
           )}
         </div>
+
+        {/* Phase 5: the §J-1 time plan for this gap (strategy, duration,
+            estimated pace, Case-4 discrepancy). */}
+        {draw.timePlan && (
+          <TimeStrategyControls
+            plan={draw.timePlan}
+            distanceM={draw.distanceM}
+            vertexCount={draw.vertexCount}
+            setTimeStrategy={draw.setTimeStrategy}
+          />
+        )}
 
         {/* Live stats: distance + vertex cap. */}
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
