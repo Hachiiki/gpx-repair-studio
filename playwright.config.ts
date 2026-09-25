@@ -27,6 +27,9 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:3000",
     trace: "retain-on-failure",
+    // The export workflow (Phase 7) downloads the repaired GPX through a
+    // blob URL anchor click — specs assert on the downloaded bytes.
+    acceptDownloads: true,
   },
   projects: [
     {

@@ -40,6 +40,7 @@ const KIND_LABELS: Record<ValidationIssueKind, string> = {
   "single-point-segment": "Single-point segment",
   "track-without-segments": "Track without segments",
   "no-timing-data": "No timing data",
+  "reimported-repair": "Previously repaired",
 };
 
 const SEVERITY_ORDER: Record<ValidationSeverity, number> = {

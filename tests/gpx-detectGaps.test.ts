@@ -243,3 +243,28 @@ describe("defaults", () => {
     });
   });
 });
+
+describe("re-imported repair seams (Phase 7)", () => {
+  it("legs touching marked points never produce gap candidates", () => {
+    // A repaired export re-imported: the marked interior sits between
+    // points 1 and 2 in its own marked stretch. The seams (0→marked,
+    // marked→2) and the interior leg are all suppressed — even though the
+    // interior timestamps would read as a "time gap" to a naive detector.
+    const data = parseXml(`<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="T" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxr="https://gpx-repair.studio/schema/1">
+  <trk><name>T</name><trkseg>
+    <trkpt lat="52.520006" lon="13.404954"><time>2024-05-01T07:00:00Z</time></trkpt>
+    <trkpt lat="52.520051" lon="13.405024"><time>2024-05-01T07:00:03Z</time></trkpt>
+    <trkpt lat="52.520401" lon="13.405524"><time>2024-05-01T07:09:03Z</time><extensions><gpxr:reconstructed timeMethod="manual"/></extensions></trkpt>
+    <trkpt lat="52.520446" lon="13.405594"><time>2024-05-01T07:09:06Z</time></trkpt>
+    <trkpt lat="52.520491" lon="13.405664"><time>2024-05-01T07:09:09Z</time></trkpt>
+  </trkseg></trk>
+</gpx>`);
+    expect(data.repairMarkers).toHaveLength(1);
+
+    // Without the marker the 9-minute jump is a severe time gap; with it,
+    // the boundary is a repair seam — detection stays silent.
+    const gaps = detectGaps(data);
+    expect(gaps).toHaveLength(0);
+  });
+});

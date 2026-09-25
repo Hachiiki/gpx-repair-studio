@@ -33,6 +33,12 @@ test("workspace: map-first layout with a sticky tools column", async ({
   await expect(page.getByTestId("map-canvas")).toBeVisible();
   await expect(page.getByTestId("tools-panel")).toBeVisible();
 
+  // The workflow's end is always reachable: the export card sits in the
+  // tools rail (Phase 7) and offers the review & download flow.
+  const exportCard = page.getByTestId("export-card");
+  await expect(exportCard).toBeVisible();
+  await expect(exportCard).toContainText("Repairs to include");
+
   const viewport = page.viewportSize();
   if (viewport && viewport.width >= 1024) {
     const mapBox = await page.getByTestId("map-canvas").boundingBox();

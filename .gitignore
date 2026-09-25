@@ -70,3 +70,6 @@ server.log
 # Generated E2E fixtures (large synthetic files, rebuilt deterministically
 # by the spec setup from the seeded generator)
 /e2e/fixtures/*.generated.gpx
+
+# Export-spec temp files (downloaded bytes re-uploaded in-test)
+/e2e/.export-*.gpx

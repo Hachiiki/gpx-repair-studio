@@ -126,6 +126,14 @@ export interface ExtendSpanRef {
  * gap is skipped here: the detected rendering wins (the caller already
  * dedupes; this is the defensive second gate).
  *
+ * Re-imported repairs (§H-7, Phase 7): points carrying `gpxr` markers
+ * render as RECONSTRUCTION lines (the same emerald treatment as
+ * committed editor repairs), never as recorded line — the recorded line
+ * breaks at the seams (the anchor points on either side), exactly like a
+ * detected gap's boundary break. Uploading a file this app repaired
+ * before therefore shows the same visual distinction the user saw when
+ * they repaired it.
+ *
  * A gap whose boundary points are unusable (e.g. a Null-Island artifact)
  * gets no span and no markers — the hole in the line is the honest signal.
  *
@@ -145,13 +153,21 @@ export function buildRouteView(
   const pointById = new Map<PointId, OriginalTrackPoint>();
   const reconByGap = new Map(reconstructions.map((r) => [r.gapId, r]));
   const detectedIds = new Set(gaps.map((gap) => gap.id));
+  const markedIds = new Set(
+    (data.repairMarkers ?? []).map((marker) => marker.pointId),
+  );
 
   const lines: RouteLinePart[] = [];
   const reconParts: ReconstructionPart[] = [];
   let usablePointCount = 0;
+  let reimportRunIndex = 0;
 
   for (const segment of data.segments) {
     let current: [number, number][] = [];
+    /** The in-progress re-imported marked run (null = none open). */
+    let reimportRun: [number, number][] | null = null;
+    /** Coords of the last usable point pushed to `current` (seam anchor). */
+    let lastCoords: [number, number] | null = null;
     const flush = () => {
       if (current.length >= 2) {
         lines.push({
@@ -162,6 +178,15 @@ export function buildRouteView(
       }
       current = [];
     };
+    const closeReimportRun = () => {
+      if (reimportRun !== null && reimportRun.length >= 2) {
+        reconParts.push({
+          gapId: `reimport/${segment.id}:${reimportRunIndex++}` as GapId,
+          coordinates: reimportRun,
+        });
+      }
+      reimportRun = null;
+    };
 
     for (const point of segment.points) {
       pointById.set(point.id, point);
@@ -169,13 +194,37 @@ export function buildRouteView(
         // Damaged coordinate: skip the point and break the line — there is
         // no honest recorded geometry across the damage.
         flush();
+        closeReimportRun();
+        lastCoords = null;
         continue;
       }
-      usablePointCount += 1;
       const coords: [number, number] = [point.lon, point.lat];
+
+      if (markedIds.has(point.id)) {
+        // Re-imported reconstructed point: never part of the recorded
+        // line. Opening the run closes the line at its seam anchor (the
+        // last recorded point, already drawn); closing appends the next
+        // recorded point as the far anchor and starts a fresh line there.
+        if (reimportRun === null) {
+          flush();
+          reimportRun = lastCoords !== null ? [lastCoords] : [];
+        }
+        reimportRun.push(coords);
+        continue;
+      }
+      if (reimportRun !== null) {
+        reimportRun.push(coords);
+        closeReimportRun();
+        current = [coords];
+        lastCoords = coords;
+        continue;
+      }
+
+      usablePointCount += 1;
       if (beforeIds.has(point.id)) {
         // Last usable point before a gap: draw it, then stop the line.
         current.push(coords);
+        lastCoords = coords;
         flush();
         continue;
       }
@@ -183,11 +232,14 @@ export function buildRouteView(
         // First usable point after a gap: start a fresh line here.
         flush();
         current = [coords];
+        lastCoords = coords;
         continue;
       }
       current.push(coords);
+      lastCoords = coords;
     }
     flush();
+    closeReimportRun();
   }
 
   const spans: GapSpanPart[] = [];

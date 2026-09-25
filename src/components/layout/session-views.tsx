@@ -32,7 +32,7 @@ export interface SessionIdleViewProps {
 /**
  * What the app does with a file, as taught on the landing page. Kept in
  * step with shipped behavior only — the copy is a contract, not a
- * roadmap (export lands in a later phase and is not promised here).
+ * roadmap.
  */
 const WORKFLOW_STEPS = [
   {
@@ -51,7 +51,7 @@ const WORKFLOW_STEPS = [
     icon: ShieldCheck,
     title: "Honest by default",
     description:
-      "The original recording is never modified, and reconstructed sections stay labelled — every number says where it came from.",
+      "Download the repaired GPX with every reconstructed point marked — the original recording is never modified, and repairs stay labelled even after re-uploading.",
   },
 ] as const;
 

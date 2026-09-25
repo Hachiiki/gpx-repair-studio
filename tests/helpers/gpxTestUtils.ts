@@ -82,10 +82,26 @@ export function buildGpxXml(
   );
 }
 
-/** Re-serialize an XML fragment through one parse/serialize cycle. */
+/**
+ * Re-serialize an XML fragment through one parse/serialize cycle with
+ * insignificant whitespace stripped, so cosmetic differences (pretty vs
+ * compact output, namespace-declaration placement) do not create false
+ * diffs — the semantic-identity normalization for `projectModel`.
+ */
 export function normalizeXml(xml: string): string {
   const io = makeIo();
-  return io.serialize(io.parse(xml).documentElement);
+  const strip = (node: Node) => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === 3 && (child.nodeValue ?? "").trim() === "") {
+        node.removeChild(child);
+      } else {
+        strip(child);
+      }
+    }
+  };
+  const parsed = io.parse(xml);
+  if (parsed.documentElement !== null) strip(parsed.documentElement);
+  return io.serialize(parsed.documentElement);
 }
 
 /** Export → re-parse; throws if either step fails. */
@@ -161,6 +177,11 @@ export function projectModel(data: OriginalTrackData): unknown {
     issues: data.issues.filter(
       (i) => i.kind !== "undeclared-namespace",
     ),
+    // Re-imported provenance markers (Phase 7): the verbatim extension
+    // snapshots keep them through identity export, so they must round-trip.
+    ...(data.repairMarkers !== undefined
+      ? { repairMarkers: data.repairMarkers }
+      : {}),
   };
 }
 

@@ -35,6 +35,7 @@ import {
 import { SHELL_CONTAINER } from "@/components/layout/shell-container";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { MapCanvas } from "@/components/map/map-canvas";
+import { ExportCard } from "@/components/gpx/export-card";
 import { GpxSummaryCard } from "@/components/gpx/gpx-summary-card";
 import { SegmentList } from "@/components/gpx/segment-list";
 import { ValidationReport } from "@/components/gpx/validation-report";
@@ -44,6 +45,7 @@ import { GapList } from "@/components/reconstruction/gap-list";
 import { ManualRepairsCard } from "@/components/reconstruction/manual-repairs-card";
 import { StatsPanel } from "@/components/statistics/stats-panel";
 import { useDrawEditor } from "@/hooks/use-draw-editor";
+import { useGpxExport } from "@/hooks/use-gpx-export";
 import { useGpxSession } from "@/hooks/use-gpx-session";
 import { useMapController } from "@/hooks/use-map-controller";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
@@ -54,6 +56,7 @@ export function AppShell() {
   const session = useGpxSession();
   const map = useMapController(session);
   const draw = useDrawEditor(session, map);
+  const exporter = useGpxExport(session, draw);
   const paceUnit = useUiStore((s) => s.paceUnit);
   const setPaceUnit = useUiStore((s) => s.setPaceUnit);
 
@@ -130,6 +133,11 @@ export function AppShell() {
                       setFileTiming={draw.setFileTiming}
                     />
                   )}
+                {/*
+                 * The workflow's end: review the repair summary and
+                 * download the repaired file (§H-7/8).
+                 */}
+                <ExportCard exporter={exporter} />
               </>
             }
             details={
@@ -150,6 +158,7 @@ export function AppShell() {
                     repair={draw.repairTimeStats}
                     paceRows={draw.paceRows}
                     manualTotalDurationMs={draw.fileTiming.totalDurationMs}
+                    reimport={session.reimport}
                     paceUnit={paceUnit}
                     onPaceUnitChange={setPaceUnit}
                   />

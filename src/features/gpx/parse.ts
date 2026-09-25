@@ -55,6 +55,7 @@ import type {
   PointAnomaly,
   PointRef,
   RawTrkptChild,
+  RepairMarker,
   TrackExtra,
   TrackMeta,
   ValidationIssue,
@@ -63,6 +64,11 @@ import type {
 import { pointId, segmentId } from "@/types/ids";
 import type { XmlIo } from "@/lib/utils/xml";
 import { deepFreeze } from "./deepFreeze";
+import {
+  GPXR_ATTRIBUTES,
+  GPXR_ELEMENTS,
+  GPXR_NAMESPACE,
+} from "./provenanceSchema";
 
 /** GPX 1.1 default namespace. */
 export const GPX_NAMESPACE_11 = "http://www.topografix.com/GPX/1/1";
@@ -290,13 +296,14 @@ function injectNamespaceDeclarations(
 // Element parsers
 // ---------------------------------------------------------------------------
 
-/** Parse one `<trkpt>` into the immutable point model, flags included. */
+/** Parse one `<trkpt>` into the immutable point model, flags included.
+ * Also reports a re-imported repair marker when the point carries one. */
 function parseTrackPoint(
   el: Element,
   seg: ReturnType<typeof segmentId>,
   index: number,
   io: XmlIo,
-): OriginalTrackPoint {
+): { point: OriginalTrackPoint; marker: RepairMarker | null } {
   const latAttr = el.getAttribute("lat");
   const lonAttr = el.getAttribute("lon");
   const lat = parseFiniteNumber(latAttr);
@@ -340,7 +347,7 @@ function parseTrackPoint(
     }
   }
 
-  return {
+  const point: OriginalTrackPoint = {
     source: "original",
     lat: lat ?? NaN,
     lon: lon ?? NaN,
@@ -350,6 +357,32 @@ function parseTrackPoint(
     flags,
     raw: { lat: latAttr, lon: lonAttr, children },
   };
+
+  // Re-imported provenance marker (§H-7): any-prefixed element in our
+  // namespace, wherever it sits inside the point (our exporter puts it in
+  // <extensions>; tolerant lookup accepts hand-edited placements too).
+  let marker: RepairMarker | null = null;
+  const gpxrEls = el.getElementsByTagNameNS(
+    GPXR_NAMESPACE,
+    GPXR_ELEMENTS.reconstructed,
+  );
+  if (gpxrEls.length > 0) {
+    const markerEl = gpxrEls[0];
+    const timeMethod = markerEl.getAttribute(GPXR_ATTRIBUTES.timeMethod);
+    const eleMethod = markerEl.getAttribute(GPXR_ATTRIBUTES.eleMethod);
+    marker = {
+      pointId: point.id,
+      segmentId: seg,
+      ...(timeMethod !== null && timeMethod !== ""
+        ? { timeMethod }
+        : {}),
+      ...(eleMethod !== null && eleMethod !== ""
+        ? { eleMethod }
+        : {}),
+    };
+  }
+
+  return { point, marker };
 }
 
 /** Parse `<trk>` metadata (name/desc/type) plus anchored extras. */
@@ -387,6 +420,11 @@ function parseTrackMeta(trk: Element, io: XmlIo): Omit<TrackMeta, "trackIndex"> 
  * Parse a GPX 1.0/1.1 document (as a decoded string) into the frozen typed
  * model, or a typed error. Never throws for user input; only an `XmlIo`
  * that itself throws in violation of its contract can surface an exception.
+ *
+ * Re-import recognition (§H-7, Phase 7): `<gpxr:reconstructed>` markers on
+ * track points are captured into `repairMarkers` (the verbatim extension
+ * snapshot is kept, so identity re-export preserves them) and surfaced as
+ * an info issue — consumers treat those points as reconstructed.
  */
 export function parseGpx(xml: string, io: XmlIo): ParseOutcome {
   // Tolerate a UTF-8 BOM (decoded to U+FEFF) at the start of the string.
@@ -517,6 +555,7 @@ export function parseGpx(xml: string, io: XmlIo): ParseOutcome {
   const invalidCoordRefs: PointRef[] = [];
   const invalidEleRefs: PointRef[] = [];
   const unreliableTimeRefs: PointRef[] = [];
+  const repairMarkers: RepairMarker[] = [];
 
   let trackIndex = 0;
   for (const trk of childrenByLocalName(root, "trk")) {
@@ -529,8 +568,9 @@ export function parseGpx(xml: string, io: XmlIo): ParseOutcome {
       const extras: AnchoredExtra[] = [];
       for (const child of Array.from(trkseg.children)) {
         if (child.localName === "trkpt") {
-          const point = parseTrackPoint(child, seg, points.length, io);
+          const { point, marker } = parseTrackPoint(child, seg, points.length, io);
           points.push(point);
+          if (marker !== null) repairMarkers.push(marker);
           if (point.flags.includes("invalid-coord")) {
             invalidCoordRefs.push({ segmentId: seg, pointId: point.id });
           }
@@ -592,6 +632,17 @@ export function parseGpx(xml: string, io: XmlIo): ParseOutcome {
     });
   }
 
+  if (repairMarkers.length > 0) {
+    issues.push({
+      kind: "reimported-repair",
+      severity: "info",
+      message:
+        `This file was repaired before — ${repairMarkers.length} points ` +
+        "carry reconstruction markers. The map, statistics, and a future " +
+        "export keep them separate from recorded points.",
+    });
+  }
+
   // Root extras: everything the model consumed is excluded, everything else
   // is preserved verbatim (in order) for re-export.
   const rootExtras: string[] = [];
@@ -637,6 +688,7 @@ export function parseGpx(xml: string, io: XmlIo): ParseOutcome {
       metadataExtras,
     },
     issues,
+    ...(repairMarkers.length > 0 ? { repairMarkers } : {}),
   };
 
   // Deep-freeze outside production (§C-4: dev assertion; prod: readonly types).

@@ -32,6 +32,13 @@
  * are validation findings, not gaps). Works on the raw parse output; flags
  * from `validateGpx` simply sharpen the evidence.
  *
+ * Re-imported repairs (§H-7, Phase 7): a leg with at least one marked
+ * endpoint touches previously reconstructed data — a repair seam or a
+ * reconstruction interior — not a recording gap. Such legs never produce
+ * candidates (any discrepancy there was already surfaced when the repair
+ * was made); the user can still open a manual span on one, because
+ * repairing is never gated on detection.
+ *
  * Phase 1 — GPX Domain Core. Pure TypeScript: no DOM, no framework, no I/O.
  */
 
@@ -146,6 +153,12 @@ export function detectGaps(
 
   const candidates: Candidate[] = [];
 
+  // Re-imported provenance markers: legs with exactly one marked endpoint
+  // are repair seams (see module doc) — suppressed from detection.
+  const markedPoints = new Set(
+    (data.repairMarkers ?? []).map((marker) => marker.pointId),
+  );
+
   let currentTrack: number | null = null;
   let previous: { point: OriginalTrackPoint; segId: SegmentId } | undefined;
   let ordinal = 0;
@@ -159,6 +172,12 @@ export function detectGaps(
     }
     for (const point of segment.points) {
       if (previous !== undefined) {
+        // Repair data (§H-7): a leg with at least one marked endpoint is
+        // a seam or an interior of a previously reconstructed stretch —
+        // not a recording gap.
+        const touchesRepair =
+          markedPoints.has(previous.point.id) || markedPoints.has(point.id);
+
         const kinds = new Set<GapKind>();
 
         const bothTimed =
@@ -191,7 +210,7 @@ export function detectGaps(
           }
         }
 
-        if (kinds.size > 0) {
+        if (!touchesRepair && kinds.size > 0) {
           // Dedupe is intrinsic: all evidence for this boundary lands in one
           // candidate's kind set (a time-gap that coincides with a segment
           // break is one gap with merged evidence, §H-4).

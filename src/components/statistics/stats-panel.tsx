@@ -1,12 +1,15 @@
 /**
  * StatsPanel — the provenance-badged statistics table
- * (§L-1/§L-2; Phase 2 original-only rows, Phase 5 repair + pace rows).
+ * (§L-1/§L-2; Phase 2 original-only rows, Phase 5 repair + pace rows,
+ * Phase 7 re-imported repairs).
  *
  * Every row carries the mandatory provenance column (Recorded /
  * Estimated / Mixed). Unsupported statistics render "—" with their
  * reason — the app never fabricates values. When committed repairs
  * exist, the distance rows split (recorded / repaired / total-with) and
- * the §L-1 pace rows appear with the km/mi unit toggle.
+ * the §L-1 pace rows appear with the km/mi unit toggle. A re-uploaded
+ * repaired file contributes its marked stretches to the same repaired
+ * rows (estimated provenance, same as fresh repairs).
  *
  * Pure presentation: stats in (session view models + the repair join
  * from the draw binding), nothing computed here.
@@ -30,6 +33,7 @@ import {
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
 import type {
   DistanceStats,
+  ReimportStats,
   TimeStats,
 } from "@/hooks/use-gpx-session";
 import type {
@@ -59,6 +63,8 @@ export interface StatsPanelProps {
   paceRows?: readonly PaceRow[];
   /** File-level manual total (no-timing files), when entered. */
   manualTotalDurationMs?: number | null;
+  /** Re-imported repair stats (§H-7) — marked stretches of a re-upload. */
+  reimport?: ReimportStats | null;
   /** §J-2 pace unit toggle. */
   paceUnit: PaceUnit;
   onPaceUnitChange: (unit: PaceUnit) => void;
@@ -76,12 +82,21 @@ export function StatsPanel({
   repair = null,
   paceRows = [],
   manualTotalDurationMs = null,
+  reimport = null,
   paceUnit,
   onPaceUnitChange,
 }: StatsPanelProps) {
   const noTime = !timeStats.hasTimingData;
-  const hasRepairs = (repair?.gapCount ?? 0) > 0;
-  const repairTime = repair?.reconstructedTimeMs ?? null;
+  const reimportDistance = reimport?.repairedDistanceM ?? 0;
+  const reimportTime = reimport?.repairTimeMs ?? null;
+  const hasRepairs =
+    (repair?.gapCount ?? 0) > 0 || (reimport?.markerCount ?? 0) > 0;
+  const repairedDistanceM =
+    (repair?.reconstructedDistanceM ?? 0) + reimportDistance;
+  const repairTime =
+    repair?.reconstructedTimeMs != null || reimportTime != null
+      ? (repair?.reconstructedTimeMs ?? 0) + (reimportTime ?? 0)
+      : null;
 
   return (
     <Card data-testid="stats-panel">
@@ -143,7 +158,7 @@ export function StatsPanel({
                 <TableRow>
                   <TableCell>Repaired distance</TableCell>
                   <TableCell className="tabular-nums">
-                    {formatDistanceMeters(repair!.reconstructedDistanceM)}
+                    {formatDistanceMeters(repairedDistanceM)}
                   </TableCell>
                   <TableCell>
                     <ProvenanceBadge kind="estimated" />
@@ -153,8 +168,7 @@ export function StatsPanel({
                   <TableCell>Total with repairs</TableCell>
                   <TableCell className="tabular-nums">
                     {formatDistanceMeters(
-                      distanceStats.totalDistanceM +
-                        repair!.reconstructedDistanceM,
+                      distanceStats.totalDistanceM + repairedDistanceM,
                     )}
                   </TableCell>
                   <TableCell>
@@ -266,6 +280,13 @@ export function StatsPanel({
         </Table>
 
         <div className="mt-3 grid gap-1 text-xs text-muted-foreground">
+          {(reimport?.markerCount ?? 0) > 0 && (
+            <p data-testid="reimport-note">
+              {reimport!.markerCount} points in this file were reconstructed
+              by a previous repair — they count as repaired distance, not
+              recorded, and the map draws them as repairs.
+            </p>
+          )}
           {noTime && (
             <p data-testid="no-timing-note">
               No timing data in this file — time and pace statistics are

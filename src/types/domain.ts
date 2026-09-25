@@ -208,6 +208,23 @@ export interface FileMeta {
   metadataExtras: readonly string[];
 }
 
+/**
+ * Re-import recognition of our own provenance markers (§H-7, Phase 7): a
+ * point whose `<extensions>` carry `<gpxr:reconstructed …/>` was inserted
+ * by a previous GPX Repair Studio export. The marker is captured at parse
+ * time (the verbatim extension snapshot is kept, so identity re-export
+ * preserves it) and every consumer — detection, statistics, the map —
+ * treats the point as reconstructed, never recorded.
+ */
+export interface RepairMarker {
+  pointId: PointId;
+  segmentId: SegmentId;
+  /** Matches `Estimated<T>["method"]` of the exported timestamp, if any. */
+  timeMethod?: string;
+  /** Matches `Estimated<T>["method"]` of the exported elevation, if any. */
+  eleMethod?: string;
+}
+
 /** The complete parsed representation of one GPX file. Frozen after parse. */
 export interface OriginalTrackData {
   tracks: readonly TrackMeta[];
@@ -219,6 +236,11 @@ export interface OriginalTrackData {
   fileMeta: FileMeta;
   /** Warnings collected at parse/validate time (§G). */
   issues: readonly ValidationIssue[];
+  /**
+   * Re-imported provenance markers (§H-7): present only when the file was
+   * produced by a previous repair export. Empty/omitted for normal files.
+   */
+  repairMarkers?: readonly RepairMarker[];
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +290,8 @@ export type ValidationIssueKind =
   | "empty-segment" // <trkseg> without any <trkpt>
   | "single-point-segment" // <trkseg> with exactly one <trkpt>
   | "track-without-segments" // <trk> without any <trkseg>
-  | "no-timing-data"; // no point in the file carries a usable <time>
+  | "no-timing-data" // no point in the file carries a usable <time>
+  | "reimported-repair"; // parse: gpxr provenance markers found (info only)
 
 export type ValidationSeverity = "info" | "warning" | "error";
 

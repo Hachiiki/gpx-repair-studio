@@ -32,6 +32,7 @@ import {
   type DistanceStats,
 } from "@/features/statistics/distance";
 import { originalTimeStats, type TimeStats } from "@/features/statistics/time";
+import { reimportStats, type ReimportStats } from "@/features/statistics/reimport";
 import { createDomXmlIo } from "@/lib/utils/xml";
 import {
   useSessionStore,
@@ -63,6 +64,7 @@ export type {
   ExcludedLegReason,
 } from "@/features/statistics/distance";
 export type { TimeStats } from "@/features/statistics/time";
+export type { ReimportStats } from "@/features/statistics/reimport";
 
 // ---------------------------------------------------------------------------
 // View models (app-layer joins of domain data — components render these)
@@ -113,6 +115,8 @@ export interface GpxSession {
   segmentRows: readonly SegmentRow[];
   distanceStats: DistanceStats | null;
   timeStats: TimeStats | null;
+  /** Re-imported repair stats (all zeros for normal files; Phase 7). */
+  reimport: ReimportStats | null;
   /** Recorded extent of usable points (Null Island damage excluded). */
   extent: BBox | null;
   error: SessionError | null;
@@ -342,6 +346,10 @@ export function useGpxSession(): GpxSession {
     () => (data ? originalTimeStats(data, gapThresholds.timeGapMs) : null),
     [data, gapThresholds.timeGapMs],
   );
+  const reimport = useMemo(
+    () => (data ? reimportStats(data) : null),
+    [data],
+  );
   const gapRows = useMemo(
     () => (data && gaps.length > 0 ? buildGapRows(gaps, data) : []),
     [gaps, data],
@@ -371,6 +379,7 @@ export function useGpxSession(): GpxSession {
     segmentRows,
     distanceStats,
     timeStats,
+    reimport,
     extent,
     error,
     gapThresholds,

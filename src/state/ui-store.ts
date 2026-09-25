@@ -9,6 +9,8 @@
  *     re-detection over the unchanged original model.
  *   - Phase 3: basemap tile provider (§E-1 — OpenFreeMap default, OSM
  *     raster fallback option).
+ *   - Phase 7: export settings (§H-7 mode + pretty-print) — the
+ *     pre-export dialog's controls, remembered across sessions.
  *
  * Transient state (NOT persisted):
  *   - Phase 3: `selectedGapId` — the gap currently highlighted on the map
@@ -28,6 +30,7 @@ import {
   DEFAULT_GAP_THRESHOLDS,
   type GapThresholds,
 } from "@/features/gpx/detectGaps";
+import type { ExportMode } from "@/features/gpx/exportGpx";
 import {
   DEFAULT_TILE_PROVIDER,
   type TileProviderId,
@@ -43,6 +46,10 @@ interface UiState {
   tileProvider: TileProviderId;
   /** Pace display unit (§J-2 min/km with a min/mi toggle). Phase 5. */
   paceUnit: PaceUnit;
+  /** Export mode (§H-7): structure-preserving default. Phase 7. */
+  exportMode: ExportMode;
+  /** Pretty-print exported GPX (§H-7). Phase 7. */
+  exportPrettyPrint: boolean;
   /** The gap highlighted on the map / gap list; `null` = none. Transient. */
   selectedGapId: GapId | null;
 
@@ -50,6 +57,8 @@ interface UiState {
   resetGapThresholds: () => void;
   setTileProvider: (provider: TileProviderId) => void;
   setPaceUnit: (unit: PaceUnit) => void;
+  setExportMode: (mode: ExportMode) => void;
+  setExportPrettyPrint: (pretty: boolean) => void;
   selectGap: (gapId: GapId | null) => void;
 }
 
@@ -59,6 +68,8 @@ export const useUiStore = create<UiState>()(
       gapThresholds: { ...DEFAULT_GAP_THRESHOLDS },
       tileProvider: DEFAULT_TILE_PROVIDER,
       paceUnit: "km" as PaceUnit,
+      exportMode: "structure-preserving" as ExportMode,
+      exportPrettyPrint: false,
       selectedGapId: null,
       setGapThresholds: (patch) =>
         set((state) => ({ gapThresholds: { ...state.gapThresholds, ...patch } })),
@@ -66,6 +77,8 @@ export const useUiStore = create<UiState>()(
         set({ gapThresholds: { ...DEFAULT_GAP_THRESHOLDS } }),
       setTileProvider: (tileProvider) => set({ tileProvider }),
       setPaceUnit: (paceUnit) => set({ paceUnit }),
+      setExportMode: (exportMode) => set({ exportMode }),
+      setExportPrettyPrint: (exportPrettyPrint) => set({ exportPrettyPrint }),
       selectGap: (selectedGapId) => set({ selectedGapId }),
     }),
     {
@@ -77,6 +90,8 @@ export const useUiStore = create<UiState>()(
         gapThresholds: state.gapThresholds,
         tileProvider: state.tileProvider,
         paceUnit: state.paceUnit,
+        exportMode: state.exportMode,
+        exportPrettyPrint: state.exportPrettyPrint,
       }),
       // Avoid SSR/prerender hydration mismatches; AppShell rehydrates on
       // mount (see components/layout/app-shell.tsx).
