@@ -263,7 +263,12 @@ export function drawMidpointCollection(
   };
 }
 
-/** The active draft path (anchors + vertices, drag override applied). */
+/**
+ * The active draft path — exactly the user-placed chain: before-anchor →
+ * vertices (drag override applied). The closing segment to the after-anchor
+ * is deliberately NOT part of this line (WYSIWYG: what you clicked is what
+ * you drew) — it renders as the distinct `draftClosingCollection`.
+ */
 export function draftLineCollection(
   coordinates: readonly [number, number][],
 ): GeoJsonFeatureCollection<GeoJsonLineFeature<{ draft: true }>> {
@@ -285,7 +290,38 @@ export function draftLineCollection(
   };
 }
 
-/** The rubber band: last path point → cursor (empty when hidden). */
+/**
+ * The open closing segment of a draft: last chain point → after-anchor.
+ * Dashed and subdued on the map so it reads as "this connection closes
+ * when you finish" — never as a segment the user clicked. Empty when the
+ * far anchor is absent (open-ended extension) or either end is null.
+ */
+export function draftClosingCollection(
+  from: { lat: number; lon: number } | null,
+  to: { lat: number; lon: number } | null,
+): GeoJsonFeatureCollection<GeoJsonLineFeature<{ closing: true }>> {
+  if (!from || !to) {
+    return { type: "FeatureCollection", features: [] };
+  }
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature" as const,
+        properties: { closing: true },
+        geometry: {
+          type: "LineString" as const,
+          coordinates: [
+            [from.lon, from.lat],
+            [to.lon, to.lat],
+          ],
+        },
+      },
+    ],
+  };
+}
+
+/** The rubber band: last chain point → cursor (empty when hidden). */
 export function rubberBandCollection(
   from: { lat: number; lon: number } | null,
   to: { lat: number; lon: number } | null,

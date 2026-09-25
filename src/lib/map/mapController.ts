@@ -55,6 +55,7 @@ import {
 } from "@/lib/geo/geodesy";
 import type { LatLon, PointId, VertexId } from "@/types/domain";
 import {
+  draftClosingCollection,
   draftLineCollection,
   drawHandleCollection,
   drawMidpointCollection,
@@ -121,7 +122,11 @@ export interface DrawSessionTestState {
   gapId: string;
   drawMode: boolean;
   vertexCount: number;
-  /** Full draft path `[lon, lat]` (anchors first/last, override applied). */
+  /** Solid chain coordinates — before-anchor → vertices (WYSIWYG clicks). */
+  chainCoordinates: [number, number][];
+  /** The dashed open closing segment (empty when the far anchor is absent). */
+  closingCoordinates: [number, number][];
+  /** Full draft path `[lon, lat]` (chain + closing; override applied). */
   pathCoordinates: [number, number][];
   /** Screen positions of the vertex handles (for synthetic drags). */
   handleScreenPositions: { vertexId: string; x: number; y: number }[];
@@ -137,6 +142,7 @@ export const MAP_LAYER_IDS = [
   "gpxr-gap-span-selected",
   "gpxr-recon",
   "gpxr-draft-line",
+  "gpxr-draft-closing",
   "gpxr-draft-rubber",
   "gpxr-gap-span",
   "gpxr-draft-midpoint",
@@ -157,6 +163,7 @@ const SOURCE = {
   markers: "gpxr-gap-boundaries",
   recon: "gpxr-recon",
   draft: "gpxr-draft",
+  closing: "gpxr-draft-closing",
   rubber: "gpxr-draft-rubber",
   handles: "gpxr-draft-handles",
   midpoints: "gpxr-draft-midpoints",
@@ -174,6 +181,7 @@ const LAYER = {
   markerHit: "gpxr-gap-boundary-hit",
   recon: "gpxr-recon",
   draftLine: "gpxr-draft-line",
+  draftClosing: "gpxr-draft-closing",
   draftRubber: "gpxr-draft-rubber",
   draftHandle: "gpxr-draft-handle",
   draftMidpoint: "gpxr-draft-midpoint",
@@ -596,6 +604,9 @@ export class MapController {
     (map.getSource(SOURCE.draft) as GeoJSONSource | undefined)?.setData(
       draftLineCollection([]),
     );
+    (map.getSource(SOURCE.closing) as GeoJSONSource | undefined)?.setData(
+      draftClosingCollection(null, null),
+    );
     (map.getSource(SOURCE.rubber) as GeoJSONSource | undefined)?.setData(
       rubberBandCollection(null, null),
     );
@@ -909,6 +920,10 @@ export class MapController {
         type: "geojson",
         data: draftLineCollection([]),
       });
+      map.addSource(SOURCE.closing, {
+        type: "geojson",
+        data: draftClosingCollection(null, null),
+      });
       map.addSource(SOURCE.rubber, {
         type: "geojson",
         data: rubberBandCollection(null, null),
@@ -1018,8 +1033,10 @@ export class MapController {
     });
 
     // -- Phase 4: reconstruction + draw-session layers ---------------------
-    // Committed reconstructions — dashed emerald (distinct hue + dash vs.
-    // the solid recorded blue; the legend spells out the difference).
+    // Committed reconstructions — SOLID emerald: the authored route reads
+    // as real road, distinct from the recorded blue by hue (+ legend + UI
+    // provenance badges). WYSIWYG contract: solid while drawing, solid
+    // after commit — the style never changes under the user's feet.
     map.addLayer({
       id: LAYER.recon,
       type: "line",
@@ -1028,12 +1045,12 @@ export class MapController {
       paint: {
         "line-color": RECON_COLOR,
         "line-width": 3.5,
-        "line-dasharray": [3, 2],
         "line-opacity": 0.95,
       },
     });
 
-    // Active draft path — brighter, wider, with a white casing.
+    // Active draft chain — SOLID, brighter, wider, with a white casing:
+    // exactly the segments the user placed (before-anchor → vertices).
     map.addLayer({
       id: LAYER.draftLine,
       type: "line",
@@ -1042,11 +1059,27 @@ export class MapController {
       paint: {
         "line-color": RECON_COLOR_DRAFT,
         "line-width": 4.5,
-        "line-dasharray": [3, 2],
       },
     });
 
-    // Rubber band — thin, subdued.
+    // Open closing segment — dashed + subdued: the connection that closes
+    // when the user finishes (last chain point → after-anchor). Deliberately
+    // lighter than the chain so it is never mistaken for a clicked segment.
+    map.addLayer({
+      id: LAYER.draftClosing,
+      type: "line",
+      source: SOURCE.closing,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": RECON_COLOR_DRAFT,
+        "line-width": 2.5,
+        "line-dasharray": [1.5, 2.5],
+        "line-opacity": 0.6,
+      },
+    });
+
+    // Rubber band — thin, subdued; trails from the user's LAST placed
+    // point (the next-click preview), never from the far anchor.
     map.addLayer({
       id: LAYER.draftRubber,
       type: "line",
@@ -1056,7 +1089,7 @@ export class MapController {
         "line-color": RECON_COLOR_DRAFT,
         "line-width": 1.5,
         "line-dasharray": [1.5, 2],
-        "line-opacity": 0.7,
+        "line-opacity": 0.55,
       },
     });
 
@@ -1275,8 +1308,8 @@ export class MapController {
     this.#applyDrawSession();
   }
 
-  /** The authoritative path points with any drag override applied. */
-  #draftPathPoints(): LatLon[] {
+  /** The user-placed chain (drag override applied): before-anchor → vertices. */
+  #draftChainPoints(): LatLon[] {
     const session = this.#drawSession;
     if (!session) return [];
     const override = this.#handleDrag?.override ?? null;
@@ -1289,8 +1322,15 @@ export class MapController {
           : { lat: vertex.lat, lon: vertex.lon },
       );
     }
-    points.push(session.anchors.after);
     return points;
+  }
+
+  /** The authoritative full path (chain + closing) with any drag override. */
+  #draftPathPoints(): LatLon[] {
+    const chain = this.#draftChainPoints();
+    if (chain.length === 0) return chain;
+    const after = this.#drawSession?.anchors.after ?? null;
+    return after ? [...chain, after] : chain;
   }
 
   /** Re-render every draft source from the current session state. */
@@ -1300,8 +1340,13 @@ export class MapController {
     const session = this.#drawSession;
     if (!session) return;
 
-    const path = this.#draftPathPoints();
-    const coordinates: [number, number][] = path.map((p) => [p.lon, p.lat]);
+    // WYSIWYG split: the solid chain is exactly what the user placed
+    // (before-anchor → vertices); the connection to the after-anchor is a
+    // distinct subdued dashed segment that reads as "closes on finish".
+    const chain = this.#draftChainPoints();
+    const chainCoordinates: [number, number][] = chain.map((p) => [p.lon, p.lat]);
+    const after = session.anchors.after;
+    const lastChain = chain[chain.length - 1] ?? null;
     const handles: DrawHandleData[] = session.vertices.map((vertex, index) => {
       const overridden =
         this.#handleDrag?.vertexId === vertex.id && this.#handleDrag?.override;
@@ -1313,9 +1358,11 @@ export class MapController {
         lon: overridden ? this.#handleDrag!.override!.lon : vertex.lon,
       };
     });
+    // Midpoints live on the CHAIN legs only — the closing segment is not
+    // user data yet and offers no insertion handle.
     const midpoints: DrawMidpointData[] = [];
-    for (let j = 0; j + 1 < path.length; j += 1) {
-      const mid = interpolateLatLon(path[j], path[j + 1], 0.5);
+    for (let j = 0; j + 1 < chain.length; j += 1) {
+      const mid = interpolateLatLon(chain[j], chain[j + 1], 0.5);
       midpoints.push({
         gapId: session.gapId as never,
         insertIndex: j,
@@ -1325,7 +1372,10 @@ export class MapController {
     }
 
     (map.getSource(SOURCE.draft) as GeoJSONSource | undefined)?.setData(
-      draftLineCollection(coordinates),
+      draftLineCollection(chainCoordinates),
+    );
+    (map.getSource(SOURCE.closing) as GeoJSONSource | undefined)?.setData(
+      draftClosingCollection(lastChain, after),
     );
     (map.getSource(SOURCE.handles) as GeoJSONSource | undefined)?.setData(
       drawHandleCollection(handles),
@@ -1337,8 +1387,10 @@ export class MapController {
   }
 
   /**
-   * Rubber band: last path point → cursor. Visible only in draw mode with
-   * the pointer over the canvas and no drag in progress.
+   * Rubber band: the end of the user-placed CHAIN → cursor — the preview of
+   * where the next click attaches (never from the far anchor: the chasing
+   * line from the wrong end reads as a line the app drew on its own).
+   * Visible only in draw mode with the pointer over the canvas and no drag.
    */
   #applyRubberBand(): void {
     const map = this.#map;
@@ -1352,8 +1404,8 @@ export class MapController {
       );
       return;
     }
-    const path = this.#draftPathPoints();
-    const last = path[path.length - 1] ?? null;
+    const chain = this.#draftChainPoints();
+    const last = chain[chain.length - 1] ?? null;
     (map.getSource(SOURCE.rubber) as GeoJSONSource | undefined)?.setData(
       rubberBandCollection(last, this.#cursor),
     );
@@ -1363,6 +1415,17 @@ export class MapController {
     const session = this.#drawSession;
     const map = this.#map;
     if (!session) return null;
+    const chain = this.#draftChainPoints();
+    const chainCoordinates: [number, number][] = chain.map((p) => [p.lon, p.lat]);
+    const after = session.anchors.after;
+    const lastChain = chain[chain.length - 1] ?? null;
+    const closing =
+      after && lastChain
+        ? ([
+            [lastChain.lon, lastChain.lat],
+            [after.lon, after.lat],
+          ] as [number, number][])
+        : [];
     const path = this.#draftPathPoints();
     const coordinates: [number, number][] = path.map((p) => [p.lon, p.lat]);
     const handleScreenPositions = session.vertices.map((vertex) => {
@@ -1374,11 +1437,12 @@ export class MapController {
       const point = map.project([lon, lat]);
       return { vertexId: vertex.id as string, x: point.x, y: point.y };
     });
+    // Midpoint hit targets mirror the chain legs (see #applyDrawSession).
     const midpointScreenPositions: { insertIndex: number; x: number; y: number }[] =
       [];
-    for (let j = 0; j + 1 < path.length; j += 1) {
+    for (let j = 0; j + 1 < chain.length; j += 1) {
       if (!map) break;
-      const mid = interpolateLatLon(path[j], path[j + 1], 0.5);
+      const mid = interpolateLatLon(chain[j], chain[j + 1], 0.5);
       const point = map.project([mid.lon, mid.lat]);
       midpointScreenPositions.push({
         insertIndex: j,
@@ -1390,6 +1454,8 @@ export class MapController {
       gapId: session.gapId,
       drawMode: this.#drawMode,
       vertexCount: session.vertices.length,
+      chainCoordinates,
+      closingCoordinates: closing,
       pathCoordinates: coordinates,
       handleScreenPositions,
       midpointScreenPositions,

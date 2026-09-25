@@ -23,6 +23,7 @@ import {
 import {
   drawHandleCollection,
   drawMidpointCollection,
+  draftClosingCollection,
   draftLineCollection,
   reconstructionLineCollection,
   rubberBandCollection,
@@ -239,6 +240,21 @@ describe("GeoJSON builders — Phase 4 sources", () => {
       ]).features,
     ).toHaveLength(1);
     expect(draftLineCollection([]).features).toHaveLength(0);
+  });
+
+  it("draftClosingCollection renders one subdued segment only when both ends exist", () => {
+    expect(draftClosingCollection(null, { lat: 1, lon: 1 }).features).toHaveLength(0);
+    expect(draftClosingCollection({ lat: 0, lon: 0 }, null).features).toHaveLength(0);
+    const segment = draftClosingCollection(
+      { lat: 52.5, lon: 13.4 },
+      { lat: 52.51, lon: 13.41 },
+    );
+    expect(segment.features).toHaveLength(1);
+    expect(segment.features[0].properties).toEqual({ closing: true });
+    expect(segment.features[0].geometry.coordinates).toEqual([
+      [13.4, 52.5],
+      [13.41, 52.51],
+    ]);
   });
 
   it("rubberBandCollection is empty unless both ends exist", () => {

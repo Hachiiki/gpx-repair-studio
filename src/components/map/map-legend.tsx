@@ -47,10 +47,17 @@ export function MapLegend() {
         </li>
         <li className="flex items-center gap-2">
           <span
-            className={`${SAMPLE_LINE_CLASS} bg-[repeating-linear-gradient(90deg,#059669_0_6px,transparent_6px_11px)]`}
+            className={`${SAMPLE_LINE_CLASS} bg-[#059669]`}
             aria-hidden="true"
           />
-          Reconstructed route (dashed)
+          Repaired route (solid, green)
+        </li>
+        <li className="flex items-center gap-2">
+          <span
+            className={`${SAMPLE_LINE_CLASS} bg-[repeating-linear-gradient(90deg,#10b981_0_5px,transparent_5px_9px)] opacity-60`}
+            aria-hidden="true"
+          />
+          Open connection (closes on finish)
         </li>
         <li className="flex items-center gap-2">
           <span

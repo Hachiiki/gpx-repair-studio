@@ -37,6 +37,8 @@ interface DrawSessionState {
   gapId: string;
   drawMode: boolean;
   vertexCount: number;
+  chainCoordinates: [number, number][];
+  closingCoordinates: [number, number][];
   pathCoordinates: [number, number][];
   handleScreenPositions: { vertexId: string; x: number; y: number }[];
   midpointScreenPositions: { insertIndex: number; x: number; y: number }[];
@@ -179,6 +181,18 @@ test.describe("draw editor — desktop", () => {
     expect(path[1][0]).toBeCloseTo(DRAW_POINTS[0].lon, 4);
     expect(path[2][0]).toBeCloseTo(DRAW_POINTS[1].lon, 4);
 
+    // WYSIWYG: the SOLID chain is exactly the user's clicks (anchor → v0 →
+    // v1); the connection to the far anchor is the separate dashed open
+    // segment (v1 → after-anchor) — never part of the clicked chain.
+    const chain = drawn.drawSession!.chainCoordinates;
+    expect(chain).toHaveLength(3);
+    expect(chain[0][0]).toBeCloseTo(BEFORE.lon, 6);
+    expect(chain[2][0]).toBeCloseTo(DRAW_POINTS[1].lon, 4);
+    const closing = drawn.drawSession!.closingCoordinates;
+    expect(closing).toHaveLength(2);
+    expect(closing[0][0]).toBeCloseTo(DRAW_POINTS[1].lon, 4);
+    expect(closing[1][0]).toBeCloseTo(AFTER.lon, 6);
+
     // Live distance grew beyond the straight line and the badge updated.
     const drawnDistanceText = await badge
       .getByTestId("badge-distance")
@@ -269,10 +283,10 @@ test.describe("draw editor — desktop", () => {
     );
     expect(moved.drawSession!.vertexCount).toBe(2); // a move, not an add
 
-    // Insert at the first midpoint handle → 3 vertices.
+    // Insert at the second midpoint handle → 3 vertices.
     const midBox = await canvasBox(page);
     const midpoints = moved.drawSession!.midpointScreenPositions;
-    expect(midpoints.length).toBe(3); // 4 path points → 3 legs
+    expect(midpoints.length).toBe(2); // chain [before, v0, v1] → 2 legs
     await page.mouse.click(
       midBox.x + midpoints[1].x,
       midBox.y + midpoints[1].y,
@@ -301,7 +315,7 @@ test.describe("draw editor — desktop", () => {
     await clickAt(page, DRAW_POINTS[0].lat, DRAW_POINTS[0].lon, box);
     await pollBridge(page, (s) => s.drawSession?.vertexCount === 1);
 
-    // Commit: the dashed emerald line replaces the unknown span.
+    // Commit: the solid emerald line replaces the unknown span.
     await page.getByTestId("done-editing-button").click();
     const committed = await pollBridge(
       page,
