@@ -153,8 +153,11 @@ test.describe("share card (Task 20)", () => {
     expect(analysis.orange).toBeGreaterThan(200);
     // The wordmark / stats / icon are painted white.
     expect(analysis.white).toBeGreaterThan(300);
-    // Nothing opaque-black: the palette is orange + white + alpha.
-    expect(analysis.dark).toBeLessThan(50);
+    // The two-pass casing: a black ring around the orange line —
+    // proportional to it (a 16px stroke under a 10px stroke leaves
+    // roughly 0.6x the line's area visible as black), never a slab.
+    expect(analysis.dark).toBeGreaterThan(analysis.orange * 0.3);
+    expect(analysis.dark).toBeLessThan(analysis.orange * 1.5);
   });
 
   test("the 2× export doubles the backing resolution", async ({ page }) => {

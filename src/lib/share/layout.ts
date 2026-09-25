@@ -1,57 +1,83 @@
 /**
- * Share card layout math (docs/MASTER_PLAN.md §O — Task 20).
+ * Share card layout math (docs/MASTER_PLAN.md §O — Task 20, spec
+ * revision Task 22).
  *
  * One authoritative derivation of every rect/line/baseline on the
  * 1080×1920 (9:16) Strava-style share card, in card units:
  *
  *   ┌───────────────────────────────┐
- *   │ (64px top padding)            │
- *   │   route area — 60% height,    │
- *   │   48px side padding           │
- *   │                               │
- *   ├───────────────────────────────┤ ← 65% line
- *   │        STRAVA logo (280px)    │
- *   │  Distance   Pace    Time      │ ← stats row (mt 24)
- *   │                               │
- *   │           [shoe icon]         │ ← 80% line
- *   │      (canvas stays empty)     │
- *   └───────────────────────────────┘
+ *   │ 64px top pad                 │
+ *   │ ┌───────────────────────────┐ │
+ *   │ │ 15% fit padding (147.6px) │ │
+ *   │ │  ┌─────────────────────┐  │ │ ← map box
+ *   │ │  │  the route, contained │  │ │   (64 → 1472.8)
+ *   │ │  │  (≤ 58% of the card)  │  │ │
+ *   │ │  └─────────────────────┘  │ │
+ *   │ └───────────────────────────┘ │
+ *   ├──── 32px ─────────────────────┤ ← map box bottom (1472.8)
+ *   │        STRAVA logo (270px)    │
+ *   ├──── 20px ─────────────────────┤
+ *   │  Distance   Pace    Time      │ ← stats row (85% wide)
+ *   ├──── 28px ─────────────────────┤
+ *   │           [shoe 48×48]        │
+ *   └───────────────────────────────┘ ← content ends ≈ 90% (1723.75)
  *
- * The reference card's rhythm, verbatim: the lower UI cluster is NOT
- * bottom-anchored. The wordmark centers on the 65% line, the stats
- * row hangs 24px below it (compact — the reference never stretches
- * it), and the shoe icon centers on the 80% line. The gap between
- * the stat values and the icon is the reference's noticeable one
- * (~157px), and the canvas below the icon stays empty. The route
- * area is untouched: the top 60% with its paddings.
+ * The spec, verbatim: the map (the contained route drawing) is
+ * limited to 58% of the card height and rendered object-fit-style
+ * (aspect preserved) with 15% fit-bounds padding around it — the
+ * padding is CSS-percentage style, 15% of the map box's width
+ * (984px → 147.6px) on all four sides, so the box around the route
+ * spans 64 → 1472.8. Below it the stack flows with the spec's exact
+ * gaps — 32px to the 270px logo, 20px to the stats row (85% of the
+ * card wide, three evenly distributed centered columns, 4px between
+ * label and value), 28px to the 48×48 shoe — and the content ends
+ * at ≈90% of the canvas with nothing below it (no spacer, no
+ * bottom anchor). The closure is exact: 1472.8 + 32 + 73.8 + 20 +
+ * 49.15 + 28 + 48 = 1723.75 = 89.8% of 1920.
  *
  * Pure numbers so tests can pin every position; lib/share/render.ts
- * only executes them. Spec: the reference share card + the layout
- * correction brief (Task 20 follow-up).
+ * only executes them.
  */
 
 /** The card's aspect box (9:16). */
 export const SHARE_CARD_WIDTH = 1080;
 export const SHARE_CARD_HEIGHT = 1920;
 
-/** 4px-base spacing tokens from the spec. */
+/** Spacing and ratio tokens from the spec (4px-base gaps). */
 export const SHARE_CARD_SPACING = {
+  /** The map box's side padding (48px each side of the card). */
   sidePadding: 48,
+  /** The map box's top padding. */
   topPadding: 64,
-  statsColumnGap: 24,
-  logoToStats: 24,
+  /**
+   * Fit-bounds padding around the contained route, as a fraction of
+   * the map box's width (CSS `padding: 15%` semantics — the same
+   * absolute inset on all four sides).
+   */
+  fitPaddingRatio: 0.15,
+  /**
+   * The height the contained route (the map drawing) may not
+   * exceed, as a fraction of the card height.
+   */
+  mapHeightRatio: 0.58,
+  /** Gap: map box bottom → STRAVA logo. */
+  mapToLogo: 32,
+  /** Gap: logo → stats row. */
+  logoToStats: 20,
+  /** Gap: stats row → shoe icon. */
+  statsToIcon: 28,
+  /** The stats row's width as a fraction of the card width. */
+  statsRowWidthRatio: 0.85,
+  /** The explicit gap between the label line and the value line. */
+  labelToValue: 4,
 } as const;
 
 /**
- * Where each group centers vertically — fractions of the card
- * height, read off the reference layout (the correction brief).
+ * Route simplification: GPS jitter is part of the recording and
+ * stays on the card; decimation (for huge files) is capped at 5
+ * metres of perpendicular deviation — anything larger must survive.
  */
-export const SHARE_CARD_ANCHORS = {
-  /** The STRAVA logo's center line: 65% down the 9:16 canvas. */
-  logoCenterRatio: 0.65,
-  /** The shoe icon's center line: the reference's lower-80% area. */
-  iconCenterRatio: 0.8,
-} as const;
+export const SHARE_CARD_SIMPLIFY_TOLERANCE_M = 5;
 
 /** Typography from the spec (Montserrat via lib/share/fonts.ts). */
 export const SHARE_CARD_TYPE = {
@@ -62,19 +88,26 @@ export const SHARE_CARD_TYPE = {
 
 /** Brand colors from the spec. */
 export const SHARE_CARD_COLORS = {
+  /** The route's top pass. */
   route: "#FC4C02",
+  /** The route's casing (under-stroke) pass. */
+  casing: "#000000",
+  /** The wordmark, stats, and shoe icon. */
   foreground: "#FFFFFF",
 } as const;
 
-/** The route stroke at 1080px width. */
+/** The route's two-pass stroke (casing under, route over). */
 export const SHARE_CARD_ROUTE_STROKE = {
+  /** The orange line's width at 1080px card width. */
   width: 10,
+  /** The black casing's width — 3px of outline on each side. */
+  casingWidth: 16,
   lineJoin: "round" as const,
   lineCap: "round" as const,
 };
 
 /** The STRAVA wordmark's rendered width (SVG scales to this). */
-export const SHARE_CARD_LOGO_WIDTH = 280;
+export const SHARE_CARD_LOGO_WIDTH = 270;
 
 /** The shoe icon's square slot (SVG scales proportionally into it). */
 export const SHARE_CARD_ICON_SIZE = 48;
@@ -96,21 +129,33 @@ export interface StatsColumnLayout {
 export interface ShareCardLayout {
   width: number;
   height: number;
-  /** The route's fit box (top 60% area, padded). */
+  /** The map box (the route's padded container; nothing is drawn of it). */
   routeBox: {
     x: number;
     y: number;
     width: number;
     height: number;
   };
-  /** The logo's rect (width 280, proportional height). */
+  /**
+   * The box the route is fitted into (object-fit: contain) — the
+   * map box inset by the 15% fit padding on all four sides.
+   */
+  routeFitBox: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  /** The logo's rect (270px wide, proportional height). */
   logoRect: { x: number; y: number; width: number; height: number };
   /** The three stats columns, in label order. */
   statsColumns: readonly StatsColumnLayout[];
-  /** The stats row's top edge (hangs `logoToStats` below the logo). */
+  /** The stats row's top edge (the label line-box top). */
   statsTop: number;
   /** The shoe icon's rect (proportional inside the square slot). */
   iconRect: { x: number; y: number; width: number; height: number };
+  /** The stack's bottom edge (the shoe slot's bottom, ≈90% down). */
+  contentBottom: number;
 }
 
 /**
@@ -128,59 +173,77 @@ export function computeShareCardLayout(options: {
   const h = SHARE_CARD_HEIGHT;
   const side = SHARE_CARD_SPACING.sidePadding;
 
-  // Route area: the top 60% of the card with 64px top padding.
+  // Map box: the route's allowance (≤ 58% of the card) wrapped in the
+  // 15% fit padding on all four sides (CSS semantics — one inset,
+  // derived from the box's width).
+  const boxWidth = w - 2 * side;
+  const fitPad = SHARE_CARD_SPACING.fitPaddingRatio * boxWidth;
+  const routeHeight =
+    2 * fitPad + SHARE_CARD_SPACING.mapHeightRatio * h;
   const routeBox = {
     x: side,
     y: SHARE_CARD_SPACING.topPadding,
-    width: w - 2 * side,
-    height: h * 0.6 - SHARE_CARD_SPACING.topPadding,
+    width: boxWidth,
+    height: routeHeight,
+  };
+  const routeFitBox = {
+    x: side + fitPad,
+    y: SHARE_CARD_SPACING.topPadding + fitPad,
+    width: boxWidth - 2 * fitPad,
+    height: routeHeight - 2 * fitPad,
   };
 
-  const contentWidth = w - 2 * side;
-
-  // Logo: horizontally centered, vertically centered on the 65% line.
+  // Logo: 32px below the map box, horizontally centered.
   const logoWidth = SHARE_CARD_LOGO_WIDTH;
   const logoHeight = logoWidth * logoAspectRatio;
+  const mapBottom = routeBox.y + routeBox.height;
   const logoRect = {
     x: (w - logoWidth) / 2,
-    y: h * SHARE_CARD_ANCHORS.logoCenterRatio - logoHeight / 2,
+    y: mapBottom + SHARE_CARD_SPACING.mapToLogo,
     width: logoWidth,
     height: logoHeight,
   };
 
-  // Stats row: label line + value line, compact 24px below the logo.
+  // Stats row: 20px below the logo — label line, 4px, value line.
   const labelLineHeight =
     SHARE_CARD_TYPE.label.size * SHARE_CARD_TYPE.label.lineHeight;
   const valueLineHeight =
     SHARE_CARD_TYPE.value.size * SHARE_CARD_TYPE.value.lineHeight;
-  const statsTop = logoRect.y + logoHeight + SHARE_CARD_SPACING.logoToStats;
+  const statsTop =
+    logoRect.y + logoHeight + SHARE_CARD_SPACING.logoToStats;
 
-  const columns = 3;
-  const columnWidth =
-    (contentWidth - SHARE_CARD_SPACING.statsColumnGap * (columns - 1)) /
-    columns;
+  // Three evenly distributed, text-centered columns across the row.
+  const rowWidth = SHARE_CARD_SPACING.statsRowWidthRatio * w;
+  const rowX = (w - rowWidth) / 2;
+  const columnWidth = rowWidth / 3;
   const statsColumns: StatsColumnLayout[] = Array.from(
-    { length: columns },
+    { length: 3 },
     (_, index) => ({
-      centerX:
-        side +
-        columnWidth / 2 +
-        index * (columnWidth + SHARE_CARD_SPACING.statsColumnGap),
+      centerX: rowX + columnWidth * (index + 0.5),
       labelCenterY: statsTop + labelLineHeight / 2,
-      valueCenterY: statsTop + labelLineHeight + valueLineHeight / 2,
+      valueCenterY:
+        statsTop +
+        labelLineHeight +
+        SHARE_CARD_SPACING.labelToValue +
+        valueLineHeight / 2,
     }),
   );
 
-  // Shoe icon: proportional inside its square slot, centered on the
-  // 80% line — deliberately clear of the stats row (the reference's
-  // noticeable gap), with empty canvas below it.
+  // Shoe icon: 28px below the stats row, centered; the stack ends at
+  // the slot's bottom edge — nothing is drawn below it.
+  const statsBottom =
+    statsTop +
+    labelLineHeight +
+    SHARE_CARD_SPACING.labelToValue +
+    valueLineHeight;
   const iconHeight = Math.min(
     SHARE_CARD_ICON_SIZE,
     SHARE_CARD_ICON_SIZE * iconAspectRatio,
   );
+  const iconSlotTop = statsBottom + SHARE_CARD_SPACING.statsToIcon;
   const iconRect = {
     x: (w - SHARE_CARD_ICON_SIZE) / 2,
-    y: h * SHARE_CARD_ANCHORS.iconCenterRatio - iconHeight / 2,
+    y: iconSlotTop + (SHARE_CARD_ICON_SIZE - iconHeight) / 2,
     width: SHARE_CARD_ICON_SIZE,
     height: iconHeight,
   };
@@ -189,9 +252,11 @@ export function computeShareCardLayout(options: {
     width: w,
     height: h,
     routeBox,
+    routeFitBox,
     logoRect,
     statsColumns,
     statsTop,
     iconRect,
+    contentBottom: iconSlotTop + SHARE_CARD_ICON_SIZE,
   };
 }

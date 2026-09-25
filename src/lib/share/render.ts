@@ -1,12 +1,15 @@
 /**
- * Share card painter (docs/MASTER_PLAN.md §O — Task 20).
+ * Share card painter (docs/MASTER_PLAN.md §O — Task 20, spec
+ * revision Task 22).
  *
  * Draws the complete 1080×1920 Strava-style share card into a 2D canvas
- * context: the route polyline (transparent background, #FC4C02, 10px
- * round stroke), the STRAVA wordmark, the Distance/Pace/Time stats
- * trio, and the shoe icon — every position from lib/share/layout.ts,
- * every path from lib/share/artwork.ts, the projection from
- * lib/geo/mercator.ts. This module executes; it decides nothing.
+ * context: the route polyline (contained in the padded fit box with a
+ * two-pass casing — 16px #000000 under 10px #FC4C02, both round
+ * cap/join), the STRAVA wordmark, the Distance/Pace/Time stats trio,
+ * and the shoe icon — every position from lib/share/layout.ts, every
+ * path from lib/share/artwork.ts, the projection from
+ * lib/geo/mercator.ts, the decimation from lib/geo/simplify.ts. This
+ * module executes; it decides nothing.
  *
  * One painter serves both consumers (the same "what you see is what
  * you download" contract as the GPX export): the preview canvas at
@@ -17,15 +20,16 @@
  * through `ctx.letterSpacing`: the property is not portable across the
  * browser matrix yet, and the labels must track it (0.04em) exactly.
  *
- * Browser-only (Path2D, canvas text). Layout/projection/artwork are
- * node-tested; this module's output is verified by E2E pixel
- * assertions and the live verification script. The caller must have
- * resolved the fonts first (lib/share/fonts.ts) — text renders in the
- * fallback face otherwise, never fails.
+ * Browser-only (Path2D, canvas text). Layout/projection/simplification/
+ * artwork are node-tested; this module's output is verified by E2E
+ * pixel assertions and the live verification script. The caller must
+ * have resolved the fonts first (lib/share/fonts.ts) — text renders in
+ * the fallback face otherwise, never fails.
  */
 
 import type { LatLon } from "@/types/domain";
 import { projectPolylines } from "@/lib/geo/mercator";
+import { simplifyPolylines } from "@/lib/geo/simplify";
 import {
   SHOE_ICON_ARTWORK,
   STRAVA_LOGO_ARTWORK,
@@ -35,6 +39,7 @@ import {
 import {
   SHARE_CARD_COLORS,
   SHARE_CARD_ROUTE_STROKE,
+  SHARE_CARD_SIMPLIFY_TOLERANCE_M,
   SHARE_CARD_STAT_LABELS,
   SHARE_CARD_TYPE,
   SHARE_CARD_HEIGHT,
@@ -136,6 +141,39 @@ function fillLetterspacedText(
   ctx.textAlign = previousAlign;
 }
 
+/**
+ * Stroke/fill a set of projected polylines as one pass of the route:
+ * multi-point pieces become round-cap strokes, lone points become
+ * dots of the pass's width (a zero-length stroke draws nothing in
+ * several engines). The casing pass and the route pass call this
+ * with the same points — the spec's "same points twice".
+ */
+function strokeRoutePass(
+  ctx: CanvasRenderingContext2D,
+  polylines: readonly (readonly { x: number; y: number }[])[],
+  color: string,
+  width: number,
+): void {
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = width;
+  for (const line of polylines) {
+    if (line.length === 1) {
+      const [point] = line;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, width / 2, 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+    ctx.beginPath();
+    ctx.moveTo(line[0].x, line[0].y);
+    for (let i = 1; i < line.length; i += 1) {
+      ctx.lineTo(line[i].x, line[i].y);
+    }
+    ctx.stroke();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // The painter
 // ---------------------------------------------------------------------------
@@ -160,40 +198,33 @@ export function renderShareCard(
   ctx.clearRect(0, 0, layout.width * scale, layout.height * scale);
   ctx.scale(scale, scale);
 
-  // --- Route (top 60% area, transparent background, no map). ---
-  const projection = projectPolylines(spec.routePolyline, layout.routeBox);
+  // --- Route: contained in the padded fit box, jitter preserved ---
+  // (decimation capped at the spec's 5m tolerance), two-pass casing:
+  // every black 16px casing first, then every orange 10px line — so
+  // one piece's outline never cuts through another piece's line.
+  const simplified = simplifyPolylines(
+    spec.routePolyline,
+    SHARE_CARD_SIMPLIFY_TOLERANCE_M,
+  );
+  const projection = projectPolylines(simplified, layout.routeFitBox);
   if (!projection.isEmpty) {
-    ctx.strokeStyle = SHARE_CARD_COLORS.route;
-    ctx.lineWidth = SHARE_CARD_ROUTE_STROKE.width;
     ctx.lineJoin = SHARE_CARD_ROUTE_STROKE.lineJoin;
     ctx.lineCap = SHARE_CARD_ROUTE_STROKE.lineCap;
-    for (const line of projection.polylines) {
-      if (line.length === 1) {
-        // A lone point renders as a dot (a zero-length stroke draws
-        // nothing in several engines).
-        const [point] = line;
-        ctx.fillStyle = SHARE_CARD_COLORS.route;
-        ctx.beginPath();
-        ctx.arc(
-          point.x,
-          point.y,
-          SHARE_CARD_ROUTE_STROKE.width / 2,
-          0,
-          Math.PI * 2,
-        );
-        ctx.fill();
-        continue;
-      }
-      ctx.beginPath();
-      ctx.moveTo(line[0].x, line[0].y);
-      for (let i = 1; i < line.length; i += 1) {
-        ctx.lineTo(line[i].x, line[i].y);
-      }
-      ctx.stroke();
-    }
+    strokeRoutePass(
+      ctx,
+      projection.polylines,
+      SHARE_CARD_COLORS.casing,
+      SHARE_CARD_ROUTE_STROKE.casingWidth,
+    );
+    strokeRoutePass(
+      ctx,
+      projection.polylines,
+      SHARE_CARD_COLORS.route,
+      SHARE_CARD_ROUTE_STROKE.width,
+    );
   }
 
-  // --- STRAVA wordmark (280px, white). ---
+  // --- STRAVA wordmark (270px, white). ---
   // The white fillStyle is set BEFORE any foreground artwork: the
   // wordmark, stats, and icon all draw in white; only the route (set
   // above, per-piece) differs. (A VLM review caught the logo rendering

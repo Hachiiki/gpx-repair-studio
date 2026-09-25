@@ -4,24 +4,22 @@ import { join } from "node:path";
 import sharp from "sharp";
 
 /**
- * Live verification of the share-card LAYOUT CORRECTION (Task 20
- * follow-up) on the user's real GloryFit file.
+ * Live verification of the Task 22 share-card spec revision on the
+ * user's real GloryFit file:
  *
- * The brief: only positions move. The route must stay EXACTLY as it
- * is (orange pixels identical to the previous export), while the
- * STRAVA logo centers on the 65% line, the stats row hangs
- * compactly below it, and the shoe icon centers on the 80% line —
- * with the reference's clear gap and nothing bottom-anchored.
+ *   - map: the contained route lives inside the fit box (15% padding
+ *     inside the map box, route capped at 58% of the card);
+ *   - route: two-pass casing — black 16px under orange 10px;
+ *   - stack: map box −32px→ logo (270px) −20px→ stats (85% row,
+ *     evenly distributed columns, 4px label→value) −28px→ shoe;
+ *   - content ends ≈90% (1723.75) and NOTHING is drawn below it.
  *
  *   1. band-probe the live preview canvas (in-page pixels);
  *   2. download the 1× PNG and repeat every probe on the file;
- *   3. route identity: orange masks of the OLD export (before the
- *      fix) and the NEW one must match pixel-for-pixel;
- *   4. screenshots for visual review.
+ *   3. screenshots for visual review.
  */
 
 const REAL = join(process.cwd(), "docs", "strava_gpx_original.gpx");
-const OLD_PNG = join(process.cwd(), "download", "share-card-live-1x.png");
 const OUT = join(process.cwd(), "download");
 const BASE = "http://localhost:3000";
 
@@ -30,33 +28,37 @@ const H = 1920;
 
 // Mirrored from src/lib/share/layout.ts (assert-only — the module
 // stays the single source of truth, this cross-checks the pixels).
-const LOGO_CENTER_Y = H * 0.65; // 1248
-const ICON_CENTER_Y = H * 0.8; // 1536
+const PAD = 0.15 * (1080 - 96); // 147.6
+const MAP_BOTTOM = 64 + 2 * PAD + 1920 * 0.58; // 1472.8
 const BANDS = {
-  logo: [1200, 1295], // logo rect: 1209.7 .. 1286.3
-  stats: [1300, 1365], // stats row: 1310.3 .. 1355.4
-  gap: [1380, 1505], // the reference's clear gap
-  icon: [1506, 1570], // icon rect: 1512.2 .. 1559.8
-  bottom: [1575, H], // empty: nothing is bottom-anchored anymore
+  mapInner: [212, 1325], // the contained route (fit box 211.6→1325.2)
+  fitPadGap: [1332, 1500], // 15% padding + 32px map→logo gap: empty
+  logo: [1500, 1582], // logo rect 1504.8→1578.6
+  stats: [1594, 1652], // stats row 1598.6→1647.75
+  gap28: [1652, 1673], // the 28px stats→shoe gap
+  icon: [1672, 1726], // shoe slot 1675.75→1723.75
+  bottom: [1730, H], // no spacer: content ends ≈90%, nothing below
 };
-const COLUMN_WINDOWS = [
-  [204 - 120, 204 + 120],
-  [540 - 120, 540 + 120],
-  [876 - 120, 876 + 120],
-];
-const COLUMN_CENTERS = [204, 540, 876];
+const LOGO_CENTER_Y = 1504.8 + (270 * 164 / 600) / 2; // ≈1541.7
+const ICON_CENTER_Y = 1675.75 + 24; // slot center ≈1699.75
+const COLUMN_CENTERS = [234, 540, 846]; // thirds of the 918px row
+const COLUMN_WINDOWS = COLUMN_CENTERS.map((c) => [c - 100, c + 100]);
 
 const isOrange = (r, g, b, a) => a > 200 && r > 220 && g > 30 && g < 130 && b < 60;
 const isWhite = (r, g, b, a) => a > 200 && r > 230 && g > 230 && b > 230;
+const isBlack = (r, g, b, a) => a > 200 && r < 40 && g < 40 && b < 40;
 
 /**
- * Classify an RGBA buffer (W×H) into band stats, white bboxes per
- * tracked band, column-window counts, totals — and an orange mask.
+ * Classify an RGBA buffer (W×H) into band stats, white bboxes for the
+ * logo/icon bands, per-column text counts in the stats band, and the
+ * route's orange/black bounding box.
  */
 function report(data) {
   const bandStats = {};
-  for (const name of Object.keys(BANDS)) bandStats[name] = { white: 0, orange: 0 };
-  const whiteBBox = { logo: null, stats: null, icon: null };
+  for (const name of Object.keys(BANDS)) {
+    bandStats[name] = { white: 0, orange: 0, black: 0 };
+  }
+  const whiteBBox = { logo: null, icon: null };
   const track = (name, x, y) => {
     const bb = whiteBBox[name];
     if (bb === null) {
@@ -69,9 +71,11 @@ function report(data) {
     }
   };
   const columnCounts = [0, 0, 0];
-  const orangeMask = new Uint8Array(W * H);
-  let whiteTotal = 0;
   let orangeTotal = 0;
+  let blackTotal = 0;
+  let whiteTotal = 0;
+  let routeMinY = H;
+  let routeMaxY = 0;
   for (let y = 0; y < H; y += 1) {
     const inBand = {};
     for (const [name, [y0, y1]] of Object.entries(BANDS)) {
@@ -85,19 +89,22 @@ function report(data) {
       const a = data[i + 3];
       const white = isWhite(r, g, b, a);
       const orange = isOrange(r, g, b, a);
+      const black = isBlack(r, g, b, a);
       if (white) whiteTotal += 1;
-      if (orange) {
-        orangeTotal += 1;
-        orangeMask[y * W + x] = 1;
+      if (orange) orangeTotal += 1;
+      if (black) blackTotal += 1;
+      if (orange || black) {
+        if (y < routeMinY) routeMinY = y;
+        if (y > routeMaxY) routeMaxY = y;
       }
       for (const name of Object.keys(BANDS)) {
         if (!inBand[name]) continue;
         if (white) bandStats[name].white += 1;
         if (orange) bandStats[name].orange += 1;
+        if (black) bandStats[name].black += 1;
       }
       if (white) {
         if (inBand.logo) track("logo", x, y);
-        if (inBand.stats) track("stats", x, y);
         if (inBand.icon) track("icon", x, y);
         if (inBand.stats) {
           for (let c = 0; c < 3; c += 1) {
@@ -108,7 +115,16 @@ function report(data) {
       }
     }
   }
-  return { bandStats, whiteBBox, columnCounts, orangeMask, whiteTotal, orangeTotal };
+  return {
+    bandStats,
+    whiteBBox,
+    columnCounts,
+    orangeTotal,
+    blackTotal,
+    whiteTotal,
+    routeMinY,
+    routeMaxY,
+  };
 }
 
 const failures = [];
@@ -121,25 +137,48 @@ const check = (name, ok, detail = "") => {
 function assertLayout(an, label) {
   const { bandStats, whiteBBox, columnCounts } = an;
   check(
-    `${label}: route painted in the top 60% (orange ≥ 500)`,
-    an.orangeTotal >= 500,
-    `${an.orangeTotal}px`,
+    `${label}: route painted in orange inside the fit box`,
+    bandStats.mapInner.orange > 500,
+    `${bandStats.mapInner.orange}px in rows ${BANDS.mapInner}`,
   );
   check(
-    `${label}: STRAVA logo on the 65% line (white in band)`,
+    `${label}: casing painted black around the route`,
+    // A real trace self-overlaps (orange covers black where it
+    // crosses itself), so the visible ring sits well under the
+    // naive straight-line ratio — 0.15x is presence, not shape.
+    bandStats.mapInner.black > bandStats.mapInner.orange * 0.15,
+    `${bandStats.mapInner.black}px black vs ${bandStats.mapInner.orange}px orange`,
+  );
+  check(
+    `${label}: casing is a ring, not a slab`,
+    an.blackTotal < an.orangeTotal * 1.5,
+    `${an.blackTotal}px vs ${an.orangeTotal}px`,
+  );
+  check(
+    `${label}: route confined to the map box (padding zone empty)`,
+    bandStats.fitPadGap.orange === 0 && bandStats.fitPadGap.black === 0,
+    `orange ${bandStats.fitPadGap.orange}px, black ${bandStats.fitPadGap.black}px in rows ${BANDS.fitPadGap}`,
+  );
+  check(
+    `${label}: route stays within the 58% cap (bottom ≤ 1326)`,
+    an.routeMaxY <= 1326,
+    `route bottom ${an.routeMaxY}`,
+  );
+  check(
+    `${label}: STRAVA logo in its band`,
     bandStats.logo.white > 300,
     `${bandStats.logo.white}px in rows ${BANDS.logo}`,
   );
   const logo = whiteBBox.logo;
   check(
-    `${label}: logo centered on (540, ${LOGO_CENTER_Y})`,
+    `${label}: logo centered on (540, ${LOGO_CENTER_Y.toFixed(0)})`,
     !!logo &&
       Math.abs((logo.minX + logo.maxX) / 2 - 540) < 40 &&
       Math.abs((logo.minY + logo.maxY) / 2 - LOGO_CENTER_Y) < 30,
     logo ? `bbox x ${logo.minX}..${logo.maxX}, y ${logo.minY}..${logo.maxY}` : "no bbox",
   );
   check(
-    `${label}: stats row below the logo (white in band)`,
+    `${label}: stats row in its band`,
     bandStats.stats.white > 100,
     `${bandStats.stats.white}px in rows ${BANDS.stats}`,
   );
@@ -151,27 +190,34 @@ function assertLayout(an, label) {
     );
   }
   check(
-    `${label}: clear gap between values and shoe (no white)`,
-    bandStats.gap.white === 0,
-    `${bandStats.gap.white}px in rows ${BANDS.gap}`,
+    `${label}: 28px gap between stats and shoe (no white)`,
+    bandStats.gap28.white === 0,
+    `${bandStats.gap28.white}px in rows ${BANDS.gap28}`,
   );
   check(
-    `${label}: shoe icon on the 80% line (white in band)`,
+    `${label}: shoe icon in its band`,
     bandStats.icon.white > 200,
     `${bandStats.icon.white}px in rows ${BANDS.icon}`,
   );
   const icon = whiteBBox.icon;
   check(
-    `${label}: icon centered on (540, ${ICON_CENTER_Y})`,
+    `${label}: icon centered on (540, ${ICON_CENTER_Y.toFixed(0)})`,
     !!icon &&
       Math.abs((icon.minX + icon.maxX) / 2 - 540) < 40 &&
-      Math.abs((icon.minY + icon.maxY) / 2 - ICON_CENTER_Y) < 30,
+      Math.abs((icon.minY + icon.maxY) / 2 - ICON_CENTER_Y) < 25,
     icon ? `bbox x ${icon.minX}..${icon.maxX}, y ${icon.minY}..${icon.maxY}` : "no bbox",
   );
   check(
-    `${label}: nothing bottom-anchored (band below icon empty)`,
-    bandStats.bottom.white === 0 && bandStats.bottom.orange === 0,
-    `white ${bandStats.bottom.white}px, orange ${bandStats.bottom.orange}px`,
+    `${label}: content ends ≈90% — nothing below the shoe`,
+    bandStats.bottom.white === 0 &&
+      bandStats.bottom.orange === 0 &&
+      bandStats.bottom.black === 0,
+    `white ${bandStats.bottom.white}px, orange ${bandStats.bottom.orange}px, black ${bandStats.bottom.black}px in rows ${BANDS.bottom}`,
+  );
+  check(
+    `${label}: nothing drawn right of the stack bounds either side`,
+    an.routeMaxY <= MAP_BOTTOM,
+    `route max y ${an.routeMaxY} vs map bottom ${MAP_BOTTOM}`,
   );
 }
 
@@ -199,9 +245,10 @@ const pageReport = () =>
       const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const isOrange = (r, g, b, a) => a > 200 && r > 220 && g > 30 && g < 130 && b < 60;
       const isWhite = (r, g, b, a) => a > 200 && r > 230 && g > 230 && b > 230;
+      const isBlack = (r, g, b, a) => a > 200 && r < 40 && g < 40 && b < 40;
       const bandStats = {};
-      for (const name of Object.keys(BANDS)) bandStats[name] = { white: 0, orange: 0 };
-      const whiteBBox = { logo: null, stats: null, icon: null };
+      for (const name of Object.keys(BANDS)) bandStats[name] = { white: 0, orange: 0, black: 0 };
+      const whiteBBox = { logo: null, icon: null };
       const track = (name, x, y) => {
         const bb = whiteBBox[name];
         if (bb === null) whiteBBox[name] = { minX: x, maxX: x, minY: y, maxY: y };
@@ -213,8 +260,10 @@ const pageReport = () =>
         }
       };
       const columnCounts = [0, 0, 0];
-      let whiteTotal = 0;
       let orangeTotal = 0;
+      let blackTotal = 0;
+      let routeMinY = H;
+      let routeMaxY = 0;
       for (let y = 0; y < H; y += 1) {
         const inBand = {};
         for (const [name, [y0, y1]] of Object.entries(BANDS)) {
@@ -228,16 +277,21 @@ const pageReport = () =>
           const a = image.data[i + 3];
           const white = isWhite(r, g, b, a);
           const orange = isOrange(r, g, b, a);
-          if (white) whiteTotal += 1;
+          const black = isBlack(r, g, b, a);
           if (orange) orangeTotal += 1;
+          if (black) blackTotal += 1;
+          if (orange || black) {
+            if (y < routeMinY) routeMinY = y;
+            if (y > routeMaxY) routeMaxY = y;
+          }
           for (const name of Object.keys(BANDS)) {
             if (!inBand[name]) continue;
             if (white) bandStats[name].white += 1;
             if (orange) bandStats[name].orange += 1;
+            if (black) bandStats[name].black += 1;
           }
           if (white) {
             if (inBand.logo) track("logo", x, y);
-            if (inBand.stats) track("stats", x, y);
             if (inBand.icon) track("icon", x, y);
             if (inBand.stats) {
               for (let c = 0; c < 3; c += 1) {
@@ -248,7 +302,17 @@ const pageReport = () =>
           }
         }
       }
-      return { w: canvas.width, h: canvas.height, bandStats, whiteBBox, columnCounts, whiteTotal, orangeTotal };
+      return {
+        w: canvas.width,
+        h: canvas.height,
+        bandStats,
+        whiteBBox,
+        columnCounts,
+        orangeTotal,
+        blackTotal,
+        routeMinY,
+        routeMaxY,
+      };
     },
     { W, H, BANDS, COLUMN_WINDOWS },
   );
@@ -267,7 +331,7 @@ assertLayout(preview, "preview");
 
 await page
   .locator('[data-testid="share-card-canvas"]')
-  .screenshot({ path: join(OUT, "share-card-layout-fixed.png") });
+  .screenshot({ path: join(OUT, "share-card-spec-rev.png") });
 
 // --- 2. The 1× download: the file is the contract. ---
 console.log("\n2) Download 1× — the exported PNG");
@@ -275,7 +339,7 @@ const [download] = await Promise.all([
   page.waitForEvent("download"),
   page.getByTestId("share-download").click(),
 ]);
-const pngPath = join(OUT, "share-card-layout-fixed-1x.png");
+const pngPath = join(OUT, "share-card-spec-rev-1x.png");
 writeFileSync(pngPath, readFileSync(await download.path()));
 const decoded = await sharp(pngPath).raw().toBuffer({ resolveWithObject: true });
 if (decoded.info.width !== W || decoded.info.height !== H) {
@@ -285,36 +349,8 @@ if (decoded.info.width !== W || decoded.info.height !== H) {
 const pngAnalysis = report(decoded.data);
 assertLayout(pngAnalysis, "export");
 
-// --- 3. Route identity: old vs new orange masks. ---
-console.log("\n3) Route identity — orange pixels before vs after the fix");
-const oldDecoded = await sharp(OLD_PNG).raw().toBuffer({ resolveWithObject: true });
-if (oldDecoded.info.width !== W || oldDecoded.info.height !== H) {
-  console.error(`old PNG has unexpected size ${oldDecoded.info.width}×${oldDecoded.info.height}`);
-  process.exit(1);
-}
-const oldAnalysis = report(oldDecoded.data);
-let maskDiff = 0;
-for (let p = 0; p < W * H; p += 1) {
-  if (oldAnalysis.orangeMask[p] !== pngAnalysis.orangeMask[p]) maskDiff += 1;
-}
-check(
-  "route is identical to the previous export",
-  maskDiff === 0,
-  `${maskDiff} differing orange pixels (old ${oldAnalysis.orangeTotal}px / new ${pngAnalysis.orangeTotal}px)`,
-);
-check(
-  "the UI cluster did move (white pixels differ)",
-  pngAnalysis.whiteTotal !== oldAnalysis.whiteTotal,
-  `old ${oldAnalysis.whiteTotal}px white / new ${pngAnalysis.whiteTotal}px white`,
-);
-check(
-  "the fix is real: 65% band was empty before, holds the logo now",
-  oldAnalysis.bandStats.logo.white === 0 && pngAnalysis.bandStats.logo.white > 300,
-  `before ${oldAnalysis.bandStats.logo.white}px / after ${pngAnalysis.bandStats.logo.white}px in rows ${BANDS.logo}`,
-);
-
 await page.screenshot({
-  path: join(OUT, "share-card-layout-fixed-desktop.png"),
+  path: join(OUT, "share-card-spec-rev-desktop.png"),
   fullPage: true,
 });
 await page.close();

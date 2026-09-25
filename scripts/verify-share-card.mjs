@@ -122,8 +122,9 @@ check(
   `${((painted.transparent / painted.total) * 100).toFixed(1)}%`,
 );
 check("preview route painted in orange", painted.orange > 500, `${painted.orange}px`);
+check("preview casing painted black", painted.dark > painted.orange * 0.15, `${painted.dark}px`);
+check("preview casing is a ring, not a slab", painted.dark < painted.orange * 1.5, `${painted.dark}px vs ${painted.orange}px orange`);
 check("preview artwork painted white", painted.white > 1000, `${painted.white}px`);
-check("preview has no opaque-black artwork", painted.dark < 50, `${painted.dark}px`);
 check(
   "no console errors during the session",
   await (async () => {
@@ -160,8 +161,9 @@ check(
   `${((stats1x.transparent / stats1x.total) * 100).toFixed(1)}%`,
 );
 check("exported route orange", stats1x.orange > 500, `${stats1x.orange}px`);
+check("exported casing black", stats1x.dark > stats1x.orange * 0.15, `${stats1x.dark}px`);
+check("exported casing is a ring, not a slab", stats1x.dark < stats1x.orange * 1.5, `${stats1x.dark}px vs ${stats1x.orange}px orange`);
 check("exported artwork white", stats1x.white > 1000, `${stats1x.white}px`);
-check("exported has no opaque-black artwork", stats1x.dark < 50, `${stats1x.dark}px`);
 
 // --- 3. The 2× export. ---
 console.log("\n3) Download 2× — doubled resolution");
