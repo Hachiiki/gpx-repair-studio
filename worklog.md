@@ -293,3 +293,17 @@ Stage Summary:
 - Preview serving constraint documented: user-facing preview depends on platform provisioning post-Complete; within-sandbox background processes cannot persist between tool calls.
 - User test script issued covering: real-file loading (GloryFit recovery warning, processed export clean), layout integrity (desktop + narrow), manual repair span pick→draw→commit on a zero-gap file, detected-gap flow regression on demo-qc, undo/redo/cancel/Esc, remove span, export round-trip.
 - Next: (a) user runs the script and reports findings; (b) one-anchor end/start extension (open-segment drawing) proposed as the next build, awaiting user go-ahead alongside Phase 5 (time & pace reconstruction).
+
+---
+Task ID: 13
+Agent: Super Z (main agent)
+Task: User question during live testing of manual repair spans: after picking anchors 0/1 and clicking drawn vertices, lines appeared connecting BOTH anchors to the first clicked vertex (V shape), then chain growth 0→2→3→1 — "is it supposed to be like this?" Answer-only turn, no implementation.
+
+Work Log:
+- User's pasted screenshot (pasted_image_1790300703386.png) never reached the filesystem (upload/ empty — same gateway non-delivery as the earlier GPX attachments); proceeded from the user's ASCII diagrams.
+- Verified intended behavior against code: #draftPathPoints (mapController.ts) always renders the draft as [anchor_before, ...vertices in click order, anchor_after]; #applyRubberBand trails from the path end (anchor_after) to the cursor. The user's V-shape ([0,2,1]) and chain ([0,2,3,1]) diagrams are exact matches for the live full-path preview design — confirmed intended, not a bug.
+- Answered with the mental model (complete-path preview, honest distance badge, closing segment becomes real on commit) and offered two UX polish options (dashed/lighter open segment; mouse trailer from last clicked vertex instead of far anchor) — NOT implemented, awaiting user preference.
+
+Stage Summary:
+- First real user test session of manual repair spans: pick flow understood and executed correctly; drawing flow works; the live full-path preview caused understandable confusion ("app drew lines I didn't click").
+- Candidate polish backlog (user-dependent): visually distinguishing the open/closing segment from committed clicks. One-anchor end/start extension and Phase 5 still pending authorization.
