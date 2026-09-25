@@ -2,11 +2,12 @@
  * Share card layout + artwork tests (Task 20) — lib/share/layout.ts,
  * lib/share/artwork.ts.
  *
- * Pins every number of the user's spec: the 1080×1920 canvas, the
- * 48/64px paddings, the bottom-anchored cluster (logo → stats → shoe
- * with 24/28px gaps and 64px bottom padding), the three equal stat
- * columns, and the artwork metadata (viewBoxes, path counts, source
- * transforms — the paste-cleanup contract).
+ * Pins every number of the card spec: the 1080×1920 canvas, the
+ * 48/64px paddings, the reference-anchored groups (logo centered on
+ * the 65% line, stats 24px below it, shoe centered on the 80% line
+ * with the reference's noticeable gap above it), the three equal
+ * stat columns, and the artwork metadata (viewBoxes, path counts,
+ * source transforms — the paste-cleanup contract).
  */
 
 import { describe, expect, it } from "vitest";
@@ -16,6 +17,7 @@ import {
   artworkAspectRatio,
 } from "@/lib/share/artwork";
 import {
+  SHARE_CARD_ANCHORS,
   SHARE_CARD_HEIGHT,
   SHARE_CARD_ICON_SIZE,
   SHARE_CARD_LOGO_WIDTH,
@@ -41,10 +43,15 @@ describe("share card canvas + spacing tokens (the spec)", () => {
     expect(SHARE_CARD_SPACING).toEqual({
       sidePadding: 48,
       topPadding: 64,
-      bottomPadding: 64,
       statsColumnGap: 24,
       logoToStats: 24,
-      statsToIcon: 28,
+    });
+  });
+
+  it("anchors the groups on the reference's vertical lines", () => {
+    expect(SHARE_CARD_ANCHORS).toEqual({
+      logoCenterRatio: 0.65,
+      iconCenterRatio: 0.8,
     });
   });
 
@@ -70,7 +77,7 @@ describe("share card canvas + spacing tokens (the spec)", () => {
 });
 
 describe("computeShareCardLayout", () => {
-  it("routes into the top 60% area with 48px sides and 64px top", () => {
+  it("bottom-anchors nothing: routes into the top 60% with 48px sides and 64px top", () => {
     expect(LAYOUT.routeBox).toEqual({
       x: 48,
       y: 64,
@@ -79,21 +86,37 @@ describe("computeShareCardLayout", () => {
     });
   });
 
-  it("bottom-anchors the shoe at 64px, in its 48px slot", () => {
-    expect(LAYOUT.iconRect.y).toBeCloseTo(1920 - 64 - 48, 10);
-    expect(LAYOUT.iconRect.width).toBe(SHARE_CARD_ICON_SIZE);
-    // Proportional (letterboxed) height: 48 × 211/213.
-    expect(LAYOUT.iconRect.height).toBeCloseTo((48 * 211) / 213, 10);
-    expect(LAYOUT.iconRect.x).toBeCloseTo((1080 - 48) / 2, 10);
+  it("centers the 280px logo on the 65% line, horizontally centered", () => {
+    expect(LAYOUT.logoRect.width).toBe(SHARE_CARD_LOGO_WIDTH);
+    expect(LAYOUT.logoRect.width).toBe(280);
+    // Proportional height: 280 × 164/600.
+    expect(LAYOUT.logoRect.height).toBeCloseTo((280 * 164) / 600, 10);
+    expect(LAYOUT.logoRect.x).toBeCloseTo((1080 - 280) / 2, 10);
+    // The reference's ~65%-down placement: center on 0.65 × 1920 = 1248.
+    expect(LAYOUT.logoRect.y + LAYOUT.logoRect.height / 2).toBeCloseTo(
+      1920 * 0.65,
+      10,
+    );
   });
 
-  it("stacks the stats row 28px above the shoe", () => {
+  it("hangs the stats row compactly 24px below the logo", () => {
     const labelLine = 15 * 1.25;
     const valueLine = 22 * 1.2;
     expect(LAYOUT.statsTop).toBeCloseTo(
-      LAYOUT.iconRect.y - 28 - (labelLine + valueLine),
+      LAYOUT.logoRect.y + LAYOUT.logoRect.height + 24,
       10,
     );
+    // Label over value, each on its own line — never stretched.
+    for (const column of LAYOUT.statsColumns) {
+      expect(column.labelCenterY).toBeCloseTo(
+        LAYOUT.statsTop + labelLine / 2,
+        10,
+      );
+      expect(column.valueCenterY).toBeCloseTo(
+        LAYOUT.statsTop + labelLine + valueLine / 2,
+        10,
+      );
+    }
   });
 
   it("lays out three equal columns with a 24px gap, centered on 540", () => {
@@ -112,21 +135,33 @@ describe("computeShareCardLayout", () => {
     }
   });
 
-  it("places the 280px logo 24px above the stats row, horizontally centered", () => {
-    expect(LAYOUT.logoRect.width).toBe(SHARE_CARD_LOGO_WIDTH);
-    expect(LAYOUT.logoRect.width).toBe(280);
-    // Proportional height: 280 × 164/600.
-    expect(LAYOUT.logoRect.height).toBeCloseTo((280 * 164) / 600, 10);
-    expect(LAYOUT.logoRect.x).toBeCloseTo((1080 - 280) / 2, 10);
-    expect(LAYOUT.logoRect.y + LAYOUT.logoRect.height).toBeCloseTo(
-      LAYOUT.statsTop - 24,
+  it("places the shoe icon on the 80% line, horizontally centered", () => {
+    expect(LAYOUT.iconRect.y).toBeCloseTo(
+      1920 * 0.8 - ((48 * 211) / 213) / 2,
       10,
+    );
+    expect(LAYOUT.iconRect.width).toBe(SHARE_CARD_ICON_SIZE);
+    // Proportional (letterboxed) height: 48 × 211/213.
+    expect(LAYOUT.iconRect.height).toBeCloseTo((48 * 211) / 213, 10);
+    expect(LAYOUT.iconRect.x).toBeCloseTo((1080 - 48) / 2, 10);
+  });
+
+  it("leaves the reference's noticeable gap between the values and the shoe", () => {
+    const statsBottom =
+      LAYOUT.statsTop + 15 * 1.25 + 22 * 1.2;
+    // 1512.2 − 1355.4 ≈ 157px of clear canvas between the two groups.
+    expect(LAYOUT.iconRect.y - statsBottom).toBeGreaterThan(120);
+    // And the icon is no longer bottom-anchored: empty canvas below.
+    expect(LAYOUT.iconRect.y + LAYOUT.iconRect.height).toBeLessThan(
+      SHARE_CARD_HEIGHT * 0.82,
     );
   });
 
-  it("keeps the breathing room between the map area and the logo", () => {
+  it("keeps breathing room between the map area and the logo", () => {
     const mapBottom = LAYOUT.routeBox.y + LAYOUT.routeBox.height;
-    expect(LAYOUT.logoRect.y - mapBottom).toBeGreaterThan(400);
+    // 1209.7 − 1152 ≈ 58px from the fit box itself; the letterboxed
+    // route sits inside the box, so the visible gap is larger.
+    expect(LAYOUT.logoRect.y - mapBottom).toBeGreaterThan(40);
   });
 
   it("derives the layout from passed aspect ratios (artwork-agnostic)", () => {

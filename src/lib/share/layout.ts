@@ -9,20 +9,25 @@
  *   │   route area — 60% height,    │
  *   │   48px side padding           │
  *   │                               │
- *   ├───────────────────────────────┤ ← breathing room
+ *   ├───────────────────────────────┤ ← 65% line
  *   │        STRAVA logo (280px)    │
  *   │  Distance   Pace    Time      │ ← stats row (mt 24)
- *   │           [shoe icon]         │ ← 48px (mt 28)
- *   └───────────────────────────────┘ ← 64px bottom padding
+ *   │                               │
+ *   │           [shoe icon]         │ ← 80% line
+ *   │      (canvas stays empty)     │
+ *   └───────────────────────────────┘
  *
- * The bottom cluster is bottom-anchored (the Strava story-card rhythm):
- * shoe sits 64px above the card's bottom edge, the stats row and logo
- * stack above it with the spec's 28px / 24px margins, and the leftover
- * vertical space stays between the map area and the logo — the one
- * deliberately large "between groups" gap.
+ * The reference card's rhythm, verbatim: the lower UI cluster is NOT
+ * bottom-anchored. The wordmark centers on the 65% line, the stats
+ * row hangs 24px below it (compact — the reference never stretches
+ * it), and the shoe icon centers on the 80% line. The gap between
+ * the stat values and the icon is the reference's noticeable one
+ * (~157px), and the canvas below the icon stays empty. The route
+ * area is untouched: the top 60% with its paddings.
  *
  * Pure numbers so tests can pin every position; lib/share/render.ts
- * only executes them. Spec: user-provided share-card brief (Task 20).
+ * only executes them. Spec: the reference share card + the layout
+ * correction brief (Task 20 follow-up).
  */
 
 /** The card's aspect box (9:16). */
@@ -33,10 +38,19 @@ export const SHARE_CARD_HEIGHT = 1920;
 export const SHARE_CARD_SPACING = {
   sidePadding: 48,
   topPadding: 64,
-  bottomPadding: 64,
   statsColumnGap: 24,
   logoToStats: 24,
-  statsToIcon: 28,
+} as const;
+
+/**
+ * Where each group centers vertically — fractions of the card
+ * height, read off the reference layout (the correction brief).
+ */
+export const SHARE_CARD_ANCHORS = {
+  /** The STRAVA logo's center line: 65% down the 9:16 canvas. */
+  logoCenterRatio: 0.65,
+  /** The shoe icon's center line: the reference's lower-80% area. */
+  iconCenterRatio: 0.8,
 } as const;
 
 /** Typography from the spec (Montserrat via lib/share/fonts.ts). */
@@ -93,7 +107,7 @@ export interface ShareCardLayout {
   logoRect: { x: number; y: number; width: number; height: number };
   /** The three stats columns, in label order. */
   statsColumns: readonly StatsColumnLayout[];
-  /** The stats row's top edge (logo sits `logoToStats` above it). */
+  /** The stats row's top edge (hangs `logoToStats` below the logo). */
   statsTop: number;
   /** The shoe icon's rect (proportional inside the square slot). */
   iconRect: { x: number; y: number; width: number; height: number };
@@ -122,29 +136,24 @@ export function computeShareCardLayout(options: {
     height: h * 0.6 - SHARE_CARD_SPACING.topPadding,
   };
 
-  // Bottom cluster, anchored to the bottom edge with 64px padding.
   const contentWidth = w - 2 * side;
 
-  // Shoe: proportional inside its square slot, bottom-aligned.
-  const iconSlotHeight = SHARE_CARD_ICON_SIZE;
-  const iconHeight = Math.min(
-    SHARE_CARD_ICON_SIZE,
-    SHARE_CARD_ICON_SIZE * iconAspectRatio,
-  );
-  const iconRect = {
-    x: (w - SHARE_CARD_ICON_SIZE) / 2,
-    y: h - SHARE_CARD_SPACING.bottomPadding - iconSlotHeight,
-    width: SHARE_CARD_ICON_SIZE,
-    height: iconHeight,
+  // Logo: horizontally centered, vertically centered on the 65% line.
+  const logoWidth = SHARE_CARD_LOGO_WIDTH;
+  const logoHeight = logoWidth * logoAspectRatio;
+  const logoRect = {
+    x: (w - logoWidth) / 2,
+    y: h * SHARE_CARD_ANCHORS.logoCenterRatio - logoHeight / 2,
+    width: logoWidth,
+    height: logoHeight,
   };
 
-  // Stats row: label line + value line, `statsToIcon` above the shoe.
+  // Stats row: label line + value line, compact 24px below the logo.
   const labelLineHeight =
     SHARE_CARD_TYPE.label.size * SHARE_CARD_TYPE.label.lineHeight;
   const valueLineHeight =
     SHARE_CARD_TYPE.value.size * SHARE_CARD_TYPE.value.lineHeight;
-  const statsHeight = labelLineHeight + valueLineHeight;
-  const statsTop = iconRect.y - SHARE_CARD_SPACING.statsToIcon - statsHeight;
+  const statsTop = logoRect.y + logoHeight + SHARE_CARD_SPACING.logoToStats;
 
   const columns = 3;
   const columnWidth =
@@ -162,14 +171,18 @@ export function computeShareCardLayout(options: {
     }),
   );
 
-  // Logo: proportional height, `logoToStats` above the stats row.
-  const logoWidth = SHARE_CARD_LOGO_WIDTH;
-  const logoHeight = logoWidth * logoAspectRatio;
-  const logoRect = {
-    x: (w - logoWidth) / 2,
-    y: statsTop - SHARE_CARD_SPACING.logoToStats - logoHeight,
-    width: logoWidth,
-    height: logoHeight,
+  // Shoe icon: proportional inside its square slot, centered on the
+  // 80% line — deliberately clear of the stats row (the reference's
+  // noticeable gap), with empty canvas below it.
+  const iconHeight = Math.min(
+    SHARE_CARD_ICON_SIZE,
+    SHARE_CARD_ICON_SIZE * iconAspectRatio,
+  );
+  const iconRect = {
+    x: (w - SHARE_CARD_ICON_SIZE) / 2,
+    y: h * SHARE_CARD_ANCHORS.iconCenterRatio - iconHeight / 2,
+    width: SHARE_CARD_ICON_SIZE,
+    height: iconHeight,
   };
 
   return {

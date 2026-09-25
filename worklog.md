@@ -500,3 +500,23 @@ Stage Summary:
   - Duplication check: one projection, one layout derivation, one painter, one trio join, one font loader, one unit toggle; grep-verified no other share/preview logic exists.
   - Architecture impact: the session-store `view` field is the single source for which workspace a file is in (AppShell, the map lifecycle, and the header all read it); the stats-panel reimport fix corrects Phase 7's numbers for re-uploads; Phase 6 (elevation) and Phase 8+ proceed unaffected.
 - Next: user tries the share flow on a real activity (and can now post the PNG anywhere); possible follow-ups if wanted — share-after-repair entry inside the repair workspace's export card, sport-icon selection (run/bike/hike), or dark/light artwork variants.
+
+---
+Task ID: 21
+Agent: Super Z (main agent)
+Task: Share card layout correction (Task 20 follow-up): the lower UI cluster sat too low. Per the user's brief — logo around 65% down the 9:16 canvas, stats compact below it, shoe icon around the lower-80% area with a noticeable gap above it, route and everything else untouched.
+
+Work Log:
+- Diagnosed in lib/share/layout.ts: the bottom cluster was bottom-anchored (shoe at 64px above the bottom edge, logo center landed at 87% down). The whole group needed re-anchoring, not a uniform shift.
+- Rewrote the layout derivation as anchor-based: new SHARE_CARD_ANCHORS { logoCenterRatio: 0.65, iconCenterRatio: 0.8 }. The logo now centers on the 65% line (center y=1248), the stats row hangs 24px below the logo (compact, label over value, never stretched), and the shoe icon centers on the 80% line (center y=1536). Obsolete tokens removed (bottomPadding, statsToIcon — nothing is bottom-anchored anymore); sidePadding/topPadding/statsColumnGap/logoToStats kept. Route box, stats columns (204/540/876), stroke, colors, typography, artwork: all untouched.
+- render.ts needed ZERO changes (it executes layout decisions; this is the module boundary working as designed). ShareCardCanvas/ShareView/hooks: unchanged.
+- Updated tests/share-layout.test.ts to pin the new geometry: logo centered on 1248, stats 24px below the logo with label/value on their own lines, icon centered on the 80% line, the reference's gap (>120px, actual ~157px), nothing below 82% of the canvas, breathing room above the logo, columns unchanged.
+- New scripts/verify-share-card-layout.mjs — live verification on the user's real GloryFit file with band probes on both the preview canvas and the downloaded 1× PNG, plus a route-identity check: the orange masks of the BEFORE (share-card-live-1x.png) and AFTER exports compared pixel-for-pixel.
+- Results: 654/654 unit tests, typecheck + lint clean, 6/6 share-card e2e, 48/48 full e2e suite. Live checks all PASS on both preview and export: logo white bbox y 1220..1274 (center ≈1247 ≈ 65%), stats row in 1310..1355 with text at x≈204/540/876, gap band 1380..1505 empty, shoe bbox y 1515..1556 (center ≈1536 = 80%), rows 1575..1920 completely empty. ROUTE IDENTITY: 0 differing orange pixels (89,701 in both exports) — the route is pixel-identical; only the white UI cluster moved.
+- Screenshots: download/share-card-layout-fixed.png (the card element), share-card-layout-fixed-1x.png (the export), share-card-layout-fixed-desktop.png (full workspace).
+
+Stage Summary:
+- The card now matches the reference's visual hierarchy: route in the top 60%, STRAVA logo at 65%, compact Distance/Pace/Time trio below it, a clear gap, shoe icon at 80%, empty canvas below — nothing bottom-anchored.
+- The layout module remains the single source of truth (one derivation, tests pin every number); the painter/view/components are position-agnostic.
+- Route preservation is proven, not asserted: pixel-identical orange masks before/after the change.
+- Next: user reviews the new card preview/export; optional Phase 6 (elevation via OpenTopoData) and Phase 8+ remain available.
