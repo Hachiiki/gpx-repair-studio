@@ -1,6 +1,23 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/*
+ * Montserrat (variable, latin subset) — the share card's font, self-hosted
+ * (Task 20). The card is painted on a <canvas>, so the family must resolve
+ * for `ctx.font` — next/font's hashed family names cannot be referenced
+ * from canvas drawing code. Declared here (lazily fetched only when used)
+ * and awaited through document.fonts by lib/share/fonts.ts before the
+ * painter runs. OFL 1.1 — © The Montserrat Project (Impallari Type),
+ * updated by Rodrigo Fuenzalida.
+ */
+@font-face {
+  font-family: "Montserrat";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/montserrat-variable.woff2") format("woff2");
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

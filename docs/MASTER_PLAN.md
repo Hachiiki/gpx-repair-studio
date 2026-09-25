@@ -813,3 +813,70 @@ Per instruction, implementation has **not** begun. No Phase 1 work has been perf
 
 
 
+
+---
+
+## O. Share Card (Task 20 — user-requested addition)
+
+A second destination for an uploaded file, added after Phase 7 at the
+user's request: a Strava-style activity share graphic — the route on a
+transparent 1080×1920 (9:16) canvas, the STRAVA wordmark, a
+Distance / Pace / Time stats row, and a running-shoe icon — previewed
+in-app and exported as a PNG (1× per the spec, 2× optional).
+
+### O-1 Scope & honesty rules
+
+- **Entry points.** The landing page carries a mode switch ("Repair a
+  recording" / "Create a share card", remembered per §D-4); the upload
+  opens the matching workspace. Once loaded, the file switches freely
+  between the repair workspace and the share view (header action +
+  in-view link) with no re-parse.
+- **The trio is recorded data, never invented.** Distance = the file's
+  total geodesic length; Pace = total distance over recorded moving
+  time (the §L-1 pace definition); Time = the recorded elapsed span
+  (`t_last − t_first`, the Strava convention). A file without usable
+  timestamps renders "—" for pace and time with the reason shown in
+  the view — the §L-2 rules apply to share graphics exactly as they
+  apply to statistics tables.
+- **The route is the honest route.** The card reuses `buildRouteView`
+  verbatim: recorded pieces split at gaps and damage, plus re-imported
+  `gpxr` reconstruction runs — drawn as independent strokes, never
+  connected with fabricated legs. Antimeridian-crossing routes are
+  longitude-unwrapped so they draw as the line the athlete traveled.
+- **Multi-line palette.** One route color (#FC4C02) for everything:
+  the card shows the activity as the file records it, recorded and
+  previously-repaired stretches alike (the app's
+  recorded/reconstructed distinction lives in the repair workspace,
+  not on a share graphic).
+
+### O-2 Architecture
+
+- `lib/geo/mercator.ts` — pure normalized Web-Mercator + fit/center
+  (the map's projection, without the camera).
+- `lib/share/{layout,artwork,render,fonts}.ts` — the spec's layout
+  math (every rect/baseline one derivation), the cleaned source-SVG
+  path data, one canvas painter for preview AND export (WYSIWYG, the
+  §H export contract applied to pixels), and the idempotent
+  self-hosted Montserrat loader (local-first typography).
+- `features/share/cardContent.ts` — the pure trio join.
+- `hooks/use-share-card.ts` — the app-layer binding (route view →
+  polylines, stats → content, offscreen paint → PNG download).
+- `components/share/{share-card-canvas,share-view}.tsx` — the
+  reusable component (props: routePolyline + the three strings) and
+  the session view; the km/mi toggle is the extracted shared
+  `PaceUnitToggle`.
+- Session plumbing: `session-store.view` (repair | share, set at
+  upload from the remembered landing mode), `ui-store.landingMode`
+  (persisted preference), and the map-controller lifecycle keyed to
+  the view so the map re-creates when the repair workspace returns.
+
+### O-3 Phase 7 fix carried by this task
+
+Re-uploaded repairs were double-counted in the statistics panel:
+`originalDistanceStats` already measures `gpxr`-marked legs, and the
+panel join added them again ("Total with repairs" read file-total +
+marked-legs). The join now subtracts the marked distance from
+"Recorded" and only live editor repairs add to totals; "Moving time
+incl. repairs" likewise adds only live repair durations (a re-imported
+run's distributed timestamps are already inside the recorded moving
+time). Pinned by `tests/stats-panel-reimport.test.tsx`.

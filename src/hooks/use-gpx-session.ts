@@ -38,6 +38,7 @@ import {
   useSessionStore,
   type SessionError,
   type SessionStatus,
+  type SessionView,
 } from "@/state/session-store";
 import { useUiStore } from "@/state/ui-store";
 import type {
@@ -120,9 +121,12 @@ export interface GpxSession {
   /** Recorded extent of usable points (Null Island damage excluded). */
   extent: BBox | null;
   error: SessionError | null;
+  /** The workspace a parsed file is open in (Task 20). */
+  view: SessionView;
   gapThresholds: GapThresholds;
   loadFile: (file: File) => Promise<void>;
   reset: () => void;
+  setView: (view: SessionView) => void;
   setGapThresholds: (patch: Partial<GapThresholds>) => void;
   resetGapThresholds: () => void;
 }
@@ -272,11 +276,14 @@ export function useGpxSession(): GpxSession {
   const data = useSessionStore((s) => s.data);
   const gaps = useSessionStore((s) => s.gaps);
   const error = useSessionStore((s) => s.error);
+  const view = useSessionStore((s) => s.view);
   const gapThresholds = useUiStore((s) => s.gapThresholds);
 
   const loadFile = useCallback(async (file: File) => {
     const session = useSessionStore.getState();
-    session.beginLoad(file.name);
+    // The remembered landing intent decides which workspace this file
+    // opens into (Task 20); switching later never re-parses.
+    session.beginLoad(file.name, useUiStore.getState().landingMode);
 
     if (file.size === 0) {
       session.fail({
@@ -315,6 +322,10 @@ export function useGpxSession(): GpxSession {
 
   const reset = useCallback(() => {
     useSessionStore.getState().reset();
+  }, []);
+
+  const setView = useCallback((next: SessionView) => {
+    useSessionStore.getState().setView(next);
   }, []);
 
   const setGapThresholds = useCallback((patch: Partial<GapThresholds>) => {
@@ -382,9 +393,11 @@ export function useGpxSession(): GpxSession {
     reimport,
     extent,
     error,
+    view,
     gapThresholds,
     loadFile,
     reset,
+    setView,
     setGapThresholds,
     resetGapThresholds,
   };

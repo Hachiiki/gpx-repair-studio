@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
+import { PaceUnitToggle } from "@/components/shared/pace-unit-toggle";
 import type {
   DistanceStats,
   ReimportStats,
@@ -89,14 +90,30 @@ export function StatsPanel({
   const noTime = !timeStats.hasTimingData;
   const reimportDistance = reimport?.repairedDistanceM ?? 0;
   const reimportTime = reimport?.repairTimeMs ?? null;
+  const liveRepairDistance = repair?.reconstructedDistanceM ?? 0;
+  const liveRepairTime = repair?.reconstructedTimeMs ?? null;
   const hasRepairs =
     (repair?.gapCount ?? 0) > 0 || (reimport?.markerCount ?? 0) > 0;
-  const repairedDistanceM =
-    (repair?.reconstructedDistanceM ?? 0) + reimportDistance;
+  // The file's own totals already contain the marked stretches of a
+  // re-imported repair (originalDistanceStats measures every usable
+  // leg, markers included) — so the recorded/total split SUBTRACTS the
+  // marked distance instead of adding it on top (the Phase 7
+  // double-count, fixed in Task 20: a re-upload's "Total with repairs"
+  // used to read file-total + marked-legs).
+  const recordedDistanceM = distanceStats.totalDistanceM - reimportDistance;
+  const repairedDistanceM = liveRepairDistance + reimportDistance;
+  // "Repair time" (estimated): every repair's duration — live editor
+  // repairs plus re-imported runs.
   const repairTime =
-    repair?.reconstructedTimeMs != null || reimportTime != null
-      ? (repair?.reconstructedTimeMs ?? 0) + (reimportTime ?? 0)
+    liveRepairTime != null || reimportTime != null
+      ? (liveRepairTime ?? 0) + (reimportTime ?? 0)
       : null;
+  // Only LIVE repairs add time the file does not already contain: a
+  // re-imported run's distributed timestamps are already inside
+  // recordedMovingTimeMs (its legs sit under the gap threshold in the
+  // common export shape — resampled points every few dozen meters).
+  const liveRepairsLackDuration =
+    (repair?.gapCount ?? 0) > 0 && liveRepairTime === null;
 
   return (
     <Card data-testid="stats-panel">
@@ -108,29 +125,7 @@ export function StatsPanel({
             : "Original recording only — repairs are not included yet."}
         </CardDescription>
         <CardAction>
-          <div
-            className="flex overflow-hidden rounded-md border"
-            role="group"
-            aria-label="Pace unit"
-            data-testid="pace-unit-toggle"
-          >
-            {(["km", "mi"] as const).map((unit) => (
-              <button
-                key={unit}
-                type="button"
-                aria-pressed={paceUnit === unit}
-                data-testid={`pace-unit-${unit}`}
-                className={
-                  paceUnit === unit
-                    ? "bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
-                    : "px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                }
-                onClick={() => onPaceUnitChange(unit)}
-              >
-                /{unit}
-              </button>
-            ))}
-          </div>
+          <PaceUnitToggle unit={paceUnit} onChange={onPaceUnitChange} />
         </CardAction>
       </CardHeader>
       <CardContent>
@@ -149,7 +144,7 @@ export function StatsPanel({
                 <TableRow>
                   <TableCell>Recorded distance</TableCell>
                   <TableCell className="tabular-nums">
-                    {formatDistanceMeters(distanceStats.totalDistanceM)}
+                    {formatDistanceMeters(recordedDistanceM)}
                   </TableCell>
                   <TableCell>
                     <ProvenanceBadge kind="recorded" />
@@ -168,7 +163,7 @@ export function StatsPanel({
                   <TableCell>Total with repairs</TableCell>
                   <TableCell className="tabular-nums">
                     {formatDistanceMeters(
-                      distanceStats.totalDistanceM + repairedDistanceM,
+                      recordedDistanceM + repairedDistanceM,
                     )}
                   </TableCell>
                   <TableCell>
@@ -230,10 +225,10 @@ export function StatsPanel({
               <TableRow>
                 <TableCell>Moving time incl. repairs</TableCell>
                 <TableCell className="tabular-nums">
-                  {repairTime === null
+                  {liveRepairsLackDuration
                     ? emDash("Repairs still need durations")
                     : formatDurationMs(
-                        timeStats.recordedMovingTimeMs + repairTime,
+                        timeStats.recordedMovingTimeMs + (liveRepairTime ?? 0),
                       )}
                 </TableCell>
                 <TableCell>

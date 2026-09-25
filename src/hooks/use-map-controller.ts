@@ -438,7 +438,12 @@ export function useMapController(session: GpxSession): MapBinding {
     containerRef.current = element;
   }, []);
 
-  const showMap = session.status === "parsed";
+  // The map exists only in the repair workspace: entering the share
+  // view (Task 20) unmounts MapCanvas, so the controller tears down;
+  // returning re-creates it against the freshly attached container.
+  // Every controller-driving effect below keys off `showMap` so the
+  // re-created instance receives its route, framing, and provider.
+  const showMap = session.status === "parsed" && session.view === "repair";
   const gapRows = session.gapRows;
 
   // Controller lifecycle — the container div is rendered by MapCanvas only
@@ -575,15 +580,17 @@ export function useMapController(session: GpxSession): MapBinding {
 
   // Frame the whole activity whenever a new file's data lands. Deferred by
   // the controller until the map is ready; never re-run on re-detection
-  // (the data identity only changes for a new file).
+  // (the data identity only changes for a new file). Re-runs when the
+  // repair view returns (showMap in the deps): the controller was
+  // re-created by the lifecycle effect above and needs its framing.
   useEffect(() => {
-    if (session.data && session.extent) {
+    if (showMap && session.data && session.extent) {
       controllerRef.current?.fitBounds(session.extent, {
         maxZoom: 16,
         action: "fit-activity",
       });
     }
-  }, [session.data, session.extent]);
+  }, [showMap, session.data, session.extent]);
 
   // Basemap provider changes.
   useEffect(() => {

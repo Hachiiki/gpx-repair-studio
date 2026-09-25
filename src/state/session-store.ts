@@ -23,6 +23,15 @@ import type { DetectedGap, OriginalTrackData } from "@/types/domain";
 export type SessionStatus = "idle" | "loading" | "parsed" | "error";
 
 /**
+ * Which workspace a parsed file opens in (Task 20): the repair
+ * workspace (the app's core flow) or the share-card view. Set at
+ * upload time from the landing-page mode; switchable afterwards
+ * (header action / view links) without re-parsing. Resets with the
+ * session — it describes this file's intent, not a preference.
+ */
+export type SessionView = "repair" | "share";
+
+/**
  * A user-facing load failure. Produced by `describeParseError` (hook layer)
  * from the typed `GpxParseError`, plus read failures — never raw exceptions.
  */
@@ -40,9 +49,11 @@ interface SessionState {
   data: OriginalTrackData | null;
   gaps: readonly DetectedGap[];
   error: SessionError | null;
+  /** The workspace a parsed file opens in (Task 20). */
+  view: SessionView;
 
   /** Enter the loading state for a new file (keeps the previous view until parsed). */
-  beginLoad: (fileName: string) => void;
+  beginLoad: (fileName: string, view?: SessionView) => void;
   /** Store a successful parse; resets any previous error. */
   setParsed: (
     fileName: string,
@@ -51,6 +62,8 @@ interface SessionState {
   ) => void;
   /** Replace the detected gaps (threshold change → pure re-detection). */
   setGaps: (gaps: readonly DetectedGap[]) => void;
+  /** Switch the workspace for the loaded file (repair ↔ share). */
+  setView: (view: SessionView) => void;
   /** Store a load failure. */
   fail: (error: SessionError) => void;
   /** Return to the idle (empty) state. */
@@ -63,15 +76,19 @@ const IDLE = {
   data: null,
   gaps: [] as readonly DetectedGap[],
   error: null,
+  view: "repair" as SessionView,
 };
 
 export const useSessionStore = create<SessionState>()((set) => ({
   ...IDLE,
 
-  beginLoad: (fileName) => set({ status: "loading", fileName }),
+  beginLoad: (fileName, view) =>
+    set({ status: "loading", fileName, ...(view ? { view } : {}) }),
   setParsed: (fileName, data, gaps) =>
     set({ status: "parsed", fileName, data, gaps, error: null }),
   setGaps: (gaps) => set({ gaps }),
-  fail: (error) => set({ status: "error", error, data: null, gaps: [] }),
+  setView: (view) => set({ view }),
+  fail: (error) =>
+    set({ status: "error", error, data: null, gaps: [] }),
   reset: () => set(IDLE),
 }));

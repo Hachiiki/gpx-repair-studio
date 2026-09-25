@@ -56,6 +56,13 @@ export default defineConfig({
         "src/lib/geo/**",
         "src/features/gpx/**",
         "src/features/statistics/**",
+        // Task 20: the share card's pure joins (content derivation).
+        "src/features/share/**",
+        // Task 20: the share card's pure layout math + artwork data
+        // (render.ts/fonts.ts are browser-only, E2E covered — like the
+        // MapLibre controller, they stay out of the scope).
+        "src/lib/share/layout.ts",
+        "src/lib/share/artwork.ts",
         // Phase 4: the pure reconstruction domain (draw model, resample,
         // snap). The editor store is app-layer state exercised by its own
         // test file; the MapLibre controller stays browser-only (E2E).

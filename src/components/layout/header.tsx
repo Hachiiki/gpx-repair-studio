@@ -13,18 +13,28 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RotateCcw } from "lucide-react";
+import { ImageUp, RotateCcw, Wrench } from "lucide-react";
 import { SHELL_CONTAINER } from "@/components/layout/shell-container";
 import { cn } from "@/lib/utils";
-import type { SessionStatus } from "@/state/session-store";
+import type { SessionStatus, SessionView } from "@/state/session-store";
 
 export interface AppHeaderProps {
   fileName: string | null;
   status: SessionStatus;
   onReset: () => void;
+  /** The workspace a parsed file is open in (Task 20). */
+  view?: SessionView;
+  /** Switch workspace for the loaded file (parsed state only). */
+  onSwitchView?: (view: SessionView) => void;
 }
 
-export function AppHeader({ fileName, status, onReset }: AppHeaderProps) {
+export function AppHeader({
+  fileName,
+  status,
+  onReset,
+  view = "repair",
+  onSwitchView,
+}: AppHeaderProps) {
   const showSession = status === "parsed" && fileName !== null;
 
   return (
@@ -52,7 +62,31 @@ export function AppHeader({ fileName, status, onReset }: AppHeaderProps) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {showSession && (
+          {showSession && view === "share" && onSwitchView && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              data-testid="header-repair-link"
+              onClick={() => onSwitchView("repair")}
+            >
+              <Wrench className="size-3.5" aria-hidden="true" />
+              Repair map
+            </Button>
+          )}
+          {showSession && view === "repair" && onSwitchView && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              data-testid="header-share-link"
+              onClick={() => onSwitchView("share")}
+            >
+              <ImageUp className="size-3.5" aria-hidden="true" />
+              Share card
+            </Button>
+          )}
+          {showSession && view === "repair" && (
             <nav
               className="hidden items-center gap-1 text-sm md:flex"
               aria-label="Workspace sections"

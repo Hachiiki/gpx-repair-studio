@@ -20,13 +20,14 @@ export function repairedFileName(originalName: string): string {
   return `${stem}.repaired.gpx`;
 }
 
-/** Offer a string as a file download (never throws for sane inputs). */
-export function downloadTextFile(
-  fileName: string,
-  text: string,
-  mimeType: string = GPX_MIME_TYPE,
-): void {
-  const blob = new Blob([text], { type: mimeType });
+/** Derive the share card's filename: `route.gpx` → `route.share-card.png`. */
+export function shareCardFileName(originalName: string): string {
+  const stem = originalName.replace(/\.gpx$/i, "");
+  return `${stem}.share-card.png`;
+}
+
+/** Offer a blob as a file download (never throws for sane inputs). */
+export function downloadBlobFile(fileName: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -38,4 +39,13 @@ export function downloadTextFile(
   // The click synchronously hands the blob to the browser's download
   // pipeline; the revoke is deferred so nothing races it in any engine.
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+/** Offer a string as a file download (the GPX export's entry point). */
+export function downloadTextFile(
+  fileName: string,
+  text: string,
+  mimeType: string = GPX_MIME_TYPE,
+): void {
+  downloadBlobFile(fileName, new Blob([text], { type: mimeType }));
 }

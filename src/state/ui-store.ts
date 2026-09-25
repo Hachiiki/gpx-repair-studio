@@ -11,6 +11,9 @@
  *     raster fallback option).
  *   - Phase 7: export settings (§H-7 mode + pretty-print) — the
  *     pre-export dialog's controls, remembered across sessions.
+ *   - Task 20: the landing page's mode (repair a recording vs create
+ *     a share card) — the remembered intent for the NEXT upload; the
+ *     active session's view lives in the session store, not here.
  *
  * Transient state (NOT persisted):
  *   - Phase 3: `selectedGapId` — the gap currently highlighted on the map
@@ -36,6 +39,7 @@ import {
   type TileProviderId,
 } from "@/lib/map/styles";
 import type { PaceUnit } from "@/lib/utils/format";
+import type { SessionView } from "@/state/session-store";
 import type { GapId } from "@/types/domain";
 
 /** localStorage key — versioned so future setting renames can migrate. */
@@ -50,6 +54,8 @@ interface UiState {
   exportMode: ExportMode;
   /** Pretty-print exported GPX (§H-7). Phase 7. */
   exportPrettyPrint: boolean;
+  /** Landing-page mode (Task 20): what the next upload opens into. */
+  landingMode: SessionView;
   /** The gap highlighted on the map / gap list; `null` = none. Transient. */
   selectedGapId: GapId | null;
 
@@ -59,6 +65,7 @@ interface UiState {
   setPaceUnit: (unit: PaceUnit) => void;
   setExportMode: (mode: ExportMode) => void;
   setExportPrettyPrint: (pretty: boolean) => void;
+  setLandingMode: (mode: SessionView) => void;
   selectGap: (gapId: GapId | null) => void;
 }
 
@@ -70,6 +77,7 @@ export const useUiStore = create<UiState>()(
       paceUnit: "km" as PaceUnit,
       exportMode: "structure-preserving" as ExportMode,
       exportPrettyPrint: false,
+      landingMode: "repair" as SessionView,
       selectedGapId: null,
       setGapThresholds: (patch) =>
         set((state) => ({ gapThresholds: { ...state.gapThresholds, ...patch } })),
@@ -79,6 +87,7 @@ export const useUiStore = create<UiState>()(
       setPaceUnit: (paceUnit) => set({ paceUnit }),
       setExportMode: (exportMode) => set({ exportMode }),
       setExportPrettyPrint: (exportPrettyPrint) => set({ exportPrettyPrint }),
+      setLandingMode: (landingMode) => set({ landingMode }),
       selectGap: (selectedGapId) => set({ selectedGapId }),
     }),
     {
@@ -92,6 +101,7 @@ export const useUiStore = create<UiState>()(
         paceUnit: state.paceUnit,
         exportMode: state.exportMode,
         exportPrettyPrint: state.exportPrettyPrint,
+        landingMode: state.landingMode,
       }),
       // Avoid SSR/prerender hydration mismatches; AppShell rehydrates on
       // mount (see components/layout/app-shell.tsx).

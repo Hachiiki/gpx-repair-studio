@@ -10,6 +10,8 @@
  *   - pace: m:ss per km or per mile (Phase 5 — the unit is a setting)
  *   - timestamps: locale date-time (rendered only after user interaction,
  *     so no SSR hydration concerns)
+ *   - share-card forms (Task 20): compact durations ("1h 45m") and
+ *     distance in the pace unit ("13.12 mi")
  *
  * Pure string/number formatting — no React, no DOM. Pace arithmetic
  * (which durations and distances produce which rows, with what
@@ -49,6 +51,42 @@ export function formatDurationMs(ms: number): string {
     return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+/**
+ * A duration in ms as the compact share-card form (Task 20): `1h 45m`
+ * at one hour and above (seconds dropped, the Strava convention),
+ * `45m 30s` below it, `0s` for zero. Non-finite/negative render "—"
+ * (the honesty "—" — the caller supplies the reason).
+ */
+export function formatDurationCompactMs(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "—";
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  }
+  if (minutes > 0) {
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }
+  return `${seconds}s`;
+}
+
+/**
+ * Distance in the pace display unit (Task 20): kilometers/meters for
+ * "km" (the `formatDistanceMeters` convention), always miles with two
+ * decimals for "mi" — so a card's distance and pace read in one unit
+ * ("13.12 mi" pairs with "8:02 /mi", never with "21.12 km").
+ */
+export function formatDistanceForUnit(
+  meters: number,
+  unit: PaceUnit,
+): string {
+  if (!Number.isFinite(meters)) return "—";
+  if (unit === "km") return formatDistanceMeters(meters);
+  return `${(meters / PACE_METERS_PER_UNIT.mi).toFixed(2)} mi`;
 }
 
 /** Speed in km/h with 1 decimal. */

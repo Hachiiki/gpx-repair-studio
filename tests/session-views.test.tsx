@@ -28,9 +28,24 @@ const error: SessionError = {
   detail: "The root element was <rss>, not <gpx>.",
 };
 
+/** Default idle-view props: the repair landing mode (Task 20). */
+const IDLE_PROPS = { error: null as SessionError | null, onFile: () => {} };
+
+function renderIdle(
+  overrides: Partial<Parameters<typeof SessionIdleView>[0]> = {},
+) {
+  const props = {
+    ...IDLE_PROPS,
+    mode: "repair" as const,
+    onModeChange: () => {},
+    ...overrides,
+  };
+  return render(<SessionIdleView {...props} />);
+}
+
 describe("SessionIdleView", () => {
   it("renders the hero heading and the upload zone", () => {
-    render(<SessionIdleView error={null} onFile={() => {}} />);
+    renderIdle();
 
     expect(
       screen.getByRole("heading", { name: "Repair incomplete GPS recordings" }),
@@ -40,7 +55,7 @@ describe("SessionIdleView", () => {
   });
 
   it("surfaces a failed load above the hero, keeping the zone for retry", () => {
-    render(<SessionIdleView error={error} onFile={() => {}} />);
+    renderIdle({ error });
 
     const alert = screen.getByTestId("session-error");
     expect(alert).toHaveTextContent("Not a GPX file");
@@ -52,7 +67,7 @@ describe("SessionIdleView", () => {
   });
 
   it("teaches the three workflow steps under a 'How it works' heading", () => {
-    render(<SessionIdleView error={null} onFile={() => {}} />);
+    renderIdle();
 
     expect(
       screen.getByRole("heading", { name: "How it works" }),
@@ -67,7 +82,7 @@ describe("SessionIdleView", () => {
 
   it("hands the chosen file to the onFile intent", () => {
     const files: File[] = [];
-    render(<SessionIdleView error={null} onFile={(f) => files.push(f)} />);
+    renderIdle({ onFile: (f) => files.push(f) });
 
     const file = new File(["<gpx/>"], "run.gpx", { type: "application/gpx+xml" });
     fireEvent.drop(screen.getByTestId("upload-zone"), {
@@ -75,6 +90,43 @@ describe("SessionIdleView", () => {
     });
 
     expect(files).toEqual([file]);
+  });
+});
+
+describe("SessionIdleView — landing mode (Task 20)", () => {
+  it("switches the hero and the trio to the share-card workflow", () => {
+    renderIdle({ mode: "share" });
+
+    expect(
+      screen.getByRole("heading", { name: "Create a share card from your GPX" }),
+    ).toBeVisible();
+    const steps = screen.getByTestId("workflow-steps");
+    expect(steps).toHaveTextContent("Upload any GPX");
+    expect(steps).toHaveTextContent("See the card");
+    expect(steps).toHaveTextContent("Download as PNG");
+    expect(steps.querySelectorAll("li")).toHaveLength(3);
+    // The upload zone stays the one and only intake.
+    expect(screen.getByTestId("upload-zone")).toBeVisible();
+  });
+
+  it("marks the active mode and dispatches the change intent", () => {
+    const changes: string[] = [];
+    renderIdle({ onModeChange: (mode) => changes.push(mode) });
+
+    const toggle = screen.getByTestId("landing-mode-toggle");
+    expect(toggle).toHaveAttribute("role", "radiogroup");
+    const repair = screen.getByTestId("landing-mode-repair");
+    const share = screen.getByTestId("landing-mode-share");
+    expect(repair).toHaveAttribute("aria-checked", "true");
+    expect(share).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(share);
+    expect(changes).toEqual(["share"]);
+    // The heading does not change until the parent re-renders with the
+    // new mode — the view is controlled, no local state.
+    expect(
+      screen.getByRole("heading", { name: "Repair incomplete GPS recordings" }),
+    ).toBeVisible();
   });
 });
 

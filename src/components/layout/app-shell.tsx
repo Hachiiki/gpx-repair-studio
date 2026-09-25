@@ -34,6 +34,7 @@ import {
 } from "@/components/layout/session-views";
 import { SHELL_CONTAINER } from "@/components/layout/shell-container";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
+import { ShareView } from "@/components/share/share-view";
 import { MapCanvas } from "@/components/map/map-canvas";
 import { ExportCard } from "@/components/gpx/export-card";
 import { GpxSummaryCard } from "@/components/gpx/gpx-summary-card";
@@ -48,6 +49,7 @@ import { useDrawEditor } from "@/hooks/use-draw-editor";
 import { useGpxExport } from "@/hooks/use-gpx-export";
 import { useGpxSession } from "@/hooks/use-gpx-session";
 import { useMapController } from "@/hooks/use-map-controller";
+import { useShareCard } from "@/hooks/use-share-card";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { useUiStore } from "@/state/ui-store";
 import { cn } from "@/lib/utils";
@@ -57,8 +59,11 @@ export function AppShell() {
   const map = useMapController(session);
   const draw = useDrawEditor(session, map);
   const exporter = useGpxExport(session, draw);
+  const share = useShareCard(session);
   const paceUnit = useUiStore((s) => s.paceUnit);
   const setPaceUnit = useUiStore((s) => s.setPaceUnit);
+  const landingMode = useUiStore((s) => s.landingMode);
+  const setLandingMode = useUiStore((s) => s.setLandingMode);
 
   // Rehydrate persisted settings after mount — the prerendered HTML and
   // the first client render both use defaults, so there is no hydration
@@ -81,6 +86,8 @@ export function AppShell() {
         fileName={session.fileName}
         status={session.status}
         onReset={session.reset}
+        view={session.view}
+        onSwitchView={session.setView}
       />
 
       <main
@@ -89,7 +96,18 @@ export function AppShell() {
         className={cn(SHELL_CONTAINER, "flex flex-1 flex-col py-6")}
       >
         {session.status === "parsed" && session.data ? (
-          <WorkspaceLayout
+          session.view === "share" ? (
+            /*
+             * The share-card workspace (Task 20): the same parsed
+             * file, the card preview + download instead of the map.
+             */
+            <ShareView
+              fileName={session.fileName}
+              share={share}
+              onOpenRepair={() => session.setView("repair")}
+            />
+          ) : (
+            <WorkspaceLayout
             map={
               <MapCanvas
                 map={map}
@@ -165,11 +183,17 @@ export function AppShell() {
                 )}
               </RevealOnScroll>
             }
-          />
+            />
+          )
         ) : session.status === "loading" ? (
           <SessionLoadingView fileName={session.fileName} />
         ) : (
-          <SessionIdleView error={session.error} onFile={session.loadFile} />
+          <SessionIdleView
+            error={session.error}
+            onFile={session.loadFile}
+            mode={landingMode}
+            onModeChange={setLandingMode}
+          />
         )}
       </main>
 
