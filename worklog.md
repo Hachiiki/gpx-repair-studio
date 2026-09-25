@@ -307,3 +307,31 @@ Work Log:
 Stage Summary:
 - First real user test session of manual repair spans: pick flow understood and executed correctly; drawing flow works; the live full-path preview caused understandable confusion ("app drew lines I didn't click").
 - Candidate polish backlog (user-dependent): visually distinguishing the open/closing segment from committed clicks. One-anchor end/start extension and Phase 5 still pending authorization.
+
+---
+Task ID: 14
+Agent: Super Z (main agent)
+Task: Implement the user's interaction redesign proposed during live testing: "click 1 point in the recorded route and after that click anywhere in the outside recorded map… what its see while editing is what they will see afterwards." Two commits.
+
+Work Log:
+- Commit 6b939e6 "fix: WYSIWYG draft rendering": the draft line previously rendered the full path (before → vertices → after) in one style, so the not-yet-placed closing segment and the far-anchor rubber band read as lines the app drew by itself (the user's confusion report). Now: the solid draft line is exactly the user-placed chain; the connection to the after-anchor is a distinct subdued dashed segment (new gpxr-draft-closing source/layer); the rubber band trails from the LAST placed point; midpoint handles exist on chain legs only; committed reconstructions render SOLID emerald (solid while drawing, solid after commit — style never changes under the user's feet; legend updated). Test bridge exposes chainCoordinates/closingCoordinates; e2e pins the split. 363/363 unit, draw-editor + manual-repair e2e green.
+- Commit 0b75f14 "feat: one-anchor route extension": the two-click requirement is gone.
+  - ManualRepairsCard offers two tools: "Add missing route" (primary, ONE click) and "Redraw a stretch" (the two-click selection kept for replacing a bad middle stretch).
+  - The picked anchor's position derives the span shape (route start → open "before" head; route end → open "after" tail; mid-route → insert at [anchor, next] with the SAME id scheme as a picked pair, deduping into existing repairs).
+  - Domain: ManualSpan union (replace | insert | extend); GapKind "manual-insert" ("Added route"); gapIdEnd/gapIdStart id schemes for open spans.
+  - Open-ended editing: draw session with NULL far anchor — no closing segment ever, distance = exactly the drawn chain, straight-line warning never applies, committed reconstruction = anchor → vertices.
+  - Pick hardening (found empirically): the demo tail's last two points sit 0.76 px apart at fit zoom; a sub-pixel camera shift made a click at the endpoint resolve to its neighbor (spurious 3 m insert). Segment endpoints now win pick near-ties within 2 px (ENDPOINT_TIE_PX).
+  - Selection no longer refits the camera for open extensions (mid-draw camera swings steal click targets).
+  - buildRouteView renders extend spans: ONE seam marker, committed chain over the recorded line, no unknown span. resample/drawModel/snap take optional far anchors.
+- Debugging trail: probe spec revealed the tail-click neighbor bug (endpoint preference fix); probe revealed drawn-clicks-off-canvas twice — first a selection-triggered camera refit (removed for extensions), then the test's own fit bbox framing the wrong side of the tail (fixed). map-display:178 and draw-editor:137 each flaked once in full-suite runs and passed in isolation + subsequent full runs — environmental timing under dev-server load, not regressions.
+- Verification: typecheck PASS; lint PASS; vitest 376/376 (363 + 13 new: store insert/extend contracts, open-ended drawModel/resample, route-view extend cases, panel open-end copy, card two-tool + open-row); e2e 29/29 (28 + 1 new one-anchor flow with WYSIWYG chain/no-closing assertions); live run on the user's REAL GloryFit original: tail extension span gap/t0s0:319/end, chain 4 / closing 0, stats unchanged (screenshots download/one-anchor-editor-open.png, one-anchor-drawing.png, one-anchor-committed.png; probe script persisted at scripts/verify-one-anchor-real.ts).
+
+Stage Summary:
+- The user's proposed interaction is now the product's primary repair flow: one click on any recorded point, then free drawing anywhere; WYSIWYG contract enforced at the rendering, geometry, distance, and commit levels; the two-anchor flow remains for stretch replacement with the same visual honesty.
+- ARCHITECTURE REPORT (user rule §20):
+  - Reused: the entire Phase-4 editor machinery (commands, undo/redo, snap, resample, controller draw session) works on insert/replace spans unchanged (same GapId keys); extend spans flow through the same session with a null far anchor — one optional-parameter change instead of a parallel editor; the pick session gained a mode instead of a second mechanism; test-bridge + pollBridge patterns.
+  - New modules: none — ManualSpan variants and two id helpers extend the existing vocabulary; no new files outside tests.
+  - Reuse decisions: shape derivation lives in the hook (lib/map stays position-agnostic); endpoint near-tie preference lives in the controller's pick scan where pixel distance is already computed; RepairRow (optional boundaries) is a supertype of GapRow so detected rows assign unchanged and every consumer is compiler-forced to face the open case.
+  - Duplication check: one pick-target builder (endpoint-flagged), one span-id scheme family, one status vocabulary; grep-verified no other pick/derivation logic exists.
+  - Architecture impact: Phase 5 (time reconstruction) must handle extend spans (no far anchor to interpolate toward — timestamps extend past the anchor; side "before" chains reverse into route order); Phase 7 (merge/export) decides Mode B placement for open chains (append/prepend at the anchor's segment boundary); the WYSIWYG rendering split (chain vs closing) is the template for any future path-preview feature.
+- Next: user tests the new flow; Phase 5 (time & pace reconstruction) still awaits authorization.
