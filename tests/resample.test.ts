@@ -94,6 +94,26 @@ describe("resamplePath — spacing off", () => {
     expect(path[0].cumDistanceM).toBe(0);
     expect(path[1].cumDistanceM).toBeGreaterThan(400);
   });
+
+  it("open-ended (after = null): the path ends at the last vertex", () => {
+    const path = resamplePath(
+      BEFORE,
+      vertices([52.521, 13.406], [52.522, 13.407]),
+      null,
+      "off",
+    );
+    expect(path.map((p) => p.role)).toEqual([
+      "before-anchor",
+      "vertex",
+      "vertex",
+    ]);
+    // No after-anchor role, and the cumulative distance covers exactly the
+    // drawn chain — the WYSIWYG contract for extensions.
+    expect(path[2].cumDistanceM).toBeGreaterThan(0);
+    expect(path[2].cumDistanceM).toBeLessThan(
+      resamplePath(BEFORE, [], AFTER, "off")[1].cumDistanceM,
+    );
+  });
 });
 
 describe("resamplePath — numeric spacing", () => {

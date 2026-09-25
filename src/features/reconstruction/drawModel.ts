@@ -392,14 +392,19 @@ export function redoCommand(state: DrawState): DrawState {
 
 /**
  * Geodesic length of the reconstruction path: before-anchor → vertices →
- * after-anchor. Uses the shared geodesy module (the single distance source).
+ * after-anchor (when present — open-ended extensions have no far anchor).
+ * Uses the shared geodesy module (the single distance source).
  */
 export function reconstructionDistanceMeters(
   vertices: readonly DrawVertex[],
   before: LatLon,
-  after: LatLon,
+  after?: LatLon | null,
 ): number {
-  return polylineLengthMeters([before, ...vertices, after]);
+  return polylineLengthMeters([
+    before,
+    ...vertices,
+    ...(after ? [after] : []),
+  ]);
 }
 
 /**
@@ -426,14 +431,17 @@ export function maxDeviationFromStraightLine(
  * exactly on the anchor-to-anchor straight line — the drawn "route" is then
  * indistinguishable from the implied span, which is usually a sign the user
  * has not actually traced the missing route. A *warning*, never a block.
+ * Open-ended extensions (no far anchor) have no straight line to hug:
+ * always false.
  */
 export function isStraightLine(
   vertices: readonly DrawVertex[],
   before: LatLon,
-  after: LatLon,
+  after?: LatLon | null,
   maxDeviationM: number = STRAIGHT_LINE_MAX_DEVIATION_M,
 ): boolean {
   if (vertices.length === 0) return false;
+  if (!after) return false;
   return maxDeviationFromStraightLine(vertices, before, after) <= maxDeviationM;
 }
 

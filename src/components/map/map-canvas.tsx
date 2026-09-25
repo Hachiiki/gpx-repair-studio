@@ -156,7 +156,9 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
                     className="size-3.5 shrink-0"
                     aria-hidden="true"
                   />
-                  Pick two points on the recorded route — Esc cancels
+                  {draw.pickMode === "anchor"
+                    ? "Click one point on the route — then draw anywhere · Esc cancels"
+                    : "Pick two points on the recorded route — Esc cancels"}
                 </span>
               </div>
             )}

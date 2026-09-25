@@ -23,6 +23,7 @@ import { detectGaps } from "@/features/gpx/detectGaps";
 import { validateGpx } from "@/features/gpx/validate";
 import {
   buildRouteView,
+  type ExtendSpanRef,
   type RouteGapRef,
 } from "@/hooks/use-map-controller";
 import {
@@ -407,6 +408,95 @@ describe("buildRouteView — manual repair spans (draw-anywhere)", () => {
         severity: "info",
         before: { pointId: damaged.id, lat: damaged.lat, lon: damaged.lon },
         after: { pointId: ok2.id, lat: ok2.lat, lon: ok2.lon },
+      },
+    ]);
+    expect(view.markers).toEqual([]);
+    expect(view.reconstructions).toEqual([]);
+  });
+});
+
+describe("buildRouteView — open-ended extensions (one-anchor add)", () => {
+  /** A clean 8-point run, same geometry as the manual-span suite. */
+  function cleanRoute() {
+    return xmlRoute(
+      buildGpxXml([
+        { lat: 52.52, lon: 13.405, time: "2024-05-01T10:00:00Z" },
+        { lat: 52.521, lon: 13.406, time: "2024-05-01T10:00:10Z" },
+        { lat: 52.522, lon: 13.407, time: "2024-05-01T10:00:20Z" },
+        { lat: 52.523, lon: 13.408, time: "2024-05-01T10:00:30Z" },
+        { lat: 52.524, lon: 13.409, time: "2024-05-01T10:00:40Z" },
+        { lat: 52.525, lon: 13.41, time: "2024-05-01T10:00:50Z" },
+        { lat: 52.526, lon: 13.411, time: "2024-05-01T10:01:00Z" },
+        { lat: 52.527, lon: 13.412, time: "2024-05-01T10:01:10Z" },
+      ]),
+    );
+  }
+
+  function extendRef(
+    data: OriginalTrackData,
+    anchorOrdinal: number,
+  ): ExtendSpanRef {
+    const anchor = data.segments[0].points[anchorOrdinal];
+    return {
+      id: `gap/${anchor.id}/end` as ExtendSpanRef["id"],
+      anchor: { pointId: anchor.id, lat: anchor.lat, lon: anchor.lon },
+    };
+  }
+
+  it("an extension adds ONE seam marker and never touches the recorded line", () => {
+    const { data, view: without } = cleanRoute();
+    const span = extendRef(data, 7); // the route's last point
+
+    const view = buildRouteView(data, [], [], [], [span]);
+
+    expect(view.lines).toEqual(without.lines); // recorded geometry intact
+    expect(view.spans).toEqual([]); // nothing unknown
+    expect(view.markers).toHaveLength(1); // exactly the anchor seam
+    expect(view.markers[0].role).toBe("before");
+    expect(view.markers[0].pointId).toBe(data.segments[0].points[7].id);
+    expect(view.reconstructions).toEqual([]);
+  });
+
+  it("a committed extension renders the drawn chain with NO closing leg", () => {
+    const { data } = cleanRoute();
+    const span = extendRef(data, 7);
+    const vertices = [
+      { id: "v1" as never, lat: 52.5275, lon: 13.4125 },
+      { id: "v2" as never, lat: 52.528, lon: 13.413 },
+    ];
+    const view = buildRouteView(
+      data,
+      [],
+      [{ gapId: span.id, vertices, spacingM: "off" }],
+      [],
+      [span],
+    );
+
+    // Path: anchor (point 7) → vertices — and NOTHING else. The repair
+    // extends into the open; no phantom connection back to the route.
+    expect(view.reconstructions).toHaveLength(1);
+    expect(view.reconstructions[0].coordinates).toEqual([
+      [13.412, 52.527],
+      [13.4125, 52.5275],
+      [13.413, 52.528],
+    ]);
+    expect(view.lines).toHaveLength(1); // the recorded line stays visible
+    expect(view.markers).toHaveLength(1);
+  });
+
+  it("an extension with an unusable anchor yields nothing (honest hole)", () => {
+    const parsed = parseXml(
+      buildGpxXml([
+        { lat: 52.52, lon: 13.405, time: "2024-05-01T10:00:00Z" },
+        { lat: 0, lon: 0, time: "2024-05-01T10:00:10Z" },
+      ]),
+    );
+    const validated = validateGpx(parsed);
+    const damaged = validated.data.segments[0].points[1];
+    const view = buildRouteView(validated.data, [], [], [], [
+      {
+        id: `gap/${damaged.id}/end` as ExtendSpanRef["id"],
+        anchor: { pointId: damaged.id, lat: damaged.lat, lon: damaged.lon },
       },
     ]);
     expect(view.markers).toEqual([]);

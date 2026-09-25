@@ -91,7 +91,9 @@ function VertexRow({
 export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
   if (!draw.active || !draw.activeGap) return null;
   const gap = draw.activeGap;
-  const isManual = gap.kind === "manual";
+  const isManual = gap.kind === "manual" || gap.kind === "manual-insert";
+  const openEnded = gap.before === undefined || gap.after === undefined;
+  const near = gap.before ?? gap.after;
 
   return (
     <Card data-testid="draw-editor-panel">
@@ -122,21 +124,42 @@ export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
         </CardAction>
       </CardHeader>
       <CardContent className="grid gap-4">
-        {/* Boundary context (one compact line each). */}
+        {/* Boundary context (one compact line each; open ends say so). */}
         <div className="grid gap-0.5 text-xs text-muted-foreground">
           <p>
             <span className="font-medium text-foreground">From</span>{" "}
-            <span className="font-mono">
-              {formatLatLon(gap.before.lat, gap.before.lon)}
-            </span>
+            {gap.before ? (
+              <span className="font-mono">
+                {formatLatLon(gap.before.lat, gap.before.lon)}
+              </span>
+            ) : (
+              <span className="italic">route start (open)</span>
+            )}
           </p>
           <p>
             <span className="font-medium text-foreground">To</span>{" "}
-            <span className="font-mono">
-              {formatLatLon(gap.after.lat, gap.after.lon)}
-            </span>
+            {gap.after ? (
+              <span className="font-mono">
+                {formatLatLon(gap.after.lat, gap.after.lon)}
+              </span>
+            ) : (
+              <span className="italic">open — your clicks extend the route</span>
+            )}
           </p>
         </div>
+
+        {openEnded && near && (
+          <p
+            className="rounded-md border border-emerald-600/30 bg-emerald-600/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400"
+            data-testid="open-end-instructions"
+            role="status"
+          >
+            Click anywhere on the map to add the missing route — each click
+            extends the line from {formatLatLon(near.lat, near.lon)}. What you
+            see is exactly what the repair will be; nothing connects on its
+            own.
+          </p>
+        )}
 
         {/* Live stats: distance + vertex cap. */}
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">

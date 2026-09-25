@@ -87,6 +87,16 @@ export interface ReconstructionRenderRef {
 }
 
 /**
+ * An open-ended extension span (one-anchor "add missing route" at a
+ * route start/end): the anchor is both the seam marker and the chain's
+ * start point; there is no far boundary and no closing segment.
+ */
+export interface ExtendSpanRef {
+  id: GapId;
+  anchor: { pointId: PointId; lat: number; lon: number };
+}
+
+/**
  * Build the renderable route view for one parsed file:
  *
  *   - `lines`: the recorded geometry as **solid line pieces**, split where
@@ -125,6 +135,7 @@ export function buildRouteView(
   gaps: readonly RouteGapRef[],
   reconstructions: readonly ReconstructionRenderRef[] = [],
   manualSpans: readonly RouteGapRef[] = [],
+  extendSpans: readonly ExtendSpanRef[] = [],
 ): RouteViewData {
   const beforeIds = new Set(gaps.map((gap) => gap.before.pointId));
   const afterIds = new Set(gaps.map((gap) => gap.after.pointId));
@@ -278,6 +289,31 @@ export function buildRouteView(
     renderMarkers(span.id, beforePoint, afterPoint, span.severity);
   }
 
+  // Open-ended extensions: ONE seam marker (the anchor) and — once
+  // committed — the drawn chain itself, with NO closing segment: the
+  // repair extends past the recorded route's start/end into the open.
+  for (const span of extendSpans) {
+    if (detectedIds.has(span.id)) continue;
+    const anchorPoint = pointById.get(span.anchor.pointId);
+    if (!anchorPoint || !isUsableStatsPoint(anchorPoint)) continue;
+    const recon = reconByGap.get(span.id);
+    if (recon && recon.vertices.length > 0 && !recon.active) {
+      const path = resamplePath(anchorPoint, recon.vertices, null, recon.spacingM);
+      reconParts.push({
+        gapId: span.id,
+        coordinates: path.map((p) => [p.lon, p.lat] as [number, number]),
+      });
+    }
+    markers.push({
+      gapId: span.id,
+      pointId: anchorPoint.id,
+      role: "before",
+      severity: "info",
+      lat: anchorPoint.lat,
+      lon: anchorPoint.lon,
+    });
+  }
+
   return { lines, spans, markers, reconstructions: reconParts, usablePointCount };
 }
 
@@ -381,7 +417,8 @@ export function useMapController(session: GpxSession): MapBinding {
 
   // Manual repair spans as render refs — resolved against the frozen
   // model, deduplicated against currently-detected gaps (the detected
-  // rendering wins for a shared boundary).
+  // rendering wins for a shared boundary). Pair spans (replace/insert)
+  // carry both boundaries; extend spans join separately below.
   const manualGapRefs = useMemo(() => {
     if (!session.data) return [] as RouteGapRef[];
     const pointById = new Map<PointId, OriginalTrackPoint>();
@@ -391,6 +428,7 @@ export function useMapController(session: GpxSession): MapBinding {
     const detectedIds = new Set(gapRows.map((row) => row.id));
     const refs: RouteGapRef[] = [];
     for (const span of editorManualSpans) {
+      if (span.kind === "extend") continue; // joined as extendGapRefs
       if (detectedIds.has(span.id)) continue;
       const before = pointById.get(span.beforePointId);
       const after = pointById.get(span.afterPointId);
@@ -400,7 +438,7 @@ export function useMapController(session: GpxSession): MapBinding {
       }
       refs.push({
         id: span.id,
-        kind: "manual",
+        kind: span.kind === "insert" ? "manual-insert" : "manual",
         severity: "info",
         before: { pointId: before.id, lat: before.lat, lon: before.lon },
         after: { pointId: after.id, lat: after.lat, lon: after.lon },
@@ -409,10 +447,32 @@ export function useMapController(session: GpxSession): MapBinding {
     return refs;
   }, [session.data, editorManualSpans, gapRows]);
 
+  // Open-ended extension spans: one anchor, no far boundary.
+  const extendGapRefs = useMemo(() => {
+    if (!session.data) return [] as ExtendSpanRef[];
+    const pointById = new Map<PointId, OriginalTrackPoint>();
+    for (const segment of session.data.segments) {
+      for (const point of segment.points) pointById.set(point.id, point);
+    }
+    const detectedIds = new Set(gapRows.map((row) => row.id));
+    const refs: ExtendSpanRef[] = [];
+    for (const span of editorManualSpans) {
+      if (span.kind !== "extend") continue;
+      if (detectedIds.has(span.id)) continue;
+      const anchor = pointById.get(span.anchorPointId);
+      if (!anchor || !isUsableStatsPoint(anchor)) continue;
+      refs.push({
+        id: span.id,
+        anchor: { pointId: anchor.id, lat: anchor.lat, lon: anchor.lon },
+      });
+    }
+    return refs;
+  }, [session.data, editorManualSpans, gapRows]);
+
   const reconstructionRefs = useMemo(() => {
     const refs: ReconstructionRenderRef[] = [];
     const seen = new Set<string>();
-    for (const row of [...gapRows, ...manualGapRefs]) {
+    for (const row of [...gapRows, ...manualGapRefs, ...extendGapRefs]) {
       if (seen.has(row.id)) continue;
       seen.add(row.id);
       if (editorSkipped.includes(row.id)) continue;
@@ -428,14 +488,20 @@ export function useMapController(session: GpxSession): MapBinding {
       });
     }
     return refs;
-  }, [gapRows, manualGapRefs, editorReconstructions, editorActiveGapId, editorSkipped]);
+  }, [gapRows, manualGapRefs, extendGapRefs, editorReconstructions, editorActiveGapId, editorSkipped]);
 
   const route = useMemo(
     () =>
       showMap && session.data
-        ? buildRouteView(session.data, gapRows, reconstructionRefs, manualGapRefs)
+        ? buildRouteView(
+            session.data,
+            gapRows,
+            reconstructionRefs,
+            manualGapRefs,
+            extendGapRefs,
+          )
         : null,
-    [showMap, session.data, gapRows, reconstructionRefs, manualGapRefs],
+    [showMap, session.data, gapRows, reconstructionRefs, manualGapRefs, extendGapRefs],
   );
   useEffect(() => {
     controllerRef.current?.setRoute(route);
@@ -466,13 +532,17 @@ export function useMapController(session: GpxSession): MapBinding {
     if (
       session.status !== "parsed" ||
       (!gapRows.some((row) => row.id === selectedGapId) &&
-        !manualGapRefs.some((ref) => ref.id === selectedGapId))
+        !manualGapRefs.some((ref) => ref.id === selectedGapId) &&
+        !extendGapRefs.some((ref) => ref.id === selectedGapId))
     ) {
       useUiStore.getState().selectGap(null);
     }
-  }, [selectedGapId, gapRows, manualGapRefs, session.status]);
+  }, [selectedGapId, gapRows, manualGapRefs, extendGapRefs, session.status]);
 
   // Selection → map: highlight (casing + halo) and focus the gap region.
+  // Open extensions do NOT refit the camera: the user just clicked the
+  // anchor (the camera is already where they want it), and a mid-draw
+  // camera swing would steal their click targets. The halo still marks it.
   useEffect(() => {
     const controller = controllerRef.current;
     if (!controller) return;

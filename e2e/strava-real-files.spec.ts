@@ -59,7 +59,8 @@ test.describe("real Strava files", () => {
     await expect(page.getByTestId("gap-list")).toContainText(
       "No gaps detected",
     );
-    await expect(page.getByTestId("begin-pick-button")).toBeVisible();
+    await expect(page.getByTestId("begin-pick-anchor-button")).toBeVisible();
+    await expect(page.getByTestId("begin-pick-pair-button")).toBeVisible();
 
     await page.screenshot({ path: "download/strava-gloryfit-recovered.png" });
   });

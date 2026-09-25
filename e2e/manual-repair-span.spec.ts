@@ -8,13 +8,17 @@ import { join } from "node:path";
  * The user's contract: repairing is NEVER gated on detection. The demo
  * clean file detects zero gaps; the draw tools must still be reachable:
  *
- *   1. "New repair span" starts pick mode (chip on the map);
+ *   1. "Redraw a stretch" starts the two-click pick mode (chip on map);
  *   2. two clicks on recorded points open the standard draw editor with
  *      the picked anchors;
- *   3. drawing + committing works exactly like a detected-gap repair
+ *   3. "Add missing route" needs ONE click — the anchor — and the editor
+ *      opens immediately with NO far boundary: no closing segment ever
+ *      renders, the drawn chain is exactly what the repair will be
+ *      (WYSIWYG, the user's interaction design);
+ *   4. drawing + committing works exactly like a detected-gap repair
  *      (reconstruction renders; the manual card shows "Reconstructed");
- *   4. the original recording is untouched (immutability);
- *   5. Esc cancels pick mode cleanly.
+ *   5. the original recording is untouched (immutability);
+ *   6. Esc cancels pick mode cleanly.
  *
  * Assertions read the controller's test bridge (pick-session snapshot +
  * projectLatLon) — no pixel diffs, deliberately tile-independent.
@@ -33,6 +37,7 @@ function pointAt(n: number): { lat: number; lon: number } {
 
 interface PickSessionState {
   active: boolean;
+  mode: "anchor" | "pair";
   hasAnchor: boolean;
 }
 
@@ -49,6 +54,8 @@ interface BridgeState {
     gapId: string;
     drawMode: boolean;
     vertexCount: number;
+    chainCoordinates: [number, number][];
+    closingCoordinates: [number, number][];
   } | null;
 }
 
@@ -127,16 +134,20 @@ test.describe("manual repair spans — draw anywhere, no detection required", ()
     await expect(gapList).toContainText("No gaps detected");
     const manualCard = page.getByTestId("manual-repairs-card");
     await expect(manualCard).toContainText("No manual repairs yet");
-    await expect(page.getByTestId("begin-pick-button")).toBeVisible();
+    await expect(page.getByTestId("begin-pick-anchor-button")).toBeVisible();
+    await expect(page.getByTestId("begin-pick-pair-button")).toBeVisible();
 
     const statsBefore = await page.getByTestId("stats-panel").innerText();
     expect(statsBefore).toContain("2.51 km"); // the clean run's original distance
 
-    // -- pick mode: two clicks on recorded points -------------------------
-    await page.getByTestId("begin-pick-button").click();
+    // -- pair pick mode: two clicks on recorded points ---------------------
+    await page.getByTestId("begin-pick-pair-button").click();
     await expect(page.getByTestId("pick-mode-chip")).toBeVisible();
     await expect(page.getByTestId("cancel-pick-button")).toBeVisible();
-    await pollBridge(page, (s) => s.pickSession?.active === true);
+    await pollBridge(
+      page,
+      (s) => s.pickSession?.active === true && s.pickSession.mode === "pair",
+    );
 
     const box = await canvasBox(page);
     const anchorA = pointAt(120);
@@ -195,7 +206,7 @@ test.describe("manual repair spans — draw anywhere, no detection required", ()
     await upload(page, DEMO);
     await pollBridge(page, (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);
 
-    await page.getByTestId("begin-pick-button").click();
+    await page.getByTestId("begin-pick-pair-button").click();
     await expect(page.getByTestId("pick-mode-chip")).toBeVisible();
     await pollBridge(page, (s) => s.pickSession?.active === true);
 
@@ -208,7 +219,7 @@ test.describe("manual repair spans — draw anywhere, no detection required", ()
     await page.keyboard.press("Escape");
 
     await expect(page.getByTestId("pick-mode-chip")).toHaveCount(0);
-    await expect(page.getByTestId("begin-pick-button")).toBeVisible();
+    await expect(page.getByTestId("begin-pick-pair-button")).toBeVisible();
     await pollBridge(page, (s) => s.pickSession === null);
     // Nothing was created.
     await expect(page.getByTestId("manual-repair-row")).toHaveCount(0);
@@ -226,6 +237,119 @@ test.describe("manual repair spans — draw anywhere, no detection required", ()
 
     await page.getByTestId("empty-list-begin-pick").click();
     await expect(page.getByTestId("pick-mode-chip")).toBeVisible();
-    await pollBridge(page, (s) => s.pickSession?.active === true);
+    // The cross-link starts the ONE-CLICK tool (the simpler flow).
+    await pollBridge(
+      page,
+      (s) => s.pickSession?.active === true && s.pickSession.mode === "anchor",
+    );
+  });
+
+  test("add missing route — one click, then draw into the open (the user's flow)", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await upload(page, DEMO);
+    await pollBridge(page, (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);
+
+    const statsBefore = await page.getByTestId("stats-panel").innerText();
+    const manualCard = page.getByTestId("manual-repairs-card");
+
+    // -- ONE click on the LAST recorded point = the route's tail ----------
+    await page.getByTestId("begin-pick-anchor-button").click();
+    await expect(page.getByTestId("pick-mode-chip")).toContainText(
+      "one point",
+    );
+    await pollBridge(
+      page,
+      (s) => s.pickSession?.active === true && s.pickSession.mode === "anchor",
+    );
+
+    const box = await canvasBox(page);
+    const tail = pointAt(899); // the clean run's last point (900 total)
+    await clickAt(page, tail.lat, tail.lon, box);
+
+    // The editor opened IMMEDIATELY — no second pick click.
+    const editor = page.getByTestId("draw-editor-panel");
+    await expect(editor).toBeVisible();
+    await expect(editor).toContainText("Added route");
+    await expect(editor).toContainText("Editing");
+    await expect(editor.getByTestId("open-end-instructions")).toBeVisible();
+    const session = await pollBridge(
+      page,
+      (s) => s.drawSession !== null && s.drawSession.drawMode === true,
+    );
+    // The open extension's id carries the anchor + "end".
+    expect(session.drawSession!.gapId).toMatch(/\/end$/);
+    expect(session.drawSession!.vertexCount).toBe(0);
+    await expect(page.getByTestId("pick-mode-chip")).toHaveCount(0);
+    // Let any residual camera easing settle before pixel-exact clicks.
+    await pollBridge(page, (s) => !s.moving);
+
+    // The manual card lists the open span.
+    await expect(manualCard.getByTestId("manual-repair-row")).toHaveCount(1);
+    await expect(manualCard).toContainText("Open end");
+
+    // Frame the working area (the drawn route extends BEYOND the recorded
+    // extent — a real user pans/zooms first; the test drives the same
+    // public fitBounds the toolbar uses).
+    await page.evaluate(
+      ([lat, lon]) =>
+        window.__gpxMapController!.fitBounds(
+          {
+            // The drawn route extends NORTH-EAST beyond the tail — frame
+            // that side generously (a real user pans before drawing on).
+            minLat: (lat as number) - 0.001,
+            minLon: (lon as number) - 0.001,
+            maxLat: (lat as number) + 0.004,
+            maxLon: (lon as number) + 0.005,
+          },
+          { maxZoom: 17, action: "test-fit-extension" },
+        ),
+      [tail.lat, tail.lon] as const,
+    );
+    await pollBridge(
+      page,
+      (s) => !s.moving && s.lastCameraAction === "test-fit-extension",
+    );
+
+    // -- draw freely OUTSIDE the recorded route ---------------------------
+    await page.getByTestId("snap-toggle").click();
+    const drawBox = await canvasBox(page);
+    const drawn = [
+      { lat: tail.lat + 0.0012, lon: tail.lon + 0.0012 },
+      { lat: tail.lat + 0.0022, lon: tail.lon + 0.002 },
+      { lat: tail.lat + 0.003, lon: tail.lon + 0.0031 },
+    ];
+    for (const point of drawn) {
+      await clickAt(page, point.lat, point.lon, drawBox);
+    }
+    const afterDraw = await pollBridge(
+      page,
+      (s) => s.drawSession?.vertexCount === 3,
+    );
+
+    // WYSIWYG: the chain is anchor + the three clicks — and there is NO
+    // closing segment anywhere (nothing to reconnect to).
+    expect(afterDraw.drawSession!.chainCoordinates).toHaveLength(4);
+    expect(afterDraw.drawSession!.closingCoordinates).toHaveLength(0);
+    const chain = afterDraw.drawSession!.chainCoordinates;
+    expect(chain[0][0]).toBeCloseTo(tail.lon, 6);
+    expect(chain[3][0]).toBeCloseTo(drawn[2].lon, 4);
+    await expect(page.getByTestId("draw-distance")).toContainText("m");
+
+    // -- commit: the drawn chain becomes the repair, nothing else ----------
+    await page.getByTestId("done-editing-button").click();
+    await expect(editor).toHaveCount(0);
+    const committed = await pollBridge(
+      page,
+      (s) => s.reconstructionLineCount === 1,
+    );
+    // One boundary marker only: the seam at the anchor (no far side).
+    expect(committed.boundaryMarkerCount).toBe(1);
+    await expect(manualCard).toContainText("Reconstructed");
+
+    // Immutability: the recorded stats never moved.
+    const statsAfter = await page.getByTestId("stats-panel").innerText();
+    expect(statsAfter).toBe(statsBefore);
   });
 });

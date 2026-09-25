@@ -47,6 +47,7 @@ import {
   deriveGapStatus,
   useEditorStore,
   type GapStatus,
+  type PickMode,
 } from "@/state/editor-store";
 import { useUiStore } from "@/state/ui-store";
 import type {
@@ -65,7 +66,7 @@ export interface DrawEditorBinding {
   /** An editor session is open for a gap. */
   active: boolean;
   /** The joined row of the gap being edited (null when inactive). */
-  activeGap: GapRow | null;
+  activeGap: RepairRow | null;
   /** Draw mode on = pointer draws; off = normal map navigation. */
   drawMode: boolean;
   /** Snap-to-original-points magnet enabled. */
@@ -96,14 +97,16 @@ export interface DrawEditorBinding {
   skippedCount: number;
 
   /** Manual repair spans joined into rows (resolved against the model). */
-  manualRows: readonly GapRow[];
-  /** Span-pick mode: the map is collecting two anchor clicks. */
-  pickMode: boolean;
+  manualRows: readonly RepairRow[];
+  /** Span-pick mode: which repair tool is collecting map clicks (null = off). */
+  pickMode: PickMode | null;
 
   openEditor: (gapId: GapId) => void;
   closeEditor: () => void;
-  /** Enter span-pick mode (draw-anywhere — see ManualSpan). */
-  beginPickSpan: () => void;
+  /** Enter ONE-click pick mode ("add missing route"). */
+  beginPickAnchor: () => void;
+  /** Enter two-click pick mode ("redraw a stretch"). */
+  beginPickPair: () => void;
   /** Leave span-pick mode without creating a span. */
   cancelPickSpan: () => void;
   /** Remove a manual repair span and all of its repair state. */
@@ -118,6 +121,17 @@ export interface DrawEditorBinding {
   toggleSkip: () => void;
   deleteVertex: (vertexId: VertexId) => void;
 }
+
+/**
+ * A repair row: a detected `GapRow` or a manual-span row. Manual EXTEND
+ * spans are open-ended — exactly ONE boundary exists (the picked anchor);
+ * the missing side is `undefined`. Detected gaps and pair/insert spans
+ * always carry both boundaries, so existing `GapRow`s assign directly.
+ */
+export type RepairRow = Omit<GapRow, "before" | "after"> & {
+  before?: GapRow["before"];
+  after?: GapRow["after"];
+};
 
 export function useDrawEditor(
   session: GpxSession,
@@ -136,8 +150,9 @@ export function useDrawEditor(
   const mapReady = map.status === "ready";
 
   // Point index for manual-span joins: coordinates, segment, document
-  // order, and track — everything needed to turn a picked pair into a row
-  // (and to fix which point is "before").
+  // order, track, and each usable point's usable NEIGHBORS in the same
+  // segment — everything needed to turn a picked anchor or pair into a
+  // row (and to derive the one-anchor span shape).
   const pointIndex = useMemo(() => {
     const byId = new Map<
       PointId,
@@ -146,17 +161,30 @@ export function useDrawEditor(
         segmentId: SegmentId;
         ordinal: number;
         trackIndex: number;
+        /** Next usable point in the same segment (null at the segment end). */
+        nextUsableId: PointId | null;
+        /** Previous usable point in the same segment (null at the start). */
+        prevUsableId: PointId | null;
       }
     >();
     let ordinal = 0;
     if (session.data) {
       for (const segment of session.data.segments) {
+        const usable = segment.points.filter(isUsableStatsPoint);
+        const nextUsable = new Map<PointId, PointId | null>();
+        const prevUsable = new Map<PointId, PointId | null>();
+        usable.forEach((point, i) => {
+          nextUsable.set(point.id, usable[i + 1]?.id ?? null);
+          prevUsable.set(point.id, usable[i - 1]?.id ?? null);
+        });
         for (const point of segment.points) {
           byId.set(point.id, {
             point,
             segmentId: segment.id,
             ordinal: ordinal++,
             trackIndex: segment.trackIndex,
+            nextUsableId: nextUsable.get(point.id) ?? null,
+            prevUsableId: prevUsable.get(point.id) ?? null,
           });
         }
       }
@@ -164,15 +192,41 @@ export function useDrawEditor(
     return byId;
   }, [session.data]);
 
-  const manualRows = useMemo<GapRow[]>(() => {
-    const rows: GapRow[] = [];
+  const manualRows = useMemo<RepairRow[]>(() => {
+    const rows: RepairRow[] = [];
+    const boundaryOf = (pointId: PointId) => {
+      const entry = pointIndex.get(pointId);
+      if (!entry) return null;
+      return {
+        pointId: entry.point.id,
+        segmentId: entry.segmentId,
+        lat: entry.point.lat,
+        lon: entry.point.lon,
+        ...(entry.point.time !== undefined ? { time: entry.point.time } : {}),
+      };
+    };
     for (const span of manualSpans) {
+      if (span.kind === "extend") {
+        // Open-ended: one boundary (the anchor). Side "after" anchors the
+        // chain's start; side "before" anchors its end (route order —
+        // the geometry is the same chain either way).
+        const anchor = boundaryOf(span.anchorPointId);
+        if (!anchor) continue;
+        rows.push({
+          id: span.id,
+          kind: "manual-insert",
+          severity: "info",
+          status: "new",
+          ...(span.side === "after" ? { before: anchor } : { after: anchor }),
+        });
+        continue;
+      }
       const b = pointIndex.get(span.beforePointId);
       const a = pointIndex.get(span.afterPointId);
       if (!b || !a) continue;
       rows.push({
         id: span.id,
-        kind: "manual",
+        kind: span.kind === "insert" ? "manual-insert" : "manual",
         severity: "info",
         status: "new",
         ...(isUsableStatsPoint(b.point) && isUsableStatsPoint(a.point)
@@ -201,7 +255,7 @@ export function useDrawEditor(
 
   // Every repairable row, detected or manual — the join basis for the
   // active editor session and the status map.
-  const allRows = useMemo(
+  const allRows = useMemo<RepairRow[]>(
     () => [...gapRows, ...manualRows],
     [gapRows, manualRows],
   );
@@ -216,6 +270,14 @@ export function useDrawEditor(
 
   const activeRecon = activeGapId === null ? null : reconstructions[activeGapId] ?? null;
   const vertices = activeRecon?.vertices ?? [];
+
+  // Resolved anchors of the active row: the near anchor always exists (it
+  // is the picked/recorded point the chain attaches to); the far anchor
+  // only for bounded rows (detected gaps, pair/insert spans) — open
+  // extensions have no far boundary and no closing segment.
+  const nearAnchor = activeGap ? (activeGap.before ?? activeGap.after) : null;
+  const farAnchor =
+    activeGap?.before && activeGap?.after ? activeGap.after : null;
 
   // -- session lifecycle hygiene ---------------------------------------------
 
@@ -243,9 +305,13 @@ export function useDrawEditor(
   // -- span-pick session driving (draw-anywhere) ------------------------------
 
   // While pickMode is on, the controller collects clicks on recorded
-  // points; the hook turns the picked pair into a manual span + editor
-  // session. Document-order fixing happens here — the map layer knows
-  // nothing of the file's order.
+  // points. Pair mode: the picked pair becomes a replace span (document-
+  // order fixing happens here — the map layer knows nothing of the file's
+  // order). Anchor mode: ONE click — the point's position in its segment
+  // derives the shape: route start → open "before" extension; route end →
+  // open "after" extension; mid-route → insert at the [anchor, next]
+  // boundary (same id scheme as a picked pair, so it deduplicates into any
+  // existing repair there — detected or manual).
   useEffect(() => {
     const controller: MapController | null = map.getController();
     if (!controller) return;
@@ -255,6 +321,19 @@ export function useDrawEditor(
     }
     const targets: PickTarget[] = [];
     for (const segment of session.data.segments) {
+      // Endpoint flagging: the first/last usable point of each segment wins
+      // pick near-ties (clicking the visible route end = the endpoint, even
+      // when its neighbor sits a sub-pixel away).
+      const usableIds = new Set(
+        segment.points.filter(isUsableStatsPoint).map((point) => point.id),
+      );
+      let firstUsableId: PointId | null = null;
+      let lastUsableId: PointId | null = null;
+      for (const point of segment.points) {
+        if (!usableIds.has(point.id)) continue;
+        if (firstUsableId === null) firstUsableId = point.id;
+        lastUsableId = point.id;
+      }
       for (const point of segment.points) {
         if (!isUsableStatsPoint(point)) continue;
         targets.push({
@@ -262,10 +341,14 @@ export function useDrawEditor(
           lat: point.lat,
           lon: point.lon,
           trackIndex: segment.trackIndex,
+          ...(point.id === firstUsableId || point.id === lastUsableId
+            ? { isSegmentEnd: true }
+            : {}),
         });
       }
     }
     controller.startPickSession({
+      mode: pickMode,
       targets,
       callbacks: {
         onSpanPicked: (a, b) => {
@@ -276,6 +359,20 @@ export function useDrawEditor(
             entryA.ordinal <= entryB.ordinal ? [a, b] : [b, a];
           useEditorStore.getState().addManualSpan(before, after);
         },
+        onAnchorPicked: (pointId) => {
+          const entry = pointIndex.get(pointId);
+          if (!entry) return;
+          const store = useEditorStore.getState();
+          if (entry.prevUsableId === null && entry.nextUsableId !== null) {
+            // The route's first usable point: the missing HEAD precedes it.
+            store.addExtendSpan(pointId, "before");
+          } else if (entry.nextUsableId !== null) {
+            store.addInsertSpan(pointId, entry.nextUsableId);
+          } else {
+            // No next usable point: the segment's end — the missing TAIL.
+            store.addExtendSpan(pointId, "after");
+          }
+        },
         onCancel: () => useEditorStore.getState().cancelPickMode(),
       },
     });
@@ -285,15 +382,20 @@ export function useDrawEditor(
 
   // -- snap magnet (pure domain, injected into the controller) ----------------
 
+  // The near anchor is always present; the far anchor only for bounded
+  // rows (detected gaps, pair/insert spans). Open extensions snap around
+  // their single anchor.
   const snapCandidates = useMemo<SnapCandidate[]>(
     () =>
-      activeGap && session.data
+      nearAnchor && session.data
         ? buildSnapCandidates(session.data, {
-            before: { lat: activeGap.before.lat, lon: activeGap.before.lon },
-            after: { lat: activeGap.after.lat, lon: activeGap.after.lon },
+            before: { lat: nearAnchor.lat, lon: nearAnchor.lon },
+            ...(farAnchor
+              ? { after: { lat: farAnchor.lat, lon: farAnchor.lon } }
+              : {}),
           })
         : [],
-    [activeGap, session.data],
+    [nearAnchor, farAnchor, session.data],
   );
 
   const snapRef = useRef(snapCandidates);
@@ -324,11 +426,13 @@ export function useDrawEditor(
 
   // Open/switch/close the controller session when the active gap changes
   // (also fires once the map becomes ready — startDrawSession is deferred
-  // internally until then).
+  // internally until then). The chain always starts at the row's anchor;
+  // the far boundary exists only for bounded rows — open extensions draw
+  // with NO closing segment at all.
   useEffect(() => {
     const controller: MapController | null = map.getController();
     if (!controller) return;
-    if (!activeGap) {
+    if (!activeGap || !nearAnchor) {
       controller.endDrawSession();
       return;
     }
@@ -337,8 +441,10 @@ export function useDrawEditor(
     controller.startDrawSession({
       gapId: activeGap.id,
       anchors: {
-        before: { lat: activeGap.before.lat, lon: activeGap.before.lon },
-        after: { lat: activeGap.after.lat, lon: activeGap.after.lon },
+        before: { lat: nearAnchor.lat, lon: nearAnchor.lon },
+        after: farAnchor
+          ? { lat: farAnchor.lat, lon: farAnchor.lon }
+          : null,
       },
       vertices: initial,
       snap: snapFn,
@@ -356,7 +462,7 @@ export function useDrawEditor(
     return () => {
       controller.endDrawSession();
     };
-  }, [activeGap, mapReady, map.getController, snapFn]);
+  }, [activeGap, nearAnchor, farAnchor, mapReady, map.getController, snapFn]);
 
   // Push every authoritative vertex change into the controller.
   useEffect(() => {
@@ -370,28 +476,33 @@ export function useDrawEditor(
 
   // -- derived view data --------------------------------------------------------
 
+  // Distance runs anchor-to-anchor for bounded rows; an open extension
+  // measures its chain (anchor → vertices) and nothing beyond — the number
+  // is exactly the drawn route.
   const distanceM = useMemo(
     () =>
-      activeGap
+      nearAnchor
         ? reconstructionDistanceMeters(
             vertices,
-            { lat: activeGap.before.lat, lon: activeGap.before.lon },
-            { lat: activeGap.after.lat, lon: activeGap.after.lon },
+            { lat: nearAnchor.lat, lon: nearAnchor.lon },
+            farAnchor ? { lat: farAnchor.lat, lon: farAnchor.lon } : null,
           )
         : null,
-    [vertices, activeGap],
+    [vertices, nearAnchor, farAnchor],
   );
 
+  // Open extensions have no straight line to hug — the warning only
+  // applies to bounded rows.
   const straightLine = useMemo(
     () =>
-      activeGap
+      nearAnchor && farAnchor
         ? isStraightLine(
             vertices,
-            { lat: activeGap.before.lat, lon: activeGap.before.lon },
-            { lat: activeGap.after.lat, lon: activeGap.after.lon },
+            { lat: nearAnchor.lat, lon: nearAnchor.lon },
+            { lat: farAnchor.lat, lon: farAnchor.lon },
           )
         : false,
-    [vertices, activeGap],
+    [vertices, nearAnchor, farAnchor],
   );
 
   const statusById = useMemo(() => {
@@ -438,8 +549,12 @@ export function useDrawEditor(
     useEditorStore.getState().closeEditor();
   }, []);
 
-  const beginPickSpan = useCallback(() => {
-    useEditorStore.getState().startPickMode();
+  const beginPickAnchor = useCallback(() => {
+    useEditorStore.getState().startPickMode("anchor");
+  }, []);
+
+  const beginPickPair = useCallback(() => {
+    useEditorStore.getState().startPickMode("pair");
   }, []);
 
   const cancelPickSpan = useCallback(() => {
@@ -507,7 +622,8 @@ export function useDrawEditor(
     pickMode,
     openEditor,
     closeEditor,
-    beginPickSpan,
+    beginPickAnchor,
+    beginPickPair,
     cancelPickSpan,
     removeManualSpan,
     setDrawMode,

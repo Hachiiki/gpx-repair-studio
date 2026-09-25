@@ -21,7 +21,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
-import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
+import type { DrawEditorBinding, RepairRow } from "@/hooks/use-draw-editor";
 import { useEditorStore } from "@/state/editor-store";
 import type { GapRow } from "@/hooks/use-gpx-session";
 import type { GapId, VertexId } from "@/types/domain";
@@ -74,10 +74,11 @@ function makeBinding(
     reconstructedCount: 0,
     skippedCount: 0,
     manualRows: [],
-    pickMode: false,
+    pickMode: null,
     openEditor: () => {},
     closeEditor: () => {},
-    beginPickSpan: () => {},
+    beginPickAnchor: () => {},
+    beginPickPair: () => {},
     cancelPickSpan: () => {},
     removeManualSpan: () => {},
     setDrawMode: () => {},
@@ -291,5 +292,50 @@ describe("DrawEditorPanel — store integration wiring", () => {
     rerender(<DrawEditorPanel draw={binding()} />);
     expect(screen.queryByTestId("vertex-row")).toBeNull();
     expect(screen.getByTestId("vertex-count")).toHaveTextContent("0 / 128");
+  });
+});
+
+describe("DrawEditorPanel — open-ended extensions (one-anchor add)", () => {
+  /** An extend row: anchor as `before`, no `after` boundary. */
+  const EXTEND_ROW: RepairRow = {
+    id: "gap/t0s0:8/end" as GapId,
+    kind: "manual-insert",
+    severity: "info",
+    status: "new",
+    before: {
+      pointId: "t0s0:8" as never,
+      segmentId: "t0s0" as never,
+      lat: 52.5201,
+      lon: 13.405,
+    },
+  };
+
+  it("shows the anchor, the open-end instruction, and no straight-line warning", () => {
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({
+          activeGap: EXTEND_ROW,
+          straightLine: false,
+          vertices: [
+            { id: vertexId(1), lat: 52.5205, lon: 13.4055 },
+          ],
+          vertexCount: 1,
+          statusById: { [EXTEND_ROW.id]: "in-progress" },
+        })}
+      />,
+    );
+    const panel = screen.getByTestId("draw-editor-panel");
+    expect(panel).toHaveTextContent("Added route");
+    expect(panel).toHaveTextContent("52.52010, 13.40500"); // the anchor
+    expect(panel).toHaveTextContent("open — your clicks extend the route");
+    expect(screen.getByTestId("open-end-instructions")).toHaveTextContent(
+      "What you see is exactly what the repair will be",
+    );
+    // No far anchor → no straight-line warning, even for near-collinear
+    // clicks (the binding computes straightLine=false for open rows).
+    expect(screen.queryByTestId("straight-line-warning")).toBeNull();
+    // Manual-kind rows offer "Remove repair span", not "Mark as skipped".
+    expect(screen.getByTestId("remove-span-button")).toBeVisible();
+    expect(screen.queryByTestId("skip-gap-button")).toBeNull();
   });
 });

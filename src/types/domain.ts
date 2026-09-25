@@ -297,7 +297,8 @@ export type GapKind =
   | "time-gap"
   | "speed-anomaly"
   | "segment-break"
-  | "manual";
+  | "manual"
+  | "manual-insert";
 
 export type GapSeverity = "info" | "suspect" | "severe";
 
@@ -323,20 +324,49 @@ export interface DetectedGap {
 }
 
 /**
- * A user-created repair span: two recorded points picked on the map that
- * bound a stretch to redraw — regardless of whether detection flagged
- * anything there. The id uses the same scheme as detected gaps, so a
- * manual span over an already-detected boundary deduplicates into that
- * gap's editor session and reconstruction (detection is a helper, never
- * a gate).
+ * A user-created repair span — the always-available repair entry point
+ * (detection is a helper, never a gate). Three shapes:
+ *
+ *   - `replace`: two recorded points picked on the map that bound a
+ *     recorded stretch to redraw. The id uses the same scheme as detected
+ *     gaps, so a manual span over an already-detected boundary deduplicates
+ *     into that gap's editor session and reconstruction.
+ *   - `insert`: ONE recorded point picked ("add missing route"); the app
+ *     derived the next recorded point as the far boundary. Same id scheme,
+ *     same dedupe — it behaves exactly like a replace span, only the second
+ *     pick click was skipped.
+ *   - `extend`: ONE recorded point picked with NO far boundary — the drawn
+ *     path extends past the route's start/end (`side` records which).
+ *     Open-ended: there is nothing to reconnect to. `side` also preserves
+ *     route-order semantics for the merge/export phase (a "before" chain
+ *     precedes its anchor in route order).
  */
-export interface ManualSpan {
-  id: GapId;
-  /** The earlier of the two points, in document order. */
-  beforePointId: PointId;
-  /** The later of the two points, in document order. */
-  afterPointId: PointId;
-}
+export type ManualSpan =
+  | {
+      id: GapId;
+      kind: "replace";
+      /** The earlier of the two points, in document order. */
+      beforePointId: PointId;
+      /** The later of the two points, in document order. */
+      afterPointId: PointId;
+    }
+  | {
+      id: GapId;
+      kind: "insert";
+      /** The picked anchor — the earlier boundary in document order. */
+      beforePointId: PointId;
+      /** The derived next recorded point — the later boundary. */
+      afterPointId: PointId;
+    }
+  | {
+      id: GapId;
+      kind: "extend";
+      /** The picked anchor the drawn path attaches to. */
+      anchorPointId: PointId;
+      /** "after" = extends past the anchor (route end); "before" = the
+       * drawn path precedes the anchor in route order (route start). */
+      side: "after" | "before";
+    };
 
 // ---------------------------------------------------------------------------
 // Reconstruction vocabulary (§G) — types only until Phase 4

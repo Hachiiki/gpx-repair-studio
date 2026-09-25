@@ -397,4 +397,29 @@ describe("geometry helpers", () => {
     expect(isStraightLine(offLine, ANCHORS.before, ANCHORS.after)).toBe(false);
     expect(isStraightLine([], ANCHORS.before, ANCHORS.after)).toBe(false);
   });
+
+  it("open-ended extensions: distance = anchor + vertices only; never 'straight'", () => {
+    const vertices = [
+      { id: vertexId(1), lat: 52.521, lon: 13.406 },
+      { id: vertexId(2), lat: 52.522, lon: 13.407 },
+    ];
+    // With NO far anchor the distance is exactly the drawn chain — there
+    // is no closing leg adding phantom length.
+    const open = reconstructionDistanceMeters(vertices, ANCHORS.before, null);
+    const anchored = reconstructionDistanceMeters(
+      vertices,
+      ANCHORS.before,
+      ANCHORS.after,
+    );
+    expect(open).toBeLessThan(anchored);
+    // The straight-line warning has no line to hug without the far anchor.
+    expect(isStraightLine(vertices, ANCHORS.before, null)).toBe(false);
+    // Even literally collinear clicks stay unwarned — there is nothing to
+    // be "straight" against.
+    const collinear = [
+      { id: vertexId(1), lat: 52.5205, lon: 13.4055 },
+      { id: vertexId(2), lat: 52.521, lon: 13.406 },
+    ];
+    expect(isStraightLine(collinear, ANCHORS.before, null)).toBe(false);
+  });
 });

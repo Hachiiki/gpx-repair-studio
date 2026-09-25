@@ -114,7 +114,7 @@ export interface MapTestState {
   /** The active draw session (null when no editor is open). */
   drawSession: DrawSessionTestState | null;
   /** The active span-pick session (null when not picking). */
-  pickSession: { active: boolean; hasAnchor: boolean } | null;
+  pickSession: { active: boolean; mode: "anchor" | "pair"; hasAnchor: boolean } | null;
 }
 
 /** Draw-session snapshot for E2E synthetic-pointer drawing assertions. */
@@ -203,6 +203,10 @@ const SNAP_RADIUS_PX = 14;
 /** Click tolerance when picking span anchors (screen pixels). */
 const PICK_RADIUS_PX = 16;
 
+/** Endpoint preference band: an endpoint within this many pixels of the
+ * best interior target wins the pick (see #nearestPickTarget). */
+const ENDPOINT_TIE_PX = 2;
+
 /** Minimum pointer travel (px) before a handle press counts as a drag. */
 const DRAG_THRESHOLD_PX = 3;
 
@@ -254,7 +258,8 @@ export type DrawSnapFn = (
 
 export interface DrawSessionOptions {
   gapId: string;
-  anchors: { before: LatLon; after: LatLon };
+  /** The near anchor the chain starts from (always present). */
+  anchors: { before: LatLon; after: LatLon | null };
   vertices: readonly { id: VertexId; lat: number; lon: number }[];
   /** Snap magnet (null/undefined = snapping disabled). */
   snap?: DrawSnapFn | null;
@@ -278,13 +283,22 @@ export interface PickTarget {
   lon: number;
   /** Track scoping — a span may not cross <trk> boundaries. */
   trackIndex: number;
+  /** First/last usable point of its segment — preferred on near-ties
+   * (clicking the visible end of a route means the endpoint, even when
+   * the neighbor sits a sub-pixel away). */
+  isSegmentEnd?: boolean;
 }
 
 export interface PickSessionOptions {
+  /** "anchor": ONE click starts an open add-missing-route session.
+   *  "pair": two clicks bound a stretch to redraw (classic mode). */
+  mode: "anchor" | "pair";
   targets: readonly PickTarget[];
   callbacks: {
-    /** Both anchors picked. Document-order fixing is the hook's job. */
+    /** Both anchors picked (pair mode). Document-order fixing is the hook's job. */
     onSpanPicked: (a: PointId, b: PointId) => void;
+    /** The single anchor picked (anchor mode) — the hook derives the shape. */
+    onAnchorPicked: (pointId: PointId) => void;
     /** The user cancelled (Esc or mode left). */
     onCancel: () => void;
   };
@@ -631,11 +645,12 @@ export class MapController {
   // -- span-pick session (manual repair spans) ----------------------------
 
   /**
-   * Start collecting two span-anchor clicks on recorded points. Safe to
-   * call before the map is ready — the session is applied on style load.
-   * Pan and wheel-zoom stay available (the user may need to travel to the
-   * second anchor); double-click zoom is disabled so a hurried second
-   * click cannot zoom the map instead of completing the span.
+   * Start a span-pick session on recorded points. `mode "anchor"`
+   * collects ONE click (open add-missing-route); `mode "pair"` collects
+   * two (redraw-a-stretch). Safe to call before the map is ready — the
+   * session is applied on style load. Pan and wheel-zoom stay available
+   * (the user may need to travel between anchors); double-click zoom is
+   * disabled so a hurried click cannot zoom the map instead of picking.
    */
   startPickSession(options: PickSessionOptions): void {
     this.#detachPickEscListener(this.#pickSession);
@@ -678,6 +693,14 @@ export class MapController {
     if (!session || !map) return;
     const target = this.#nearestPickTarget(e.point);
     if (!target) return; // empty space — keep waiting
+    if (session.options.mode === "anchor") {
+      // One click is all the "add missing route" flow needs: the hook
+      // derives the span shape (insert vs open extension) from the point's
+      // position in the recording.
+      session.options.callbacks.onAnchorPicked(target.pointId);
+      this.endPickSession();
+      return;
+    }
     if (!session.anchor) {
       session.anchor = target;
       this.#applyPickAnchor();
@@ -694,7 +717,14 @@ export class MapController {
     this.endPickSession();
   }
 
-  /** Nearest pick target within the click tolerance, or null. */
+  /** Nearest pick target within the click tolerance, or null.
+   *
+   * Near-tie rule: when a segment ENDPOINT (first/last usable point) is
+   * within the radius and within `ENDPOINT_TIE_PX` of the best distance,
+   * it wins over an interior point. At a route's tail the last two
+   * recorded points can sit a sub-pixel apart — a click at the visible
+   * end must resolve to the endpoint (extend), never to its neighbor
+   * (a spurious 3 m insert). */
   #nearestPickTarget(
     point: { x: number; y: number },
   ): PickTarget | null {
@@ -703,18 +733,29 @@ export class MapController {
     if (!map || !session) return null;
     let best: PickTarget | null = null;
     let bestDistance = PICK_RADIUS_PX;
+    let bestEnd: PickTarget | null = null;
+    let bestEndDistance = PICK_RADIUS_PX;
     for (const target of session.options.targets) {
       const projected = map.project([target.lon, target.lat]);
       const distance = Math.hypot(
         projected.x - point.x,
         projected.y - point.y,
       );
-      if (distance <= bestDistance) {
+      if (distance > PICK_RADIUS_PX) continue;
+      if (target.isSegmentEnd) {
+        if (distance < bestEndDistance) {
+          bestEnd = target;
+          bestEndDistance = distance;
+        }
+      } else if (distance < bestDistance) {
         best = target;
         bestDistance = distance;
       }
     }
-    return best;
+    if (bestEnd && bestEndDistance <= bestDistance + ENDPOINT_TIE_PX) {
+      return bestEnd;
+    }
+    return best ?? bestEnd;
   }
 
   /** Render (or clear) the first-anchor marker. */
@@ -801,7 +842,11 @@ export class MapController {
       moving: map ? map.isMoving() : false,
       drawSession: this.#drawSessionTestState(),
       pickSession: this.#pickSession
-        ? { active: true, hasAnchor: this.#pickSession.anchor !== null }
+        ? {
+            active: true,
+            mode: this.#pickSession.options.mode,
+            hasAnchor: this.#pickSession.anchor !== null,
+          }
         : null,
     };
   }

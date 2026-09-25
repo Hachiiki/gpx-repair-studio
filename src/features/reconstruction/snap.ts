@@ -62,20 +62,23 @@ function inflateBox(
 }
 
 /**
- * Build the snap candidates for one gap: the two boundary anchors (with
- * priority) plus every usable recorded point inside the anchors' box
- * inflated by `inflateKm`. Damaged coordinates (invalid / out-of-range /
- * Null Island) are excluded by the shared `isUsableStatsPoint` predicate —
- * one definition of "usable point" across statistics, extent, rendering,
- * and snapping.
+ * Build the snap candidates for one repair region: the boundary anchors
+ * (with priority — the far anchor only when present) plus every usable
+ * recorded point inside the anchors' box inflated by `inflateKm`.
+ * Open-ended extensions pass no far anchor; their box degenerates to the
+ * single anchor, which `inflateBox` still inflates correctly. Damaged
+ * coordinates (invalid / out-of-range / Null Island) are excluded by the
+ * shared `isUsableStatsPoint` predicate — one definition of "usable point"
+ * across statistics, extent, rendering, and snapping.
  */
 export function buildSnapCandidates(
   data: OriginalTrackData,
-  gap: { before: LatLon; after: LatLon },
+  gap: { before: LatLon; after?: LatLon | null },
   options: BuildSnapCandidatesOptions = {},
 ): SnapCandidate[] {
   const { inflateKm = 2, maxCandidates = 2000 } = options;
-  const box = inflateBox(gap.before, gap.after, inflateKm);
+  const far = gap.after ?? gap.before;
+  const box = inflateBox(gap.before, far, inflateKm);
   const centerX = (box.minLon + box.maxLon) / 2;
   const centerY = (box.minLat + box.maxLat) / 2;
 
@@ -111,7 +114,7 @@ export function buildSnapCandidates(
   // Anchors first: they win ties in `nearestSnap`.
   return [
     { ...gap.before, isAnchor: true },
-    { ...gap.after, isAnchor: true },
+    ...(gap.after ? [{ ...gap.after, isAnchor: true }] : []),
     ...inBox,
   ];
 }

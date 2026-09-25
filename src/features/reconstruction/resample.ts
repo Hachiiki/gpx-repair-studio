@@ -56,11 +56,14 @@ export type ResampleSpacing = (typeof RESAMPLE_SPACING_OPTIONS)[number] | "off";
  * vertices are kept **exactly as placed** and interpolated fill points are
  * inserted along every leg at (at most) the requested spacing — user data
  * is never moved or replaced by resampling (§H: repair only inserts).
+ *
+ * `after` may be null/absent (open-ended extension): the path then ends at
+ * the last vertex and no after-anchor role appears.
  */
 export function resamplePath(
   before: LatLon,
   vertices: readonly DrawVertex[],
-  after: LatLon,
+  after: LatLon | null | undefined,
   spacingM: number | "off",
 ): PathPoint[] {
   const nodes: { point: LatLon; role: PathPoint["role"]; vertexId?: VertexId }[] =
@@ -71,7 +74,7 @@ export function resamplePath(
         role: "vertex" as const,
         vertexId: vertex.id,
       })),
-      { point: after, role: "after-anchor" },
+      ...(after ? [{ point: after, role: "after-anchor" as const }] : []),
     ];
 
   const path: PathPoint[] = [];

@@ -47,10 +47,11 @@ import {
 import type {
   GapId,
   ManualSpan,
+  PointId,
   Reconstruction,
   VertexId,
 } from "@/types/domain";
-import { gapId, vertexId } from "@/types/ids";
+import { gapId, gapIdEnd, gapIdStart, vertexId } from "@/types/ids";
 
 /** The user-facing repair status of a gap (§G `DetectedGap.status`). */
 export type GapStatus =
@@ -58,6 +59,14 @@ export type GapStatus =
   | "in-progress"
   | "reconstructed"
   | "skipped";
+
+/**
+ * The active span-pick mode: which repair tool is collecting map clicks.
+ * `anchor` — one click on a recorded point starts an open "add missing
+ * route" session (the click's position derives the shape); `pair` — the
+ * two-click "redraw a stretch" selection.
+ */
+export type PickMode = "anchor" | "pair";
 
 interface EditorState {
   activeGapId: GapId | null;
@@ -70,23 +79,34 @@ interface EditorState {
   vertexSeq: number;
   /** User-created repair spans (draw-anywhere; see ManualSpan). */
   manualSpans: readonly ManualSpan[];
-  /** Span-pick mode: the map is collecting two anchor clicks. */
-  pickMode: boolean;
+  /** Span-pick mode: which repair tool is collecting map clicks (null = off). */
+  pickMode: PickMode | null;
 
   /** Open the draw editor for a gap (creates an empty repair if needed). */
   openEditor: (gapId: GapId) => void;
   /** Close the active editor (keeps the reconstruction; drops history). */
   closeEditor: () => void;
   /** Enter span-pick mode (closes any open editor — picking replaces it). */
-  startPickMode: () => void;
+  startPickMode: (mode: PickMode) => void;
   /** Leave span-pick mode without creating a span. */
   cancelPickMode: () => void;
   /**
-   * Create (or reopen) the manual span for a boundary pair and open its
-   * editor. Idempotent per boundary: an existing span — detected or manual —
-   * keeps its repair state and is simply reopened.
+   * Create (or reopen) the manual REPLACE span for a boundary pair and open
+   * its editor. Idempotent per boundary: an existing span — detected or
+   * manual — keeps its repair state and is simply reopened.
    */
-  addManualSpan: (beforePointId: ManualSpan["beforePointId"], afterPointId: ManualSpan["afterPointId"]) => void;
+  addManualSpan: (beforePointId: PointId, afterPointId: PointId) => void;
+  /**
+   * One-anchor "add missing route": the picked point with a derived next
+   * recorded point. Same id scheme as replace spans — the same dedupe and
+   * editor session — the second pick click was simply skipped.
+   */
+  addInsertSpan: (anchorPointId: PointId, nextPointId: PointId) => void;
+  /**
+   * One-anchor OPEN extension: the drawn path attaches at the anchor and
+   * ends in the open (route end/start). No far boundary exists.
+   */
+  addExtendSpan: (anchorPointId: PointId, side: "after" | "before") => void;
   /** Remove a manual span and all of its repair state. */
   removeManualSpan: (gapId: GapId) => void;
   setDrawMode: (on: boolean) => void;
@@ -119,7 +139,7 @@ const INITIAL = {
   history: EMPTY_HISTORY,
   vertexSeq: 0,
   manualSpans: [] as readonly ManualSpan[],
-  pickMode: false,
+  pickMode: null as PickMode | null,
 };
 
 /** The reconstruction of the active gap, or `null` when none is open. */
@@ -160,9 +180,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       drawMode: false,
     }),
 
-  startPickMode: () =>
+  startPickMode: (mode) =>
     set({
-      pickMode: true,
+      pickMode: mode,
       // Picking replaces any open editor session (the panel closes; the
       // abandoned reconstruction is kept, as with closeEditor).
       activeGapId: null,
@@ -170,13 +190,13 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       drawMode: false,
     }),
 
-  cancelPickMode: () => set({ pickMode: false }),
+  cancelPickMode: () => set({ pickMode: null }),
 
   addManualSpan: (beforePointId, afterPointId) => {
     if (beforePointId === afterPointId) return;
     const id = gapId(beforePointId, afterPointId);
     set((state) => ({
-      pickMode: false,
+      pickMode: null,
       // The same openEditor contract as gap rows: editing implies
       // repairing, an empty reconstruction is created on first touch, and
       // a stale skip mark is withdrawn.
@@ -185,7 +205,53 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       history: EMPTY_HISTORY,
       manualSpans: state.manualSpans.some((span) => span.id === id)
         ? state.manualSpans
-        : [...state.manualSpans, { id, beforePointId, afterPointId }],
+        : [
+            ...state.manualSpans,
+            { id, kind: "replace", beforePointId, afterPointId },
+          ],
+      reconstructions: state.reconstructions[id]
+        ? state.reconstructions
+        : { ...state.reconstructions, [id]: emptyReconstruction(id) },
+      skippedGapIds: state.skippedGapIds.filter((skipped) => skipped !== id),
+    }));
+  },
+
+  addInsertSpan: (anchorPointId, nextPointId) => {
+    if (anchorPointId === nextPointId) return;
+    const id = gapId(anchorPointId, nextPointId);
+    set((state) => ({
+      pickMode: null,
+      activeGapId: id,
+      drawMode: true,
+      history: EMPTY_HISTORY,
+      manualSpans: state.manualSpans.some((span) => span.id === id)
+        ? state.manualSpans
+        : [
+            ...state.manualSpans,
+            {
+              id,
+              kind: "insert",
+              beforePointId: anchorPointId,
+              afterPointId: nextPointId,
+            },
+          ],
+      reconstructions: state.reconstructions[id]
+        ? state.reconstructions
+        : { ...state.reconstructions, [id]: emptyReconstruction(id) },
+      skippedGapIds: state.skippedGapIds.filter((skipped) => skipped !== id),
+    }));
+  },
+
+  addExtendSpan: (anchorPointId, side) => {
+    const id = side === "before" ? gapIdStart(anchorPointId) : gapIdEnd(anchorPointId);
+    set((state) => ({
+      pickMode: null,
+      activeGapId: id,
+      drawMode: true,
+      history: EMPTY_HISTORY,
+      manualSpans: state.manualSpans.some((span) => span.id === id)
+        ? state.manualSpans
+        : [...state.manualSpans, { id, kind: "extend", anchorPointId, side }],
       reconstructions: state.reconstructions[id]
         ? state.reconstructions
         : { ...state.reconstructions, [id]: emptyReconstruction(id) },

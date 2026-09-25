@@ -1,12 +1,14 @@
 /**
  * Unit tests — editor-store manual repair spans (draw-anywhere): the
  * state contract that makes repairing possible on ANY loaded activity,
- * detected or not.
+ * detected or not. Covers all three span shapes: replace (two picked
+ * points), insert (one anchor + derived next), extend (one anchor, open).
  *
  * Verified behaviors:
- *   - addManualSpan creates the span, exits pick mode, opens the editor,
- *     and creates an empty reconstruction (the openEditor contract);
- *   - the same boundary twice is idempotent (one span, repair kept);
+ *   - addManualSpan / addInsertSpan / addExtendSpan create the span, exit
+ *     pick mode, open the editor, and create an empty reconstruction (the
+ *     openEditor contract);
+ *   - the same id twice is idempotent (one span, repair kept);
  *   - removeManualSpan drops the span with ALL of its repair state and
  *     closes its editor — but is a no-op for detected-gap ids;
  *   - pick mode replaces an open editor session;
@@ -17,7 +19,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { useEditorStore } from "@/state/editor-store";
-import { gapId } from "@/types/ids";
+import { gapId, gapIdEnd, gapIdStart } from "@/types/ids";
 import type { PointId } from "@/types/domain";
 
 const P1 = "t0s0:1" as PointId;
@@ -31,14 +33,15 @@ beforeEach(() => {
 
 describe("editor-store — addManualSpan", () => {
   it("creates the span, exits pick mode, and opens the editor", () => {
-    useEditorStore.getState().startPickMode();
+    useEditorStore.getState().startPickMode("pair");
     useEditorStore.getState().addManualSpan(P1, P2);
 
     const state = useEditorStore.getState();
-    expect(state.pickMode).toBe(false);
+    expect(state.pickMode).toBeNull();
     expect(state.manualSpans).toHaveLength(1);
     expect(state.manualSpans[0]).toEqual({
       id: gapId(P1, P2),
+      kind: "replace",
       beforePointId: P1,
       afterPointId: P2,
     });
@@ -69,6 +72,79 @@ describe("editor-store — addManualSpan", () => {
     useEditorStore.getState().addManualSpan(P1, P1);
     const state = useEditorStore.getState();
     expect(state.manualSpans).toEqual([]);
+    expect(state.activeGapId).toBeNull();
+  });
+});
+
+describe("editor-store — one-anchor spans (add missing route)", () => {
+  it("addInsertSpan uses the SAME id scheme as a picked pair (dedupe)", () => {
+    useEditorStore.getState().startPickMode("anchor");
+    useEditorStore.getState().addInsertSpan(P1, P2);
+
+    const state = useEditorStore.getState();
+    expect(state.pickMode).toBeNull();
+    expect(state.manualSpans).toHaveLength(1);
+    expect(state.manualSpans[0]).toEqual({
+      id: gapId(P1, P2),
+      kind: "insert",
+      beforePointId: P1,
+      afterPointId: P2,
+    });
+    expect(state.activeGapId).toBe(gapId(P1, P2));
+    expect(state.reconstructions[gapId(P1, P2)]).toBeDefined();
+  });
+
+  it("an insert over an existing replace span keeps the repair (idempotent id)", () => {
+    useEditorStore.getState().addManualSpan(P1, P2);
+    useEditorStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
+    useEditorStore.getState().closeEditor();
+
+    useEditorStore.getState().addInsertSpan(P1, P2);
+
+    const state = useEditorStore.getState();
+    expect(state.manualSpans).toHaveLength(1); // still the replace span
+    expect(state.reconstructions[gapId(P1, P2)].vertices).toHaveLength(1);
+  });
+
+  it("addExtendSpan creates an OPEN span at the route end (side after)", () => {
+    useEditorStore.getState().startPickMode("anchor");
+    useEditorStore.getState().addExtendSpan(P3, "after");
+
+    const state = useEditorStore.getState();
+    const id = gapIdEnd(P3);
+    expect(state.pickMode).toBeNull();
+    expect(state.manualSpans).toEqual([
+      { id, kind: "extend", anchorPointId: P3, side: "after" },
+    ]);
+    expect(state.activeGapId).toBe(id);
+    expect(state.drawMode).toBe(true);
+    expect(state.reconstructions[id]).toBeDefined();
+  });
+
+  it("addExtendSpan at the route start uses the start id scheme", () => {
+    useEditorStore.getState().addExtendSpan(P1, "before");
+    const state = useEditorStore.getState();
+    expect(state.manualSpans).toEqual([
+      {
+        id: gapIdStart(P1),
+        kind: "extend",
+        anchorPointId: P1,
+        side: "before",
+      },
+    ]);
+    expect(state.activeGapId).toBe(gapIdStart(P1));
+  });
+
+  it("removeManualSpan drops an extend span with all repair state", () => {
+    useEditorStore.getState().addExtendSpan(P3, "after");
+    useEditorStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
+    const id = gapIdEnd(P3);
+
+    useEditorStore.getState().removeManualSpan(id);
+
+    const state = useEditorStore.getState();
+    expect(state.manualSpans).toEqual([]);
+    expect(state.reconstructions[id]).toBeUndefined();
     expect(state.activeGapId).toBeNull();
   });
 });
@@ -119,19 +195,19 @@ describe("editor-store — pick mode", () => {
     useEditorStore.getState().addManualSpan(P1, P2);
     useEditorStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
 
-    useEditorStore.getState().startPickMode();
+    useEditorStore.getState().startPickMode("pair");
 
     const state = useEditorStore.getState();
-    expect(state.pickMode).toBe(true);
+    expect(state.pickMode).toBe("pair");
     expect(state.activeGapId).toBeNull();
     expect(state.drawMode).toBe(false);
     expect(state.reconstructions[gapId(P1, P2)].vertices).toHaveLength(1);
   });
 
   it("cancelPickMode leaves pick mode without side effects", () => {
-    useEditorStore.getState().startPickMode();
+    useEditorStore.getState().startPickMode("anchor");
     useEditorStore.getState().cancelPickMode();
-    expect(useEditorStore.getState().pickMode).toBe(false);
+    expect(useEditorStore.getState().pickMode).toBeNull();
     expect(useEditorStore.getState().manualSpans).toEqual([]);
   });
 });
@@ -170,13 +246,13 @@ describe("editor-store — reset clears manual-span state", () => {
   it("wipes spans, pick mode, and repairs together", () => {
     useEditorStore.getState().addManualSpan(P1, P2);
     useEditorStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
-    useEditorStore.getState().startPickMode();
+    useEditorStore.getState().startPickMode("anchor");
 
     useEditorStore.getState().reset();
 
     const state = useEditorStore.getState();
     expect(state.manualSpans).toEqual([]);
-    expect(state.pickMode).toBe(false);
+    expect(state.pickMode).toBeNull();
     expect(state.reconstructions).toEqual({});
   });
 });

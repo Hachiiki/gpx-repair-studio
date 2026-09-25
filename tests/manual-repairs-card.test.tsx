@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
 /**
  * Unit tests — ManualRepairsCard (draw-anywhere UI): the always-available
- * repair entry point.
+ * repair entry point with BOTH tools (one-click "add missing route",
+ * two-click "redraw a stretch").
  *
  * Verified behaviors:
- *   - the empty state offers "New repair span" (repairing is never gated
- *     on detection);
- *   - pick mode swaps the button for "Cancel picking" and shows the
- *     click-two-points instructions;
+ *   - the empty state offers both tools (repairing is never gated on
+ *     detection);
+ *   - each pick mode shows its own instructions and dispatches its intent;
  *   - rows render anchors + status + actions, hide ids that are currently
  *     detected (the detected-gaps list owns those), and dispatch the
- *     open-editor / remove-span intents;
+ *     open-editor / remove-span intents; open-ended (extend) rows say so;
  *   - the GapList empty state cross-links into manual repairing.
  */
 
@@ -19,7 +19,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GapList } from "@/components/reconstruction/gap-list";
 import { ManualRepairsCard } from "@/components/reconstruction/manual-repairs-card";
-import type { GapRow } from "@/hooks/use-gpx-session";
+import type { RepairRow } from "@/hooks/use-draw-editor";
 import type { GapId, PointId, SegmentId } from "@/types/domain";
 
 afterEach(() => cleanup());
@@ -32,7 +32,7 @@ function manualRow(
   after: string,
   beforeLat = 14.6321,
   afterLat = 14.6348,
-): GapRow {
+): RepairRow {
   return {
     id: id as GapId,
     kind: "manual",
@@ -63,14 +63,29 @@ const ROW_B = manualRow(
   14.6429,
 );
 
+/** An open-ended extension row (side "after": anchor is `before`). */
+const ROW_EXTEND: RepairRow = {
+  id: "gap/t0s0:80/end" as GapId,
+  kind: "manual-insert",
+  severity: "info",
+  status: "new",
+  before: {
+    pointId: "t0s0:80" as PointId,
+    segmentId: SEG,
+    lat: 14.6429,
+    lon: 121.0355,
+  },
+};
+
 function renderCard(
   overrides: Partial<Parameters<typeof ManualRepairsCard>[0]> = {},
 ) {
   const props = {
     rows: [ROW_A, ROW_B],
     detectedGapIds: [] as readonly string[],
-    pickMode: false,
-    onBeginPick: vi.fn(),
+    pickMode: null,
+    onBeginPickAnchor: vi.fn(),
+    onBeginPickPair: vi.fn(),
     onCancelPick: vi.fn(),
     onOpenEditor: vi.fn(),
     onRemoveSpan: vi.fn(),
@@ -82,29 +97,38 @@ function renderCard(
 }
 
 describe("ManualRepairsCard — the always-available entry point", () => {
-  it("empty state explains the purpose and offers the pick action", () => {
+  it("empty state explains the purpose and offers both tools", () => {
     renderCard({ rows: [] });
     const card = screen.getByTestId("manual-repairs-card");
     expect(card).toHaveTextContent("No manual repairs yet");
     expect(card).toHaveTextContent("even when no gap was detected");
-    expect(screen.getByTestId("begin-pick-button")).toBeVisible();
+    expect(screen.getByTestId("begin-pick-anchor-button")).toBeVisible();
+    expect(screen.getByTestId("begin-pick-pair-button")).toBeVisible();
   });
 
-  it("begin-pick dispatches the intent", () => {
+  it("each tool dispatches its own intent", () => {
     const props = renderCard({ rows: [] });
-    fireEvent.click(screen.getByTestId("begin-pick-button"));
-    expect(props.onBeginPick).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("begin-pick-anchor-button"));
+    expect(props.onBeginPickAnchor).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("begin-pick-pair-button"));
+    expect(props.onBeginPickPair).toHaveBeenCalledTimes(1);
   });
 
-  it("pick mode swaps to cancel + shows instructions", () => {
-    const props = renderCard({ pickMode: true });
-    expect(screen.queryByTestId("begin-pick-button")).toBeNull();
+  it("anchor pick mode shows the one-click instructions", () => {
+    const props = renderCard({ rows: [], pickMode: "anchor" });
     expect(screen.getByTestId("cancel-pick-button")).toBeVisible();
     expect(screen.getByTestId("pick-instructions")).toHaveTextContent(
-      "Click two points on the recorded route",
+      "Click ONE point on the recorded route",
     );
     fireEvent.click(screen.getByTestId("cancel-pick-button"));
     expect(props.onCancelPick).toHaveBeenCalledTimes(1);
+  });
+
+  it("pair pick mode shows the two-click instructions", () => {
+    renderCard({ rows: [], pickMode: "pair" });
+    expect(screen.getByTestId("pick-instructions")).toHaveTextContent(
+      "Click two points on the recorded route",
+    );
   });
 });
 
@@ -137,6 +161,16 @@ describe("ManualRepairsCard — rows", () => {
     expect(props.onOpenEditor).toHaveBeenCalledWith(ROW_A.id);
     fireEvent.click(screen.getAllByTestId("remove-manual-span-button")[1]);
     expect(props.onRemoveSpan).toHaveBeenCalledWith(ROW_B.id);
+  });
+
+  it("open-ended (extend) rows say so and render the anchor only", () => {
+    renderCard({ rows: [ROW_EXTEND] });
+    const row = screen.getByTestId("manual-repair-row");
+    expect(row).toHaveTextContent("Added route");
+    expect(row).toHaveTextContent("From");
+    expect(screen.getByTestId("open-end-note")).toHaveTextContent(
+      "Open end",
+    );
   });
 });
 

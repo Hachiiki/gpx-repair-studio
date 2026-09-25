@@ -42,6 +42,23 @@ export function gapId(beforePoint: PointId, afterPoint: PointId): GapId {
 }
 
 /**
+ * `gap/{anchorPointId}/end` — an open-ended route extension past the anchor
+ * (one-anchor "add missing route" with no next recorded point). The literal
+ * `end` can never collide with a PointId (those always contain a `:`).
+ */
+export function gapIdEnd(anchorPoint: PointId): GapId {
+  return `gap/${anchorPoint}/end` as GapId;
+}
+
+/**
+ * `gap/start/{anchorPointId}` — an open-ended extension BEFORE the anchor
+ * (the missing route head). Same collision-safety as `gapIdEnd`.
+ */
+export function gapIdStart(anchorPoint: PointId): GapId {
+  return `gap/start/${anchorPoint}` as GapId;
+}
+
+/**
  * `v{sequence}` — a reconstruction vertex id. Sequence numbers are allocated
  * monotonically by the editor store for the whole editing session (never
  * reused, even after undo/delete), so ids stay unique across every gap's

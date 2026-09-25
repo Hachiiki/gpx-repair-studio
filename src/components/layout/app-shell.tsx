@@ -84,7 +84,8 @@ export function AppShell() {
                   rows={draw.manualRows}
                   detectedGapIds={session.gapRows.map((row) => row.id)}
                   pickMode={draw.pickMode}
-                  onBeginPick={draw.beginPickSpan}
+                  onBeginPickAnchor={draw.beginPickAnchor}
+                  onBeginPickPair={draw.beginPickPair}
                   onCancelPick={draw.cancelPickSpan}
                   onOpenEditor={draw.openEditor}
                   onRemoveSpan={draw.removeManualSpan}
@@ -99,7 +100,7 @@ export function AppShell() {
                   onSelectGap={map.selectGap}
                   statusById={draw.statusById}
                   onOpenEditor={draw.openEditor}
-                  onBeginPick={draw.beginPickSpan}
+                  onBeginPick={draw.beginPickAnchor}
                 />
                 {session.distanceStats && session.timeStats && (
                   <StatsPanel
