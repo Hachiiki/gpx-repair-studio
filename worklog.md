@@ -734,3 +734,18 @@ Stage Summary:
 - The app now speaks one language end-to-end: ink for recorded truth, signal orange for the app's work, paper field, shade secondary — the five pinned anchors only, with the share card as the native reference and the map (ink route, orange recon, severity ramp, Positron) fully in-system.
 - Zero DOM/semantic changes: all testids, roles, copy, and the 877-test contract intact; the share card byte-identical.
 - Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
+
+---
+Task ID: 30 (continuation)
+Agent: Super Z (main agent)
+Task: Production verification of the Ink & Signal redesign on Vercel.
+
+Work Log:
+- Pushed 25d618a; polled until the new deployment served (age reset).
+- Production checks (agent-browser, 1440x900): landing tokens live (--primary resolves to the FC4C02 orange, ink body, Montserrat display wordmark); uploaded time-gap.gpx — workspace renders, gap detected (suspect).
+- Pixel-verified the map on production: 524 ink-route pixels (#222222 recorded line) + 135 signal-orange pixels in the scan area — the new palette is rendering end-to-end.
+- Gap selection screenshot captured (selection glow + boundary markers); mobile 375px landing: no horizontal overflow.
+- Screenshots download/redesign-prod-01..04.
+
+Stage Summary:
+- Ink & Signal redesign verified live on https://gpx-repair-studio.vercel.app; dev-server QA findings all confirmed fixed in production.
