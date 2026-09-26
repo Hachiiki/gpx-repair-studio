@@ -282,8 +282,13 @@ export function useGpxSession(): GpxSession {
   const loadFile = useCallback(async (file: File) => {
     const session = useSessionStore.getState();
     // The remembered landing intent decides which workspace this file
-    // opens into (Task 20); switching later never re-parses.
-    session.beginLoad(file.name, useUiStore.getState().landingMode);
+    // opens into (Task 20); switching later never re-parses. Task 26
+    // revision: the toggle's third tab ("recovery") routes its uploads
+    // into the recovery session instead — this path never sees it, and
+    // the narrowing keeps the store's SessionView honest by construction.
+    const remembered = useUiStore.getState().landingMode;
+    const view = remembered === "share" ? "share" : "repair";
+    session.beginLoad(file.name, view);
 
     if (file.size === 0) {
       session.fail({

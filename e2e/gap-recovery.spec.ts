@@ -4,10 +4,13 @@ import { join } from "node:path";
 import { abortRoadRouting } from "./helpers/road-follow";
 
 /**
- * Task 26 E2E — the Gap Recovery section's acceptance criteria:
+ * Task 26 E2E (revised to the landing-tab entry) — the Gap Recovery
+ * section's acceptance criteria:
  *
- *   1. the header switcher separates two independent sections (each with
- *      its own session — a file loaded in one never appears in the other);
+ *   1. the landing toggle is the only front door: three tabs (repair a
+ *      recording / create a share card / recover a GPS gap), no header
+ *      section switcher, and an upload from the recovery tab enters the
+ *      section's own session;
  *   2. uploading an activity with a GPS tracking gap lists the missing
  *      section (interval boundaries + elapsed time);
  *   3. drawing the missing route on the map works exactly like the repair
@@ -16,7 +19,9 @@ import { abortRoadRouting } from "./helpers/road-follow";
  *      original elapsed time marked unchanged;
  *   5. exporting downloads a corrected GPX whose generated points carry
  *      gpxr provenance and whose original values are verbatim;
- *   6. the flow works at a mobile (375 px) viewport.
+ *   6. "New file" returns to the landing, where the repair tab opens the
+ *      repair studio for the same file (sessions stay independent);
+ *   7. the flow works at a mobile (375 px) viewport, tabs included.
  *
  * Road routing is stubbed off (straight legs — deterministic geometry).
  * Assertions read the DOM, the controller's test bridge, and the
@@ -114,14 +119,25 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("Gap Recovery section", () => {
-  test("full happy path: detect → draw → preview → export, sections isolated", async ({
+  test("full happy path: tab → detect → draw → preview → export, then the repair studio", async ({
     page,
   }) => {
     await page.goto("/");
 
-    // -- the section switcher: recovery has its own landing ----------------
-    await page.getByTestId("section-switch-recovery").click();
-    await expect(page.getByTestId("recovery-workflow-steps")).toBeVisible();
+    // -- the landing toggle is the only front door ---------------------------
+    const toggle = page.getByTestId("landing-mode-toggle");
+    await expect(toggle).toBeVisible();
+    // The Task-26 header section switcher is gone — the tab is the door.
+    await expect(page.getByTestId("section-switcher")).toHaveCount(0);
+    await page.getByTestId("landing-mode-recovery").click();
+
+    // The recovery hero teaches its workflow.
+    await expect(
+      page.getByRole("heading", { name: "Recover a missing GPS section" }),
+    ).toBeVisible();
+    const steps = page.getByTestId("workflow-steps");
+    await expect(steps).toContainText("Detect the gap");
+    await expect(steps).toContainText("Export the corrected file");
     await expect(page.getByTestId("upload-zone")).toBeVisible();
 
     // -- upload the activity with the GPS tracking gap -----------------------
@@ -192,26 +208,25 @@ test.describe("Gap Recovery section", () => {
     expect(xml).toContain("<time>2024-05-01T07:00:09Z</time>"); // untouched anchor
     expect(xml).toContain("<time>2024-05-01T07:05:09Z</time>"); // untouched anchor
 
-    // -- section isolation: the repair studio keeps its own session ------------
-    await page.getByTestId("section-switch-repair").click();
-    // No file was ever loaded in the repair studio: its landing shows.
-    await expect(page.getByTestId("upload-zone")).toBeVisible();
+    // -- back to the landing, then into the repair studio ---------------------
+    // "New file" resets the ACTIVE section (recovery) and returns to the
+    // landing; the repair tab then opens the repair studio for the same
+    // file — its own workspace, not the recovery section.
+    await page.getByRole("button", { name: "New file" }).click();
     await expect(page.getByTestId("landing-mode-toggle")).toBeVisible();
-
-    // Back in recovery: the session and its committed route survived.
-    await page.getByTestId("section-switch-recovery").click();
-    await expect(guide).toContainText("1 of 1 recovered");
-    await pollBridge(
-      page,
-      (s) => s.ready && s.reconstructionLineCount === 1,
-    );
+    await page.getByTestId("landing-mode-repair").click();
+    await upload(page, join(FIXTURES, "time-gap.gpx"));
+    await pollBridge(page, (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);
+    await expect(page.getByTestId("gap-list")).toContainText("Time gap");
+    await expect(page.getByTestId("recovery-guide-card")).toHaveCount(0);
+    await expect(page.getByTestId("manual-repairs-card")).toBeVisible();
   });
 
   test("re-uploading the corrected file recognizes the recovery", async ({
     page,
   }) => {
     await page.goto("/");
-    await page.getByTestId("section-switch-recovery").click();
+    await page.getByTestId("landing-mode-recovery").click();
     await upload(page, join(FIXTURES, "time-gap.gpx"));
     await pollBridge(page, (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);
 
@@ -238,9 +253,14 @@ test.describe("Gap Recovery section", () => {
     if (path === null) throw new Error("download produced no file");
     const xml = readFileSync(path, "utf8");
 
-    // Round-trip: reset the section, upload the export itself.
+    // Round-trip: reset the section, upload the export itself — from the
+    // remembered recovery tab (the intent survived the reset).
     await page.getByRole("button", { name: "New file" }).click();
     await page.getByTestId("upload-zone").waitFor({ state: "visible" });
+    await expect(page.getByTestId("landing-mode-recovery")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
     const tempPath = join(process.cwd(), "e2e", ".recovery-roundtrip.gpx");
     writeFileSync(tempPath, xml);
     await upload(page, tempPath);
@@ -259,14 +279,32 @@ test.describe("Gap Recovery section", () => {
     await pollBridge(page, (s) => s.reconstructionLineCount >= 1);
   });
 
-  test("works at a mobile viewport", async ({ page }) => {
+  test("works at a mobile viewport, three tabs on one row", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto("/");
 
-    // The switcher collapses to short labels and still works.
-    await expect(page.getByTestId("section-switch-recovery")).toBeVisible();
-    await page.getByTestId("section-switch-recovery").click();
-    await expect(page.getByTestId("recovery-workflow-steps")).toBeVisible();
+    // The compact labels keep the trio on one 375 px row — the page
+    // never scrolls horizontally because of the toggle (the URI-wrap
+    // spec's overflow contract, applied to the landing).
+    const toggle = page.getByTestId("landing-mode-toggle");
+    await expect(toggle).toBeVisible();
+    const overflow = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth);
+    const toggleBox = await toggle.boundingBox();
+    expect(toggleBox).not.toBeNull();
+    expect(toggleBox!.width).toBeLessThanOrEqual(375);
+
+    // The compact label shows below sm; the tab still switches.
+    await expect(page.getByTestId("landing-mode-recovery")).toContainText(
+      "Recovery",
+    );
+    await page.getByTestId("landing-mode-recovery").click();
+    await expect(
+      page.getByRole("heading", { name: "Recover a missing GPS section" }),
+    ).toBeVisible();
 
     await upload(page, join(FIXTURES, "time-gap.gpx"));
     await pollBridge(page, (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);

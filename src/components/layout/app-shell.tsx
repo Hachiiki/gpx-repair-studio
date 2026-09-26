@@ -54,8 +54,9 @@ import { useGpxSession } from "@/hooks/use-gpx-session";
 import { useMapController } from "@/hooks/use-map-controller";
 import { useShareCard } from "@/hooks/use-share-card";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
-import { useUiStore } from "@/state/ui-store";
+import { useUiStore, type AppSection } from "@/state/ui-store";
 import { useRecoveryStore } from "@/state/recovery-store";
+import { loadRecoveryFile } from "@/hooks/use-recovery-session";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
@@ -71,16 +72,20 @@ export function AppShell() {
   const landingMode = useUiStore((s) => s.landingMode);
   const setLandingMode = useUiStore((s) => s.setLandingMode);
 
-  // Task 26 — the top-level section switch. "repair" keeps this shell's
-  // original wiring untouched; "recovery" mounts the Gap Recovery
-  // section, a self-contained workflow with its own session, map, draw
-  // editor, and export (state/recovery-store — nothing is shared with the
-  // repair session except user preferences). Raw store selectors keep the
-  // header honest without duplicating the section's hook tree.
-  const section = useUiStore((s) => s.activeSection);
-  const setActiveSection = useUiStore((s) => s.setActiveSection);
+  // Task 26 revision — the active section is DERIVED, not switched: the
+  // Gap Recovery section is mounted exactly while its own session is
+  // loading or parsed (its uploads arrive through the landing page's
+  // "Recover a GPS gap" tab; resetting it returns to the landing). The
+  // repair studio keeps this shell's original wiring; recovery state
+  // lives in its own store (state/recovery-store) and raw selectors keep
+  // the header honest without duplicating the section's hook tree.
   const recoveryStatus = useRecoveryStore((s) => s.status);
   const recoveryFileName = useRecoveryStore((s) => s.fileName);
+  const recoveryError = useRecoveryStore((s) => s.error);
+  const section: AppSection =
+    recoveryStatus === "loading" || recoveryStatus === "parsed"
+      ? "recovery"
+      : "repair";
 
   // Rehydrate persisted settings after mount — the prerendered HTML and
   // the first client render both use defaults, so there is no hydration
@@ -110,7 +115,6 @@ export function AppShell() {
         view={session.view}
         onSwitchView={session.setView}
         section={section}
-        onSwitchSection={setActiveSection}
       />
 
       <main
@@ -237,9 +241,16 @@ export function AppShell() {
         ) : session.status === "loading" ? (
           <SessionLoadingView fileName={session.fileName} />
         ) : (
+          /* The landing is a router (Task 26 revision): the selected tab
+             decides which session an upload enters — and which session's
+             failure sits above the hero for retry. Switching tabs swaps
+             the error along with the destination, so a stale failure
+             never guards the wrong intake. */
           <SessionIdleView
-            error={session.error}
-            onFile={session.loadFile}
+            error={landingMode === "recovery" ? recoveryError : session.error}
+            onFile={
+              landingMode === "recovery" ? loadRecoveryFile : session.loadFile
+            }
             mode={landingMode}
             onModeChange={setLandingMode}
           />

@@ -109,6 +109,21 @@ describe("SessionIdleView — landing mode (Task 20)", () => {
     expect(screen.getByTestId("upload-zone")).toBeVisible();
   });
 
+  it("switches the hero and the trio to the gap-recovery workflow (Task 26 revision)", () => {
+    renderIdle({ mode: "recovery" });
+
+    expect(
+      screen.getByRole("heading", { name: "Recover a missing GPS section" }),
+    ).toBeVisible();
+    const steps = screen.getByTestId("workflow-steps");
+    expect(steps).toHaveTextContent("Detect the gap");
+    expect(steps).toHaveTextContent("Draw the missing route");
+    expect(steps).toHaveTextContent("Export the corrected file");
+    expect(steps.querySelectorAll("li")).toHaveLength(3);
+    // The upload zone stays the one and only intake.
+    expect(screen.getByTestId("upload-zone")).toBeVisible();
+  });
+
   it("marks the active mode and dispatches the change intent", () => {
     const changes: string[] = [];
     renderIdle({ onModeChange: (mode) => changes.push(mode) });
@@ -117,8 +132,10 @@ describe("SessionIdleView — landing mode (Task 20)", () => {
     expect(toggle).toHaveAttribute("role", "radiogroup");
     const repair = screen.getByTestId("landing-mode-repair");
     const share = screen.getByTestId("landing-mode-share");
+    const recovery = screen.getByTestId("landing-mode-recovery");
     expect(repair).toHaveAttribute("aria-checked", "true");
     expect(share).toHaveAttribute("aria-checked", "false");
+    expect(recovery).toHaveAttribute("aria-checked", "false");
 
     fireEvent.click(share);
     expect(changes).toEqual(["share"]);
@@ -127,6 +144,27 @@ describe("SessionIdleView — landing mode (Task 20)", () => {
     expect(
       screen.getByRole("heading", { name: "Repair incomplete GPS recordings" }),
     ).toBeVisible();
+  });
+
+  it("offers all three destinations as radios, each with a compact and a full label", () => {
+    renderIdle();
+
+    const radios = screen
+      .getByTestId("landing-mode-toggle")
+      .querySelectorAll('[role="radio"]');
+    expect(radios).toHaveLength(3);
+
+    // The responsive label pair: the compact span shows below sm, the
+    // full one from sm up — three tabs stay on one 375 px row.
+    const recovery = screen.getByTestId("landing-mode-recovery");
+    expect(recovery.querySelector(".sm\\:hidden")?.textContent).toBe(
+      "Recovery",
+    );
+    expect(recovery.querySelector(".hidden.sm\\:inline")?.textContent).toBe(
+      "Recover a GPS gap",
+    );
+
+    fireEvent.click(recovery);
   });
 });
 

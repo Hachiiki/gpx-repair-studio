@@ -13,8 +13,14 @@
  * (with the undo/redo bar and the §J-1 time-strategy controls), GapList,
  * FileTimingCard, ExportCard + the pre-export dialog, GpxSummaryCard,
  * ValidationReport, SegmentList, StatsPanel, and the loading view. The
- * only section-specific pieces are the landing view, the layout wrapper,
- * the guide card, and the completed-route preview card.
+ * only section-specific pieces are the layout wrapper, the guide card,
+ * and the completed-route preview card.
+ *
+ * Task 26 revision: this root no longer renders a landing state — the
+ * shell mounts it only while the section's session is loading or
+ * parsed, and its uploads arrive through the landing page's "Recover a
+ * GPS gap" tab. A failed load returns the user to the landing (the
+ * shell routes the section's error there for retry).
  *
  * Task 26 — Gap Recovery section. Client component.
  */
@@ -33,7 +39,6 @@ import { FileTimingCard } from "@/components/reconstruction/file-timing-card";
 import { GapList } from "@/components/reconstruction/gap-list";
 import { StatsPanel } from "@/components/statistics/stats-panel";
 import { RecoveryGuideCard } from "@/components/recovery/recovery-guide-card";
-import { RecoveryIdleView } from "@/components/recovery/recovery-idle-view";
 import { RecoveryPreviewCard } from "@/components/recovery/recovery-preview-card";
 import { RecoveryWorkspace } from "@/components/recovery/recovery-workspace";
 import { SessionLoadingView } from "@/components/layout/session-views";
@@ -153,10 +158,10 @@ export function RecoveryStudio() {
     return <SessionLoadingView fileName={session.fileName} />;
   }
 
-  return (
-    <RecoveryIdleView
-      error={session.error}
-      onFile={session.loadFile}
-    />
-  );
+  // Unreachable from the shell (it only mounts this section while its
+  // session is loading or parsed — idle/error render the landing, where
+  // the section's error surfaces above the hero for retry). Defensive
+  // null for any other direct mount, so a stale root can't paint a ghost
+  // workspace against a cleared store.
+  return null;
 }

@@ -14,6 +14,11 @@
  * destination store differs. State stays fully isolated: loading a file
  * here never touches the repair studio's session, and vice versa.
  *
+ * `loadRecoveryFile` is exported for the AppShell (Task 26 revision):
+ * the landing page's "Recover a GPS gap" tab routes its upload into
+ * this section's session — the hook itself is also usable standalone
+ * (the composition root calls either entry point, never both).
+ *
  * Thresholds are deliberately shared with the repair studio (uiStore):
  * "what counts as a gap" is one user preference, not two. Changing them
  * re-runs detection over the unchanged original model — a pure
@@ -199,6 +204,56 @@ export function buildRecoverySegmentRows(
 }
 
 // ---------------------------------------------------------------------------
+// The upload pipeline (module scope so the composition root can route the
+// landing page's "Recover a GPS gap" tab here — Task 26 revision)
+// ---------------------------------------------------------------------------
+
+/**
+ * Read, parse, validate, and gap-detect one file into the recovery
+ * session — the section's counterpart of `useGpxSession.loadFile`, with
+ * the same error taxonomy (empty file / parse failure / read failure)
+ * and the same yield so the loading state paints first.
+ */
+export async function loadRecoveryFile(file: File): Promise<void> {
+  const store = useRecoveryStore.getState();
+  store.beginLoad(file.name);
+
+  if (file.size === 0) {
+    store.fail({
+      title: "Empty file",
+      detail: `"${file.name}" contains no data. Choose a non-empty GPX export.`,
+    });
+    return;
+  }
+
+  try {
+    const text = await file.text();
+    // Yield once so the loading state paints before the synchronous
+    // parse of large files (same contract as the repair studio).
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const outcome = parseGpx(text, createDomXmlIo());
+    if (!outcome.ok) {
+      store.fail(describeParseError(outcome.error, file.name));
+      return;
+    }
+    const validated = validateGpx(outcome.data);
+    const detected = detectGaps(
+      validated.data,
+      useUiStore.getState().gapThresholds,
+    );
+    store.setParsed(file.name, validated.data, detected);
+  } catch (err) {
+    store.fail({
+      title: "Could not read file",
+      detail:
+        `"${file.name}" could not be read: ` +
+        `${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The hook
 // ---------------------------------------------------------------------------
 
@@ -210,44 +265,12 @@ export function useRecoverySession(): RecoverySession {
   const error = useRecoveryStore((s) => s.error);
   const gapThresholds = useUiStore((s) => s.gapThresholds);
 
-  const loadFile = useCallback(async (file: File) => {
-    const store = useRecoveryStore.getState();
-    store.beginLoad(file.name);
-
-    if (file.size === 0) {
-      store.fail({
-        title: "Empty file",
-        detail: `"${file.name}" contains no data. Choose a non-empty GPX export.`,
-      });
-      return;
-    }
-
-    try {
-      const text = await file.text();
-      // Yield once so the loading state paints before the synchronous
-      // parse of large files (same contract as the repair studio).
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      const outcome = parseGpx(text, createDomXmlIo());
-      if (!outcome.ok) {
-        store.fail(describeParseError(outcome.error, file.name));
-        return;
-      }
-      const validated = validateGpx(outcome.data);
-      const detected = detectGaps(
-        validated.data,
-        useUiStore.getState().gapThresholds,
-      );
-      store.setParsed(file.name, validated.data, detected);
-    } catch (err) {
-      store.fail({
-        title: "Could not read file",
-        detail:
-          `"${file.name}" could not be read: ` +
-          `${err instanceof Error ? err.message : String(err)}`,
-      });
-    }
-  }, []);
+  // Same pipeline as the landing-tab entry point, wrapped for the stable
+  // binding (the hook rule wants the inline expression).
+  const loadFile = useCallback(
+    (file: File) => loadRecoveryFile(file),
+    [],
+  );
 
   const reset = useCallback(() => {
     useRecoveryStore.getState().reset();

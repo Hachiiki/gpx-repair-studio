@@ -920,7 +920,7 @@ historical):
 
 ## R. Gap Recovery Section (Task 26 — user-requested addition)
 
-A second top-level section of the app, added after Phase 7 at the
+A third destination of the landing page, added after Phase 7 at the
 user's request: **Gap Recovery** — a self-contained workflow for
 recovering a missing GPS section from an existing activity whose
 elapsed time continued while coordinates were missing. Explicitly an
@@ -928,12 +928,20 @@ ADDITION, not a redesign: the repair studio's processing, route
 drawing, calculation, and export are untouched, and the new section
 reuses the same pure machinery wherever possible.
 
+> **Task 26 revision (user feedback):** the section originally shipped
+> behind a header section switcher; the user clarified it should be a
+> **third tab of the landing mode toggle** ("Repair a recording" /
+> "Create a share card" / "Recover a GPS gap") — the same segmented
+> control, not a separate top-navigation section. The switcher was
+> removed; the entry point and everything below is as follows.
+
 ### R-1 Scope & contracts
 
 The user-facing flow, exactly as specified:
 
-- **Upload an activity with a GPS tracking gap** — the section has its
-  own upload (the same UploadZone component) and its own session; the
+- **Upload an activity with a GPS tracking gap** — the landing page's
+  "Recover a GPS gap" tab routes the upload into the section's own
+  session (the same UploadZone gesture, `loadRecoveryFile`); the
   repair studio keeps whatever file it holds.
 - **Detect the missing GPS time interval** — the same `detectGaps`
   engine (time-gap / speed-anomaly / segment-break, shared thresholds
@@ -996,15 +1004,23 @@ The user-facing flow, exactly as specified:
   `MergeRepairSite[]` → `mergeRepairs` → `exportGpxRepaired`;
   returns the same `GpxExportBinding` so the export card + dialog are
   reused.
-- `components/recovery/*` — the section root (composition), landing
-  view, two-section layout (recovery-labeled sibling of
-  WorkspaceLayout), guide card (wizard progress), and completed-route
-  preview card. Everything else in the tree is an existing component.
-- Shell wiring (additive): `ui-store` gains a transient
-  `activeSection` ("repair" | "recovery", never persisted — reload
-  returns to the repair studio); `AppHeader` gains the section
-  switcher (icons-only below `sm` to keep the 390 px header row
-  overflow-free); `AppShell` mounts `RecoveryStudio` when active.
+- `components/recovery/*` — the section root (composition; no landing
+  branch — the landing page's tab is the front door), two-section
+  layout (recovery-labeled sibling of WorkspaceLayout), guide card
+  (wizard progress), and completed-route preview card. Everything else
+  in the tree is an existing component.
+- Shell wiring (additive, revised): `ui-store`'s `landingMode` widens
+  to `LandingMode = SessionView | "recovery"` (still the one persisted
+  remembered intent — a stored "recovery" survives reloads, and the
+  repair path narrows it so the session store's `SessionView` stays
+  honest by construction); **no switcher state exists** — `AppShell`
+  DERIVES the active section (recovery while its session is loading
+  or parsed, repair otherwise) and routes the landing's upload intent
+  and retry error by the selected tab; `AppHeader` renders no
+  section switcher (its `section` prop is conditional routing only);
+  `AppShell` mounts `RecoveryStudio` while the section is active, and
+  `RecoveryStudio` has no landing branch (a failed load returns to
+  the landing with the section's error above the hero for retry).
 - Elevation estimation stays a repair-studio feature (recovery focuses
   on geometry + time); the reused panel's elevation controls are
   hidden via the null binding.
@@ -1022,3 +1038,10 @@ against the real OSRM road-follow service on the multi-gap demo file:
 route, 140 generated points exported with provenance markers, elapsed
 time unchanged, average-speed math corrected (ms→s conversion bug
 caught and fixed during live verification).
+
+The Task 26 revision re-pinned the entry flow: the RTL suite covers
+the three-tab toggle (no switcher, hero swap, compact/full label
+pair), the tab-routed upload into the section's own session, the
+reset-then-repair-tab handoff, and the tab-routed error/retry; the
+e2e suite re-entered everything through the landing tab and added the
+mobile 375 px no-overflow contract for the three-tab toggle.

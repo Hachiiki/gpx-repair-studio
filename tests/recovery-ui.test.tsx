@@ -1,17 +1,24 @@
 // @vitest-environment jsdom
 /**
  * React Testing Library — the Gap Recovery section's acceptance flow
- * (Task 26), end to end against the real domain pipeline:
+ * (Task 26, revised to the landing-tab entry), end to end against the
+ * real domain pipeline:
  *
- *   - the header switcher moves between the repair studio and the Gap
- *     Recovery section, and each keeps its own session (isolation);
+ *   - the landing toggle is the ONLY front door: three tabs (repair a
+ *     recording / create a share card / recover a GPS gap) and no
+ *     header section switcher;
+ *   - an upload from the recovery tab enters the section's own session
+ *     (the repair studio's session stays untouched);
  *   - uploading an activity with a GPS tracking gap lists the missing
  *     section (interval anchors + elapsed) through the reused panels;
  *   - drawing (store-driven, as the map needs WebGL) and committing a
  *     route updates the completed-route preview: distance grows, the
  *     elapsed time stays marked unchanged, generated points counted;
  *   - the export card reflects the committed recovery;
- *   - nothing of this touches the repair studio's session.
+ *   - a failed load surfaces above the hero for retry, routed by the
+ *     selected tab;
+ *   - "New file" resets the active section and returns to the landing,
+ *     where the repair tab opens the repair studio for the same file.
  *
  * jsdom provides File/Blob.text and DOMParser, so the same XmlIo adapter
  * used in the browser runs here (no mocking of the domain). The map
@@ -37,7 +44,7 @@ beforeEach(() => {
     useUiStore.getState().resetGapThresholds();
     useUiStore.setState({
       selectedGapId: null,
-      activeSection: "repair",
+      landingMode: "repair",
       tileProvider: "openfreemap",
       paceUnit: "km",
     });
@@ -58,6 +65,11 @@ async function dropFile(fixtureName: string) {
   });
 }
 
+/** Enter the recovery destination: click the landing's third tab. */
+function chooseRecoveryTab() {
+  fireEvent.click(screen.getByTestId("landing-mode-recovery"));
+}
+
 /** The drawn detour for the missing section (mirrors the pipeline test). */
 const DRAWN = [
   { lat: 52.5206, lon: 13.4055 },
@@ -65,32 +77,52 @@ const DRAWN = [
 ];
 
 describe("Gap Recovery section", () => {
-  it("switches sections from the header; the recovery landing shows its workflow", async () => {
+  it("offers the recovery destination as the landing's third tab — no header switcher", () => {
     render(<AppShell />);
 
-    // The repair studio's landing is the default.
-    expect(screen.getByTestId("landing-mode-toggle")).toBeVisible();
-
-    fireEvent.click(screen.getByTestId("section-switch-recovery"));
-
-    // The recovery landing: its own hero steps and its own upload zone.
-    expect(await screen.findByTestId("recovery-workflow-steps")).toBeVisible();
-    expect(screen.getByTestId("upload-zone")).toBeVisible();
+    // The toggle carries three mutually exclusive destinations.
+    const toggle = screen.getByTestId("landing-mode-toggle");
+    expect(toggle).toHaveAttribute("role", "radiogroup");
     expect(
-      screen.getByTestId("recovery-workflow-steps"),
-    ).toHaveTextContent("Detect the gap");
+      toggle.querySelectorAll('[role="radio"]'),
+    ).toHaveLength(3);
+
+    // The Task-26 header section switcher is gone: the tab is the only door.
+    expect(screen.queryByTestId("section-switcher")).toBeNull();
+
+    // Choosing the recovery tab swaps the hero to its workflow.
+    chooseRecoveryTab();
+    expect(
+      screen.getByRole("heading", { name: "Recover a missing GPS section" }),
+    ).toBeVisible();
+    const steps = screen.getByTestId("workflow-steps");
+    expect(steps).toHaveTextContent("Detect the gap");
+    expect(steps).toHaveTextContent("Draw the missing route");
+    expect(steps).toHaveTextContent("Export the corrected file");
+    expect(screen.getByTestId("upload-zone")).toBeVisible();
+
+    // And back: the repair hero returns (one remembered intent).
+    fireEvent.click(screen.getByTestId("landing-mode-repair"));
+    expect(
+      screen.getByRole("heading", { name: "Repair incomplete GPS recordings" }),
+    ).toBeVisible();
   });
 
-  it("lists the missing GPS section with its interval and elapsed time", async () => {
+  it("routes an upload from the recovery tab into the section's own session", async () => {
     render(<AppShell />);
-    fireEvent.click(screen.getByTestId("section-switch-recovery"));
+    chooseRecoveryTab();
 
     await dropFile("time-gap.gpx");
 
-    // The guide card counts the detected section.
+    // The recovery workspace mounted (not the repair studio's): its
+    // guide card counts the detected section.
     const guide = await screen.findByTestId("recovery-guide-card");
     expect(guide).toHaveTextContent("1 found");
     expect(guide).toHaveTextContent("0 of 1 recovered");
+
+    // The repair studio never saw this file.
+    expect(useSessionStore.getState().status).toBe("idle");
+    expect(useSessionStore.getState().data).toBeNull();
 
     // The reused gap list shows the missing interval's evidence.
     const gapList = await screen.findByTestId("gap-list");
@@ -110,7 +142,7 @@ describe("Gap Recovery section", () => {
 
   it("draws, commits, and previews the completed route with the elapsed time unchanged", async () => {
     render(<AppShell />);
-    fireEvent.click(screen.getByTestId("section-switch-recovery"));
+    chooseRecoveryTab();
     await dropFile("time-gap.gpx");
     await screen.findByTestId("gap-list");
 
@@ -162,25 +194,16 @@ describe("Gap Recovery section", () => {
     expect(exportCard).toHaveTextContent("1");
   });
 
-  it("keeps the repair studio's session untouched (section isolation)", async () => {
+  it("resets the active section from the header and lands in the repair studio from the repair tab", async () => {
     render(<AppShell />);
+    chooseRecoveryTab();
 
-    // Load a file in the REPAIR studio first.
+    // Load a file in the RECOVERY section and commit a repair there.
     await dropFile("time-gap.gpx");
     await screen.findByTestId("gap-list");
-
-    // Switch to recovery and load the same fixture there too.
-    fireEvent.click(screen.getByTestId("section-switch-recovery"));
-    await dropFile("time-gap.gpx");
-    const recoveryList = await screen.findByTestId("gap-list");
-    expect(recoveryList).toBeVisible();
-
-    // Draw + commit a recovery repair.
     await act(async () => {
       const store = useRecoveryStore.getState();
-      store.openEditor(
-        useRecoveryStore.getState().gaps[0]!.id,
-      );
+      store.openEditor(useRecoveryStore.getState().gaps[0]!.id);
       for (const point of DRAWN) store.addVertex(point);
       store.closeEditor();
     });
@@ -190,29 +213,48 @@ describe("Gap Recovery section", () => {
       );
     });
 
-    // Back in the repair studio: its own session is intact and its own
-    // repairs untouched (0 committed there).
-    fireEvent.click(screen.getByTestId("section-switch-repair"));
-    const repairList = await screen.findByTestId("gap-list");
-    expect(repairList).toBeVisible();
-    expect(useRecoveryStore.getState().reconstructions).not.toEqual({});
+    // "New file" resets the ACTIVE section (recovery) and returns to
+    // the landing — the repair studio's stores were never involved.
+    fireEvent.click(screen.getByRole("button", { name: "New file" }));
+    await screen.findByTestId("landing-mode-toggle");
+    expect(useRecoveryStore.getState().status).toBe("idle");
+    expect(useSessionStore.getState().status).toBe("idle");
     expect(Object.keys(useEditorStore.getState().reconstructions)).toEqual([]);
 
-    // The recovery session survives the round trip.
-    fireEvent.click(screen.getByTestId("section-switch-recovery"));
-    expect(await screen.findByTestId("recovery-guide-card")).toHaveTextContent(
-      "1 of 1 recovered",
-    );
+    // Upload the same file from the REPAIR tab: the repair studio opens
+    // — its own workspace, not the recovery section.
+    fireEvent.click(screen.getByTestId("landing-mode-repair"));
+    await dropFile("time-gap.gpx");
+    await screen.findByTestId("gap-list");
+    expect(screen.queryByTestId("recovery-guide-card")).toBeNull();
+    expect(screen.getByTestId("manual-repairs-card")).toBeVisible();
+    expect(useSessionStore.getState().status).toBe("parsed");
+    expect(useRecoveryStore.getState().status).toBe("idle");
+
+    // And a repair tab upload with the recovery tab remembered routes
+    // back the other way: the remembered tab is the intent (unit-level:
+    // the session stores stay fully independent).
+    expect(useRecoveryStore.getState().data).toBeNull();
   });
 
-  it("shows precise errors for unreadable files, with retry available", async () => {
+  it("routes load failures by the selected tab, with retry available", async () => {
     render(<AppShell />);
-    fireEvent.click(screen.getByTestId("section-switch-recovery"));
+    chooseRecoveryTab();
 
     await dropFile("malformed.gpx");
 
+    // The recovery session's failure sits above its hero for retry.
     const error = await screen.findByTestId("session-error");
     expect(error).toHaveTextContent("Not well-formed XML");
     expect(screen.getByTestId("upload-zone")).toBeVisible();
+    expect(useRecoveryStore.getState().status).toBe("error");
+
+    // Switching to another destination swaps the routed error away…
+    fireEvent.click(screen.getByTestId("landing-mode-repair"));
+    expect(screen.queryByTestId("session-error")).toBeNull();
+
+    // …and back: the recovery failure is still there, waiting for retry.
+    fireEvent.click(screen.getByTestId("landing-mode-recovery"));
+    expect(screen.getByTestId("session-error")).toBeVisible();
   });
 });

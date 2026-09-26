@@ -2,29 +2,26 @@
  * AppHeader — the application header (§F layout; QoL pass: sticky).
  *
  * Shows the product identity, the local-first badge (privacy promise),
- * the top-level section switcher (Task 26: Repair studio ↔ Gap
- * recovery), and — once a file is loaded — the active section's file
- * name, the section navigation (map / statistics anchors), and the
- * "start over" action (the only way back to the upload state; single
- * entry point by design, no duplicate actions).
+ * and — once a file is loaded — the active section's file name, the
+ * section navigation (map / statistics anchors), and the "start over"
+ * action (the only way back to the upload state; single entry point by
+ * design, no duplicate actions).
  *
  * Sticky so the section nav and "New file" stay reachable while the
  * user scrolls the long map section.
  *
- * Task 26: `section` + `onSwitchSection` are additive. The repair
- * studio's rendering is unchanged — its buttons, anchors, and props
- * behave exactly as before; the switcher simply moves the user between
- * the two independent sections (each keeps its own session state).
+ * Task 26 revision: the header section switcher is GONE — the landing
+ * page's three-tab mode toggle ("Repair a recording" / "Create a share
+ * card" / "Recover a GPS gap") is the single front door, and the active
+ * section is derived by the shell (whichever session holds a loading or
+ * parsed file). The `section` prop remains purely conditional routing:
+ * it picks which anchors render and hides the repair-only view actions
+ * while the recovery section is active.
  */
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  ImageUp,
-  RotateCcw,
-  Waypoints,
-  Wrench,
-} from "lucide-react";
+import { ImageUp, RotateCcw, Wrench } from "lucide-react";
 import { SHELL_CONTAINER } from "@/components/layout/shell-container";
 import { cn } from "@/lib/utils";
 import type { SessionStatus, SessionView } from "@/state/session-store";
@@ -38,28 +35,13 @@ export interface AppHeaderProps {
   view?: SessionView;
   /** Switch workspace for the loaded file (parsed state only). Repair section only. */
   onSwitchView?: (view: SessionView) => void;
-  /** The active top-level section (Task 26). Defaults to "repair". */
+  /**
+   * The active section (Task 26). Defaults to "repair". Routing only —
+   * which anchors render and which repair-only actions are hidden; the
+   * section itself is derived by the shell, never switched here.
+   */
   section?: AppSection;
-  /** Switch the top-level section. Omitted → no switcher rendered. */
-  onSwitchSection?: (section: AppSection) => void;
 }
-
-const SECTION_OPTIONS: readonly {
-  value: AppSection;
-  label: string;
-  icon: typeof Wrench;
-}[] = [
-  {
-    value: "repair",
-    label: "Repair studio",
-    icon: Wrench,
-  },
-  {
-    value: "recovery",
-    label: "Gap recovery",
-    icon: Waypoints,
-  },
-];
 
 export function AppHeader({
   fileName,
@@ -68,7 +50,6 @@ export function AppHeader({
   view = "repair",
   onSwitchView,
   section = "repair",
-  onSwitchSection,
 }: AppHeaderProps) {
   const showSession = status === "parsed" && fileName !== null;
 
@@ -97,47 +78,6 @@ export function AppHeader({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/*
-           * The top-level section switcher (Task 26): two independent
-           * workflows, each with its own session. A segmented control in
-           * the app's toggle language; the active section is pressed.
-           */}
-          {onSwitchSection && (
-            <div
-              className="flex overflow-hidden rounded-lg border bg-card p-0.5"
-              role="radiogroup"
-              aria-label="Workspace section"
-              data-testid="section-switcher"
-            >
-              {SECTION_OPTIONS.map((option) => {
-                const active = section === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    aria-label={option.label}
-                    title={option.label}
-                    data-testid={`section-switch-${option.value}`}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2",
-                      active
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                    )}
-                    onClick={() => onSwitchSection(option.value)}
-                  >
-                    <option.icon className="size-3.5 shrink-0" aria-hidden="true" />
-                    {/* Icon-only below sm: the header shares a 390 px row
-                        with the brand and the session actions — labels
-                        return at the sm breakpoint where the row has room. */}
-                    <span className="hidden sm:inline">{option.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
           {section === "repair" && showSession && view === "share" && onSwitchView && (
             <Button
               variant="outline"

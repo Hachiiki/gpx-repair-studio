@@ -14,32 +14,51 @@
  * (hero entrance + scroll reveal), and use-case teaching copy — the
  * landing-page sibling of the map tools' dwell hints. The three
  * workflow steps only promise what the app does today.
+ *
+ * Task 26 revision: the mode toggle is a THREE-tab segmented control —
+ * "Repair a recording" / "Create a share card" / "Recover a GPS gap" —
+ * the single front door to all three destinations (the repair/share
+ * workspaces of the repair studio's session, and the Gap Recovery
+ * section's own session). There is no header section switcher; the
+ * remembered tab is the intent for the NEXT upload. The recovery hero
+ * and steps moved here from the retired RecoveryIdleView.
  */
 
-import { Loader2, Route, ScanSearch, ShieldCheck, Upload, Eye, Download } from "lucide-react";
+import {
+  Clock,
+  Download,
+  Eye,
+  Loader2,
+  PenLine,
+  Route,
+  ScanSearch,
+  ShieldCheck,
+  Upload,
+} from "lucide-react";
 import { SessionErrorAlert } from "@/components/gpx/session-error-alert";
 import { UploadZone } from "@/components/gpx/upload-zone";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
-import type { SessionError, SessionView } from "@/state/session-store";
+import type { LandingMode } from "@/state/ui-store";
+import type { SessionError, SessionStatus } from "@/state/session-store";
 
 export interface SessionIdleViewProps {
   /** A failed load attempt, surfaced above the hero; retry stays possible. */
   error: SessionError | null;
   /** File intake intent, handed to the UploadZone. */
   onFile: (file: File) => void;
-  /** The remembered landing mode (Task 20): what the next upload opens into. */
-  mode: SessionView;
-  onModeChange: (mode: SessionView) => void;
+  /** The remembered landing tab (Task 20 + Task 26 revision): the destination of the next upload. */
+  mode: LandingMode;
+  onModeChange: (mode: LandingMode) => void;
 }
 
 /**
  * What the app does with a file, as taught on the landing page. Kept in
  * step with shipped behavior only — the copy is a contract, not a
- * roadmap. The trio follows the selected mode (Task 20): the repair
- * workflow, or the share-card workflow.
+ * roadmap. The trio follows the selected tab: the repair workflow, the
+ * share-card workflow, or the gap-recovery workflow.
  */
 const WORKFLOW_STEPS: Record<
-  SessionView,
+  LandingMode,
   readonly {
     icon: typeof ScanSearch;
     title: string;
@@ -86,10 +105,30 @@ const WORKFLOW_STEPS: Record<
         "Export a 1080×1920 image (2160×3840 optional) — white on transparent, ready for stories and posts.",
     },
   ],
+  recovery: [
+    {
+      icon: Clock,
+      title: "Detect the gap",
+      description:
+        "The app finds sections where your watch kept counting time but GPS coordinates went missing — the interval, its duration, and both anchor points.",
+    },
+    {
+      icon: PenLine,
+      title: "Draw the missing route",
+      description:
+        "Trace where you actually went on the map — clicks follow real roads, every point drags, and everything undoes. The original recording is never modified.",
+    },
+    {
+      icon: Download,
+      title: "Export the corrected file",
+      description:
+        "GPS points are generated along your drawing with timestamps fitted into the missing interval, the completed route is previewed with recalculated statistics, and the export marks every generated point as estimated.",
+    },
+  ],
 };
 
 const HERO_COPY: Record<
-  SessionView,
+  LandingMode,
   { heading: string; description: string }
 > = {
   repair: {
@@ -102,14 +141,23 @@ const HERO_COPY: Record<
     description:
       "Upload an activity and download a Strava-style share graphic — your route with the distance, pace, and time this file records. Need to fix it first? The repair workspace is one click away after upload.",
   },
+  recovery: {
+    heading: "Recover a missing GPS section",
+    description:
+      "Upload an activity where the recording dropped out mid-workout — the clock kept running but the route has a hole. Draw the part that went missing and get a corrected GPX with the elapsed time untouched.",
+  },
 };
 
 const MODE_OPTIONS: readonly {
-  value: SessionView;
+  value: LandingMode;
+  /** Full label — shown from the sm breakpoint up. */
   label: string;
+  /** Compact label for sub-sm viewports: three tabs share one 343 px row. */
+  shortLabel: string;
 }[] = [
-  { value: "repair", label: "Repair a recording" },
-  { value: "share", label: "Create a share card" },
+  { value: "repair", label: "Repair a recording", shortLabel: "Repair" },
+  { value: "share", label: "Create a share card", shortLabel: "Share card" },
+  { value: "recovery", label: "Recover a GPS gap", shortLabel: "Recovery" },
 ];
 
 export function SessionIdleView({
@@ -130,9 +178,11 @@ export function SessionIdleView({
       <div className="hero-entrance mx-auto mt-auto flex w-full max-w-lg flex-col items-center gap-6">
         {error && <SessionErrorAlert error={error} />}
         {/*
-         * The mode switch (Task 20): the remembered intent for the next
-         * upload. Two mutually exclusive destinations for one upload —
-         * a segmented control in the app's toggle language.
+         * The mode switch (Task 20, widened in Task 26): the remembered
+         * intent for the next upload. Three mutually exclusive
+         * destinations for one upload — a segmented control in the app's
+         * toggle language. Below sm the compact labels keep the trio on
+         * one row (the 375 px mobile contract).
          */}
         <div
           className="flex w-full overflow-hidden rounded-lg border bg-card p-1"
@@ -149,12 +199,15 @@ export function SessionIdleView({
               data-testid={`landing-mode-${option.value}`}
               className={
                 mode === option.value
-                  ? "flex-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
-                  : "flex-1 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  ? "flex-1 rounded-md bg-primary px-2 py-2 text-sm font-medium text-primary-foreground sm:px-3"
+                  : "flex-1 rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:px-3"
               }
               onClick={() => onModeChange(option.value)}
             >
-              {option.label}
+              {/* Full label from sm up; compact below (three tabs, one
+                  row — the sub-sm viewport has no room for sentences). */}
+              <span className="sm:hidden">{option.shortLabel}</span>
+              <span className="hidden sm:inline">{option.label}</span>
             </button>
           ))}
         </div>
