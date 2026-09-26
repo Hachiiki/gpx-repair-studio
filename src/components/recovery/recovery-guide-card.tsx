@@ -34,20 +34,26 @@ export function RecoveryGuideCard({
   recoveredCount,
   editorOpen,
 }: RecoveryGuideCardProps) {
-  const allRecovered = detectedCount > 0 && recoveredCount >= detectedCount;
+  // "Done" means every DETECTED section is covered (Task 26) or, when
+  // nothing was detected, at least one unmeasured section was drawn
+  // (Task 28 — drawing without detection is this section's contract).
+  const allRecovered =
+    detectedCount > 0 ? recoveredCount >= detectedCount : recoveredCount > 0;
 
   return (
     <Card data-testid="recovery-guide-card">
       <CardHeader>
         <h3 className="leading-none font-semibold">Gap recovery</h3>
         <CardDescription>
-          {detectedCount === 0
-            ? "No missing GPS sections with the current thresholds."
-            : allRecovered
-              ? "Every detected section has a recovered route."
-              : editorOpen
-                ? "Drawing — click the map to add the missing route."
-                : "Open a section below and draw where you actually went."}
+          {detectedCount === 0 && recoveredCount === 0
+            ? "No missing sections detected — you can still draw the route you lost below."
+            : detectedCount === 0
+              ? "Nothing was detected — your drawn sections carry the recovery."
+              : allRecovered
+                ? "Every detected section has a recovered route."
+                : editorOpen
+                  ? "Drawing — click the map to add the missing route."
+                  : "Open a section below and draw where you actually went."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -95,7 +101,9 @@ export function RecoveryGuideCard({
             <span className="text-muted-foreground">
               Draw the missing route —{" "}
               <span className="font-medium text-foreground tabular-nums">
-                {recoveredCount} of {detectedCount} recovered
+                {detectedCount > 0
+                  ? `${recoveredCount} of ${detectedCount} recovered`
+                  : `${recoveredCount} drawn`}
               </span>
             </span>
           </li>

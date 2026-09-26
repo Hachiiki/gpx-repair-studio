@@ -12,6 +12,15 @@
  *   | 3    | none (no-timing file)    | manual-duration (+file |
  *   |      |                          | start anchor)          |
  *   | 4    | both, user disputes      | manual-duration        |
+ *   | PE   | any (Task 28)            | pace-estimated         |
+ *
+ * The PE row is the Gap Recovery section's "unmeasured section" source
+ * (Task 28): the duration is the DRAWN path length divided by the file's
+ * recorded average speed (`FileTimingContext.recordedSpeedMps`), so it
+ * resolves for every boundary case a user-drawn span can have — open
+ * extensions (one boundary), mid-route inserts (adjacent boundaries),
+ * and replace spans (a real recorded window, whose disagreement with
+ * the estimate is surfaced exactly like Case 4).
  *
  * Honesty rules (§J-2), enforced structurally by the returned plan:
  *   - Manual duration is ONLY applied to the gap's interior — the
@@ -59,6 +68,14 @@ export interface FileTimingContext {
   startMs: number | null;
   /** User-entered total activity duration (ms), when provided. */
   totalDurationMs: number | null;
+  /**
+   * The file's recorded average speed in m/s (moving-time basis), when
+   * the file has usable timing + distance (Task 28). Populated by the
+   * Gap Recovery section's draw hook; `null`/absent in the repair
+   * studio, whose users state durations manually. The basis of the
+   * `pace-estimated` time strategy.
+   */
+  recordedSpeedMps?: number | null;
 }
 
 /** Which §J-1 case a repair site falls into. */
@@ -76,11 +93,12 @@ export interface GapTimePlan {
   method: DistributionMethod;
   /**
    * The duration of the gap interior feeding statistics — derived from
-   * boundary timestamps or entered manually. `null` = unknown ("—").
+   * boundary timestamps, entered manually, or estimated from the file's
+   * pace (`pace-estimated`, Task 28). `null` = unknown ("—").
    */
   durationMs: number | null;
   /** How `durationMs` was obtained (null when unknown). */
-  durationSource: "derived" | "manual" | null;
+  durationSource: "derived" | "manual" | "estimated" | null;
   /**
    * Route-order timestamp the interior starts from. `null` when nothing
    * anchors the interior (Case 3 without a file start time) — duration
@@ -109,16 +127,27 @@ export const MISSING_REASON = {
     "The boundary timestamps run backwards — duration cannot be derived.",
   strategyNone: "Timestamp estimation is switched off for this repair.",
   noStrategy: "No time strategy set for this repair.",
+  noPace:
+    "This file has no usable recorded pace — enter a duration to estimate the interior.",
+  noPath:
+    "Draw the route first — the pace estimate follows the drawn distance.",
 } as const;
 
 /**
  * Resolve the time plan for one repair site — the single implementation
- * of the §J-1 case matrix. Pure; total function over its inputs.
+ * of the §J-1 case matrix (plus the Task 28 pace-estimated source).
+ * Pure; total function over its inputs.
+ *
+ * `pathLengthM` is the RENDERED path length of the reconstruction
+ * (anchors included) — required only by `pace-estimated`, whose duration
+ * is `pathLengthM / recordedSpeedMps`. Callers without a path yet (no
+ * vertices drawn) pass `null`/`0` and the plan says so honestly.
  */
 export function resolveGapTimePlan(
   boundaries: GapTimeBoundaries,
   strategy: TimeStrategy,
   fileTiming?: FileTimingContext,
+  pathLengthM?: number | null,
 ): GapTimePlan {
   const hasBefore =
     boundaries.routeBeforeMs !== undefined && Number.isFinite(boundaries.routeBeforeMs);
@@ -144,6 +173,55 @@ export function resolveGapTimePlan(
     discrepancyMs: null,
     missingReason: null,
   };
+
+  // Task 28 — pace-estimated: the app calculates the duration from the
+  // file's recorded pace, for every boundary shape a user-drawn
+  // "unmeasured section" can have. Runs BEFORE the case matrix: it is
+  // an alternative duration source, not a case of its own — anchoring
+  // still follows whichever boundaries exist.
+  if (strategy.kind === "pace-estimated") {
+    const speedMps = fileTiming?.recordedSpeedMps ?? null;
+    const path = pathLengthM ?? null;
+    const speedUsable =
+      speedMps !== null && Number.isFinite(speedMps) && speedMps > 0;
+    const pathUsable = path !== null && Number.isFinite(path) && path > 0;
+    if (!speedUsable) {
+      return { ...base, missingReason: MISSING_REASON.noPace };
+    }
+    if (!pathUsable) {
+      return { ...base, missingReason: MISSING_REASON.noPath };
+    }
+    const durationMs = Math.round((path / speedMps!) * 1000);
+    // Anchoring mirrors the manual-duration branches: before-only → the
+    // boundary; after-only → counts back from the recorded end (the
+    // distributor handles it); no boundaries → the file-level start.
+    const fileStart = fileTiming?.startMs ?? null;
+    const recordedSpanMs =
+      base.boundaryCase === "both-boundaries"
+        ? boundaries.routeAfterMs! - boundaries.routeBeforeMs!
+        : null;
+    return {
+      ...base,
+      method: "pace-estimated",
+      durationMs,
+      durationSource: "estimated",
+      anchorStartMs:
+        base.boundaryCase === "both-boundaries" || base.boundaryCase === "before-only"
+          ? boundaries.routeBeforeMs!
+          : base.boundaryCase === "no-boundaries"
+            ? fileStart
+            : null,
+      anchoredByFileStart:
+        base.boundaryCase === "no-boundaries" && fileStart !== null,
+      recordedSpanMs,
+      // Same honesty contract as Case 4: an estimate that disagrees with
+      // the recorded window is surfaced, never hidden.
+      discrepancyMs:
+        recordedSpanMs !== null && durationMs !== recordedSpanMs
+          ? durationMs - recordedSpanMs
+          : null,
+    };
+  }
 
   if (base.boundaryCase === "both-boundaries") {
     const before = boundaries.routeBeforeMs!;
@@ -286,7 +364,10 @@ export function distributeTimestamps(
   if (interior.length === 0) return result;
 
   const totalDistance = path.length > 0 ? path[path.length - 1].cumDistanceM : 0;
-  const useDistance = plan.method === "distance-proportional" && totalDistance > 0;
+  const useDistance =
+    (plan.method === "distance-proportional" ||
+      plan.method === "pace-estimated") &&
+    totalDistance > 0;
 
   // Route-order fraction of interior j (0 = first interior point in
   // route order, 1 = last).

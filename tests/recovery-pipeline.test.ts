@@ -32,6 +32,7 @@ import { mergeRepairs, type MergeRepairSite } from "@/features/reconstruction/me
 import { originalTimeStats } from "@/features/statistics/time";
 import { createDomXmlIo } from "@/lib/utils/xml";
 import { useRecoveryStore } from "@/state/recovery-store";
+import { gapId as gapIdOf, gapIdEnd as gapIdOfEnd, pointId, segmentId } from "@/types/ids";
 import { parseFixture } from "./helpers/gpxTestUtils";
 import type {
   OriginalTrackData,
@@ -329,5 +330,193 @@ describe("export → re-import honesty", () => {
       speedDtGuardMs: 10_000,
     });
     expect(regaps).toHaveLength(0);
+  });
+});
+
+describe("unmeasured sections — draw without detection (Task 28)", () => {
+  /** The app's recorded speed basis, as the recovery draw hook computes it. */
+  const SPEED_MPS = 2.5;
+
+  /** A mid-route pick on point 1 → the [1, 2] adjacent boundary. */
+  const SEG = segmentId(0, 0);
+  const P1 = pointId(SEG, 1);
+  const P2 = pointId(SEG, 2);
+  const INSERT_ID = gapIdOf(P1, P2);
+  const ANCHOR_MS = Date.parse("2024-05-01T07:00:03Z"); // point 1's time
+
+  function pointTime(data: OriginalTrackData, id: string): number {
+    for (const segment of data.segments) {
+      const point = segment.points.find((p) => p.id === id);
+      if (point?.time !== undefined) return point.time;
+    }
+    throw new Error(`point ${id} not found or untimed`);
+  }
+
+  it("an insert span estimates its time from the file's pace, not the 3 s window", () => {
+    const data = analyzed();
+
+    // The Task-28 flow: pick a mid-route point, draw, commit. The span's
+    // default strategy is the app-calculated one.
+    const store = useRecoveryStore.getState();
+    store.addInsertSpan(P1, P2);
+    expect(useRecoveryStore.getState().activeGapId).toBe(INSERT_ID);
+    for (const point of DRAWN) store.addVertex(point);
+    store.setResampleSpacing(INSERT_ID, 10);
+    store.closeEditor();
+    const recon = useRecoveryStore.getState().reconstructions[INSERT_ID];
+    expect(recon.timeStrategy).toEqual({ kind: "pace-estimated" });
+
+    // The export hook's site join for a bounded manual span, verbatim.
+    const merge = mergeRepairs(
+      data,
+      [
+        {
+          gapId: INSERT_ID,
+          beforePointId: P1,
+          afterPointId: P2,
+          vertices: recon.vertices,
+          resampleSpacingM: recon.resampleSpacingM,
+          timeStrategy: recon.timeStrategy,
+          roadLegs: [],
+        },
+      ],
+      {
+        fileTiming: {
+          startMs: null,
+          totalDurationMs: null,
+          recordedSpeedMps: SPEED_MPS,
+        },
+        fileHasTimingData: true,
+      },
+    );
+
+    expect(merge.repairCount).toBe(1);
+    expect(merge.skipped).toEqual([]);
+
+    const run = merge.tracks[0].runs.find((r) => r.kind === "reconstructed");
+    if (run?.kind !== "reconstructed") throw new Error("no reconstructed run");
+    const interior = run.points;
+    expect(interior.length).toBeGreaterThan(2);
+
+    // The estimate's duration: path length ÷ speed. The merge's own
+    // distance figure is the same path's length.
+    const expectedMs = (merge.reconstructedDistanceM / SPEED_MPS) * 1000;
+    expect(expectedMs).toBeGreaterThan(10_000); // a real detour, not the 3 s window
+
+    const times = interior.map((p) => p.time);
+    expect(times.every((t) => t !== undefined)).toBe(true);
+    for (const time of times) {
+      if (time === undefined) continue;
+      expect(time.method).toBe("pace-estimated");
+      // Strictly after the anchor, within the estimated duration.
+      expect(time.value).toBeGreaterThan(ANCHOR_MS);
+      expect(time.value).toBeLessThan(ANCHOR_MS + expectedMs);
+    }
+    const values = times.map((t) => t!.value);
+    for (let i = 1; i < values.length; i += 1) {
+      expect(values[i]).toBeGreaterThan(values[i - 1]);
+    }
+
+    // The adjacent original boundary keeps its recorded timestamp —
+    // originals are never rewritten, even for app-calculated sections.
+    expect(pointTime(data, "t0s0:2")).toBe(Date.parse("2024-05-01T07:00:06Z"));
+  });
+
+  it("an open tail extension estimates forward from the route's last point", () => {
+    const data = analyzed();
+    const LAST_MS = Date.parse("2024-05-01T07:05:18Z"); // point 7's time
+    const LAST = pointId(SEG, 7);
+    const EXTEND_ID = gapIdOfEnd(LAST);
+
+    const store = useRecoveryStore.getState();
+    store.addExtendSpan(LAST, "after");
+    expect(useRecoveryStore.getState().activeGapId).toBe(EXTEND_ID);
+    for (const point of DRAWN) store.addVertex(point);
+    store.closeEditor();
+    const recon = useRecoveryStore.getState().reconstructions[EXTEND_ID];
+
+    const merge = mergeRepairs(
+      data,
+      [
+        {
+          gapId: EXTEND_ID,
+          beforePointId: LAST,
+          extendSide: "after",
+          vertices: recon.vertices,
+          resampleSpacingM: recon.resampleSpacingM,
+          timeStrategy: recon.timeStrategy,
+          roadLegs: [],
+        },
+      ],
+      {
+        fileTiming: {
+          startMs: null,
+          totalDurationMs: null,
+          recordedSpeedMps: SPEED_MPS,
+        },
+        fileHasTimingData: true,
+      },
+    );
+
+    expect(merge.repairCount).toBe(1);
+    // The interior run is the LAST run of the track (appended after the
+    // anchor, nothing follows it).
+    const runs = merge.tracks[0].runs;
+    const lastRun = runs[runs.length - 1];
+    if (lastRun.kind !== "reconstructed") throw new Error("expected tail run");
+    expect(lastRun.points.length).toBeGreaterThan(0);
+    for (const point of lastRun.points) {
+      expect(point.time).toBeDefined();
+      if (point.time === undefined) continue;
+      expect(point.time.method).toBe("pace-estimated");
+      expect(point.time.value).toBeGreaterThan(LAST_MS);
+    }
+
+    // Originals intact: every recorded point still present, in order.
+    const mergedOriginals = merge.tracks[0].points.filter(
+      (view) => view.point.source === "original",
+    );
+    expect(mergedOriginals).toHaveLength(allPoints(data).length);
+  });
+
+  it("without a usable pace the unmeasured section exports geometry without fabricated times", () => {
+    const data = analyzed();
+    const LAST = pointId(SEG, 7);
+    const EXTEND_ID = gapIdOfEnd(LAST);
+    const store = useRecoveryStore.getState();
+    store.addExtendSpan(LAST, "after");
+    for (const point of DRAWN) store.addVertex(point);
+    store.closeEditor();
+    const recon = useRecoveryStore.getState().reconstructions[EXTEND_ID];
+
+    const merge = mergeRepairs(
+      data,
+      [
+        {
+          gapId: EXTEND_ID,
+          beforePointId: LAST,
+          extendSide: "after",
+          vertices: recon.vertices,
+          resampleSpacingM: recon.resampleSpacingM,
+          timeStrategy: recon.timeStrategy,
+          roadLegs: [],
+        },
+      ],
+      {
+        fileTiming: {
+          startMs: null,
+          totalDurationMs: null,
+          recordedSpeedMps: null,
+        },
+        fileHasTimingData: true,
+      },
+    );
+
+    const runs = merge.tracks[0].runs;
+    const lastRun = runs[runs.length - 1];
+    if (lastRun.kind !== "reconstructed") throw new Error("expected tail run");
+    // Honesty contract: no duration → no timestamps, never fabricated.
+    expect(lastRun.points.every((p) => p.time === undefined)).toBe(true);
+    expect(lastRun.points.length).toBeGreaterThan(0);
   });
 });

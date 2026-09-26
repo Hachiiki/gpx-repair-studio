@@ -30,6 +30,7 @@ import { MAX_VERTICES } from "@/features/reconstruction/drawModel";
 import { resamplePath } from "@/features/reconstruction/resample";
 import {
   resolveGapTimePlan,
+  type FileTimingContext,
   type GapTimePlan,
 } from "@/features/reconstruction/timestamps";
 import { buildPaceRows, type PaceRow } from "@/features/statistics/pace";
@@ -123,6 +124,15 @@ export interface RepairTimeStats {
     manualMs: number;
     recordedMs: number;
   }[];
+  /**
+   * Σ durations the file's clock never counted (Task 28): pace
+   * estimates and manual durations that extend past (or exist without)
+   * a recorded window. Window-derived durations contribute 0 — the
+   * clock already includes them. The recovery preview's
+   * "Average speed, completed" divides by elapsed + this, so an
+   * unmeasured section's estimate doesn't fabricate superhuman speeds.
+   */
+  beyondWallMs: number;
 }
 
 /** App-layer facade: the draw-editor view consumed by components. */
@@ -155,8 +165,13 @@ export interface DrawEditorBinding {
   resampleSpacing: number | "off";
   /** Resolved §J-1 time plan of the active gap (null when inactive). */
   timePlan: GapTimePlan | null;
-  /** File-level timing entries (no-timing-data files, §J-1 Case 3). */
-  fileTiming: { startMs: number | null; totalDurationMs: number | null };
+  /**
+   * File-level timing entries (no-timing-data files, §J-1 Case 3), plus
+   * the file's recorded average speed when the section provides one
+   * (Task 28 — the recovery section's pace-estimated strategy basis;
+   * always absent in the repair studio, whose users state durations).
+   */
+  fileTiming: FileTimingContext;
   canUndo: boolean;
   canRedo: boolean;
   /** Undoable commands on the stack (for labels). */
@@ -199,10 +214,7 @@ export interface DrawEditorBinding {
   /** Time strategy of the ACTIVE gap — a setting, never undoable. */
   setTimeStrategy: (strategy: TimeStrategy) => void;
   /** File-level timing entries (no-timing-data files). */
-  setFileTiming: (patch: {
-    startMs?: number | null;
-    totalDurationMs?: number | null;
-  }) => void;
+  setFileTiming: (patch: Partial<FileTimingContext>) => void;
   /** Toggle the skip mark of the ACTIVE gap. */
   toggleSkip: () => void;
   deleteVertex: (vertexId: VertexId) => void;
@@ -788,6 +800,7 @@ export function useDrawEditor(
     let reconstructedDistanceM = 0;
     let reconstructedTimeMs: number | null = null;
     let gapsWithoutDuration = 0;
+    let beyondWallMs = 0;
     const discrepancies: RepairTimeStats["discrepancies"][number][] = [];
     let gapCount = 0;
 
@@ -806,7 +819,9 @@ export function useDrawEditor(
         recon.resampleSpacingM,
         roadLegs[row.id] ?? [],
       );
-      reconstructedDistanceM += path.length > 0 ? path[path.length - 1].cumDistanceM : 0;
+      const pathLengthM =
+        path.length > 0 ? path[path.length - 1].cumDistanceM : 0;
+      reconstructedDistanceM += pathLengthM;
 
       const plan = resolveGapTimePlan(
         {
@@ -815,12 +830,21 @@ export function useDrawEditor(
         },
         recon.timeStrategy,
         fileTiming,
+        // Task 28: pace-estimated durations derive from the path length;
+        // the boundary-derived strategies ignore the argument.
+        pathLengthM,
       );
       gapCount += 1;
       if (plan.durationMs === null) {
         gapsWithoutDuration += 1;
       } else {
         reconstructedTimeMs = (reconstructedTimeMs ?? 0) + plan.durationMs;
+        // Time the file's clock never counted (Task 28): a window-less
+        // duration contributes itself; a windowed one only its overrun.
+        beyondWallMs +=
+          plan.recordedSpanMs === null
+            ? plan.durationMs
+            : Math.max(0, plan.durationMs - plan.recordedSpanMs);
       }
       if (
         plan.discrepancyMs !== null &&
@@ -841,6 +865,7 @@ export function useDrawEditor(
       reconstructedTimeMs,
       gapsWithoutDuration,
       discrepancies,
+      beyondWallMs,
     };
   }, [allRows, activeGapId, skippedGapIds, reconstructions, roadLegs, fileTiming]);
 
@@ -924,7 +949,7 @@ export function useDrawEditor(
   }, []);
 
   const setFileTiming = useCallback(
-    (patch: { startMs?: number | null; totalDurationMs?: number | null }) => {
+    (patch: Partial<FileTimingContext>) => {
       useEditorStore.getState().setFileTiming(patch);
     },
     [],

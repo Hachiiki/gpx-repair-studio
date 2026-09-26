@@ -40,6 +40,7 @@ import type { GapId, OriginalTrackPoint, PointId } from "@/types/domain";
 import type { GapRow, RecoverySession } from "@/hooks/use-recovery-session";
 import {
   buildRouteView,
+  type ExtendSpanRef,
   type ReconstructionRenderRef,
   type RouteGapRef,
 } from "@/hooks/use-map-controller";
@@ -63,6 +64,7 @@ export function useRecoveryMap(session: RecoverySession) {
   const editorActiveGapId = useRecoveryStore((s) => s.activeGapId);
   const editorSkipped = useRecoveryStore((s) => s.skippedGapIds);
   const editorRoadLegs = useRecoveryStore((s) => s.roadLegs);
+  const editorManualSpans = useRecoveryStore((s) => s.manualSpans);
 
   const setContainer = useCallback((element: HTMLDivElement | null) => {
     containerRef.current = element;
@@ -107,12 +109,71 @@ export function useRecoveryMap(session: RecoverySession) {
     };
   }, [showMap]);
 
+  // User-drawn unmeasured sections (Task 28) as render refs — resolved
+  // against the frozen model, deduplicated against currently-detected
+  // sections (the detected rendering wins for a shared boundary). Pair
+  // spans (replace/insert) carry both boundaries; extend spans join
+  // separately below. Mirrors the repair map's manualGapRefs.
+  const manualGapRefs = useMemo(() => {
+    if (!session.data) return [] as RouteGapRef[];
+    const pointById = new Map<PointId, OriginalTrackPoint>();
+    for (const segment of session.data.segments) {
+      for (const point of segment.points) pointById.set(point.id, point);
+    }
+    const detectedIds = new Set(gapRows.map((row) => row.id));
+    const refs: RouteGapRef[] = [];
+    for (const span of editorManualSpans) {
+      if (span.kind === "extend") continue; // joined as extendGapRefs
+      if (detectedIds.has(span.id)) continue;
+      const before = pointById.get(span.beforePointId);
+      const after = pointById.get(span.afterPointId);
+      if (!before || !after) continue;
+      if (!isUsableStatsPoint(before) || !isUsableStatsPoint(after)) {
+        continue;
+      }
+      refs.push({
+        id: span.id,
+        kind: span.kind === "insert" ? "manual-insert" : "manual",
+        severity: "info",
+        before: { pointId: before.id, lat: before.lat, lon: before.lon },
+        after: { pointId: after.id, lat: after.lat, lon: after.lon },
+      });
+    }
+    return refs;
+  }, [session.data, editorManualSpans, gapRows]);
+
+  // Open-ended extension spans: one anchor, no far boundary.
+  const extendGapRefs = useMemo(() => {
+    if (!session.data) return [] as ExtendSpanRef[];
+    const pointById = new Map<PointId, OriginalTrackPoint>();
+    for (const segment of session.data.segments) {
+      for (const point of segment.points) pointById.set(point.id, point);
+    }
+    const detectedIds = new Set(gapRows.map((row) => row.id));
+    const refs: ExtendSpanRef[] = [];
+    for (const span of editorManualSpans) {
+      if (span.kind !== "extend") continue;
+      if (detectedIds.has(span.id)) continue;
+      const anchor = pointById.get(span.anchorPointId);
+      if (!anchor || !isUsableStatsPoint(anchor)) continue;
+      refs.push({
+        id: span.id,
+        anchor: { pointId: anchor.id, lat: anchor.lat, lon: anchor.lon },
+      });
+    }
+    return refs;
+  }, [session.data, editorManualSpans, gapRows]);
+
   // Committed reconstructions as render refs — the gap being edited
   // renders through the controller's draw session (draft styling), so
-  // its committed line is suppressed while its editor is open.
+  // its committed line is suppressed while its editor is open. Detected
+  // sections and user-drawn spans alike.
   const reconstructionRefs = useMemo(() => {
     const refs: ReconstructionRenderRef[] = [];
-    for (const row of gapRows) {
+    const seen = new Set<string>();
+    for (const row of [...gapRows, ...manualGapRefs, ...extendGapRefs]) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
       if (editorSkipped.includes(row.id)) continue;
       const recon = editorReconstructions[row.id];
       if (!recon || recon.vertices.length === 0) continue;
@@ -126,16 +187,22 @@ export function useRecoveryMap(session: RecoverySession) {
       });
     }
     return refs;
-  }, [gapRows, editorReconstructions, editorActiveGapId, editorSkipped, editorRoadLegs]);
+  }, [gapRows, manualGapRefs, extendGapRefs, editorReconstructions, editorActiveGapId, editorSkipped, editorRoadLegs]);
 
   // The renderable route view — the same pure join as the repair map
-  // (no manual/extend spans here: recovery repairs detected sections).
+  // (detected gaps + user-drawn spans + committed reconstructions).
   const route = useMemo<RouteViewData | null>(
     () =>
       showMap && session.data
-        ? buildRecoveryRouteView(session.data, gapRows, reconstructionRefs)
+        ? buildRecoveryRouteView(
+            session.data,
+            gapRows,
+            reconstructionRefs,
+            manualGapRefs,
+            extendGapRefs,
+          )
         : null,
-    [showMap, session.data, gapRows, reconstructionRefs],
+    [showMap, session.data, gapRows, reconstructionRefs, manualGapRefs, extendGapRefs],
   );
   useEffect(() => {
     controllerRef.current?.setRoute(route);
@@ -158,24 +225,33 @@ export function useRecoveryMap(session: RecoverySession) {
   }, [provider]);
 
   // Selection hygiene: clear a selection that no longer exists (new
-  // file, reset, or re-detection removed the section).
+  // file, reset, or re-detection removed the section). User-drawn spans
+  // count too — a drawn section is selectable exactly like a detected
+  // one.
   useEffect(() => {
     if (selectedGapId === null) return;
     if (
       session.status !== "parsed" ||
-      !gapRows.some((row) => row.id === selectedGapId)
+      (!gapRows.some((row) => row.id === selectedGapId) &&
+        !manualGapRefs.some((ref) => ref.id === selectedGapId) &&
+        !extendGapRefs.some((ref) => ref.id === selectedGapId))
     ) {
       useRecoveryStore.getState().selectGap(null);
     }
-  }, [selectedGapId, gapRows, session.status]);
+  }, [selectedGapId, gapRows, manualGapRefs, extendGapRefs, session.status]);
 
   // Selection → map: highlight (casing + halo) and focus the section.
+  // Open extensions do NOT refit the camera: the user just clicked the
+  // anchor (the camera is already where they want it), and a mid-draw
+  // camera swing would steal their click targets. The halo still marks it.
   useEffect(() => {
     const controller = controllerRef.current;
     if (!controller) return;
     controller.highlightGap(selectedGapId);
     if (selectedGapId !== null) {
-      const row = gapRows.find((r) => r.id === selectedGapId);
+      const row =
+        gapRows.find((r) => r.id === selectedGapId) ??
+        manualGapRefs.find((r) => r.id === selectedGapId);
       if (row) {
         controller.fitBounds(
           {
@@ -192,7 +268,7 @@ export function useRecoveryMap(session: RecoverySession) {
         );
       }
     }
-  }, [selectedGapId, gapRows]);
+  }, [selectedGapId, gapRows, manualGapRefs]);
 
   const selectGap = useCallback((gapId: GapId | null) => {
     useRecoveryStore.getState().selectGap(gapId);
@@ -248,14 +324,16 @@ export function useRecoveryMap(session: RecoverySession) {
 /**
  * Route-view join for the recovery section: the shared pure
  * `buildRouteView` over (data, detected gaps, committed
- * reconstructions). Factored out (and typed against the shared
- * `RouteGapRef`) so the join is unit-testable without a map — it is the
- * exact same renderer contract as the repair studio's.
+ * reconstructions, user-drawn spans). Factored out (and typed against
+ * the shared `RouteGapRef`) so the join is unit-testable without a map —
+ * it is the exact same renderer contract as the repair studio's.
  */
 export function buildRecoveryRouteView(
   data: RecoverySession["data"],
   gaps: readonly GapRow[],
   reconstructions: readonly ReconstructionRenderRef[],
+  manualSpans: readonly RouteGapRef[] = [],
+  extendSpans: readonly ExtendSpanRef[] = [],
 ): RouteViewData {
   if (!data) {
     return { lines: [], spans: [], markers: [], reconstructions: [], usablePointCount: 0 };
@@ -278,5 +356,5 @@ export function buildRecoveryRouteView(
       after: { pointId: after.id, lat: after.lat, lon: after.lon },
     });
   }
-  return buildRouteView(data, gapRefs, reconstructions);
+  return buildRouteView(data, gapRefs, reconstructions, manualSpans, extendSpans);
 }

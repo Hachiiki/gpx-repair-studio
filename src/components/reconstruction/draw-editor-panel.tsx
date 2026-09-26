@@ -247,13 +247,17 @@ export function DrawEditorPanel({
         </div>
 
         {/* Phase 5: the §J-1 time plan for this gap (strategy, duration,
-            estimated pace, Case-4 discrepancy). */}
+            estimated pace, Case-4 discrepancy). Task 28: the recovery
+            section's file pace (when present) adds the "From your pace"
+            strategy — the repair studio never provides one, so its chips
+            are unchanged. */}
         {draw.timePlan && (
           <TimeStrategyControls
             plan={draw.timePlan}
             distanceM={draw.distanceM}
             vertexCount={draw.vertexCount}
             setTimeStrategy={draw.setTimeStrategy}
+            paceAvailable={(draw.fileTiming.recordedSpeedMps ?? 0) > 0}
           />
         )}
 

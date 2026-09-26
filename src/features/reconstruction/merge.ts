@@ -449,6 +449,9 @@ function resolveSite(
     },
     site.timeStrategy,
     options.fileTiming,
+    // Task 28: pace-estimated durations derive from this very path's
+    // length; the boundary-derived strategies ignore the argument.
+    pathLengthM,
   );
   const times = distributeTimestamps(path, plan, followsRouteOrder);
 

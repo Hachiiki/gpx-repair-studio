@@ -17,12 +17,14 @@
  *     model, detected gaps, and the last load failure. Same shape and
  *     lifecycle contract as the repair studio's session store;
  *   - editor slice — a compact mirror of the repair studio's editor
- *     essentials for detected gaps only: active draw session, per-gap
- *     reconstructions, undo/redo history, transient aids (draw mode,
- *     snap, road-follow), resolved road legs, and the file-level timing
- *     fallback for files without timestamps. Manual spans / pick modes
- *     are intentionally absent — recovery repairs detected missing
- *     sections, it does not author arbitrary spans.
+ *     essentials: active draw session, per-gap reconstructions, undo/redo
+ *     history, transient aids (draw mode, snap, road-follow), resolved
+ *     road legs, and the file-level timing fallback for files without
+ *     timestamps. Manual spans / pick modes joined in Task 28: recovery
+ *     now also authors "unmeasured sections" (draw the route the watch
+ *     never measured — the app calculates its time from the file's
+ *     pace), so detection is a helper here exactly as in the repair
+ *     studio, never a gate.
  *
  * The command wrappers are thin adapters over the SAME pure
  * `features/reconstruction/drawModel` machinery the repair studio uses —
@@ -54,15 +56,34 @@ import type { FileTimingContext } from "@/features/reconstruction/timestamps";
 import type {
   DetectedGap,
   GapId,
+  ManualSpan,
   OriginalTrackData,
+  PointId,
   Reconstruction,
   RoadFollowMode,
   RoadLeg,
   TimeStrategy,
   VertexId,
 } from "@/types/domain";
-import { vertexId } from "@/types/ids";
+import { gapId, gapIdEnd, gapIdStart, vertexId } from "@/types/ids";
+import type { PickMode } from "@/state/editor-store";
 import type { SessionError, SessionStatus } from "@/state/session-store";
+
+/**
+ * A fresh reconstruction for a user-drawn span, with the strategy the
+ * span's shape honest demands (Task 28):
+ *   - insert (adjacent boundaries) and extend (no far boundary): the
+ *     recorded window is meaningless (~1 s or absent), so the section's
+ *     time is PACE-ESTIMATED from the file — the recovery contract
+ *     "you draw, the app calculates";
+ *   - replace (a real recorded window between two picked points): the
+ *     window IS the time in the file — distance-proportional stays the
+ *     default, exactly like a detected gap.
+ * The user can always steer away via the strategy controls.
+ */
+function spanReconstruction(gapId: GapId, strategy: TimeStrategy): Reconstruction {
+  return { ...emptyReconstruction(gapId), timeStrategy: strategy };
+}
 
 interface RecoveryState {
   // -- session slice --------------------------------------------------------
@@ -86,7 +107,7 @@ interface RecoveryState {
   /** Store a load failure. */
   fail: (error: SessionError) => void;
 
-  // -- editor slice (detected gaps only) -------------------------------------
+  // -- editor slice -----------------------------------------------------------
   activeGapId: GapId | null;
   drawMode: boolean;
   snapEnabled: boolean;
@@ -103,6 +124,10 @@ interface RecoveryState {
   roadRouting: { pending: number; failed: boolean };
   /** File-level timing fallback (§J-1 Case 3 — files without timestamps). */
   fileTiming: FileTimingContext;
+  /** User-drawn unmeasured sections (Task 28 — draw-anywhere spans). */
+  manualSpans: readonly ManualSpan[];
+  /** Span-pick mode: which recovery tool is collecting map clicks. */
+  pickMode: PickMode | null;
   /**
    * The missing section highlighted on this section's map / list.
    * Section-local on purpose — NOT the repair studio's shared
@@ -118,6 +143,18 @@ interface RecoveryState {
   openEditor: (gapId: GapId) => void;
   /** Close the active editor (keeps the reconstruction; drops history). */
   closeEditor: () => void;
+  /** Enter span-pick mode (closes any open editor — picking replaces it). */
+  startPickMode: (mode: PickMode) => void;
+  /** Leave span-pick mode without creating a span. */
+  cancelPickMode: () => void;
+  /** Create (or reopen) the REPLACE span for a picked boundary pair. */
+  addManualSpan: (beforePointId: PointId, afterPointId: PointId) => void;
+  /** One-anchor insert span: the picked point + its next recorded point. */
+  addInsertSpan: (anchorPointId: PointId, nextPointId: PointId) => void;
+  /** One-anchor OPEN extension (route start/end). */
+  addExtendSpan: (anchorPointId: PointId, side: "after" | "before") => void;
+  /** Remove a user-drawn span and all of its repair state. */
+  removeManualSpan: (gapId: GapId) => void;
   setDrawMode: (on: boolean) => void;
   setSnapEnabled: (on: boolean) => void;
   setRoadFollow: (mode: RoadFollowMode) => void;
@@ -163,7 +200,13 @@ const INITIAL = {
   vertexSeq: 0,
   roadLegs: {} as Readonly<Record<string, readonly RoadLeg[]>>,
   roadRouting: { pending: 0, failed: false },
-  fileTiming: { startMs: null, totalDurationMs: null } as FileTimingContext,
+  fileTiming: {
+    startMs: null,
+    totalDurationMs: null,
+    recordedSpeedMps: null,
+  } as FileTimingContext,
+  manualSpans: [] as readonly ManualSpan[],
+  pickMode: null as PickMode | null,
   selectedGapId: null as GapId | null,
 };
 
@@ -198,7 +241,9 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       vertexSeq: 0,
       roadLegs: {},
       roadRouting: { pending: 0, failed: false },
-      fileTiming: { startMs: null, totalDurationMs: null },
+      fileTiming: { startMs: null, totalDurationMs: null, recordedSpeedMps: null },
+      manualSpans: [],
+      pickMode: null,
       selectedGapId: null,
     }),
   setGaps: (gaps) => set({ gaps }),
@@ -229,6 +274,120 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       activeGapId: null,
       history: EMPTY_HISTORY,
       drawMode: false,
+    }),
+
+  startPickMode: (mode) =>
+    set({
+      pickMode: mode,
+      // Picking replaces any open editor session (the panel closes; the
+      // abandoned reconstruction is kept, as with closeEditor).
+      activeGapId: null,
+      history: EMPTY_HISTORY,
+      drawMode: false,
+    }),
+
+  cancelPickMode: () => set({ pickMode: null }),
+
+  addManualSpan: (beforePointId, afterPointId) => {
+    if (beforePointId === afterPointId) return;
+    const id = gapId(beforePointId, afterPointId);
+    set((state) => ({
+      pickMode: null,
+      // A replace span keeps the window-derived default: two picked
+      // points bound a stretch whose recorded time is the honest source.
+      activeGapId: id,
+      drawMode: true,
+      history: EMPTY_HISTORY,
+      manualSpans: state.manualSpans.some((span) => span.id === id)
+        ? state.manualSpans
+        : [
+            ...state.manualSpans,
+            { id, kind: "replace", beforePointId, afterPointId },
+          ],
+      reconstructions: state.reconstructions[id]
+        ? state.reconstructions
+        : {
+            ...state.reconstructions,
+            [id]: spanReconstruction(id, { kind: "distance-proportional" }),
+          },
+      skippedGapIds: state.skippedGapIds.filter((skipped) => skipped !== id),
+    }));
+  },
+
+  addInsertSpan: (anchorPointId, nextPointId) => {
+    if (anchorPointId === nextPointId) return;
+    const id = gapId(anchorPointId, nextPointId);
+    set((state) => ({
+      pickMode: null,
+      // Adjacent boundaries → the ~1 s window is meaningless; the
+      // unmeasured section's time is pace-estimated from the file.
+      activeGapId: id,
+      drawMode: true,
+      history: EMPTY_HISTORY,
+      manualSpans: state.manualSpans.some((span) => span.id === id)
+        ? state.manualSpans
+        : [
+            ...state.manualSpans,
+            {
+              id,
+              kind: "insert",
+              beforePointId: anchorPointId,
+              afterPointId: nextPointId,
+            },
+          ],
+      reconstructions: state.reconstructions[id]
+        ? state.reconstructions
+        : {
+            ...state.reconstructions,
+            [id]: spanReconstruction(id, { kind: "pace-estimated" }),
+          },
+      skippedGapIds: state.skippedGapIds.filter((skipped) => skipped !== id),
+    }));
+  },
+
+  addExtendSpan: (anchorPointId, side) => {
+    const id = side === "before" ? gapIdStart(anchorPointId) : gapIdEnd(anchorPointId);
+    set((state) => ({
+      pickMode: null,
+      // Open extension → no far boundary at all; pace-estimated time.
+      activeGapId: id,
+      drawMode: true,
+      history: EMPTY_HISTORY,
+      manualSpans: state.manualSpans.some((span) => span.id === id)
+        ? state.manualSpans
+        : [...state.manualSpans, { id, kind: "extend", anchorPointId, side }],
+      reconstructions: state.reconstructions[id]
+        ? state.reconstructions
+        : {
+            ...state.reconstructions,
+            [id]: spanReconstruction(id, { kind: "pace-estimated" }),
+          },
+      skippedGapIds: state.skippedGapIds.filter((skipped) => skipped !== id),
+    }));
+  },
+
+  removeManualSpan: (gapIdToRemove) =>
+    set((state) => {
+      if (!state.manualSpans.some((span) => span.id === gapIdToRemove)) {
+        return state;
+      }
+      const reconstructions = { ...state.reconstructions };
+      delete reconstructions[gapIdToRemove];
+      const roadLegs = { ...state.roadLegs };
+      delete roadLegs[gapIdToRemove];
+      return {
+        manualSpans: state.manualSpans.filter(
+          (span) => span.id !== gapIdToRemove,
+        ),
+        reconstructions,
+        roadLegs,
+        skippedGapIds: state.skippedGapIds.filter(
+          (skipped) => skipped !== gapIdToRemove,
+        ),
+        ...(state.activeGapId === gapIdToRemove
+          ? { activeGapId: null, history: EMPTY_HISTORY, drawMode: false }
+          : {}),
+      };
     }),
 
   setDrawMode: (drawMode) => set({ drawMode }),

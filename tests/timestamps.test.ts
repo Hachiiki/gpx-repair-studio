@@ -389,3 +389,145 @@ describe("distributeTimestamps", () => {
     expect(roadTimes.every((t) => t.value > T0 && t.value < T1)).toBe(true);
   });
 });
+
+describe("resolveGapTimePlan — the pace-estimated source (Task 28, PE)", () => {
+  const PACE: TimeStrategy = { kind: "pace-estimated" };
+  const SPEED = 3; // m/s — a relaxed run
+  const FILE_TIMING = { startMs: null, totalDurationMs: null, recordedSpeedMps: SPEED };
+
+  it("duration = drawn path ÷ recorded speed, whatever the boundaries", () => {
+    const path = drawnPath();
+    const pathLengthM = path[path.length - 1].cumDistanceM;
+    expect(pathLengthM).toBeGreaterThan(0);
+
+    const plan = resolveGapTimePlan(
+      { routeBeforeMs: T0, routeAfterMs: T1 },
+      PACE,
+      FILE_TIMING,
+      pathLengthM,
+    );
+    expect(plan.method).toBe("pace-estimated");
+    expect(plan.durationSource).toBe("estimated");
+    expect(plan.durationMs).toBe(Math.round((pathLengthM / SPEED) * 1000));
+    expect(plan.anchorStartMs).toBe(T0);
+    expect(plan.missingReason).toBeNull();
+  });
+
+  it("before-only (an open tail extension): anchors at the boundary", () => {
+    const path = drawnPath();
+    const plan = resolveGapTimePlan(
+      { routeBeforeMs: T0 },
+      PACE,
+      FILE_TIMING,
+      path[path.length - 1].cumDistanceM,
+    );
+    expect(plan.boundaryCase).toBe("before-only");
+    expect(plan.durationMs).not.toBeNull();
+    expect(plan.anchorStartMs).toBe(T0);
+    expect(plan.recordedSpanMs).toBeNull();
+    expect(plan.discrepancyMs).toBeNull();
+  });
+
+  it("after-only (a missing head): no start anchor — distribution counts back", () => {
+    const path = drawnPath();
+    const plan = resolveGapTimePlan(
+      { routeAfterMs: T1 },
+      PACE,
+      FILE_TIMING,
+      path[path.length - 1].cumDistanceM,
+    );
+    expect(plan.boundaryCase).toBe("after-only");
+    expect(plan.anchorStartMs).toBeNull();
+    expect(plan.recordedEndMs).toBe(T1);
+
+    const times = distributeTimestamps(path, plan);
+    const values = interiorTimes(path, times);
+    expect(values).toHaveLength(interiorTimes(path, times).length);
+    // Interior counts back from the recorded end: [end − duration, end).
+    expect(values.every((v) => v <= T1)).toBe(true);
+    expect(Math.min(...values)).toBeGreaterThanOrEqual(T1 - (plan.durationMs ?? 0));
+  });
+
+  it("no boundaries: anchors at the file-level start when one exists", () => {
+    const path = drawnPath();
+    const fileStart = T0 - 60_000;
+    const plan = resolveGapTimePlan(
+      {},
+      PACE,
+      { startMs: fileStart, totalDurationMs: null, recordedSpeedMps: SPEED },
+      path[path.length - 1].cumDistanceM,
+    );
+    expect(plan.boundaryCase).toBe("no-boundaries");
+    expect(plan.anchorStartMs).toBe(fileStart);
+    expect(plan.anchoredByFileStart).toBe(true);
+  });
+
+  it("no usable recorded pace → null duration with the honest reason", () => {
+    const path = drawnPath();
+    const plan = resolveGapTimePlan(
+      { routeBeforeMs: T0 },
+      PACE,
+      { startMs: null, totalDurationMs: null, recordedSpeedMps: null },
+      path[path.length - 1].cumDistanceM,
+    );
+    expect(plan.durationMs).toBeNull();
+    expect(plan.missingReason).toBe(MISSING_REASON.noPace);
+  });
+
+  it("no drawn path yet → null duration with the draw-first reason", () => {
+    const plan = resolveGapTimePlan({ routeBeforeMs: T0 }, PACE, FILE_TIMING, 0);
+    expect(plan.durationMs).toBeNull();
+    expect(plan.missingReason).toBe(MISSING_REASON.noPath);
+
+    const noPath = resolveGapTimePlan({ routeBeforeMs: T0 }, PACE, FILE_TIMING, null);
+    expect(noPath.missingReason).toBe(MISSING_REASON.noPath);
+  });
+
+  it("both boundaries: a disagreement with the recorded window is surfaced (Case-4 contract)", () => {
+    const path = drawnPath();
+    const plan = resolveGapTimePlan(
+      { routeBeforeMs: T0, routeAfterMs: T0 + 1000 }, // a ~1 s adjacent window
+      PACE,
+      FILE_TIMING,
+      path[path.length - 1].cumDistanceM,
+    );
+    expect(plan.recordedSpanMs).toBe(1000);
+    expect(plan.durationMs!).toBeGreaterThan(1000);
+    expect(plan.discrepancyMs).toBe(plan.durationMs! - 1000);
+  });
+
+  it("both boundaries: an estimate that matches the window flags nothing", () => {
+    const path = drawnPath();
+    const pathLengthM = path[path.length - 1].cumDistanceM;
+    const exactSpan = Math.round((pathLengthM / SPEED) * 1000);
+    const plan = resolveGapTimePlan(
+      { routeBeforeMs: T0, routeAfterMs: T0 + exactSpan },
+      PACE,
+      FILE_TIMING,
+      pathLengthM,
+    );
+    expect(plan.discrepancyMs).toBeNull();
+  });
+
+  it("distribution spreads the estimate by distance and carries the method", () => {
+    const path = drawnPath();
+    const pathLengthM = path[path.length - 1].cumDistanceM;
+    const plan = resolveGapTimePlan(
+      { routeBeforeMs: T0 },
+      PACE,
+      FILE_TIMING,
+      pathLengthM,
+    );
+    const times = distributeTimestamps(path, plan);
+    const interior = times.filter((t): t is DistributedTime => t !== undefined);
+    expect(interior.length).toBeGreaterThan(0);
+    expect(interior.every((t) => t.method === "pace-estimated")).toBe(true);
+    // Monotonic from the anchor, within the estimated duration.
+    const values = interior.map((t) => t.value);
+    expect(values[0]).toBeGreaterThanOrEqual(T0);
+    expect(values[values.length - 1]).toBeLessThanOrEqual(T0 + (plan.durationMs ?? 0));
+    for (let i = 1; i < values.length; i += 1) {
+      expect(values[i]).toBeGreaterThan(values[i - 1]);
+    }
+  });
+});

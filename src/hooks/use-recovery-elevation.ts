@@ -1,35 +1,29 @@
 /**
- * useElevation — the React binding for elevation estimation
- * (docs/MASTER_PLAN.md §K, Phase 6).
+ * useRecoveryElevation — the Gap Recovery section's elevation binding
+ * (Task 28).
  *
- * Responsibilities (and nothing else):
- *   - own the elevation-store lifecycle: reset on session change, prune
- *     records for gaps that vanished after re-detection (same hygiene
- *     `useDrawEditor` applies to repairs);
- *   - expose the ACTIVE gap's fetch controls (status, progress, per-gap
- *     gain/loss summary, staleness) plus the disclosure numbers for the
- *     CURRENT chain — the dialog shows exactly what would leave the
- *     browser before anything is sent (FR-6.5);
- *   - run the fetch: build the interior path, apply the per-gap cap,
- *     snapshot the revision + road-leg signature, stream progress into
- *     the store, and finalize with complete/partial/failed honesty;
- *   - expose the EXPORT attachment: per-gap samples that are FRESH
- *     (revision + road-leg signature both match) for the merge, and the
- *     count of committed-but-stale repairs the export will exclude.
+ * A mirror of the repair studio's `useElevation`, reading the recovery
+ * store instead of the editor store (the Task 26 isolation rule: the
+ * existing hook stays untouched; the shared logic lives in the pure
+ * elevation feature modules both hooks consume — samples, smoothing,
+ * the store). The drawn "unmeasured section" gets its elevations from
+ * the same DEM provider the repair studio uses (shared instance + LRU
+ * cache), with the same disclosure-first contract and the same honest
+ * staleness/partial labeling.
  *
- * The provider instance (Open-Meteo behind the LRU cache decorator)
- * is shared per page — re-edits and retries of nearby geometry are
- * free (§K-2). The browser `fetch` is injected (features/** stays
- * fetch-free, ESLint §F-3).
+ * Section isolation: the two sections can hold the SAME file, so their
+ * gap ids can collide. This mirror therefore keys every elevation-store
+ * record with a `recovery::` prefix — the repair studio's records and
+ * the recovery section's can never see (or prune) each other. The
+ * export attachment maps the namespaced keys back onto real gap ids for
+ * the merge sites.
  *
- * Phase 6 — Elevation. Client-side hook.
+ * Task 28 — Gap Recovery section. Client-side hook.
  */
 
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
-import { ElevationCache, withCache } from "@/features/elevation/cache";
-import { OpenMeteoProvider } from "@/features/elevation/openmeteo";
 import type {
   ElevationFailureReason,
   ElevationProvider,
@@ -41,57 +35,22 @@ import {
   type ElevationSample,
 } from "@/features/elevation/samples";
 import { resamplePath } from "@/features/reconstruction/resample";
-import type { MergeResult } from "@/features/reconstruction/merge";
-import {
-  buildElevationProfile,
-  buildElevationStats,
-  type ElevationProfile,
-  type ElevationStatsRows,
-} from "@/features/statistics/elevation";
 import { DEFAULT_HYSTERESIS_THRESHOLD_M } from "@/features/elevation/smoothing";
-import { useEditorStore } from "@/state/editor-store";
+import { useRecoveryStore } from "@/state/recovery-store";
 import { useElevationStore } from "@/state/elevation-store";
+import { getElevationProvider } from "@/hooks/use-elevation";
+import type {
+  ElevationAttachment,
+  ElevationControlsBinding,
+} from "@/hooks/use-elevation";
 import type { GapId, LatLon } from "@/types/domain";
+import type { RecoverySession } from "@/hooks/use-recovery-session";
 import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
-import type { GpxSession } from "@/hooks/use-gpx-session";
 
-// App-layer facade: components may not import feature internals (ESLint
-// boundary, §F), so the elevation vocabulary they need flows through here.
-export type { ElevationSample } from "@/features/elevation/samples";
-export type {
-  ElevationProfile,
-  ElevationStatsRows,
-} from "@/features/statistics/elevation";
-
-/**
- * The stats-table rows + chart series from the export pipeline's merge —
- * one merge basis, so statistics, profile, and export can never disagree
- * about which repairs carry elevation (Phase 6).
- */
-export function useElevationStats(
-  merge: MergeResult | null,
-): { rows: ElevationStatsRows; profile: ElevationProfile | null } {
-  const rows = useMemo(() => buildElevationStats(merge), [merge]);
-  const profile = useMemo(() => buildElevationProfile(merge), [merge]);
-  return { rows, profile };
-}
-
-/**
- * The shared provider (app layer owns the network): one instance per
- * page; its LRU cache makes re-fetches after edits and retries cheap.
- * Exported since Task 28: the Gap Recovery section's elevation mirror
- * shares this instance (and its cache) — one provider per page, not
- * per section.
- */
-let sharedProvider: ElevationProvider | null = null;
-export function getElevationProvider(): ElevationProvider {
-  if (!sharedProvider) {
-    sharedProvider = withCache(
-      new OpenMeteoProvider({ fetch: (input, init) => fetch(input, init) }),
-      new ElevationCache(),
-    );
-  }
-  return sharedProvider;
+/** Namespaced store key — recovery records can never collide with the
+ * repair studio's, even when both sections hold the same file. */
+function recoveryKey(gapId: GapId): GapId {
+  return `recovery::${gapId}` as GapId;
 }
 
 /** Rounds a raw request count the way the disclosure presents it. */
@@ -100,10 +59,8 @@ function requestCountFor(sentPoints: number): number {
 }
 
 /**
- * Honest failure copy by reason (§K-2): "no usable data" is reserved
- * for the one case where the service genuinely answered with nothing
- * (all-void terrain) — every transport failure says what actually
- * happened instead.
+ * Honest failure copy by reason (§K-2) — the same mapping the repair
+ * studio's hook renders.
  */
 function elevationFailureMessage(reason: ElevationFailureReason | null): string {
   switch (reason) {
@@ -120,106 +77,59 @@ function elevationFailureMessage(reason: ElevationFailureReason | null): string 
   }
 }
 
-// ---------------------------------------------------------------------------
-// Controls (the active gap's editor panel section)
-// ---------------------------------------------------------------------------
-
-export interface ElevationControlsBinding {
-  /** A fetch can start (editor open, route drawn). */
-  canFetch: boolean;
-  /** Why not, when `canFetch` is false (hint line). */
-  blockedReason: string | null;
-  /** The active gap's user-facing elevation status. */
-  status:
-    | "not-fetched"
-    | "fetching"
-    | "complete"
-    | "partial"
-    | "failed"
-    | "stale";
-  /** Fetch-time result predates the current chain (re-estimate offered). */
-  stale: boolean;
-  fetching: boolean;
-  /** Progress counters (answered = final answers, sent = wire points). */
-  answered: number;
-  sent: number;
-  total: number;
-  /** Points with a defined elevation (the partial note's numerator). */
-  resolved: number;
-  /** Disclosure numbers for the CURRENT chain (null when not fetchable). */
-  disclosure: {
-    sentPoints: number;
-    totalPoints: number;
-    requestCount: number;
-  } | null;
-  /** Provider copy (disclosure + attribution). */
-  providerName: string;
-  attribution: string;
-  privacyNote: string;
-  /** Per-gap summary of the fetched samples (fresh complete/partial only). */
-  summary: {
-    minEleM: number;
-    maxEleM: number;
-    gainM: number;
-    lossM: number;
-  } | null;
-  /** Failure message (status failed). */
-  error: string | null;
-  /** Intent: run the fetch for the active gap (disclosure confirmed). */
-  confirmFetch: () => void;
-}
-
-// ---------------------------------------------------------------------------
-// Attachment (what the merge/export consumes)
-// ---------------------------------------------------------------------------
-
-/** Fresh per-gap elevation for the merge + the honest stale count. */
-export interface ElevationAttachment {
-  /** Fresh (revision + road-signature match) samples, keyed by gap id. */
-  samplesByGap: Readonly<
-    Record<string, { providerName: string; samples: readonly ElevationSample[] }>
-  >;
-  /** Committed repairs whose elevation went stale (excluded from export). */
-  staleCount: number;
-}
-
-export function useElevation(
-  session: GpxSession,
+export function useRecoveryElevation(
+  session: RecoverySession,
   draw: DrawEditorBinding,
 ): {
   controls: ElevationControlsBinding;
   attachment: ElevationAttachment;
-  /** Gaps with a fresh usable result (stats honesty note). */
   fetchedCount: number;
 } {
   const byGap = useElevationStore((s) => s.byGap);
-  const reconstructions = useEditorStore((s) => s.reconstructions);
-  const roadLegs = useEditorStore((s) => s.roadLegs);
-  const activeGapId = useEditorStore((s) => s.activeGapId);
+  const reconstructions = useRecoveryStore((s) => s.reconstructions);
+  const roadLegs = useRecoveryStore((s) => s.roadLegs);
+  const activeGapId = useRecoveryStore((s) => s.activeGapId);
+  const manualSpans = useRecoveryStore((s) => s.manualSpans);
 
-  const provider = getElevationProvider();
+  const provider: ElevationProvider = getElevationProvider();
   const activeGap = draw.activeGap;
 
-  // -- lifecycle hygiene (same contract as useDrawEditor) ------------------
+  // -- lifecycle hygiene (same contract as the draw hook) --------------------
 
+  // NOTE: the elevation store's `prune` keeps ONLY the given ids, so this
+  // mirror must never call it with its namespaced subset — that would
+  // wipe the repair studio's records. Removal is per-key `clear` over
+  // this section's namespaced keys only.
   useEffect(() => {
     if (session.status !== "parsed") {
-      useElevationStore.getState().reset();
+      const keys = Object.keys(useElevationStore.getState().byGap)
+        .filter((id) => id.startsWith("recovery::"));
+      for (const key of keys) {
+        useElevationStore.getState().clear(key as GapId);
+      }
     }
   }, [session.status]);
 
   useEffect(() => {
-    const known = [
-      ...session.gapRows.map((row) => row.id),
-      ...draw.manualRows.map((row) => row.id),
-    ];
-    useElevationStore.getState().prune(known);
-  }, [session.gapRows, draw.manualRows]);
+    const known = new Set<string>(
+      [
+        ...session.gapRows.map((row) => row.id),
+        ...manualSpans.map((span) => span.id),
+      ].map((id) => recoveryKey(id)),
+    );
+    const stale = Object.keys(useElevationStore.getState().byGap).filter(
+      (id) => id.startsWith("recovery::") && !known.has(id),
+    );
+    for (const key of stale) {
+      useElevationStore.getState().clear(key as GapId);
+    }
+  }, [session.gapRows, manualSpans]);
 
-  // -- active-gap view ------------------------------------------------------
+  // -- active-gap view ---------------------------------------------------------
 
   const activeRecon = activeGapId === null ? null : reconstructions[activeGapId] ?? null;
-  const activeRecord = activeGapId === null ? null : byGap[activeGapId] ?? null;
+  const activeRecord =
+    activeGapId === null ? null : byGap[recoveryKey(activeGapId)] ?? null;
   const activeLegs = useMemo(
     () => (activeGapId === null ? [] : (roadLegs[activeGapId] ?? [])),
     [activeGapId, roadLegs],
@@ -294,19 +204,19 @@ export function useElevation(
     return gapElevationSummary(activeRecord.samples, DEFAULT_HYSTERESIS_THRESHOLD_M);
   }, [activeRecord, stale]);
 
-  // -- the fetch -------------------------------------------------------------
+  // -- the fetch ----------------------------------------------------------------
 
   const confirmFetch = useCallback(() => {
-    const gapId = useEditorStore.getState().activeGapId;
+    const gapId = useRecoveryStore.getState().activeGapId;
     if (gapId === null) return;
-    const editor = useEditorStore.getState();
-    const recon = editor.reconstructions[gapId];
+    const recovery = useRecoveryStore.getState();
+    const recon = recovery.reconstructions[gapId];
     if (!recon || recon.vertices.length === 0) return;
     const row = draw.activeGap;
     const near = row ? (row.before ?? row.after) : null;
     if (!near) return;
     const far = row?.before && row?.after ? row.after : null;
-    const legs = editor.roadLegs[gapId] ?? [];
+    const legs = recovery.roadLegs[gapId] ?? [];
 
     const path = resamplePath(
       { lat: near.lat, lon: near.lon },
@@ -321,7 +231,8 @@ export function useElevation(
     if (interior.length === 0) return;
     const sent = pickFetchPoints(interior);
 
-    const fetchSeq = useElevationStore.getState().beginFetch(gapId, {
+    const key = recoveryKey(gapId);
+    const fetchSeq = useElevationStore.getState().beginFetch(key, {
       providerId: provider.id,
       fetchedAtRevision: recon.geometryRevision,
       fetchedAtRoadSignature: roadLegsSignature(legs),
@@ -329,9 +240,6 @@ export function useElevation(
       sentPoints: sent.length,
     });
 
-    // Terminal batch failures report WHY (network/throttled/server/
-    // bad-response) so the failed state's copy names the real cause
-    // instead of a misleading "no usable data".
     let failureReason: ElevationFailureReason | null = null;
     void provider
       .getElevations(
@@ -340,7 +248,7 @@ export function useElevation(
           onProgress: (answered, resolved) =>
             useElevationStore
               .getState()
-              .setProgress(gapId, fetchSeq, answered, resolved),
+              .setProgress(key, fetchSeq, answered, resolved),
           onBatchFailure: (reason) => {
             failureReason = reason;
           },
@@ -356,9 +264,7 @@ export function useElevation(
         }
         samples.sort((a, b) => a.cumDistanceM - b.cumDistanceM);
         const resolved = samples.length;
-        // The sequence token drops a superseded fetch's late writes
-        // (a newer fetch for the same gap owns the record now).
-        useElevationStore.getState().finish(gapId, fetchSeq, {
+        useElevationStore.getState().finish(key, fetchSeq, {
           status:
             resolved === 0
               ? "failed"
@@ -373,7 +279,7 @@ export function useElevation(
         });
       })
       .catch(() => {
-        useElevationStore.getState().finish(gapId, fetchSeq, {
+        useElevationStore.getState().finish(key, fetchSeq, {
           status: "failed",
           samples: [],
           resolvedPoints: 0,
@@ -405,7 +311,7 @@ export function useElevation(
     confirmFetch,
   };
 
-  // -- export attachment ------------------------------------------------------
+  // -- export attachment ----------------------------------------------------------
 
   const allRows = useMemo(
     () => [...session.gapRows, ...draw.manualRows],
@@ -419,18 +325,17 @@ export function useElevation(
     > = {};
     let staleCount = 0;
     for (const row of allRows) {
-      const record = byGap[row.id];
+      // Namespaced read — only this section's records exist under the key.
+      const record = byGap[recoveryKey(row.id)];
       if (!record || (record.status !== "complete" && record.status !== "partial")) {
         continue;
       }
       const recon = reconstructions[row.id];
       if (!recon || recon.vertices.length === 0) continue;
       if (isStale(record, row.id)) {
-        // Only committed repairs count: an open/skipped gap's elevation
-        // was never going into this export anyway.
         if (
           draw.statusById[row.id] === "reconstructed" &&
-          row.id !== useEditorStore.getState().activeGapId
+          row.id !== useRecoveryStore.getState().activeGapId
         ) {
           staleCount += 1;
         }

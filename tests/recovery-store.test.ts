@@ -20,6 +20,7 @@ import {
 import { useEditorStore } from "@/state/editor-store";
 import { useSessionStore } from "@/state/session-store";
 import type { GapId } from "@/types/domain";
+import { pointId, segmentId } from "@/types/ids";
 
 const gapA = "gap/t0s0:0/t0s0:4" as GapId;
 const gapB = "gap/t0s0:4/t0s0:8" as GapId;
@@ -221,5 +222,153 @@ describe("isolation from the repair studio (the section contract)", () => {
     const recovery = useRecoveryStore.getState();
     expect(recovery.activeGapId).toBeNull();
     expect(recovery.reconstructions).toEqual({});
+  });
+});
+
+describe("user-drawn unmeasured sections (Task 28)", () => {
+  const SEG = segmentId(0, 0);
+  const p1 = pointId(SEG, 1);
+  const p2 = pointId(SEG, 2);
+  const insertId = "gap/t0s0:1/t0s0:2" as GapId;
+  const extendEndId = "gap/t0s0:5/end" as GapId;
+  const extendStartId = "gap/start/t0s0:0" as GapId;
+
+  it("startPickMode replaces any open editor; cancelPickMode leaves without a span", () => {
+    const store = useRecoveryStore.getState();
+    store.openEditor(gapA);
+    store.addVertex(pos(1, 2));
+
+    store.startPickMode("anchor");
+    let state = useRecoveryStore.getState();
+    expect(state.pickMode).toBe("anchor");
+    expect(state.activeGapId).toBeNull();
+    expect(state.drawMode).toBe(false);
+    // The abandoned reconstruction is kept (closeEditor semantics).
+    expect(state.reconstructions[gapA].vertices).toHaveLength(1);
+
+    store.cancelPickMode();
+    state = useRecoveryStore.getState();
+    expect(state.pickMode).toBeNull();
+    expect(state.manualSpans).toEqual([]);
+  });
+
+  it("addInsertSpan creates the insert span with the pace-estimated default", () => {
+    useRecoveryStore.getState().addInsertSpan(p1, p2);
+
+    const state = useRecoveryStore.getState();
+    expect(state.pickMode).toBeNull();
+    expect(state.activeGapId).toBe(insertId);
+    expect(state.drawMode).toBe(true);
+    expect(state.manualSpans).toEqual([
+      { id: insertId, kind: "insert", beforePointId: p1, afterPointId: p2 },
+    ]);
+    // The unmeasured-section contract: the app calculates the time.
+    expect(state.reconstructions[insertId].timeStrategy).toEqual({
+      kind: "pace-estimated",
+    });
+  });
+
+  it("addExtendSpan creates open extensions with the pace-estimated default", () => {
+    useRecoveryStore.getState().addExtendSpan(pointId(SEG, 5), "after");
+    useRecoveryStore.getState().addExtendSpan(pointId(SEG, 0), "before");
+
+    const state = useRecoveryStore.getState();
+    expect(state.manualSpans).toEqual([
+      { id: extendEndId, kind: "extend", anchorPointId: pointId(SEG, 5), side: "after" },
+      { id: extendStartId, kind: "extend", anchorPointId: pointId(SEG, 0), side: "before" },
+    ]);
+    expect(state.reconstructions[extendEndId].timeStrategy).toEqual({
+      kind: "pace-estimated",
+    });
+    expect(state.reconstructions[extendStartId].timeStrategy).toEqual({
+      kind: "pace-estimated",
+    });
+  });
+
+  it("addManualSpan (a picked pair) keeps the window-derived default", () => {
+    useRecoveryStore.getState().addManualSpan(p1, p2);
+
+    const state = useRecoveryStore.getState();
+    expect(state.manualSpans).toEqual([
+      { id: insertId, kind: "replace", beforePointId: p1, afterPointId: p2 },
+    ]);
+    // A replace span's boundaries bound a recorded stretch — the window
+    // IS the time in the file.
+    expect(state.reconstructions[insertId].timeStrategy).toEqual({
+      kind: "distance-proportional",
+    });
+  });
+
+  it("span creation is idempotent per id — repair state is reopened, not reset", () => {
+    useRecoveryStore.getState().addInsertSpan(p1, p2);
+    useRecoveryStore.getState().addVertex(pos(52.52, 13.405));
+    useRecoveryStore.getState().setTimeStrategy(insertId, {
+      kind: "manual-duration",
+      durationMs: 90_000,
+    });
+    useRecoveryStore.getState().closeEditor();
+
+    useRecoveryStore.getState().addInsertSpan(p1, p2);
+
+    const state = useRecoveryStore.getState();
+    expect(state.manualSpans).toHaveLength(1);
+    expect(state.reconstructions[insertId].vertices).toHaveLength(1);
+    expect(state.reconstructions[insertId].timeStrategy).toEqual({
+      kind: "manual-duration",
+      durationMs: 90_000,
+    });
+  });
+
+  it("removeManualSpan drops the span, its repair state, and closes its editor", () => {
+    const store = useRecoveryStore.getState();
+    store.addInsertSpan(p1, p2);
+    store.addVertex(pos(1, 2));
+
+    useRecoveryStore.getState().removeManualSpan(insertId);
+
+    const state = useRecoveryStore.getState();
+    expect(state.manualSpans).toEqual([]);
+    expect(state.reconstructions[insertId]).toBeUndefined();
+    expect(state.activeGapId).toBeNull();
+    expect(state.drawMode).toBe(false);
+  });
+
+  it("setParsed wipes drawn spans with the rest of the repair state", () => {
+    const store = useRecoveryStore.getState();
+    store.addInsertSpan(p1, p2);
+    store.addVertex(pos(1, 2));
+    store.startPickMode("pair");
+
+    store.setParsed("next.gpx", {} as never, []);
+
+    const state = useRecoveryStore.getState();
+    expect(state.manualSpans).toEqual([]);
+    expect(state.pickMode).toBeNull();
+    expect(state.reconstructions).toEqual({});
+  });
+
+  it("prune keeps user-drawn spans when the caller includes their ids", () => {
+    // The draw hook passes detected + manual ids as the known set — a
+    // drawn section survives threshold changes that stop detecting.
+    const store = useRecoveryStore.getState();
+    store.addInsertSpan(p1, p2);
+    store.addVertex(pos(1, 2));
+
+    useRecoveryStore.getState().prune([insertId]);
+
+    const state = useRecoveryStore.getState();
+    expect(state.manualSpans).toHaveLength(1);
+    expect(state.reconstructions[insertId].vertices).toHaveLength(1);
+  });
+
+  it("fileTiming carries the recorded-speed slot for the pace estimate", () => {
+    expect(useRecoveryStore.getState().fileTiming).toEqual({
+      startMs: null,
+      totalDurationMs: null,
+      recordedSpeedMps: null,
+    });
+
+    useRecoveryStore.getState().setFileTiming({ recordedSpeedMps: 3.2 });
+    expect(useRecoveryStore.getState().fileTiming.recordedSpeedMps).toBe(3.2);
   });
 });

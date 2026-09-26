@@ -63,6 +63,7 @@ export interface Estimated<T> {
     | "distance-proportional" // timestamps spread by cumulative distance
     | "uniform" // timestamps spread by index
     | "manual" // user-entered duration/elevation
+    | "pace-estimated" // duration derived from the file's recorded pace
     | "elevation-api" // fetched from a DEM provider
     | "interpolated"; // resampled geometry / profile smoothing
 }
@@ -404,11 +405,20 @@ export interface DrawVertex {
   snappedTo?: PointId;
 }
 
-/** How missing timestamps are distributed across a reconstruction. */
+/**
+ * How missing timestamps are distributed across a reconstruction.
+ *
+ * `pace-estimated` (Task 28) is the Gap Recovery section's "the app
+ * calculates it" source: the duration is the drawn distance divided by
+ * the file's recorded average speed — the user never types a number.
+ * It needs the path length at plan-resolution time (passed alongside
+ * the file timing context), unlike the boundary-derived kinds.
+ */
 export type TimeStrategy =
   | { kind: "distance-proportional" }
   | { kind: "uniform" }
   | { kind: "manual-duration"; durationMs: number }
+  | { kind: "pace-estimated" }
   | { kind: "none" };
 
 /** User-authored repair of one gap. Small by construction (vertices+settings). */

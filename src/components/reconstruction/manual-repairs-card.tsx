@@ -142,6 +142,23 @@ export interface ManualRepairsCardProps {
   onRemoveSpan: (gapId: GapId) => void;
   /** Derived repair status per gap id (same join as the gap list). */
   statusById?: Readonly<Record<string, GapStatus>>;
+  /**
+   * Per-section voice (Task 28): the recovery section reuses this card
+   * for its "unmeasured sections" with its own copy. Every string is
+   * optional and defaults to the repair studio's exact wording — the
+   * repair flow renders byte-identically when none is given.
+   */
+  copy?: {
+    title?: string;
+    description?: string;
+    anchorLabel?: string;
+    anchorHint?: string;
+    pairLabel?: string;
+    pairHint?: string;
+    empty?: string;
+    anchorInstructions?: string;
+    pairInstructions?: string;
+  };
 }
 
 export function ManualRepairsCard({
@@ -154,17 +171,36 @@ export function ManualRepairsCard({
   onOpenEditor,
   onRemoveSpan,
   statusById,
+  copy,
 }: ManualRepairsCardProps) {
   const detected = new Set(detectedGapIds);
   const visible = rows.filter((row) => !detected.has(row.id));
+  const title = copy?.title ?? "Manual repairs";
+  const description =
+    copy?.description ?? "Add or redraw route yourself — detection is only a helper.";
+  const anchorLabel = copy?.anchorLabel ?? "Add missing route";
+  const anchorHint =
+    copy?.anchorHint ??
+    "One click on any recorded point, then click anywhere on the map — the line follows the road between your clicks. Use it for a missing head, tail, or any stretch the watch never recorded.";
+  const pairLabel = copy?.pairLabel ?? "Redraw a stretch";
+  const pairHint =
+    copy?.pairHint ??
+    "Click two points on the recorded route — what's between them gets replaced by your drawing. Use it when the watch drew a straight line over a detour you actually ran.";
+  const empty =
+    copy?.empty ??
+    "No manual repairs yet. Start one anywhere on the route — a detour the watch drew straight, a missing head or tail — even when no gap was detected.";
+  const anchorInstructions =
+    copy?.anchorInstructions ??
+    "Click ONE point on the recorded route to attach your repair — then draw freely anywhere on the map. Route start/end extends into the open; a middle point inserts after it. Esc cancels.";
+  const pairInstructions =
+    copy?.pairInstructions ??
+    "Click two points on the recorded route — the stretch between them is what you replace. Pan and zoom stay available; Esc cancels.";
 
   return (
     <Card data-testid="manual-repairs-card">
       <CardHeader>
-        <h3 className="leading-none font-semibold">Manual repairs</h3>
-        <CardDescription>
-          Add or redraw route yourself — detection is only a helper.
-        </CardDescription>
+        <h3 className="leading-none font-semibold">{title}</h3>
+        <CardDescription>{description}</CardDescription>
         <CardAction>
           {pickMode && (
             <Button
@@ -185,11 +221,7 @@ export function ManualRepairsCard({
         {/* The two repair tools. Exactly one interaction shape each —
             one click to start adding, two clicks to bound a redraw. */}
         <div className="grid gap-2 sm:grid-cols-2">
-          <HintTip
-            side="left"
-            title="Add missing route"
-            description="One click on any recorded point, then click anywhere on the map — the line follows the road between your clicks. Use it for a missing head, tail, or any stretch the watch never recorded."
-          >
+          <HintTip side="left" title={anchorLabel} description={anchorHint}>
             <Button
               type="button"
               size="sm"
@@ -199,14 +231,10 @@ export function ManualRepairsCard({
               onClick={onBeginPickAnchor}
             >
               <PenLine className="size-3.5" aria-hidden="true" />
-              Add missing route
+              {anchorLabel}
             </Button>
           </HintTip>
-          <HintTip
-            side="left"
-            title="Redraw a stretch"
-            description="Click two points on the recorded route — what's between them gets replaced by your drawing. Use it when the watch drew a straight line over a detour you actually ran."
-          >
+          <HintTip side="left" title={pairLabel} description={pairHint}>
             <Button
               type="button"
               variant="outline"
@@ -217,7 +245,7 @@ export function ManualRepairsCard({
               onClick={onBeginPickPair}
             >
               <MousePointer2 className="size-3.5" aria-hidden="true" />
-              Redraw a stretch
+              {pairLabel}
             </Button>
           </HintTip>
         </div>
@@ -227,9 +255,7 @@ export function ManualRepairsCard({
             data-testid="pick-instructions"
             role="status"
           >
-            Click ONE point on the recorded route to attach your repair —
-            then draw freely anywhere on the map. Route start/end extends
-            into the open; a middle point inserts after it. Esc cancels.
+            {anchorInstructions}
           </p>
         )}
         {pickMode === "pair" && (
@@ -238,17 +264,11 @@ export function ManualRepairsCard({
             data-testid="pick-instructions"
             role="status"
           >
-            Click two points on the recorded route — the stretch between
-            them is what you replace. Pan and zoom stay available; Esc
-            cancels.
+            {pairInstructions}
           </p>
         )}
         {visible.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No manual repairs yet. Start one anywhere on the route — a
-            detour the watch drew straight, a missing head or tail — even
-            when no gap was detected.
-          </p>
+          <p className="text-sm text-muted-foreground">{empty}</p>
         ) : (
           <ul className="grid gap-3">
             {visible.map((row) => (

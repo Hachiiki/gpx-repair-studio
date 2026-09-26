@@ -26,6 +26,7 @@
 import { useCallback, useMemo } from "react";
 import { mergeRepairs, type MergeRepairSite, type MergeResult } from "@/features/reconstruction/merge";
 import type { FileTimingContext } from "@/features/reconstruction/timestamps";
+import type { ElevationSample } from "@/features/elevation/samples";
 import {
   exportGpxRepaired,
   type ExportMode,
@@ -40,9 +41,22 @@ import type { GpxExportBinding } from "@/hooks/use-gpx-export";
 
 export type { ExportMode };
 
+/**
+ * The elevation data the merge consumes — the same input shape the
+ * repair studio's export hook takes (Task 28: recovery's elevation
+ * mirror provides it).
+ */
+export type ElevationAttachmentInput = {
+  samplesByGap: Readonly<
+    Record<string, { providerName: string; samples: readonly ElevationSample[] }>
+  >;
+  staleCount: number;
+} | null;
+
 export function useRecoveryExport(
   session: RecoverySession,
   draw: DrawEditorBinding,
+  elevation: ElevationAttachmentInput = null,
 ): GpxExportBinding {
   const reconstructions = useRecoveryStore((s) => s.reconstructions);
   const roadLegs = useRecoveryStore((s) => s.roadLegs);
@@ -59,30 +73,65 @@ export function useRecoveryExport(
   const statusById = draw.statusById;
   const repairTimeStats = draw.repairTimeStats;
 
+  // Every repairable row, detected or user-drawn — the join basis.
+  const allRows = useMemo(
+    () => [...session.gapRows, ...draw.manualRows],
+    [session.gapRows, draw.manualRows],
+  );
+
   // Committed recoveries → pure merge sites. The population rule mirrors
-  // the statistics join exactly, so the numbers the preview shows are the
-  // numbers the export writes. Recovery rows are always bounded (both
-  // boundary points exist by construction).
+  // the statistics join exactly (`deriveGapStatus === "reconstructed"`), so
+  // the numbers the stats show are the numbers the export writes. Bounded
+  // rows (detected sections, pair/insert spans) carry both boundaries;
+  // open extensions carry their anchor + side.
+  const elevationByGap = elevation?.samplesByGap ?? null;
   const sites = useMemo<readonly MergeRepairSite[]>(() => {
     if (!data) return [];
     const result: MergeRepairSite[] = [];
-    for (const row of session.gapRows) {
+    for (const row of allRows) {
       if (statusById[row.id] !== "reconstructed") continue;
       const recon = reconstructions[row.id];
       if (!recon) continue;
-      if (row.before === undefined || row.after === undefined) continue;
+      const bounded = row.before !== undefined && row.after !== undefined;
+      const elevationResult = elevationByGap?.[row.id];
       result.push({
         gapId: row.id,
-        beforePointId: row.before.pointId,
-        afterPointId: row.after.pointId,
+        ...(bounded
+          ? {
+              beforePointId: row.before!.pointId,
+              afterPointId: row.after!.pointId,
+            }
+          : {
+              // Open extension: the side tells merge where the interior
+              // attaches; the anchor rides the boundary the row kept.
+              ...(row.before !== undefined
+                ? { beforePointId: row.before.pointId, extendSide: "after" as const }
+                : {}),
+              ...(row.after !== undefined
+                ? { afterPointId: row.after.pointId, extendSide: "before" as const }
+                : {}),
+            }),
         vertices: recon.vertices,
         resampleSpacingM: recon.resampleSpacingM,
         timeStrategy: recon.timeStrategy,
         roadLegs: roadLegs[row.id] ?? [],
+        ...(elevationResult
+          ? {
+              elevation: {
+                providerName: elevationResult.providerName,
+                // Freshness was verified against the current revision and
+                // road signature by the elevation mirror; these two
+                // fields only carry the provenance snapshot.
+                fetchedAtRevision: recon.geometryRevision,
+                fetchedAtRoadSignature: "",
+                samples: elevationResult.samples,
+              },
+            }
+          : {}),
       });
     }
     return result;
-  }, [data, session.gapRows, statusById, reconstructions, roadLegs]);
+  }, [data, allRows, statusById, reconstructions, roadLegs, elevationByGap]);
 
   const hasTimingData = session.timeStats?.hasTimingData ?? false;
 
@@ -100,7 +149,7 @@ export function useRecoveryExport(
 
   const summary = useMemo(() => {
     if (!data || !merge) return null;
-    const openRepairCount = session.gapRows.filter(
+    const openRepairCount = allRows.filter(
       (row) =>
         row.id === activeGapId && (reconstructions[row.id]?.vertices.length ?? 0) > 0,
     ).length;
@@ -117,12 +166,12 @@ export function useRecoveryExport(
       willUpgradeTo11: data.fileMeta.version === "1.0" && merge.repairCount > 0,
       reimportedPoints: session.reimport?.markerCount ?? 0,
       repairsWithElevation: merge.elevatedRepairCount,
-      staleElevationCount: 0,
+      staleElevationCount: elevation?.staleCount ?? 0,
     };
   }, [
     data,
     merge,
-    session.gapRows,
+    allRows,
     session.reimport,
     activeGapId,
     reconstructions,
@@ -130,6 +179,7 @@ export function useRecoveryExport(
     repairTimeStats,
     hasTimingData,
     fileTiming,
+    elevation,
   ]);
 
   const download = useCallback((): string | null => {

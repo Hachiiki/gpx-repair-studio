@@ -83,18 +83,22 @@ export function RecoveryPreviewCard({
         <h3 className="leading-none font-semibold">Completed route</h3>
         <CardDescription>
           {hasCommits
-            ? `${recoveredCount} of ${detectedCount} missing section${
-                detectedCount === 1 ? "" : "s"
-              } recovered — preview before you export.`
-            : "Draw a missing section to see the completed route here."}
+            ? detectedCount > 0
+              ? `${recoveredCount} of ${detectedCount} missing section${
+                  detectedCount === 1 ? "" : "s"
+                } recovered — preview before you export.`
+              : `${recoveredCount} unmeasured section${
+                  recoveredCount === 1 ? "" : "s"
+                } drawn — time estimated from your file's pace.`
+            : "Draw a missing section to see the completed route here — detection or not, drawing is always available."}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {hasCommits ? (
           <dl className="grid gap-2 text-sm" data-testid="recovery-preview-stats">
             <Row
-              label="Missing time now covered"
-              hint="The recorded interval between the section's boundary timestamps."
+              label="Recovered time"
+              hint="From the sections' recorded boundary intervals — or, for unmeasured sections, estimated from your file's average pace."
             >
               {repair.reconstructedTimeMs !== null ? (
                 <span className="inline-flex items-baseline gap-1.5">
@@ -141,13 +145,20 @@ export function RecoveryPreviewCard({
             </Row>
             <Row
               label="Average speed, completed"
-              hint="Completed distance over the recorded elapsed time — the geometry is drawn, the clock is real."
+              hint="Completed distance over the recorded elapsed time plus any estimated time the file's clock never counted — the geometry is drawn, the clock is real."
             >
               {wallMs !== undefined && wallMs > 0 ? (
                 <span className="inline-flex items-baseline gap-1.5">
                   {/* m / ms → km/h: × 3.6 converts m/s→km/h, so the
-                      milliseconds must become seconds first (× 3600). */}
-                  {formatSpeedKmh((completedDistanceM / wallMs) * 3600)}
+                      milliseconds must become seconds first (× 3600).
+                      Task 28: an unmeasured section's estimated time was
+                      never in the file's clock — without it the grown
+                      distance over the untouched elapsed would read as
+                      superhuman speed. */}
+                  {formatSpeedKmh(
+                    (completedDistanceM / (wallMs + repair.beyondWallMs)) *
+                      3600,
+                  )}
                   <ProvenanceBadge kind="mixed" />
                 </span>
               ) : (

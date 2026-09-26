@@ -232,3 +232,101 @@ describe("ManualDurationDialog (within the controls)", () => {
     );
   });
 });
+
+describe("TimeStrategyControls — the pace-estimated source (Task 28)", () => {
+  /** 1 km drawn at 3⅓ m/s → a 5:00 estimate (5:00 /km). */
+  const SPEED_MPS = 1000 / 300;
+  const FILE_TIMING = {
+    startMs: null,
+    totalDurationMs: null,
+    recordedSpeedMps: SPEED_MPS,
+  };
+
+  function pacePlan(
+    boundaries: { routeBeforeMs?: number; routeAfterMs?: number },
+    pathLengthM: number | null = DISTANCE_M,
+  ) {
+    return resolveGapTimePlan(
+      boundaries,
+      { kind: "pace-estimated" },
+      FILE_TIMING,
+      pathLengthM,
+    );
+  }
+
+  function setupPace(
+    plan: ReturnType<typeof pacePlan>,
+    paceAvailable: boolean,
+    strategySpy = vi.fn(),
+  ) {
+    render(
+      <TimeStrategyControls
+        plan={plan}
+        distanceM={DISTANCE_M}
+        vertexCount={2}
+        setTimeStrategy={strategySpy}
+        paceAvailable={paceAvailable}
+      />,
+    );
+    return strategySpy;
+  }
+
+  it("a file pace adds the From-your-pace chip to the both-boundaries row", () => {
+    setupPace(
+      pacePlan({ routeBeforeMs: T0, routeAfterMs: T0 + 1000 }),
+      true,
+    );
+    // The adjacent 1 s window with a 5:00 estimate — the section reads
+    // as unmeasured, not paused.
+    expect(screen.getByText(/wasn't measured/i)).toBeVisible();
+    expect(screen.getByTestId("time-strategy-pace-estimated")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByTestId("gap-duration")).toHaveTextContent("5:00");
+    expect(screen.getByTestId("gap-duration")).toHaveTextContent("pace estimate");
+    expect(screen.getByTestId("gap-pace")).toHaveTextContent("5:00 /km");
+  });
+
+  it("without a file pace the chip never renders (the repair studio's UI)", () => {
+    setupPace(
+      pacePlan({ routeBeforeMs: T0, routeAfterMs: T0 + 1000 }),
+      false,
+    );
+    expect(screen.queryByTestId("time-strategy-pace-estimated")).toBeNull();
+  });
+
+  it("an unmet pace-estimated plan explains itself instead of showing a duration", () => {
+    setupPace(
+      pacePlan({ routeBeforeMs: T0 }, null), // nothing drawn yet
+      true,
+    );
+    expect(screen.getByTestId("time-missing-reason")).toHaveTextContent(
+      /draw the route first/i,
+    );
+    expect(screen.getByTestId("gap-duration")).toHaveTextContent("—");
+  });
+
+  it("a one-boundary span offers pace + manual chips when a file pace exists", () => {
+    const spy = setupPace(pacePlan({ routeBeforeMs: T0 }), true);
+
+    // Two honest sources replace the single add-a-duration button.
+    expect(screen.getByTestId("time-strategy-pace-estimated")).toBeVisible();
+    expect(screen.getByTestId("time-strategy-manual-duration")).toBeVisible();
+    expect(screen.queryByTestId("add-duration-button")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("time-strategy-pace-estimated"));
+    expect(spy).toHaveBeenCalledWith({ kind: "pace-estimated" });
+  });
+
+  it("the estimate-vs-window disagreement is surfaced with the PE phrasing", () => {
+    setupPace(
+      pacePlan({ routeBeforeMs: T0, routeAfterMs: T0 + 1000 }), // 1 s recorded window
+      true,
+    );
+    const alert = screen.getByTestId("duration-discrepancy");
+    expect(alert).toHaveTextContent(/pace estimate/i);
+    expect(alert).toHaveTextContent("5:00"); // the estimate
+    expect(alert).toHaveTextContent("0:01"); // the recorded window
+  });
+});

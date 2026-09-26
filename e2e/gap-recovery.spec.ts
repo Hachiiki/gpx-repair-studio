@@ -181,7 +181,7 @@ test.describe("Gap Recovery section", () => {
     const preview = page.getByTestId("recovery-preview-card");
     await expect(preview).toContainText("1 of 1 missing section recovered");
     const previewStats = page.getByTestId("recovery-preview-stats");
-    await expect(previewStats).toContainText("Missing time now covered");
+    await expect(previewStats).toContainText("Recovered time");
     await expect(previewStats).toContainText("5:00");
     await expect(previewStats).toContainText("unchanged");
     await expect(previewStats).toContainText("Points generated");
@@ -277,6 +277,91 @@ test.describe("Gap Recovery section", () => {
     await expect(gapList).toContainText("No gaps detected");
     // The marked stretch renders with the reconstruction treatment.
     await pollBridge(page, (s) => s.reconstructionLineCount >= 1);
+  });
+
+  test("draws an unmeasured section with nothing detected — the app estimates the time (Task 28)", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByTestId("landing-mode-recovery").click();
+
+    // A clean recording: 6 points, 3 s apart — nothing detectable.
+    await upload(page, join(FIXTURES, "valid-1.1.gpx"));
+    await pollBridge(page, (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);
+
+    // No dead end: the guide points at drawing, not at thresholds.
+    const guide = page.getByTestId("recovery-guide-card");
+    await expect(guide).toContainText("No missing sections detected");
+    await expect(guide).toContainText("you can still draw");
+
+    // The unmeasured-sections card — the reused manual-repairs card,
+    // voiced for recovery.
+    const card = page.getByTestId("manual-repairs-card");
+    await expect(card).toContainText("Unmeasured sections");
+    await expect(card).toContainText("Draw an unmeasured section");
+
+    // Anchor pick: one click on a recorded point (mid-route → an insert
+    // span after it).
+    await page.getByTestId("begin-pick-anchor-button").click();
+    await expect(page.getByTestId("pick-mode-chip")).toBeVisible();
+    const box = await canvasBox(page);
+    // Point 2 of the fixture (52.520096, 13.405094).
+    await clickAt(page, 52.520096, 13.405094, box);
+
+    // The pick became a draw session (the editor opened on the span).
+    await pollBridge(page, (s) => s.drawSession !== null && s.drawSession.drawMode);
+    const editor = page.getByTestId("draw-editor-panel");
+    await expect(editor).toContainText("Reconstruct route");
+
+    // The app-calculated plan: "From your pace" is the source in force,
+    // the duration labeled as the pace estimate.
+    await expect(page.getByTestId("time-strategy-pace-estimated")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByTestId("gap-duration")).toContainText("pace estimate");
+
+    // Draw the lost route (snap off — clicks land where clicked).
+    await page.getByTestId("snap-toggle").click();
+    await clickAt(page, DRAW_POINTS[0].lat, DRAW_POINTS[0].lon, box);
+    await clickAt(page, DRAW_POINTS[1].lat, DRAW_POINTS[1].lon, box);
+    await pollBridge(page, (s) => s.drawSession?.vertexCount === 2);
+
+    // Commit: the drawn section becomes the recovered line.
+    await page.getByTestId("done-editing-button").click();
+    await pollBridge(
+      page,
+      (s) => s.drawSession === null && s.reconstructionLineCount === 1,
+    );
+    await expect(guide).toContainText("1 drawn");
+    await expect(card).toContainText("Reconstructed");
+
+    // The preview: recovered time estimated from the file's pace, the
+    // elapsed time still locked.
+    const previewStats = page.getByTestId("recovery-preview-stats");
+    await expect(previewStats).toContainText("Recovered time");
+    await expect(previewStats).toContainText("unchanged");
+
+    // Export: the drawn section's points carry the pace-estimated
+    // provenance; every original value is verbatim.
+    await page.getByTestId("open-export-button").click();
+    const dialog = page.getByTestId("export-dialog");
+    await expect(dialog).toBeVisible();
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("export-download-button").click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("valid-1.1.repaired.gpx");
+    const path = await download.path();
+    if (path === null) throw new Error("download produced no file");
+    const xml = readFileSync(path, "utf8");
+
+    expect(xml).toContain("Repaired with GPX Repair Studio");
+    expect(xml).toMatch(/<gpxr:reconstructed[^]*timeMethod="pace-estimated"/);
+    expect(xml).toMatch(/<gpxr:summary[^]*gapCount="1"/);
+    expect(xml).toContain('lat="52.520006"'); // verbatim original spelling
+    // The picked anchor's recorded timestamp is untouched.
+    expect(xml).toContain("<time>2024-05-01T07:00:06Z</time>");
   });
 
   test("works at a mobile viewport, three tabs on one row", async ({ page }) => {

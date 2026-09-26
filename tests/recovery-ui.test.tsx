@@ -31,6 +31,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
 import { loadFixture } from "./helpers/gpxTestUtils";
+import { pointId, segmentId } from "@/types/ids";
 import { useEditorStore } from "@/state/editor-store";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { useSessionStore } from "@/state/session-store";
@@ -146,11 +147,13 @@ describe("Gap Recovery section", () => {
     await dropFile("time-gap.gpx");
     await screen.findByTestId("gap-list");
 
-    // Before committing: the preview explains nothing is applied yet.
+    // Before committing: the preview explains nothing is applied yet —
+    // and (Task 28) that drawing never waits for detection.
     const preview = screen.getByTestId("recovery-preview-card");
     expect(preview).toHaveTextContent(
-      "Draw a missing section to see the completed route here.",
+      "Draw a missing section to see the completed route here",
     );
+    expect(preview).toHaveTextContent("drawing is always available");
 
     // Open the editor for the detected section (the reused panel).
     fireEvent.click(screen.getByTestId("open-editor-button"));
@@ -189,6 +192,91 @@ describe("Gap Recovery section", () => {
     expect(stats).toHaveTextContent("Estimated");
 
     // The export card reflects the committed recovery.
+    const exportCard = screen.getByTestId("export-card");
+    expect(exportCard).toHaveTextContent("Repairs to include");
+    expect(exportCard).toHaveTextContent("1");
+  });
+
+  it("draws an unmeasured section with nothing detected — the app estimates the time", async () => {
+    render(<AppShell />);
+    chooseRecoveryTab();
+
+    // A clean recording: 6 points, 3 s apart — nothing detectable.
+    await dropFile("valid-1.1.gpx");
+    const guide = await screen.findByTestId("recovery-guide-card");
+    expect(guide).toHaveTextContent("No missing sections detected");
+    expect(guide).toHaveTextContent("you can still draw");
+
+    // The unmeasured-sections card is the always-available front door,
+    // voiced for recovery (the reused card, per-section copy).
+    const drawCard = screen.getByTestId("manual-repairs-card");
+    expect(drawCard).toHaveTextContent("Unmeasured sections");
+    expect(drawCard).toHaveTextContent("Draw an unmeasured section");
+
+    // Enter pick mode — the recovery-voiced instructions appear.
+    fireEvent.click(screen.getByTestId("begin-pick-anchor-button"));
+    expect(screen.getByTestId("pick-instructions")).toHaveTextContent(
+      "where the unmeasured section attaches",
+    );
+
+    // Pick a mid-route point (store-driven; the map needs WebGL):
+    // point 2 + its next recorded point → an insert span.
+    const SEG = segmentId(0, 0);
+    await act(async () => {
+      useRecoveryStore.getState().addInsertSpan(pointId(SEG, 2), pointId(SEG, 3));
+    });
+    expect(useRecoveryStore.getState().manualSpans).toEqual([
+      {
+        id: "gap/t0s0:2/t0s0:3",
+        kind: "insert",
+        beforePointId: "t0s0:2",
+        afterPointId: "t0s0:3",
+      },
+    ]);
+
+    // The editor opens with the app-calculated strategy: the file's
+    // recorded pace exists, so "From your pace" is the pressed source.
+    const editor = await screen.findByTestId("draw-editor-panel");
+    expect(editor).toBeVisible();
+    await waitFor(() => {
+      expect(screen.getByTestId("time-strategy-pace-estimated")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
+
+    // Draw the lost route and commit.
+    await act(async () => {
+      const store = useRecoveryStore.getState();
+      for (const point of DRAWN) store.addVertex(point);
+      store.setResampleSpacing(useRecoveryStore.getState().activeGapId!, 10);
+      store.closeEditor();
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("draw-editor-panel")).toBeNull();
+    });
+
+    // The card lists the drawn section as reconstructed; the guide
+    // counts it (nothing detected — the drawn sections carry it).
+    expect(screen.getByTestId("manual-repairs-card")).toHaveTextContent(
+      "Reconstructed",
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("recovery-guide-card")).toHaveTextContent(
+        "1 drawn",
+      );
+    });
+
+    // The preview: recovered time estimated from the file's pace, the
+    // elapsed time still locked.
+    await waitFor(() => {
+      expect(screen.getByTestId("recovery-preview-stats")).toBeVisible();
+    });
+    const stats = screen.getByTestId("recovery-preview-stats");
+    expect(stats).toHaveTextContent("Recovered time");
+    expect(stats).toHaveTextContent("unchanged");
+
+    // The export includes the drawn section.
     const exportCard = screen.getByTestId("export-card");
     expect(exportCard).toHaveTextContent("Repairs to include");
     expect(exportCard).toHaveTextContent("1");

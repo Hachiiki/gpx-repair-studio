@@ -86,6 +86,7 @@ function makeBinding(
       reconstructedTimeMs: null,
       gapsWithoutDuration: 0,
       discrepancies: [],
+      beyondWallMs: 0,
     },
     paceRows: [],
     manualRows: [],
