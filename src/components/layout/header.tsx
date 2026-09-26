@@ -62,7 +62,16 @@ export function AppHeader({
         )}
       >
         <div className="flex min-w-0 items-center gap-3">
-          <h1 className="text-lg font-semibold tracking-tight">
+          {/* Brand mark: the signal-orange square (public/logo.svg,
+           * recolored for the Ink & Signal theme) — decorative; the
+           * wordmark carries the accessible name. */}
+          <img
+            src="/logo.svg"
+            alt=""
+            aria-hidden="true"
+            className="hidden size-7 rounded-md sm:block"
+          />
+          <h1 className="truncate font-display text-lg font-bold tracking-tight">
             GPX Repair Studio
           </h1>
           <Badge variant="secondary" className="hidden sm:inline-flex">

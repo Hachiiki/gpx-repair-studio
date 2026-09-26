@@ -192,12 +192,22 @@ const LAYER = {
   pickAnchor: "gpxr-pick-anchor",
 } as const;
 
-/** Recorded-route color (master plan §I-3: original = solid blue). */
-const ROUTE_COLOR = "#2563eb";
+/**
+ * Ink & Signal map palette (Task 29). The five UI anchors rule the
+ * canvas too: the recorded route is INK (solid #222222 — the watch's
+ * truth, immutable), everything the app creates is SIGNAL
+ * (#FC4C02 — committed reconstructions, drafts, selection). Gap
+ * spans are a SHADE ramp: heavier ink = heavier problem (severity
+ * also carried by dash pattern + markers + legend, never color
+ * alone).
+ */
+const ROUTE_COLOR = "#222222";
 
-/** Reconstruction color (§I-3: reconstructed = dashed, distinct hue). */
-const RECON_COLOR = "#059669"; // emerald-600
-const RECON_COLOR_DRAFT = "#10b981"; // emerald-500 (active session)
+/** Reconstruction color: the brand signal — the app's own work. */
+const RECON_COLOR = "#FC4C02";
+/** Draft chain: the same signal at reduced alpha — placed, not yet
+ *  committed (width + white handles carry the active state too). */
+const RECON_COLOR_DRAFT = "rgba(252,76,2,0.85)";
 
 /** Snap magnet radius in screen pixels (converted to meters at commit). */
 const SNAP_RADIUS_PX = 14;
@@ -212,11 +222,12 @@ const ENDPOINT_TIE_PX = 2;
 /** Minimum pointer travel (px) before a handle press counts as a drag. */
 const DRAG_THRESHOLD_PX = 3;
 
-/** Gap-span colors by severity (dash pattern carries the meaning too). */
+/** Gap-span colors by severity — a darkness ramp on the shade anchor
+ * (dash pattern + markers + legend carry the meaning too). */
 const SEVERITY_COLORS: Record<string, string> = {
-  severe: "#dc2626",
-  suspect: "#ea580c",
-  info: "#64748b",
+  severe: "#000000",
+  suspect: "#5A5A5A",
+  info: "rgba(90,90,90,0.55)",
 };
 
 const severityColor = (): unknown =>
@@ -1089,14 +1100,15 @@ export class MapController {
       },
     });
 
-    // Selection casing under the dashed span + boundary halo.
+    // Selection glow under the dashed span: the signal color marks
+    // the interactive target (the span about to be repaired).
     map.addLayer({
       id: LAYER.spanSelected,
       type: "line",
       source: SOURCE.spans,
       filter: NONE_FILTER,
       layout: { "line-join": "round", "line-cap": "round" },
-      paint: { "line-color": "#ffffff", "line-width": 7, "line-opacity": 0.9 },
+      paint: { "line-color": "#FC4C02", "line-width": 7, "line-opacity": 0.45 },
     });
     map.addLayer({
       id: LAYER.markerHalo,
@@ -1162,10 +1174,11 @@ export class MapController {
     });
 
     // -- Phase 4: reconstruction + draw-session layers ---------------------
-    // Committed reconstructions — SOLID emerald: the authored route reads
-    // as real road, distinct from the recorded blue by hue (+ legend + UI
-    // provenance badges). WYSIWYG contract: solid while drawing, solid
-    // after commit — the style never changes under the user's feet.
+    // Committed reconstructions — SOLID signal orange: the authored route
+    // reads as the app's work, distinct from the recorded ink by hue
+    // (+ legend + UI provenance badges). WYSIWYG contract: solid while
+    // drawing, solid after commit — the style never changes under the
+    // user's feet.
     map.addLayer({
       id: LAYER.recon,
       type: "line",
@@ -1236,7 +1249,7 @@ export class MapController {
       },
     });
 
-    // Vertex handles — white fill, emerald stroke. Radius/stroke grow on
+    // Vertex handles — white fill, signal stroke. Radius/stroke grow on
     // hover (feature-state driven): the point visibly "picks itself up",
     // teaching draggability without a single word.
     map.addLayer({
@@ -1281,7 +1294,7 @@ export class MapController {
       paint: { "circle-opacity": 0, "circle-radius": 12 },
     });
 
-    // Span-pick first anchor — white fill, emerald ring (draw-anywhere).
+    // Span-pick first anchor — white fill, signal ring (draw-anywhere).
     map.addLayer({
       id: LAYER.pickAnchor,
       type: "circle",

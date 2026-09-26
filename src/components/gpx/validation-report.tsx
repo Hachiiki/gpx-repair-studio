@@ -102,7 +102,7 @@ export function ValidationReport({
         {issues.length === 0 ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <CircleCheck
-              className="size-4 shrink-0 text-emerald-600"
+              className="size-4 shrink-0 text-ink"
               aria-hidden="true"
             />
             The recording looks healthy.

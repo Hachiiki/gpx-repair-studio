@@ -43,20 +43,20 @@ export function UploadZone({ onFile, disabled = false }: UploadZoneProps) {
         if (!disabled) handleFiles(event.dataTransfer.files);
       }}
       className={cn(
-        "rounded-xl border-2 border-dashed bg-card p-8 text-center transition-colors",
+        "rounded-xl border-2 border-dashed bg-card p-8 text-center transition-[border-color,background-color] duration-150",
         dragging
           ? "border-primary bg-primary/5"
-          : "border-muted-foreground/25 hover:border-muted-foreground/40",
+          : "border-ink/20 hover:border-signal/70 hover:bg-signal/[0.03]",
         disabled && "pointer-events-none opacity-50",
       )}
       data-testid="upload-zone"
     >
       <label
         htmlFor={inputId}
-        className="flex cursor-pointer flex-col items-center gap-4"
+        className="group/upload flex cursor-pointer flex-col items-center gap-4"
       >
-        <span className="rounded-full bg-muted p-3">
-          <FileUp className="size-6 text-muted-foreground" aria-hidden="true" />
+        <span className="rounded-full bg-signal/10 p-3 transition-colors group-hover/upload:bg-signal/15">
+          <FileUp className="size-6 text-signal" aria-hidden="true" />
         </span>
         <span className="space-y-1">
           <span className="block font-medium">Drop your GPX file here</span>

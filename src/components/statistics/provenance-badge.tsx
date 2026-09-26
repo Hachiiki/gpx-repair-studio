@@ -18,20 +18,23 @@ import { cn } from "@/lib/utils";
 export type ProvenanceKind = "recorded" | "estimated" | "mixed";
 
 const PROVENANCE_STYLES: Record<ProvenanceKind, { label: string; className: string }> = {
+  /*
+   * Ink & Signal: what the watch recorded needs no color — it is the
+   * calm baseline (ink outline). What the app estimated is the brand
+   * (signal tint). Mixed carries the signal border but keeps ink text
+   * — partly estimated, partly recorded.
+   */
   recorded: {
     label: "Recorded",
-    className:
-      "border-emerald-600/30 bg-emerald-600/10 text-emerald-700 dark:text-emerald-400",
+    className: "border-ink/25 bg-transparent text-ink",
   },
   estimated: {
     label: "Estimated",
-    className:
-      "border-amber-600/40 bg-amber-600/10 text-amber-700 dark:text-amber-400",
+    className: "border-signal/40 bg-signal/10 text-signal",
   },
   mixed: {
     label: "Mixed",
-    className:
-      "border-orange-600/40 bg-orange-600/10 text-orange-700 dark:text-orange-400",
+    className: "border-signal/40 bg-signal/5 text-ink",
   },
 };
 

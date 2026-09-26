@@ -7,9 +7,9 @@ import sys
 
 from PIL import Image
 
-# Route blue #2563eb -> (37, 99, 235)
-TARGET = (37, 99, 235)
-TOL = 70
+# Route ink #222222 -> (34, 34, 34)
+TARGET = (34, 34, 34)
+TOL = 40
 
 SCREENSHOT = "/home/z/my-project/download/task28-prod-05-pick-mode.png"
 CANVAS = {"x": 25, "y": 82, "w": 990, "h": 700}  # CSS px box from agent-browser

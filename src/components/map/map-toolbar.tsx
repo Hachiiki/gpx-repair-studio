@@ -90,7 +90,7 @@ export function MapToolbar({
               data-testid="draw-mode-draw"
               className={`flex h-9 w-9 items-center justify-center transition-colors focus-visible:outline-2 ${
                 drawMode
-                  ? "bg-emerald-600 text-white"
+                  ? "bg-signal text-white"
                   : "text-foreground hover:bg-accent"
               }`}
               onClick={() => onToggleDrawMode(true)}

@@ -261,7 +261,7 @@ describe("MapToolbar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Basemap provider" }));
     const menu = screen.getByTestId("map-provider-menu");
-    expect(menu).toHaveTextContent("OpenFreeMap (Liberty)");
+    expect(menu).toHaveTextContent("OpenFreeMap (Positron)");
     expect(menu).toHaveTextContent("OSM Standard (raster)");
     expect(menu).toHaveTextContent("strict usage policies");
 
@@ -389,9 +389,10 @@ describe("MapLegend", () => {
   it("explains all visual encodings", () => {
     render(<MapLegend />);
     const legend = screen.getByTestId("map-legend");
-    expect(legend).toHaveTextContent("Recorded route (solid)");
-    expect(legend).toHaveTextContent("Gap span (dashed)");
+    expect(legend).toHaveTextContent("Recorded route (solid ink)");
+    expect(legend).toHaveTextContent("Gap span (dashed, severity shades)");
     expect(legend).toHaveTextContent("Gap boundaries");
+    expect(legend).toHaveTextContent("Repaired route (solid orange)");
   });
 });
 

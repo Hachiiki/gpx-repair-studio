@@ -107,7 +107,7 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
         {/* Basemap offline / blocked — route and gaps still render. */}
         {map.status !== "unsupported" && map.offline && (
           <div
-            className="absolute inset-x-2 top-2 z-20 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50/95 px-2.5 py-1.5 text-xs text-amber-900 shadow-sm dark:border-amber-500/40 dark:bg-amber-950/90 dark:text-amber-100"
+            className="absolute inset-x-2 top-2 z-20 flex items-center gap-2 rounded-lg border border-signal/50 bg-signal/5 px-2.5 py-1.5 text-xs text-ink shadow-sm"
             data-testid="map-offline-notice"
             role="status"
           >
@@ -167,7 +167,7 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
                 }
                 className={`absolute left-2 top-2 z-10 flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm transition-colors focus-visible:outline-2 ${
                   draw.drawMode
-                    ? "border-emerald-600/40 bg-emerald-50/95 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/90 dark:text-emerald-100"
+                    ? "border-signal/40 bg-signal/10 text-ink dark:border-signal/40 dark:bg-signal/10 dark:text-ink"
                     : "border-border bg-background/85 text-foreground hover:bg-accent"
                 }`}
               >
@@ -184,7 +184,7 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
             )}
             {draw?.pickMode && (
               <div
-                className="pointer-events-none absolute inset-x-2 top-2 z-20 mx-auto w-fit max-w-full rounded-lg border border-emerald-600/40 bg-emerald-50/95 px-3 py-1.5 text-xs font-medium text-emerald-800 shadow-sm dark:border-emerald-500/40 dark:bg-emerald-950/90 dark:text-emerald-100"
+                className="pointer-events-none absolute inset-x-2 top-2 z-20 mx-auto w-fit max-w-full rounded-lg border border-signal/40 bg-signal/10 px-3 py-1.5 text-xs font-medium text-ink shadow-sm dark:border-signal/40 dark:bg-signal/10 dark:text-ink"
                 data-testid="pick-mode-chip"
                 role="status"
               >

@@ -62,7 +62,7 @@ export function RecoveryGuideCard({
             <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted">
               {detectedCount > 0 ? (
                 <Check
-                  className="size-3 text-emerald-600"
+                  className="size-3 text-signal"
                   aria-hidden="true"
                 />
               ) : (
@@ -83,12 +83,12 @@ export function RecoveryGuideCard({
             <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted">
               {allRecovered ? (
                 <Check
-                  className="size-3 text-emerald-600"
+                  className="size-3 text-signal"
                   aria-hidden="true"
                 />
               ) : editorOpen ? (
                 <PenLine
-                  className="size-3 text-emerald-600"
+                  className="size-3 text-signal"
                   aria-hidden="true"
                 />
               ) : (
@@ -111,7 +111,7 @@ export function RecoveryGuideCard({
             <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted">
               {allRecovered ? (
                 <Check
-                  className="size-3 text-emerald-600"
+                  className="size-3 text-signal"
                   aria-hidden="true"
                 />
               ) : (

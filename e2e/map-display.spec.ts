@@ -273,7 +273,7 @@ test.describe("map display", () => {
     await page.getByRole("button", { name: "Basemap provider" }).click();
     await page
       .getByTestId("map-provider-menu")
-      .getByRole("button", { name: "OpenFreeMap (Liberty)" })
+      .getByRole("button", { name: "OpenFreeMap (Positron)" })
       .click();
     await pollBridge(
       page,

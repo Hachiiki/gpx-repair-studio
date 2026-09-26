@@ -199,8 +199,8 @@ export function SessionIdleView({
               data-testid={`landing-mode-${option.value}`}
               className={
                 mode === option.value
-                  ? "flex-1 rounded-md bg-primary px-2 py-2 text-sm font-medium text-primary-foreground sm:px-3"
-                  : "flex-1 rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:px-3"
+                  ? "flex-1 rounded-md bg-inkplus px-2 py-2 text-sm font-semibold text-white sm:px-3"
+                  : "flex-1 rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 sm:px-3"
               }
               onClick={() => onModeChange(option.value)}
             >
@@ -212,7 +212,7 @@ export function SessionIdleView({
           ))}
         </div>
         <div className="space-y-2 text-center">
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h2 className="font-display text-2xl font-bold tracking-tight text-balance sm:text-3xl">
             {hero.heading}
           </h2>
           <p className="text-balance text-muted-foreground">
@@ -228,7 +228,7 @@ export function SessionIdleView({
        * the workspace's details section.
        */}
       <RevealOnScroll className="mx-auto mb-auto mt-12 w-full max-w-4xl">
-        <h2 className="text-center text-lg font-semibold tracking-tight">
+        <h2 className="text-center font-display text-lg font-bold tracking-tight">
           How it works
         </h2>
         <p className="mt-1 text-center text-sm text-muted-foreground">
@@ -242,11 +242,11 @@ export function SessionIdleView({
           {WORKFLOW_STEPS[mode].map((step) => (
             <li
               key={step.title}
-              className="rounded-xl border bg-card p-4 transition-colors hover:border-primary/30"
+              className="rounded-xl border bg-card p-4 transition-colors hover:border-signal/50"
             >
-              <span className="inline-flex rounded-full bg-muted p-2">
+              <span className="inline-flex rounded-full bg-signal/10 p-2">
                 <step.icon
-                  className="size-4 text-muted-foreground"
+                  className="size-4 text-signal"
                   aria-hidden="true"
                 />
               </span>

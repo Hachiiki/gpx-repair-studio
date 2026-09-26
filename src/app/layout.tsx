@@ -18,6 +18,7 @@ export const metadata: Metadata = {
   description:
     "Repair and reconstruct incomplete GPX running activities — locally in your browser. No GPX data ever leaves your device.",
   keywords: ["GPX", "GPS repair", "running", "route reconstruction", "local-first"],
+  icons: { icon: "/logo.svg" },
 };
 
 export default function RootLayout({

@@ -106,7 +106,7 @@ function ManualSpanRow({
         <button
           type="button"
           data-testid="open-editor-button-manual"
-          className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-600/10 focus-visible:outline-2 dark:text-emerald-400"
+          className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-signal hover:bg-signal/10 focus-visible:outline-2"
           onClick={() => onOpenEditor(row.id)}
         >
           <PenLine className="size-3.5" aria-hidden="true" />
@@ -251,7 +251,7 @@ export function ManualRepairsCard({
         </div>
         {pickMode === "anchor" && (
           <p
-            className="rounded-md border border-emerald-600/30 bg-emerald-600/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400"
+            className="rounded-md border border-signal/40 bg-signal/5 px-3 py-2 text-xs text-ink"
             data-testid="pick-instructions"
             role="status"
           >
@@ -260,7 +260,7 @@ export function ManualRepairsCard({
         )}
         {pickMode === "pair" && (
           <p
-            className="rounded-md border border-emerald-600/30 bg-emerald-600/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400"
+            className="rounded-md border border-signal/40 bg-signal/5 px-3 py-2 text-xs text-ink"
             data-testid="pick-instructions"
             role="status"
           >

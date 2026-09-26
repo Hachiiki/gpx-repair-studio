@@ -710,3 +710,27 @@ Stage Summary:
 - Task 28 is fully closed: committed (da84aed), pushed, and verified live on Vercel production — feature parity with the dev-server verification and the e2e suite confirmed end-to-end.
 - The stray UUID auto-commit was folded away; origin/main history is clean.
 - Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
+
+---
+Task ID: 30
+Agent: Super Z (main agent)
+Task: Redesign the app's UI applying the ui-skills.com design skills, with the palette pinned to five anchors: FC4C02 (main), 000000, FFFFFF, 5A5A5A, 222222.
+
+Work Log:
+- Fetched and applied the guidance from ui-skills.com's flagship skills: anthropics/frontend-design (two-pass plan/review/build, anti-generic calibration), pbakaus/impeccable (Operate mode for app UI, bounded verification passes), jakubkrehel/better-ui (press scale 0.96, named transition properties, radius/shadow discipline), plus interaction-design timing tables. Saved locally under ui-skills/.
+- Design plan "Ink & Signal": the app's own share card (black field, #FC4C02 route, white data — the Strava reference) becomes the app-wide language. What the watch recorded = ink (#222222, immutable, calm); what the app reconstructs = signal (#FC4C02, the brand); paper #FFFFFF; shade #5A5A5A secondary; #000000 hard surfaces (destructive, severity). Every tint is an anchor at reduced alpha — no foreign hue anywhere.
+- Self-review against the frontend-design generic-default checklist: not cream+serif, not dark+acid-green, not broadsheet (4-12px concentric radius scale), not the SaaS-card kit (hairline ink borders + weight hierarchy, orange spent on one thing at a time), no ALL-CAPS eyebrows/middle-dot meta/arrow-CTAs. Montserrat display (the share card's self-hosted font) + Geist body is a subject-grounded choice, not a default.
+- globals.css: full token retheme in oklch (primary/ring #FC4C02, foreground ink, destructive #000, borders ink@10%, accent signal@6% tint, chart family), --radius 0.5rem, named anchor utilities (--color-signal/ink/inkplus/paper/shade), --font-display Montserrat, orange ::selection, dark-block parity, MapLibre controls restyled into the system (6px radius, hairline border, signal-tinted hover).
+- Core controls: button press feedback (motion-safe:active:scale-[0.96] on primary/destructive, exact better-ui value), named transition properties, ink-border outline variant; upload zone signal hover + signal icon chip; mode toggle active segment = inkplus black + white (Strava segmented look); hero/how-it-works headings in Montserrat bold; step cards signal-tinted icons.
+- Semantic remap: ProvenanceBadge recorded=ink outline / estimated=signal tint / mixed=signal border+ink text; StatusBadge danger=solid inkplus / warning=signal outline / success=ink outline / info=shade; elevation chart estimated stretches signal orange; validation healthy check ink.
+- Map palette (mapController.ts): route #222222 ink solid, recon #FC4C02 (draft same at 0.85 alpha), severity ramp severe #000000 / suspect #5A5A5A / info gray@55%, selection glow signal@45% under the dashes, legend rewritten to the new vocabulary; BLANK_STYLE #efefef; basemap Liberty→Positron (minimal neutral so ink+orange own the canvas); 2 label assertions updated (unit map-components + e2e map-display).
+- Sweep: 15 component files' Tailwind palette classes (emerald/amber/sky) → signal/ink/shade semantics; zero non-anchor hues remain outside ui/ and the share card (which IS the pinned palette already — untouched, tests still pin it).
+- Chrome: header gains the recolored signal logo mark (public/logo.svg #FC4C02 square, white Z; also the favicon via metadata.icons), Montserrat bold wordmark; CardTitle/DialogTitle globally Montserrat.
+- Scripts: find-route-pixels.py / find-route-clusters.py retargeted to the ink route color for future production verifications.
+- Validation: typecheck clean, eslint clean, 823/823 unit (1 legend-copy assertion updated to the new vocabulary), 54/54 e2e.
+- Visual QA (impeccable bounded pass, agent-browser on dev + VLM critique): landing (orange purposeful, hierarchy clear, toggle reads), workspace (route/gap rendering clear on Positron, cards consistent, no leftover hues), gap-selected (selection unambiguous), draw editor (fully in-palette), stats (badges distinguishable), export dialog, mobile 375px (no overflow, toggle one row), share view (card harmonizes — orange route matches the app's primary). One finding (generic MapLibre controls) fixed in CSS; confirm round passed. Screenshots download/redesign-01..10.
+
+Stage Summary:
+- The app now speaks one language end-to-end: ink for recorded truth, signal orange for the app's work, paper field, shade secondary — the five pinned anchors only, with the share card as the native reference and the map (ink route, orange recon, severity ramp, Positron) fully in-system.
+- Zero DOM/semantic changes: all testids, roles, copy, and the 877-test contract intact; the share card byte-identical.
+- Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).

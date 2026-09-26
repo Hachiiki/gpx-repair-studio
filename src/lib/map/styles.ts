@@ -42,7 +42,9 @@ export interface TileProviderDefinition {
 /**
  * Local, network-free basemap. Used when a remote style fails to load
  * (offline / blocked) and by E2E when network access is unavailable — the
- * GeoJSON route/gap layers render on top of it either way.
+ * GeoJSON route/gap layers render on top of it either way. Neutral warm
+ * gray derived from the shade anchor, so the ink route and signal-orange
+ * reconstructions stay the loudest things on the canvas.
  */
 export const BLANK_STYLE: StyleSpecification = {
   version: 8,
@@ -51,7 +53,7 @@ export const BLANK_STYLE: StyleSpecification = {
     {
       id: "background",
       type: "background",
-      paint: { "background-color": "#dfe5ec" },
+      paint: { "background-color": "#efefef" },
     },
   ],
 };
@@ -62,8 +64,8 @@ export const MAP_TILE_PROVIDERS: Record<
 > = {
   openfreemap: {
     id: "openfreemap",
-    label: "OpenFreeMap (Liberty)",
-    style: "https://tiles.openfreemap.org/styles/liberty",
+    label: "OpenFreeMap (Positron)",
+    style: "https://tiles.openfreemap.org/styles/positron",
     attribution: "© OpenStreetMap contributors",
     note: "Free vector tiles — no API key, no tracking, no rate limit.",
     userSelectable: true,

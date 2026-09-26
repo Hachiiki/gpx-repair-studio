@@ -137,7 +137,7 @@ function GapRowItem({
         <button
           type="button"
           data-testid="open-editor-button"
-          className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-600/10 focus-visible:outline-2 dark:text-emerald-400"
+          className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-signal hover:bg-signal/10 focus-visible:outline-2"
           onClick={() => onOpenEditor(row.id)}
         >
           <PenLine className="size-3.5" aria-hidden="true" />
@@ -201,7 +201,7 @@ export function GapList({
           <div className="grid gap-2">
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <CircleCheck
-                className="size-4 shrink-0 text-emerald-600"
+                className="size-4 shrink-0 text-signal"
                 aria-hidden="true"
               />
               No gaps detected with the current thresholds.
@@ -210,7 +210,7 @@ export function GapList({
               <button
                 type="button"
                 data-testid="empty-list-begin-pick"
-                className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-600/10 focus-visible:outline-2 dark:text-emerald-400"
+                className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-signal hover:bg-signal/10 focus-visible:outline-2"
                 onClick={onBeginPick}
               >
                 <PenLine className="size-3.5" aria-hidden="true" />

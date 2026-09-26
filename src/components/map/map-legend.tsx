@@ -22,46 +22,46 @@ export function MapLegend() {
       <ul className="grid gap-1.5">
         <li className="flex items-center gap-2">
           <span
-            className={`${SAMPLE_LINE_CLASS} bg-[#2563eb]`}
+            className={`${SAMPLE_LINE_CLASS} bg-[#222222]`}
             aria-hidden="true"
           />
-          Recorded route (solid)
+          Recorded route (solid ink)
         </li>
         <li className="flex items-center gap-2">
           <span
-            className={`${SAMPLE_LINE_CLASS} border-0 bg-[repeating-linear-gradient(90deg,#dc2626_0_6px,transparent_6px_11px)]`}
+            className={`${SAMPLE_LINE_CLASS} border-0 bg-[repeating-linear-gradient(90deg,#5A5A5A_0_6px,transparent_6px_11px)]`}
             aria-hidden="true"
           />
-          Gap span (dashed)
+          Gap span (dashed, severity shades)
         </li>
         <li className="flex items-center gap-2">
           <span
-            className="size-2.5 rounded-full border-[3px] border-[#dc2626] bg-transparent"
+            className="size-2.5 rounded-full border-[3px] border-[#000000] bg-transparent"
             aria-hidden="true"
           />
           <span
-            className="size-2.5 rounded-full bg-[#dc2626] ring-2 ring-white"
+            className="size-2.5 rounded-full bg-[#000000] ring-2 ring-white"
             aria-hidden="true"
           />
           Gap boundaries (ring = before, dot = after)
         </li>
         <li className="flex items-center gap-2">
           <span
-            className={`${SAMPLE_LINE_CLASS} bg-[#059669]`}
+            className={`${SAMPLE_LINE_CLASS} bg-[#FC4C02]`}
             aria-hidden="true"
           />
-          Repaired route (solid, green)
+          Repaired route (solid orange)
         </li>
         <li className="flex items-center gap-2">
           <span
-            className={`${SAMPLE_LINE_CLASS} bg-[repeating-linear-gradient(90deg,#10b981_0_5px,transparent_5px_9px)] opacity-60`}
+            className={`${SAMPLE_LINE_CLASS} bg-[repeating-linear-gradient(90deg,#FC4C02_0_5px,transparent_5px_9px)] opacity-60`}
             aria-hidden="true"
           />
           Open connection (closes on finish)
         </li>
         <li className="flex items-center gap-2">
           <span
-            className="size-2.5 rounded-full border-2 border-[#059669] bg-white"
+            className="size-2.5 rounded-full border-2 border-[#FC4C02] bg-white"
             aria-hidden="true"
           />
           Drawn point (drag to move)

@@ -137,7 +137,7 @@ export function RecoveryPreviewCard({
             >
               <span className="inline-flex items-baseline gap-1.5">
                 {wallMs !== undefined ? formatDurationMs(wallMs) : "—"}
-                <span className="inline-flex items-center gap-0.5 rounded bg-emerald-600/10 px-1 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                <span className="inline-flex items-center gap-0.5 rounded bg-signal/10 px-1 py-0.5 text-[10px] font-medium text-signal">
                   <Lock className="size-2.5" aria-hidden="true" />
                   unchanged
                 </span>

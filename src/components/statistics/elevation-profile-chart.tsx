@@ -3,7 +3,7 @@
  *
  * A dependency-free SVG line chart over the merged route: recorded
  * stretches draw solid in the foreground color, reconstructed stretches
- * draw dashed amber with the "estimated" legend — the two provenances
+ * draw dashed signal orange with the "estimated" legend — the two provenances
  * are visually distinct everywhere elevation appears (§K-2). Holes
  * (points without elevation) break the line instead of dropping to
  * zero. The series arrives already decimated and display-smoothed from
@@ -195,7 +195,7 @@ export function ElevationProfileChart({
               />
             ))}
 
-          {/* Reconstructed stretches: dashed amber (the estimate look). */}
+          {/* Reconstructed stretches: dashed signal orange (the estimate look). */}
           {segments
             .filter((segment) => segment.kind === "reconstructed")
             .map((segment, index) => (
@@ -203,7 +203,7 @@ export function ElevationProfileChart({
                 key={`reconstructed-${index}`}
                 d={segmentPath(segment)}
                 data-testid="elevation-profile-reconstructed"
-                className="stroke-amber-500"
+                className="stroke-signal"
                 strokeWidth={1.75}
                 strokeDasharray="5 3"
                 fill="none"
@@ -234,7 +234,7 @@ export function ElevationProfileChart({
                 y1="4"
                 x2="18"
                 y2="4"
-                className="stroke-amber-500"
+                className="stroke-signal"
                 strokeWidth="2"
                 strokeDasharray="5 3"
               />

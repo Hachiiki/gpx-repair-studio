@@ -94,7 +94,7 @@ function VertexRow({
       <span className="font-mono">{formatLatLon(vertex.lat, vertex.lon)}</span>
       {vertex.snappedTo !== undefined && (
         <span
-          className="rounded bg-emerald-600/10 px-1 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400"
+          className="rounded bg-signal/10 px-1 py-0.5 text-[10px] font-medium text-signal"
           title={`Snapped to recorded point ${vertex.snappedTo}`}
         >
           snapped
@@ -133,7 +133,7 @@ export function DrawEditorPanel({
     <Card data-testid="draw-editor-panel">
       <CardHeader>
         <h3 className="flex items-center gap-2 leading-none font-semibold">
-          <Crosshair className="size-4 text-emerald-600" aria-hidden="true" />
+          <Crosshair className="size-4 text-signal" aria-hidden="true" />
           Reconstruct route
         </h3>
         <CardDescription className="flex flex-wrap items-center gap-1.5">
@@ -184,7 +184,7 @@ export function DrawEditorPanel({
 
         {openEnded && near && (
           <p
-            className="rounded-md border border-emerald-600/30 bg-emerald-600/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400"
+            className="rounded-md border border-signal/40 bg-signal/5 px-3 py-2 text-xs text-ink"
             data-testid="open-end-instructions"
             role="status"
           >

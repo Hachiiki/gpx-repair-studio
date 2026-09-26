@@ -6,8 +6,8 @@ import sys
 
 from PIL import Image
 
-TARGET = (37, 99, 235)
-TOL = 28  # tight: only near-exact route blue
+TARGET = (34, 34, 34)
+TOL = 24  # tight: only near-exact route ink
 
 SCREENSHOT = "/home/z/my-project/download/task28-prod-05-pick-mode.png"
 

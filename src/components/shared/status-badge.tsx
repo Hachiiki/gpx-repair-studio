@@ -18,13 +18,17 @@ import { cn } from "@/lib/utils";
 
 export type StatusTone = "danger" | "warning" | "success" | "info" | "neutral";
 
+/*
+ * Ink & Signal semantics: danger is the hardest thing on the paper —
+ * solid ink+ with white text (icons and copy carry the meaning).
+ * Warning is the hot outline (attention, but not failure). Success
+ * and info stay calm: ink and shade outlines on the neutral field.
+ */
 const TONE_CLASS: Record<StatusTone, string | null> = {
-  danger: "border-transparent bg-destructive text-white",
-  warning:
-    "border-amber-600/30 bg-amber-600/10 text-amber-700 dark:text-amber-400",
-  success:
-    "border-emerald-600/30 bg-emerald-600/10 text-emerald-700 dark:text-emerald-400",
-  info: "border-sky-600/30 bg-sky-600/10 text-sky-700 dark:text-sky-400",
+  danger: "border-transparent bg-inkplus text-white",
+  warning: "border-signal/50 bg-signal/10 text-signal",
+  success: "border-ink/25 bg-transparent text-ink",
+  info: "border-ink/15 bg-ink/5 text-shade",
   neutral: null, // plain secondary variant
 };
 

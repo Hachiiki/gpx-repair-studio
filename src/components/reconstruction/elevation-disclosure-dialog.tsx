@@ -59,7 +59,7 @@ export function ElevationDisclosureDialog({
       <DialogContent data-testid="elevation-disclosure-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <MountainSnow className="size-4 text-emerald-600" aria-hidden="true" />
+            <MountainSnow className="size-4 text-signal" aria-hidden="true" />
             Estimate elevation from {providerName}?
           </DialogTitle>
           <DialogDescription>

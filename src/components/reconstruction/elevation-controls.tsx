@@ -122,7 +122,7 @@ export function ElevationControls({
       {/* Stale: the route changed since the fetch — offer the re-run. */}
       {elevation.status === "stale" && (
         <p
-          className="flex flex-wrap items-center gap-1.5 rounded-md border border-amber-600/30 bg-amber-600/5 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400"
+          className="flex flex-wrap items-center gap-1.5 rounded-md border border-signal/50 bg-signal/5 px-2 py-1.5 text-[11px] text-ink"
           data-testid="elevation-stale-note"
           role="status"
         >
@@ -193,7 +193,7 @@ export function ElevationControls({
       {/* Partial: some points resolved — say how many, keep the data. */}
       {elevation.status === "partial" && (
         <p
-          className="text-[11px] text-amber-700 dark:text-amber-400"
+          className="text-[11px] text-shade"
           data-testid="elevation-partial-note"
           role="status"
         >
