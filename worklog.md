@@ -686,3 +686,27 @@ Stage Summary:
 - The repair studio's code paths and UI are byte-compatible (its file timing carries no speed, so the pace chip never renders there); all its specs pass unmodified.
 - The two sections share one elevation store safely via namespaced keys — same-file collisions are impossible by construction.
 - Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
+
+---
+Task ID: 29
+Agent: Super Z (main agent)
+Task: Session recovery — the previous session ran out of context at the very end of Task 28 (implementation, validation, and dev-server live verification were done, but the final commit never executed). Finish the interrupted workflow: re-validate, clean up, commit, push, and run the production verification on Vercel.
+
+Work Log:
+- Diagnosed the leftover state: 25 modified files + 11 untracked (all Task 28) uncommitted; one stray unpushed auto-commit 0bb71f0 (UUID message, only a strava-gloryfit-recovered.png byte refresh).
+- Re-validated the tree: typecheck clean, eslint clean, 823/823 unit tests.
+- git reset --soft 0bb71f0 (unpushed, zero risk) and folded its screenshot change into the Task 28 commit: da84aed "feat(recovery): draw without detection — pace-estimated time for lost sections (Task 28)"; pushed to origin/main.
+- Waited out the Vercel build (polled age/x-vercel-id until the new deployment served).
+- Production verification (agent-browser, https://gpx-repair-studio.vercel.app, 1440x900):
+  - Landing -> recovery tab -> upload the clean valid-1.1 fixture: guide reads "No missing sections detected — you can still draw the route you lost below."; the Unmeasured sections card offers "Draw an unmeasured section" / "Redraw a stretch" (task28-prod-01..04).
+  - Pick mode -> clicked mid-route vertex 3 of 6. Production has no __gpxMapController bridge (NODE_ENV=production), so the click point was located by scanning the screenshot for the exact route blue #2563eb (scripts/find-route-clusters.py; tight tolerance separates the route from the legend sample and the banner) -> anti-diagonal (503,449)-(536,414), vertex 2 at (516,435), clicked within the 16px pick tolerance.
+  - The editor opened with the pace-estimated plan in force: "This section wasn't measured — the app estimates it took 0:03 at your recorded pace (7:14 /km)" + the "From your pace" chip (task28-prod-06).
+  - Drew a 2-vertex detour, committed: "1 unmeasured section drawn — time estimated from your file's pace", "Nothing was detected — your drawn sections carry the recovery." (task28-prod-07..08).
+  - Stats: Recovered time 10:24 (Estimated), Distance 35 m -> 1.47 km (Mixed), Elapsed time 0:15 (unchanged), Average speed completed 8.3 km/h (Mixed), Points generated 78 (Estimated).
+  - Export dialog -> Download GPX captured from the headless browser's ~/Downloads (task28-prod-09..10); byte-verified (scripts/task28-verify-export.py): 84 trkpts (6 original + 78 generated), 78/78 gpxr:reconstructed markers with timeMethod="pace-estimated", summary reconstructedDistanceM="1438" gapCount="1", all 6 original coords + timestamps verbatim, elapsed window untouched (07:00:00..07:00:15), attribution present. The insert-span block sits after the anchor in document order with distance-proportional ms timestamps over the pace duration — the e2e-pinned designed behavior (originals never rewritten); every e2e export assertion reproduced on production.
+- Archived the production export as download/task28-prod-export.repaired.gpx; screenshots download/task28-prod-01..10.
+
+Stage Summary:
+- Task 28 is fully closed: committed (da84aed), pushed, and verified live on Vercel production — feature parity with the dev-server verification and the e2e suite confirmed end-to-end.
+- The stray UUID auto-commit was folded away; origin/main history is clean.
+- Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
