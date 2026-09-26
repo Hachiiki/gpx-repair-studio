@@ -319,6 +319,13 @@ function repairNote(merge: MergeResult, originalCreator?: string): string {
       `${formatDistanceMeters(merge.reconstructedDistanceM)} added.`,
     "Reconstructed points carry gpxr markers; recorded values are untouched.",
   ];
+  // Phase 6: DEM attribution for repairs with estimated elevation
+  // (§K-2 — embedded in metadata, shown in-app beside the values).
+  if (merge.elevatedRepairCount > 0 && merge.elevationProviders.length > 0) {
+    parts.push(
+      `Elevation of reconstructed points estimated from ${merge.elevationProviders.join(", ")}.`,
+    );
+  }
   if (originalCreator !== undefined) {
     parts.push(`Original creator: ${originalCreator}.`);
   }

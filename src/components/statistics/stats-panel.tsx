@@ -41,10 +41,12 @@ import type {
   PaceRow,
   RepairTimeStats,
 } from "@/hooks/use-draw-editor";
+import type { ElevationStatsRows } from "@/hooks/use-elevation";
 import type { PaceUnit } from "@/lib/utils/format";
 import {
   formatDistanceMeters,
   formatDurationMs,
+  formatElevationMeters,
   formatPace,
 } from "@/lib/utils/format";
 
@@ -62,6 +64,8 @@ export interface StatsPanelProps {
   repair?: RepairTimeStats | null;
   /** §L-1 pace rows (recorded / repaired / overall). */
   paceRows?: readonly PaceRow[];
+  /** §L-1 elevation rows (Phase 6) — omitted/null → no elevation rows. */
+  elevation?: ElevationStatsRows | null;
   /** File-level manual total (no-timing files), when entered. */
   manualTotalDurationMs?: number | null;
   /** Re-imported repair stats (§H-7) — marked stretches of a re-upload. */
@@ -82,6 +86,7 @@ export function StatsPanel({
   timeStats,
   repair = null,
   paceRows = [],
+  elevation = null,
   manualTotalDurationMs = null,
   reimport = null,
   paceUnit,
@@ -271,10 +276,125 @@ export function StatsPanel({
                 </TableCell>
               </TableRow>
             ))}
+
+            {/* §L-1 elevation rows (Phase 6): gain/loss, provenance-split
+                like the distance rows (single recorded rows without
+                repairs, three-way split with them); coverage below 60%
+                withholds the totals ("insufficient elevation data")
+                rather than inventing numbers from a mostly-ele-less
+                file. */}
+            {elevation && elevation.pointsTotal > 0 && (
+              <>
+                {(elevation.insufficient
+                  ? [
+                      {
+                        label: "Elevation gain / loss",
+                        value: null as { gainM: number; lossM: number } | null,
+                        provenance: "mixed" as const,
+                      },
+                    ]
+                  : elevation.reconstructed
+                    ? [
+                        {
+                          label: "Elevation gain (recorded)",
+                          value: elevation.original,
+                          provenance: "recorded" as const,
+                        },
+                        {
+                          label: "Elevation gain (repairs)",
+                          value: elevation.reconstructed,
+                          provenance: "estimated" as const,
+                        },
+                        {
+                          label: "Elevation gain (total)",
+                          value: elevation.mixed,
+                          provenance: "mixed" as const,
+                        },
+                        {
+                          label: "Elevation loss (recorded)",
+                          value: elevation.original,
+                          provenance: "recorded" as const,
+                        },
+                        {
+                          label: "Elevation loss (repairs)",
+                          value: elevation.reconstructed,
+                          provenance: "estimated" as const,
+                        },
+                        {
+                          label: "Elevation loss (total)",
+                          value: elevation.mixed,
+                          provenance: "mixed" as const,
+                        },
+                      ]
+                    : [
+                        {
+                          label: "Elevation gain",
+                          value: elevation.original,
+                          provenance: "recorded" as const,
+                        },
+                        {
+                          label: "Elevation loss",
+                          value: elevation.original,
+                          provenance: "recorded" as const,
+                        },
+                      ]
+                ).map((row) => (
+                  <TableRow
+                    key={row.label}
+                    data-testid={
+                      row.label.includes("gain") || row.label.includes("gain / loss")
+                        ? "elevation-gain-row"
+                        : "elevation-loss-row"
+                    }
+                  >
+                    <TableCell>{row.label}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {elevation.insufficient
+                        ? emDash(
+                            `Insufficient elevation data — only ${Math.round(
+                              elevation.coverage * 100,
+                            )}% of points carry elevation`,
+                          )
+                        : row.value === null
+                          ? emDash("No recorded elevation in this file")
+                          : formatElevationMeters(
+                              row.label.includes("loss")
+                                ? row.value.lossM
+                                : row.value.gainM,
+                            )}
+                    </TableCell>
+                    <TableCell>
+                      <ProvenanceBadge kind={row.provenance} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </>
+            )}
           </TableBody>
         </Table>
 
         <div className="mt-3 grid gap-1 text-xs text-muted-foreground">
+          {elevation && elevation.pointsTotal > 0 && (
+            <p data-testid="elevation-note">
+              {elevation.insufficient
+                ? `Insufficient elevation data — only ${Math.round(
+                    elevation.coverage * 100,
+                  )}% of points carry elevation, so gain and loss are withheld rather than estimated.`
+                : `Gain/loss use a ${elevation.hysteresisThresholdM.toFixed(1)} m noise threshold (changes smaller than that are treated as GPS/DEM noise); ${
+                    elevation.reconstructed
+                      ? "repaired stretches are estimated from OpenTopoData terrain."
+                      : "original elevation only — repairs without an estimate contribute nothing."
+                  }`}
+            </p>
+          )}
+          {elevation && elevation.repairsWithoutElevation > 0 && (
+            <p data-testid="elevation-missing-note">
+              {elevation.repairsWithoutElevation} repair
+              {elevation.repairsWithoutElevation === 1 ? "" : "s"} without an
+              elevation estimate — open the repair and use “Estimate
+              elevation” to include it.
+            </p>
+          )}
           {(reimport?.markerCount ?? 0) > 0 && (
             <p data-testid="reimport-note">
               {reimport!.markerCount} points in this file were reconstructed

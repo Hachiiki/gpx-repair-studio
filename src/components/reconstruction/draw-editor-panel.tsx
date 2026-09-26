@@ -33,8 +33,10 @@ import {
 } from "@/components/shared/gap-vocabulary";
 import { UndoRedoBar } from "@/components/reconstruction/undo-redo-bar";
 import { TimeStrategyControls } from "@/components/reconstruction/time-strategy-controls";
+import { ElevationControls } from "@/components/reconstruction/elevation-controls";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
 import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
+import type { ElevationControlsBinding } from "@/hooks/use-elevation";
 import type { DrawVertex } from "@/types/domain";
 import {
   formatDistanceMeters,
@@ -113,7 +115,14 @@ function VertexRow({
   );
 }
 
-export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
+export function DrawEditorPanel({
+  draw,
+  elevation = null,
+}: {
+  draw: DrawEditorBinding;
+  /** Phase 6: the active gap's elevation controls (null → hidden). */
+  elevation?: ElevationControlsBinding | null;
+}) {
   if (!draw.active || !draw.activeGap) return null;
   const gap = draw.activeGap;
   const isManual = gap.kind === "manual" || gap.kind === "manual-insert";
@@ -247,6 +256,10 @@ export function DrawEditorPanel({ draw }: { draw: DrawEditorBinding }) {
             setTimeStrategy={draw.setTimeStrategy}
           />
         )}
+
+        {/* Phase 6: opt-in elevation estimation for this gap (disclosure
+            first, staleness + partials honestly labeled). */}
+        {elevation && <ElevationControls elevation={elevation} />}
 
         {/* Live stats: distance + vertex cap. */}
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">

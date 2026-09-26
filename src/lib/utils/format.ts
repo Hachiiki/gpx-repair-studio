@@ -38,6 +38,15 @@ export function formatDistanceMeters(meters: number): string {
 }
 
 /**
+ * An elevation in meters, whole meters, thousands-separated (Phase 6).
+ * DEM accuracy is ±5–10 m — decimals would be fabricated precision.
+ */
+export function formatElevationMeters(meters: number): string {
+  if (!Number.isFinite(meters)) return "—";
+  return `${Math.round(meters).toLocaleString("en-US")} m`;
+}
+
+/**
  * A duration in ms as `m:ss` below one hour, `h:mm:ss` otherwise.
  * Zero renders as "0:00"; negative values (a bug upstream) render "—".
  */

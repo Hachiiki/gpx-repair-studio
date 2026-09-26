@@ -41,6 +41,8 @@ function summary(
     fileTiming: { startMs: null, totalDurationMs: null },
     willUpgradeTo11: false,
     reimportedPoints: 0,
+    repairsWithElevation: 0,
+    staleElevationCount: 0,
     ...overrides,
   };
 }
@@ -76,6 +78,7 @@ describe("ExportCard", () => {
       <ExportCard
         exporter={{
           ready: true,
+          merge: null,
           summary: summary(overrides),
           exportMode: "structure-preserving",
           prettyPrint: false,
@@ -117,6 +120,7 @@ describe("ExportCard", () => {
       <ExportCard
         exporter={{
           ready: false,
+          merge: null,
           summary: null,
           exportMode: "structure-preserving",
           prettyPrint: false,

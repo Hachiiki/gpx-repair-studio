@@ -44,8 +44,10 @@ import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import { FileTimingCard } from "@/components/reconstruction/file-timing-card";
 import { GapList } from "@/components/reconstruction/gap-list";
 import { ManualRepairsCard } from "@/components/reconstruction/manual-repairs-card";
+import { ElevationProfileChart } from "@/components/statistics/elevation-profile-chart";
 import { StatsPanel } from "@/components/statistics/stats-panel";
 import { useDrawEditor } from "@/hooks/use-draw-editor";
+import { useElevation, useElevationStats } from "@/hooks/use-elevation";
 import { useGpxExport } from "@/hooks/use-gpx-export";
 import { useGpxSession } from "@/hooks/use-gpx-session";
 import { useMapController } from "@/hooks/use-map-controller";
@@ -58,7 +60,9 @@ export function AppShell() {
   const session = useGpxSession();
   const map = useMapController(session);
   const draw = useDrawEditor(session, map);
-  const exporter = useGpxExport(session, draw);
+  const elevation = useElevation(session, draw);
+  const exporter = useGpxExport(session, draw, elevation.attachment);
+  const elevationStats = useElevationStats(exporter.merge);
   const share = useShareCard(session);
   const paceUnit = useUiStore((s) => s.paceUnit);
   const setPaceUnit = useUiStore((s) => s.setPaceUnit);
@@ -117,7 +121,7 @@ export function AppShell() {
             }
             tools={
               <>
-                <DrawEditorPanel draw={draw} />
+                <DrawEditorPanel draw={draw} elevation={elevation.controls} />
                 <ManualRepairsCard
                   rows={draw.manualRows}
                   detectedGapIds={session.gapRows.map((row) => row.id)}
@@ -175,11 +179,28 @@ export function AppShell() {
                     timeStats={session.timeStats}
                     repair={draw.repairTimeStats}
                     paceRows={draw.paceRows}
+                    elevation={elevationStats.rows}
                     manualTotalDurationMs={draw.fileTiming.totalDurationMs}
                     reimport={session.reimport}
                     paceUnit={paceUnit}
                     onPaceUnitChange={setPaceUnit}
                   />
+                )}
+                {elevationStats.profile && elevationStats.profile.hasAnyEle && (
+                  <div className="mt-4">
+                    <ElevationProfileChart
+                      profile={elevationStats.profile}
+                      gainLossSummary={
+                        elevationStats.rows.mixed
+                          ? `${Math.round(
+                              elevationStats.rows.mixed.gainM,
+                            )} m up, ${Math.round(
+                              elevationStats.rows.mixed.lossM,
+                            )} m down`
+                          : null
+                      }
+                    />
+                  </div>
                 )}
               </RevealOnScroll>
             }

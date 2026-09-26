@@ -26,8 +26,9 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { mergeRepairs, type MergeRepairSite } from "@/features/reconstruction/merge";
+import { mergeRepairs, type MergeRepairSite, type MergeResult } from "@/features/reconstruction/merge";
 import type { FileTimingContext } from "@/features/reconstruction/timestamps";
+import type { ElevationSample } from "@/features/elevation/samples";
 import {
   exportGpxRepaired,
   type ExportMode,
@@ -67,12 +68,21 @@ export interface ExportSummary {
   willUpgradeTo11: boolean;
   /** Points in this file already marked as reconstructed (re-import). */
   reimportedPoints: number;
+  /** Committed repairs whose elevation is included (Phase 6). */
+  repairsWithElevation: number;
+  /** Committed repairs whose elevation went STALE (excluded, Phase 6). */
+  staleElevationCount: number;
 }
 
 /** App-layer facade for the export card + dialog. */
 export interface GpxExportBinding {
   /** Memoized merge of every committed repair (null without a file). */
   ready: boolean;
+  /**
+   * The merge itself - one basis for export, statistics, and the
+   * elevation profile (the populations can never disagree). Phase 6.
+   */
+  merge: MergeResult | null;
   summary: ExportSummary | null;
   /** Persisted export settings (§H-7). */
   exportMode: ExportMode;
@@ -83,9 +93,21 @@ export interface GpxExportBinding {
   download: () => string | null;
 }
 
+/**
+ * The elevation data the merge consumes (Phase 6): fresh per-gap samples
+ * plus the count of committed-but-stale repairs the export excludes.
+ */
+export type ElevationAttachmentInput = {
+  samplesByGap: Readonly<
+    Record<string, { providerName: string; samples: readonly ElevationSample[] }>
+  >;
+  staleCount: number;
+} | null;
+
 export function useGpxExport(
   session: GpxSession,
   draw: DrawEditorBinding,
+  elevation: ElevationAttachmentInput = null,
 ): GpxExportBinding {
   const reconstructions = useEditorStore((s) => s.reconstructions);
   const roadLegs = useEditorStore((s) => s.roadLegs);
@@ -111,6 +133,9 @@ export function useGpxExport(
   // Committed repairs → pure merge sites. The population rule mirrors the
   // statistics join exactly (`deriveGapStatus === "reconstructed"`), so
   // the numbers the stats show are the numbers the export writes.
+  // Phase 6: fresh elevation samples ride their sites (stale results are
+  // never attached — `useElevation` filters them; see ElevationAttachment).
+  const elevationByGap = elevation?.samplesByGap ?? null;
   const sites = useMemo<readonly MergeRepairSite[]>(() => {
     if (!data) return [];
     const result: MergeRepairSite[] = [];
@@ -119,6 +144,7 @@ export function useGpxExport(
       const recon = reconstructions[row.id];
       if (!recon) continue;
       const bounded = row.before !== undefined && row.after !== undefined;
+      const elevationResult = elevationByGap?.[row.id];
       result.push({
         gapId: row.id,
         ...(bounded
@@ -140,10 +166,23 @@ export function useGpxExport(
         resampleSpacingM: recon.resampleSpacingM,
         timeStrategy: recon.timeStrategy,
         roadLegs: roadLegs[row.id] ?? [],
+        ...(elevationResult
+          ? {
+              elevation: {
+                providerName: elevationResult.providerName,
+                // Freshness was verified against the current revision and
+                // road signature by the elevation hook; these two fields
+                // only carry the provenance snapshot.
+                fetchedAtRevision: recon.geometryRevision,
+                fetchedAtRoadSignature: "",
+                samples: elevationResult.samples,
+              },
+            }
+          : {}),
       });
     }
     return result;
-  }, [data, allRows, statusById, reconstructions, roadLegs]);
+  }, [data, allRows, statusById, reconstructions, roadLegs, elevationByGap]);
 
   const hasTimingData = session.timeStats?.hasTimingData ?? false;
 
@@ -177,6 +216,8 @@ export function useGpxExport(
       fileTiming,
       willUpgradeTo11: data.fileMeta.version === "1.0" && merge.repairCount > 0,
       reimportedPoints: session.reimport?.markerCount ?? 0,
+      repairsWithElevation: merge.elevatedRepairCount,
+      staleElevationCount: elevation?.staleCount ?? 0,
     };
   }, [
     data,
@@ -189,6 +230,7 @@ export function useGpxExport(
     hasTimingData,
     fileTiming,
     session.reimport,
+    elevation,
   ]);
 
   const download = useCallback((): string | null => {
@@ -206,6 +248,7 @@ export function useGpxExport(
 
   return {
     ready: merge !== null,
+    merge,
     summary,
     exportMode,
     prettyPrint,

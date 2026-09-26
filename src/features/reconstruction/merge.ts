@@ -37,6 +37,10 @@
  * Original data is read-only here — the frozen model is never mutated.
  */
 
+import {
+  interpolateSample,
+  type GapElevationResult,
+} from "@/features/elevation/samples";
 import { resamplePath } from "@/features/reconstruction/resample";
 import {
   distributeTimestamps,
@@ -82,6 +86,13 @@ export interface MergeRepairSite {
   resampleSpacingM: number | "off";
   timeStrategy: TimeStrategy;
   roadLegs: readonly RoadLeg[];
+  /**
+   * Fresh elevation samples for this repair (Phase 6): interpolated onto
+   * the interior points as `Estimated<number>` (`elevation-api` at sample
+   * hits, `interpolated` between them). The caller guarantees freshness —
+   * stale results are never attached (exported ele must be current).
+   */
+  elevation?: GapElevationResult;
 }
 
 /** File-level timing context (§J-1 Case 3) + its applicability. */
@@ -137,6 +148,10 @@ export interface MergeResult {
   reconstructedDistanceM: number;
   /** Σ interior points inserted. */
   insertedPoints: number;
+  /** Repairs carrying ≥1 estimated elevation (export attribution). */
+  elevatedRepairCount: number;
+  /** Unique provider display names behind those elevations. */
+  elevationProviders: readonly string[];
   /** Sites skipped (dangling anchors) with the honest reason. */
   skipped: readonly { gapId: GapId; reason: string }[];
 }
@@ -286,6 +301,8 @@ export function mergeRepairs(
   const tracks: MergedTrack[] = [];
   let reconstructedDistanceM = 0;
   let insertedPoints = 0;
+  let elevatedRepairCount = 0;
+  const elevationProviders = new Set<string>();
   let order = 0;
 
   for (const meta of data.tracks) {
@@ -382,6 +399,10 @@ export function mergeRepairs(
 
   for (const site of resolved) {
     reconstructedDistanceM += site.pathLengthM;
+    if (site.interior.some((point) => point.ele !== undefined)) {
+      elevatedRepairCount += 1;
+      if (site.site.elevation) elevationProviders.add(site.site.elevation.providerName);
+    }
   }
 
   return {
@@ -389,6 +410,8 @@ export function mergeRepairs(
     repairCount: resolved.length,
     reconstructedDistanceM,
     insertedPoints,
+    elevatedRepairCount,
+    elevationProviders: [...elevationProviders],
     skipped,
   };
 }
@@ -434,12 +457,19 @@ function resolveSite(
     const role = path[i].role;
     if (role === "before-anchor" || role === "after-anchor") continue;
     const time = times[i];
+    // Phase 6: elevation rides the same cumulative-distance metric the
+    // samples were stored on — sample hits are `elevation-api`, points
+    // between two samples are `interpolated` (§K-2 honesty).
+    const ele = site.elevation
+      ? interpolateSample(site.elevation.samples, path[i].cumDistanceM)
+      : undefined;
     interior.push({
       source: "reconstructed",
       lat: path[i].lat,
       lon: path[i].lon,
       ...(path[i].vertexId !== undefined ? { vertexId: path[i].vertexId } : {}),
       ...(time !== undefined ? { time } : {}),
+      ...(ele !== undefined ? { ele } : {}),
       cumDistanceM: path[i].cumDistanceM,
     });
   }

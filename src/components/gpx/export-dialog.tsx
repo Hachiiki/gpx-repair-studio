@@ -154,6 +154,15 @@ export function ExportDialog({
                 <dd className="tabular-nums">{summary.gapsWithoutDuration}</dd>
               </div>
             )}
+            {summary.repairsWithElevation > 0 && (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Repairs with estimated elevation</dt>
+                <dd className="flex items-center gap-1.5 tabular-nums">
+                  {summary.repairsWithElevation}
+                  <ProvenanceBadge kind="estimated" />
+                </dd>
+              </div>
+            )}
           </dl>
         </div>
 
@@ -162,6 +171,7 @@ export function ExportDialog({
           summary.openRepairCount > 0 ||
           summary.gapsWithoutDuration > 0 ||
           summary.discrepancyCount > 0 ||
+          summary.staleElevationCount > 0 ||
           summary.willUpgradeTo11 ||
           (!summary.hasTimingData && summary.fileTiming.startMs === null && hasRepairs)
         ) && (
@@ -189,6 +199,16 @@ export function ExportDialog({
                 {summary.discrepancyCount === 1 ? "s" : ""} with the
                 recorded gap span — interior timestamps follow the manual
                 value; recorded timestamps stay untouched.
+              </p>
+            )}
+            {summary.staleElevationCount > 0 && (
+              <p data-testid="export-stale-elevation-note">
+                {summary.staleElevationCount} repair
+                {summary.staleElevationCount === 1 ? "'s elevation is" : "s' elevations are"}{" "}
+                from an older route version — those values are excluded
+                (never exported against a moved route). Re-estimate in the
+                editor to include
+                {summary.staleElevationCount === 1 ? " it" : " them"}.
               </p>
             )}
             {summary.willUpgradeTo11 && (
