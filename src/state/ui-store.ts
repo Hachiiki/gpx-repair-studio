@@ -14,6 +14,10 @@
  *   - Task 20: the landing page's mode (repair a recording vs create
  *     a share card) — the remembered intent for the NEXT upload; the
  *     active session's view lives in the session store, not here.
+ *     Task 26 revision: the toggle gained a third tab, "Recover a GPS
+ *     gap" — selecting it routes the next upload into the Gap Recovery
+ *     section's own session (still one remembered intent, three
+ *     destinations).
  *
  * Transient state (NOT persisted):
  *   - Phase 3: `selectedGapId` — the gap currently highlighted on the map
@@ -50,10 +54,21 @@ export const UI_SETTINGS_STORAGE_KEY = "gpx-repair-studio.settings.v1";
  * repair studio (the app's core flow); "recovery" is the Gap Recovery
  * section — a separate, self-contained workflow for recovering a missing
  * GPS section from an activity whose elapsed time continued while
- * coordinates were missing. Transient on purpose: a reload lands back on
- * the repair studio, and the two sections keep fully independent sessions.
+ * coordinates were missing. Derived, never stored: the recovery section
+ * is "active" exactly while its own session is loading or parsed, so the
+ * two sections keep fully independent sessions (there is no switcher —
+ * the landing-page tab is the only front door, Task 26 revision).
  */
 export type AppSection = "repair" | "recovery";
+
+/**
+ * The landing page's tab (Task 20 + Task 26 revision): what the next
+ * upload opens into — the repair workspace, the share-card view, or the
+ * Gap Recovery section. Persisted as the remembered intent; "recovery"
+ * values written by newer builds read back fine, and older persisted
+ * "repair"/"share" values remain valid.
+ */
+export type LandingMode = SessionView | "recovery";
 
 interface UiState {
   gapThresholds: GapThresholds;
@@ -64,17 +79,10 @@ interface UiState {
   exportMode: ExportMode;
   /** Pretty-print exported GPX (§H-7). Phase 7. */
   exportPrettyPrint: boolean;
-  /** Landing-page mode (Task 20): what the next upload opens into. */
-  landingMode: SessionView;
+  /** Landing-page tab (Task 20 + Task 26 revision): what the next upload opens into. */
+  landingMode: LandingMode;
   /** The gap highlighted on the map / gap list; `null` = none. Transient. */
   selectedGapId: GapId | null;
-  /**
-   * The active top-level section (Task 26). Transient — never persisted, a
-   * reload returns to the repair studio. Each section owns its own session
-   * state (session-store vs recovery-store), so switching never disturbs
-   * the other section's file or repairs.
-   */
-  activeSection: AppSection;
 
   setGapThresholds: (patch: Partial<GapThresholds>) => void;
   resetGapThresholds: () => void;
@@ -82,9 +90,8 @@ interface UiState {
   setPaceUnit: (unit: PaceUnit) => void;
   setExportMode: (mode: ExportMode) => void;
   setExportPrettyPrint: (pretty: boolean) => void;
-  setLandingMode: (mode: SessionView) => void;
+  setLandingMode: (mode: LandingMode) => void;
   selectGap: (gapId: GapId | null) => void;
-  setActiveSection: (section: AppSection) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -95,9 +102,8 @@ export const useUiStore = create<UiState>()(
       paceUnit: "km" as PaceUnit,
       exportMode: "structure-preserving" as ExportMode,
       exportPrettyPrint: false,
-      landingMode: "repair" as SessionView,
+      landingMode: "repair" as LandingMode,
       selectedGapId: null,
-      activeSection: "repair" as AppSection,
       setGapThresholds: (patch) =>
         set((state) => ({ gapThresholds: { ...state.gapThresholds, ...patch } })),
       resetGapThresholds: () =>
@@ -108,7 +114,6 @@ export const useUiStore = create<UiState>()(
       setExportPrettyPrint: (exportPrettyPrint) => set({ exportPrettyPrint }),
       setLandingMode: (landingMode) => set({ landingMode }),
       selectGap: (selectedGapId) => set({ selectedGapId }),
-      setActiveSection: (activeSection) => set({ activeSection }),
     }),
     {
       name: UI_SETTINGS_STORAGE_KEY,
