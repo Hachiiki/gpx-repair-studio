@@ -1,15 +1,17 @@
 /**
  * Share card painter (docs/MASTER_PLAN.md §O — Task 20, spec
- * revision Task 22).
+ * revisions Tasks 21–23; this revision implements Task 23's reference
+ * layout).
  *
  * Draws the complete 1080×1920 Strava-style share card into a 2D canvas
- * context: the route polyline (contained in the padded fit box with a
- * two-pass casing — 16px #000000 under 10px #FC4C02, both round
- * cap/join), the STRAVA wordmark, the Distance/Pace/Time stats trio,
- * and the shoe icon — every position from lib/share/layout.ts, every
- * path from lib/share/artwork.ts, the projection from
- * lib/geo/mercator.ts, the decimation from lib/geo/simplify.ts. This
- * module executes; it decides nothing.
+ * context: the solid #000000 background, the route polyline (contained
+ * in the visible box with a two-pass casing — 16px #000000 under 10px
+ * #FC4C02, both round cap/join), the STRAVA wordmark (ink stretched
+ * onto its 330×55 box), the Distance/Pace/Time stats trio, and the
+ * shoe icon (ink contained in its 104px slot) — every position from
+ * lib/share/layout.ts, every path from lib/share/artwork.ts, the
+ * projection from lib/geo/mercator.ts, the decimation from
+ * lib/geo/simplify.ts. This module executes; it decides nothing.
  *
  * One painter serves both consumers (the same "what you see is what
  * you download" contract as the GPX export): the preview canvas at
@@ -32,8 +34,9 @@ import { projectPolylines } from "@/lib/geo/mercator";
 import { simplifyPolylines } from "@/lib/geo/simplify";
 import {
   SHOE_ICON_ARTWORK,
+  SHOE_ICON_METRICS,
   STRAVA_LOGO_ARTWORK,
-  artworkAspectRatio,
+  STRAVA_LOGO_METRICS,
   type VectorArtwork,
 } from "@/lib/share/artwork";
 import {
@@ -181,7 +184,10 @@ function strokeRoutePass(
 /**
  * Paint the full card. The context is expected unscaled; the painter
  * applies `scale` itself (all internal math stays in 1080×1920 units).
- * The canvas is cleared first — the background stays fully transparent.
+ * The solid black background is painted first — the export is fully
+ * opaque, and the casing pass (#000000 on #000000) is drawn anyway:
+ * the spec mandates it, and it reappears intact if the background
+ * token ever changes.
  */
 export function renderShareCard(
   ctx: CanvasRenderingContext2D,
@@ -190,18 +196,23 @@ export function renderShareCard(
 ): void {
   const scale = options.scale > 0 ? options.scale : 1;
   const layout = computeShareCardLayout({
-    logoAspectRatio: artworkAspectRatio(STRAVA_LOGO_ARTWORK),
-    iconAspectRatio: artworkAspectRatio(SHOE_ICON_ARTWORK),
+    logo: STRAVA_LOGO_METRICS,
+    icon: SHOE_ICON_METRICS,
   });
 
   ctx.save();
   ctx.clearRect(0, 0, layout.width * scale, layout.height * scale);
   ctx.scale(scale, scale);
 
-  // --- Route: contained in the padded fit box, jitter preserved ---
-  // (decimation capped at the spec's 5m tolerance), two-pass casing:
-  // every black 16px casing first, then every orange 10px line — so
-  // one piece's outline never cuts through another piece's line.
+  // --- Background: the spec's solid black, edge to edge. ---
+  ctx.fillStyle = SHARE_CARD_COLORS.background;
+  ctx.fillRect(0, 0, layout.width, layout.height);
+
+  // --- Route: contained in the visible box (inset by the casing's
+  // half-width), jitter preserved (decimation capped at the spec's
+  // 5m tolerance), two-pass casing: every black 16px casing first,
+  // then every orange 10px line — so one piece's outline never cuts
+  // through another piece's line.
   const simplified = simplifyPolylines(
     spec.routePolyline,
     SHARE_CARD_SIMPLIFY_TOLERANCE_M,
@@ -224,7 +235,7 @@ export function renderShareCard(
     );
   }
 
-  // --- STRAVA wordmark (270px, white). ---
+  // --- STRAVA wordmark (ink on its 330×55 box, white). ---
   // The white fillStyle is set BEFORE any foreground artwork: the
   // wordmark, stats, and icon all draw in white; only the route (set
   // above, per-piece) differs. (A VLM review caught the logo rendering
@@ -253,7 +264,7 @@ export function renderShareCard(
     ctx.fillText(values[i] ?? "—", column.centerX, column.valueCenterY);
   }
 
-  // --- Shoe icon (white, 48px slot). ---
+  // --- Shoe icon (white, ink contained in the 104px slot). ---
   if (shoe) fillArtwork(ctx, shoe, layout.iconRect);
 
   ctx.restore();

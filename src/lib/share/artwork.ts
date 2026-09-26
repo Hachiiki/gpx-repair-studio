@@ -32,8 +32,8 @@ export interface VectorArtwork {
 
 /**
  * The STRAVA wordmark. Source SVG: 600×164 viewbox, wordmark paths
- * (S-T-R-A-V-A with the chevron A/V ligature), rendered white at 280px
- * width on the card.
+ * (S-T-R-A-V-A with the chevron A/V ligature), rendered white with
+ * its ink stretched onto the card's 330×55 logo box (Task 23).
  */
 export const STRAVA_LOGO_ARTWORK: VectorArtwork = {
   viewBoxWidth: 600,
@@ -50,7 +50,7 @@ export const STRAVA_LOGO_ARTWORK: VectorArtwork = {
 
 /**
  * The running-shoe icon. Source SVG: 213×211 viewbox, a filled
- * silhouette, rendered white inside the card's 48px slot.
+ * silhouette, rendered white inside the card's 104px slot.
  */
 export const SHOE_ICON_ARTWORK: VectorArtwork = {
   viewBoxWidth: 213,
@@ -66,3 +66,55 @@ export const SHOE_ICON_ARTWORK: VectorArtwork = {
 export function artworkAspectRatio(artwork: VectorArtwork): number {
   return artwork.viewBoxHeight / artwork.viewBoxWidth;
 }
+
+/**
+ * The STRAVA wordmark's ink bounds in viewBox units — the paths span
+ * x 24.2–576.0, y 19.1–143.0 of the 600×164 viewBox (the trace is
+ * ~4.45:1; the reference card's wordmark is flatter, ~6:1 — the
+ * layout stretches the ink onto its 330×55 box, see Task 23).
+ * Measured with lib/share/path-bounds.ts; tests re-derive and pin
+ * these so an artwork edit can't silently drift.
+ */
+export const STRAVA_LOGO_INK = {
+  x: 24.2,
+  y: 19.1,
+  width: 551.8,
+  height: 123.9,
+} as const;
+
+/**
+ * The shoe icon's ink bounds in viewBox units (x 5.5–213.0,
+ * y 8.4–211.0 of the 213×211 viewBox) — the icon is nearly square
+ * (207.5×202.6), so the slot letterboxes it by a hair.
+ */
+export const SHOE_ICON_INK = {
+  x: 5.5,
+  y: 8.4,
+  width: 207.5,
+  height: 202.6,
+} as const;
+
+/**
+ * An artwork's measurable geometry: its viewBox plus the ink bounds
+ * inside it (both in viewBox units). The card layout consumes exactly
+ * this — nothing else about the artwork matters for placement.
+ */
+export interface ArtworkInkGeometry {
+  viewBoxWidth: number;
+  viewBoxHeight: number;
+  ink: { x: number; y: number; width: number; height: number };
+}
+
+/** The wordmark's layout geometry (viewBox + measured ink). */
+export const STRAVA_LOGO_METRICS: ArtworkInkGeometry = {
+  viewBoxWidth: STRAVA_LOGO_ARTWORK.viewBoxWidth,
+  viewBoxHeight: STRAVA_LOGO_ARTWORK.viewBoxHeight,
+  ink: STRAVA_LOGO_INK,
+};
+
+/** The shoe icon's layout geometry (viewBox + measured ink). */
+export const SHOE_ICON_METRICS: ArtworkInkGeometry = {
+  viewBoxWidth: SHOE_ICON_ARTWORK.viewBoxWidth,
+  viewBoxHeight: SHOE_ICON_ARTWORK.viewBoxHeight,
+  ink: SHOE_ICON_INK,
+};

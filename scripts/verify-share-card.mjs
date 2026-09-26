@@ -4,12 +4,14 @@ import { join } from "node:path";
 import sharp from "sharp";
 
 /**
- * Live verification of Task 20 (the share card) on the user's REAL
- * GloryFit/Strava original — the same session a user would run:
+ * Live verification of Task 20 (the share card; layout per Task 23)
+ * on the user's REAL GloryFit/Strava original — the same session a
+ * user would run:
  *
  *   1. desktop: landing toggle → upload → the share view renders the
  *      card on its dark stage; the PREVIEW canvas is pixel-probed
- *      in-page (transparent background, orange route, white artwork);
+ *      in-page (solid-black opaque background, orange route, white
+ *      artwork);
  *   2. download the 1× PNG → decode with sharp → same assertions on
  *      the actual file + exact 1080×1920 IHDR;
  *   3. the 2× export → 2160×3840;
@@ -117,13 +119,11 @@ console.log(`  card trio: ${summary.distance} | ${summary.pace} | ${summary.time
 const painted = await waitForPaint(desktop);
 check("preview canvas is 1080×1920", painted.width === 1080 && painted.height === 1920);
 check(
-  "preview background transparent",
-  painted.transparent / painted.total > 0.5,
-  `${((painted.transparent / painted.total) * 100).toFixed(1)}%`,
+  "preview background opaque black",
+  painted.transparent === 0 && painted.dark / painted.total > 0.5,
+  `transparent ${painted.transparent}px, ${((painted.dark / painted.total) * 100).toFixed(1)}% dark`,
 );
 check("preview route painted in orange", painted.orange > 500, `${painted.orange}px`);
-check("preview casing painted black", painted.dark > painted.orange * 0.15, `${painted.dark}px`);
-check("preview casing is a ring, not a slab", painted.dark < painted.orange * 1.5, `${painted.dark}px vs ${painted.orange}px orange`);
 check("preview artwork painted white", painted.white > 1000, `${painted.white}px`);
 check(
   "no console errors during the session",
@@ -156,13 +156,11 @@ check("suggested filename", download1x.suggestedFilename() === "strava_gpx_origi
 const decoded = await sharp(png1xPath).raw().toBuffer({ resolveWithObject: true });
 const stats1x = classifyPixels(decoded.data, decoded.info.width, decoded.info.height);
 check(
-  "exported background transparent",
-  stats1x.transparent / stats1x.total > 0.5,
-  `${((stats1x.transparent / stats1x.total) * 100).toFixed(1)}%`,
+  "exported background opaque black",
+  stats1x.transparent === 0 && stats1x.dark / stats1x.total > 0.5,
+  `transparent ${stats1x.transparent}px, ${((stats1x.dark / stats1x.total) * 100).toFixed(1)}% dark`,
 );
 check("exported route orange", stats1x.orange > 500, `${stats1x.orange}px`);
-check("exported casing black", stats1x.dark > stats1x.orange * 0.15, `${stats1x.dark}px`);
-check("exported casing is a ring, not a slab", stats1x.dark < stats1x.orange * 1.5, `${stats1x.dark}px vs ${stats1x.orange}px orange`);
 check("exported artwork white", stats1x.white > 1000, `${stats1x.white}px`);
 
 // --- 3. The 2× export. ---

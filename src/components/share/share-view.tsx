@@ -1,14 +1,14 @@
 /**
  * ShareView — the share-card session state (docs/MASTER_PLAN.md §O,
- * Task 20).
+ * Task 20; layout per Task 23).
  *
  * The sibling of WorkspaceLayout for `view === "share"`: a dominant
- * dark stage carrying the 9:16 card preview (the canvas is white and
- * orange on transparency — a dark surface is the only honest way to
- * preview it) with a tools column beside it: the trio with its
- * provenance, the unit toggle shared with the statistics panel, the
- * PNG scale, the download action, and the bridge into the repair
- * workspace (the same file, no re-parse).
+ * dark stage carrying the 9:16 card preview (a solid-black canvas —
+ * the hairline ring around it is preview chrome, not card content)
+ * with a tools column beside it: the trio with its provenance, the
+ * unit toggle shared with the statistics panel, the PNG scale, the
+ * download action, and the bridge into the repair workspace (the
+ * same file, no re-parse).
  *
  * Layout only, in the workspace's design language — slots and props,
  * no data logic (the binding comes from useShareCard; the card itself

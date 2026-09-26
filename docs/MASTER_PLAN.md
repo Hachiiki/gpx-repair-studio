@@ -820,7 +820,8 @@ Per instruction, implementation has **not** begun. No Phase 1 work has been perf
 
 A second destination for an uploaded file, added after Phase 7 at the
 user's request: a Strava-style activity share graphic — the route on a
-transparent 1080×1920 (9:16) canvas, the STRAVA wordmark, a
+solid-black 1080×1920 (9:16) canvas (transparent until the Task 23
+revision, black per the reference card since), the STRAVA wordmark, a
 Distance / Pace / Time stats row, and a running-shoe icon — previewed
 in-app and exported as a PNG (1× per the spec, 2× optional).
 
@@ -858,6 +859,9 @@ in-app and exported as a PNG (1× per the spec, 2× optional).
   path data, one canvas painter for preview AND export (WYSIWYG, the
   §H export contract applied to pixels), and the idempotent
   self-hosted Montserrat loader (local-first typography).
+- `lib/share/path-bounds.ts` — SVG path-data ink-bounds parser
+  (node-side only; it verifies the artwork's measured ink constants
+  and never ships to the browser).
 - `features/share/cardContent.ts` — the pure trio join.
 - `hooks/use-share-card.ts` — the app-layer binding (route view →
   polylines, stats → content, offscreen paint → PNG download).
@@ -880,3 +884,33 @@ marked-legs). The join now subtracts the marked distance from
 incl. repairs" likewise adds only live repair durations (a re-imported
 run's distributed timestamps are already inside the recorded moving
 time). Pinned by `tests/stats-panel-reimport.test.tsx`.
+
+### O-4 Layout revisions (Tasks 21–23)
+
+The card's geometry was revised three times against the user's
+reference card; **Task 23 is the operative spec** (Tasks 21–22 are
+historical):
+
+- **Anchor-based, not derived.** Every position is a measured
+  constant from the reference, pinned exactly (the lesson of the
+  earlier revisions: pin the reference's numbers, don't re-derive
+  them): route visible box x 64–1012 / y 219–1190 (contain, geometry
+  inset by the casing half-width so the stroked ink cannot cross it);
+  wordmark ink 330×55 at top 1280, centered; stats top 1422, column
+  centers 220 / 540 / 857, label 29px SemiBold over value 40px
+  ExtraBold with a 9px gap; shoe slot 104×104 at top 1605; solid
+  #000000 background (fully opaque export). The implied rhythm —
+  90 / 87 / ~90 gaps, content ending at 1709 with ~211px empty — is
+  asserted by tests rather than used as an input.
+- **Ink-based artwork placement.** The layout consumes each artwork's
+  viewBox AND its measured ink bounds (`path-bounds.ts` verifies the
+  constants in artwork.ts against the path data). The wordmark's ink
+  is deliberately mapped non-uniformly onto its 330×55 box — the
+  trace is ~4.45:1 while the reference's wordmark is ~6:1, so the
+  squash moves the trace toward the real mark's flatness; the shoe's
+  ink is contained (uniform) and centered in its slot.
+- **Casing on black.** The 16px #000000 casing pass stays under the
+  10px #FC4C02 route (spec-mandated) but is invisible against the
+  black background; pixel-level casing assertions were retired with
+  the transparent background, and the geometry (fit-box inset) is
+  pinned by unit tests instead.

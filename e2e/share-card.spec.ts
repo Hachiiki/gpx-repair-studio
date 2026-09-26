@@ -3,13 +3,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Task 20 E2E — the Strava-style share card:
+ * Task 20 E2E — the Strava-style share card (layout per Task 23):
  *
  *   1. the full happy path: landing mode toggle → upload → the share
  *      view (stage + canvas + honest trio) → download → assert the
  *      PNG itself: signature, IHDR 1080×1920, and decoded pixels —
- *      mostly transparent, with the orange route and white artwork
- *      actually painted (the file is the contract, like Phase 7);
+ *      the solid-black background dominating, with the orange route
+ *      and white artwork actually painted (the file is the contract,
+ *      like Phase 7);
  *   2. honesty: a no-timestamp file renders "—" pace/time with the
  *      explanation, and still downloads;
  *   3. the view bridge: share → repair workspace → the map comes
@@ -82,9 +83,7 @@ async function analyzePng(page: Page, bytes: Buffer): Promise<PngAnalysis> {
       // #FC4C02 with antialiasing tolerance.
       if (a > 200 && r > 220 && g > 30 && g < 130 && b < 60) orange += 1;
       if (a > 200 && r > 230 && g > 230 && b > 230) white += 1;
-      // Opaque near-black is never part of the spec (orange route,
-      // white artwork, transparent background) — it catches artwork
-      // accidentally drawn in the canvas default fill (black).
+      // Opaque near-black: the card's #000000 background (Task 23).
       if (a > 200 && r < 40 && g < 40 && b < 40) dark += 1;
     }
     return {
@@ -147,17 +146,13 @@ test.describe("share card (Task 20)", () => {
     const analysis = await analyzePng(page, bytes);
     expect(analysis.width).toBe(1080);
     expect(analysis.height).toBe(1920);
-    // Transparent background dominates (no map, no fill).
-    expect(analysis.transparent / analysis.total).toBeGreaterThan(0.5);
+    // Task 23: the card is fully opaque — solid #000000 background.
+    expect(analysis.transparent).toBe(0);
+    expect(analysis.dark / analysis.total).toBeGreaterThan(0.5);
     // The route line is really there, in the spec's orange.
     expect(analysis.orange).toBeGreaterThan(200);
     // The wordmark / stats / icon are painted white.
     expect(analysis.white).toBeGreaterThan(300);
-    // The two-pass casing: a black ring around the orange line —
-    // proportional to it (a 16px stroke under a 10px stroke leaves
-    // roughly 0.6x the line's area visible as black), never a slab.
-    expect(analysis.dark).toBeGreaterThan(analysis.orange * 0.3);
-    expect(analysis.dark).toBeLessThan(analysis.orange * 1.5);
   });
 
   test("the 2× export doubles the backing resolution", async ({ page }) => {

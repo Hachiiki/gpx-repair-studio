@@ -1,39 +1,51 @@
 /**
  * Share card layout math (docs/MASTER_PLAN.md §O — Task 20, spec
- * revision Task 22).
+ * revisions Tasks 21–23; this revision implements Task 23's reference
+ * measurements, which supersede the Task 22 derivation).
  *
  * One authoritative derivation of every rect/line/baseline on the
  * 1080×1920 (9:16) Strava-style share card, in card units:
  *
- *   ┌───────────────────────────────┐
- *   │ 64px top pad                 │
- *   │ ┌───────────────────────────┐ │
- *   │ │ 15% fit padding (147.6px) │ │
- *   │ │  ┌─────────────────────┐  │ │ ← map box
- *   │ │  │  the route, contained │  │ │   (64 → 1472.8)
- *   │ │  │  (≤ 58% of the card)  │  │ │
- *   │ │  └─────────────────────┘  │ │
- *   │ └───────────────────────────┘ │
- *   ├──── 32px ─────────────────────┤ ← map box bottom (1472.8)
- *   │        STRAVA logo (270px)    │
- *   ├──── 20px ─────────────────────┤
- *   │  Distance   Pace    Time      │ ← stats row (85% wide)
- *   ├──── 28px ─────────────────────┤
- *   │           [shoe 48×48]        │
- *   └───────────────────────────────┘ ← content ends ≈ 90% (1723.75)
+ *   ┌───────────────────────────────────────────┐
+ *   │ #000000 background (opaque)               │
+ *   │ ┌───────────────────────────────────────┐ │
+ *   │ │ route, contained (incl. 16px casing)  │ │ ← visible box
+ *   │ │ x 64–1012, y 219–1190                 │ │   948×971
+ *   │ └───────────────────────────────────────┘ │
+ *   ├────────────── 90px ───────────────────────┤ ← 1190
+ *   │           STRAVA ink 330×55               │ ← top 1280
+ *   ├────────────── 87px ───────────────────────┤ ← 1335
+ *   │   Distance      Pace        Time          │ ← 1422–1515.25
+ *   ├───────────── ≈90px (89.75) ───────────────┤
+ *   │           [shoe, 104 slot]                │ ← 1605–1709
+ *   │                                           │
+ *   │            ~211px empty below             │
+ *   └───────────────────────────────────────────┘
  *
- * The spec, verbatim: the map (the contained route drawing) is
- * limited to 58% of the card height and rendered object-fit-style
- * (aspect preserved) with 15% fit-bounds padding around it — the
- * padding is CSS-percentage style, 15% of the map box's width
- * (984px → 147.6px) on all four sides, so the box around the route
- * spans 64 → 1472.8. Below it the stack flows with the spec's exact
- * gaps — 32px to the 270px logo, 20px to the stats row (85% of the
- * card wide, three evenly distributed centered columns, 4px between
- * label and value), 28px to the 48×48 shoe — and the content ends
- * at ≈90% of the canvas with nothing below it (no spacer, no
- * bottom anchor). The closure is exact: 1472.8 + 32 + 73.8 + 20 +
- * 49.15 + 28 + 48 = 1723.75 = 89.8% of 1920.
+ * Every anchor is a MEASURED constant from the reference card, pinned
+ * exactly (the lesson of Tasks 21–22: follow the reference's numbers,
+ * do not re-derive them):
+ *
+ *   - route: the visible drawing — geometry plus its 16px casing —
+ *     stays inside x 64–1012, y 219–1190 (948×971, "contain",
+ *     aspect preserved, centered); the geometry is projected into the
+ *     box inset by half the casing (8px) so the painted ink cannot
+ *     cross it;
+ *   - STRAVA wordmark: ink 330 wide × 55 tall, top 1280, centered
+ *     (x 375–705). The traced artwork's ink is ~4.45:1 while the
+ *     reference's wordmark is ~6:1, so the ink is mapped
+ *     NON-UNIFORMLY onto the box — a deliberate squash that also
+ *     moves the trace toward the real mark's flatness;
+ *   - stats: label 29px SemiBold over value 40px ExtraBold, 9px
+ *     between the lines, row top 1422, column centers pinned at
+ *     x 220 / 540 / 857 (text centered per column);
+ *   - shoe: 104×104 slot, top 1605, ink contained (aspect preserved)
+ *     and centered in the slot;
+ *   - background: solid #000000 — the PNG is fully opaque.
+ *
+ * The vertical rhythm those anchors imply (asserted by tests, not
+ * re-derived): route bottom 1190 —90→ logo 1280 —87→ stats 1422
+ * (93.25 tall) —89.75→ shoe slot 1605 → 1709, leaving 211px empty.
  *
  * Pure numbers so tests can pin every position; lib/share/render.ts
  * only executes them.
@@ -43,33 +55,49 @@
 export const SHARE_CARD_WIDTH = 1080;
 export const SHARE_CARD_HEIGHT = 1920;
 
-/** Spacing and ratio tokens from the spec (4px-base gaps). */
-export const SHARE_CARD_SPACING = {
-  /** The map box's side padding (48px each side of the card). */
-  sidePadding: 48,
-  /** The map box's top padding. */
-  topPadding: 64,
-  /**
-   * Fit-bounds padding around the contained route, as a fraction of
-   * the map box's width (CSS `padding: 15%` semantics — the same
-   * absolute inset on all four sides).
-   */
-  fitPaddingRatio: 0.15,
-  /**
-   * The height the contained route (the map drawing) may not
-   * exceed, as a fraction of the card height.
-   */
-  mapHeightRatio: 0.58,
-  /** Gap: map box bottom → STRAVA logo. */
-  mapToLogo: 32,
-  /** Gap: logo → stats row. */
-  logoToStats: 20,
-  /** Gap: stats row → shoe icon. */
-  statsToIcon: 28,
-  /** The stats row's width as a fraction of the card width. */
-  statsRowWidthRatio: 0.85,
-  /** The explicit gap between the label line and the value line. */
-  labelToValue: 4,
+/**
+ * The route's visible box — the reference card's measured bounds for
+ * the route drawing INCLUDING its casing stroke ("target route width
+ * ~948, height ~971"). The projected geometry is contained in the box
+ * inset by half the casing so the painted ink stays inside it.
+ */
+export const SHARE_CARD_ROUTE_BOX = {
+  x: 64,
+  y: 219,
+  width: 948,
+  height: 971,
+} as const;
+
+/**
+ * The STRAVA wordmark's ink box: 330 wide, 55 tall, top edge at 1280,
+ * horizontally centered (x 375–705, centerX 540) — exactly as
+ * measured on the reference card.
+ */
+export const SHARE_CARD_LOGO_INK_BOX = {
+  x: 375,
+  y: 1280,
+  width: 330,
+  height: 55,
+} as const;
+
+/**
+ * The stats trio's anchors: the label line-box's top edge, the three
+ * measured column centers, and the explicit label→value gap.
+ */
+export const SHARE_CARD_STATS_ANCHORS = {
+  /** The label line-box's top edge (the row's top). */
+  top: 1422,
+  /** Horizontal centers of the Distance / Pace / Time columns. */
+  columnCenters: [220, 540, 857] as const,
+  /** Gap between the label line-box's bottom and the value's top. */
+  labelToValue: 9,
+} as const;
+
+/** The shoe icon's square slot: 104×104, top edge at 1605, centered. */
+export const SHARE_CARD_ICON_SLOT = {
+  x: 488,
+  y: 1605,
+  size: 104,
 } as const;
 
 /**
@@ -82,12 +110,14 @@ export const SHARE_CARD_SIMPLIFY_TOLERANCE_M = 5;
 /** Typography from the spec (Montserrat via lib/share/fonts.ts). */
 export const SHARE_CARD_TYPE = {
   fontFamily: "Montserrat",
-  label: { size: 15, weight: 600, letterSpacingEm: 0.04, lineHeight: 1.25 },
-  value: { size: 22, weight: 800, letterSpacingEm: 0, lineHeight: 1.2 },
+  label: { size: 29, weight: 600, letterSpacingEm: 0.04, lineHeight: 1.25 },
+  value: { size: 40, weight: 800, letterSpacingEm: 0, lineHeight: 1.2 },
 } as const;
 
 /** Brand colors from the spec. */
 export const SHARE_CARD_COLORS = {
+  /** The card's solid background — the PNG is fully opaque. */
+  background: "#000000",
   /** The route's top pass. */
   route: "#FC4C02",
   /** The route's casing (under-stroke) pass. */
@@ -106,14 +136,19 @@ export const SHARE_CARD_ROUTE_STROKE = {
   lineCap: "round" as const,
 };
 
-/** The STRAVA wordmark's rendered width (SVG scales to this). */
-export const SHARE_CARD_LOGO_WIDTH = 270;
-
-/** The shoe icon's square slot (SVG scales proportionally into it). */
-export const SHARE_CARD_ICON_SIZE = 48;
-
 /** The stats trio's labels, in column order. */
 export const SHARE_CARD_STAT_LABELS = ["Distance", "Pace", "Time"] as const;
+
+/**
+ * An artwork's measurable geometry as the layout consumes it (see
+ * lib/share/artwork.ts — the viewBox plus the paths' ink bounds,
+ * both in viewBox units).
+ */
+export type ArtworkMetrics = {
+  viewBoxWidth: number;
+  viewBoxHeight: number;
+  ink: { x: number; y: number; width: number; height: number };
+};
 
 /** One stats column's geometry. */
 export interface StatsColumnLayout {
@@ -129,7 +164,7 @@ export interface StatsColumnLayout {
 export interface ShareCardLayout {
   width: number;
   height: number;
-  /** The map box (the route's padded container; nothing is drawn of it). */
+  /** The route's visible allowance (the spec box; nothing drawn of it). */
   routeBox: {
     x: number;
     y: number;
@@ -137,8 +172,9 @@ export interface ShareCardLayout {
     height: number;
   };
   /**
-   * The box the route is fitted into (object-fit: contain) — the
-   * map box inset by the 15% fit padding on all four sides.
+   * The box the route geometry is fitted into (contain) — the spec
+   * box inset by half the casing width, so the stroked ink (geometry
+   * + casing) never crosses the visible box.
    */
   routeFitBox: {
     x: number;
@@ -146,117 +182,139 @@ export interface ShareCardLayout {
     width: number;
     height: number;
   };
-  /** The logo's rect (270px wide, proportional height). */
+  /**
+   * The wordmark's painter rect — the artwork's viewBox mapped so its
+   * INK lands exactly on the spec's 330×55 box (x and y scales are
+   * independent by design: the reference wordmark is flatter than
+   * the trace). The rect itself is invisible scaffolding; only the
+   * ink it places is drawn.
+   */
   logoRect: { x: number; y: number; width: number; height: number };
+  /** The spec's logo ink box (where the wordmark's ink lands). */
+  logoInkRect: { x: number; y: number; width: number; height: number };
   /** The three stats columns, in label order. */
   statsColumns: readonly StatsColumnLayout[];
   /** The stats row's top edge (the label line-box top). */
   statsTop: number;
-  /** The shoe icon's rect (proportional inside the square slot). */
+  /** The stats row's bottom edge (the value line-box bottom). */
+  statsBottom: number;
+  /**
+   * The shoe's painter rect — the artwork's viewBox mapped so its
+   * ink is CONTAINED (aspect preserved) and centered in the slot.
+   * Like the logo rect, invisible scaffolding.
+   */
   iconRect: { x: number; y: number; width: number; height: number };
-  /** The stack's bottom edge (the shoe slot's bottom, ≈90% down). */
+  /** The spec's 104×104 slot. */
+  iconSlotRect: { x: number; y: number; width: number; height: number };
+  /** Where the shoe's ink actually lands (contained in the slot). */
+  iconInkRect: { x: number; y: number; width: number; height: number };
+  /** The stack's bottom edge (the shoe slot's bottom, 1709). */
   contentBottom: number;
 }
 
 /**
- * Derive the full layout. `logoAspectRatio` and `iconAspectRatio` are
- * height/width of the source SVGs (the logo is 164/600, the shoe
- * 211/213) — passed in so this module stays artwork-agnostic and the
- * values stay testable against the spec numbers alone.
+ * Derive the full layout from the reference anchors plus the two
+ * artworks' measurable geometry (viewBox + ink bounds — passed in so
+ * this module stays artwork-agnostic and testable against spec
+ * numbers alone).
  */
 export function computeShareCardLayout(options: {
-  logoAspectRatio: number;
-  iconAspectRatio: number;
+  logo: ArtworkMetrics;
+  icon: ArtworkMetrics;
 }): ShareCardLayout {
-  const { logoAspectRatio, iconAspectRatio } = options;
+  const { logo, icon } = options;
   const w = SHARE_CARD_WIDTH;
-  const h = SHARE_CARD_HEIGHT;
-  const side = SHARE_CARD_SPACING.sidePadding;
 
-  // Map box: the route's allowance (≤ 58% of the card) wrapped in the
-  // 15% fit padding on all four sides (CSS semantics — one inset,
-  // derived from the box's width).
-  const boxWidth = w - 2 * side;
-  const fitPad = SHARE_CARD_SPACING.fitPaddingRatio * boxWidth;
-  const routeHeight =
-    2 * fitPad + SHARE_CARD_SPACING.mapHeightRatio * h;
-  const routeBox = {
-    x: side,
-    y: SHARE_CARD_SPACING.topPadding,
-    width: boxWidth,
-    height: routeHeight,
-  };
+  // --- Route: the geometry is contained in the visible box inset by
+  // half the casing, so geometry + stroke stays within the measured
+  // bounds (x 64–1012, y 219–1190) no matter which dimension binds.
+  const inset = SHARE_CARD_ROUTE_STROKE.casingWidth / 2;
+  const routeBox = { ...SHARE_CARD_ROUTE_BOX };
   const routeFitBox = {
-    x: side + fitPad,
-    y: SHARE_CARD_SPACING.topPadding + fitPad,
-    width: boxWidth - 2 * fitPad,
-    height: routeHeight - 2 * fitPad,
+    x: routeBox.x + inset,
+    y: routeBox.y + inset,
+    width: routeBox.width - 2 * inset,
+    height: routeBox.height - 2 * inset,
   };
 
-  // Logo: 32px below the map box, horizontally centered.
-  const logoWidth = SHARE_CARD_LOGO_WIDTH;
-  const logoHeight = logoWidth * logoAspectRatio;
-  const mapBottom = routeBox.y + routeBox.height;
+  // --- Logo: the ink is STRETCHED onto the spec's box (independent
+  // x/y scales). The viewBox rect that achieves this is the box
+  // expanded by the ink's offset from the viewBox origin, scaled per
+  // axis — pure affine bookkeeping; the rect is never seen, only the
+  // ink it places.
+  const logoInkRect = { ...SHARE_CARD_LOGO_INK_BOX };
+  const logoScaleX = logoInkRect.width / logo.ink.width;
+  const logoScaleY = logoInkRect.height / logo.ink.height;
   const logoRect = {
-    x: (w - logoWidth) / 2,
-    y: mapBottom + SHARE_CARD_SPACING.mapToLogo,
-    width: logoWidth,
-    height: logoHeight,
+    x: logoInkRect.x - logo.ink.x * logoScaleX,
+    y: logoInkRect.y - logo.ink.y * logoScaleY,
+    width: logo.viewBoxWidth * logoScaleX,
+    height: logo.viewBoxHeight * logoScaleY,
   };
 
-  // Stats row: 20px below the logo — label line, 4px, value line.
-  const labelLineHeight =
-    SHARE_CARD_TYPE.label.size * SHARE_CARD_TYPE.label.lineHeight;
-  const valueLineHeight =
-    SHARE_CARD_TYPE.value.size * SHARE_CARD_TYPE.value.lineHeight;
-  const statsTop =
-    logoRect.y + logoHeight + SHARE_CARD_SPACING.logoToStats;
-
-  // Three evenly distributed, text-centered columns across the row.
-  const rowWidth = SHARE_CARD_SPACING.statsRowWidthRatio * w;
-  const rowX = (w - rowWidth) / 2;
-  const columnWidth = rowWidth / 3;
-  const statsColumns: StatsColumnLayout[] = Array.from(
-    { length: 3 },
-    (_, index) => ({
-      centerX: rowX + columnWidth * (index + 0.5),
+  // --- Stats: the anchor's top, the pinned column centers, label
+  // line, 9px, value line.
+  const { label, value } = SHARE_CARD_TYPE;
+  const labelLineHeight = label.size * label.lineHeight;
+  const valueLineHeight = value.size * value.lineHeight;
+  const statsTop = SHARE_CARD_STATS_ANCHORS.top;
+  const statsColumns: StatsColumnLayout[] =
+    SHARE_CARD_STATS_ANCHORS.columnCenters.map((centerX) => ({
+      centerX,
       labelCenterY: statsTop + labelLineHeight / 2,
       valueCenterY:
         statsTop +
         labelLineHeight +
-        SHARE_CARD_SPACING.labelToValue +
+        SHARE_CARD_STATS_ANCHORS.labelToValue +
         valueLineHeight / 2,
-    }),
-  );
-
-  // Shoe icon: 28px below the stats row, centered; the stack ends at
-  // the slot's bottom edge — nothing is drawn below it.
+    }));
   const statsBottom =
     statsTop +
     labelLineHeight +
-    SHARE_CARD_SPACING.labelToValue +
+    SHARE_CARD_STATS_ANCHORS.labelToValue +
     valueLineHeight;
-  const iconHeight = Math.min(
-    SHARE_CARD_ICON_SIZE,
-    SHARE_CARD_ICON_SIZE * iconAspectRatio,
+
+  // --- Shoe: the ink is CONTAINED in the square slot (uniform scale,
+  // the binding dimension wins) and centered in it.
+  const slot = SHARE_CARD_ICON_SLOT;
+  const iconSlotRect = {
+    x: slot.x,
+    y: slot.y,
+    width: slot.size,
+    height: slot.size,
+  };
+  const iconScale = Math.min(
+    slot.size / icon.ink.width,
+    slot.size / icon.ink.height,
   );
-  const iconSlotTop = statsBottom + SHARE_CARD_SPACING.statsToIcon;
+  const iconInkWidth = icon.ink.width * iconScale;
+  const iconInkHeight = icon.ink.height * iconScale;
+  const iconInkRect = {
+    x: slot.x + (slot.size - iconInkWidth) / 2,
+    y: slot.y + (slot.size - iconInkHeight) / 2,
+    width: iconInkWidth,
+    height: iconInkHeight,
+  };
   const iconRect = {
-    x: (w - SHARE_CARD_ICON_SIZE) / 2,
-    y: iconSlotTop + (SHARE_CARD_ICON_SIZE - iconHeight) / 2,
-    width: SHARE_CARD_ICON_SIZE,
-    height: iconHeight,
+    x: iconInkRect.x - icon.ink.x * iconScale,
+    y: iconInkRect.y - icon.ink.y * iconScale,
+    width: icon.viewBoxWidth * iconScale,
+    height: icon.viewBoxHeight * iconScale,
   };
 
   return {
-    width: w,
-    height: h,
+    width: SHARE_CARD_WIDTH,
+    height: SHARE_CARD_HEIGHT,
     routeBox,
     routeFitBox,
     logoRect,
+    logoInkRect,
     statsColumns,
     statsTop,
+    statsBottom,
     iconRect,
-    contentBottom: iconSlotTop + SHARE_CARD_ICON_SIZE,
+    iconSlotRect,
+    iconInkRect,
+    contentBottom: slot.y + slot.size,
   };
 }

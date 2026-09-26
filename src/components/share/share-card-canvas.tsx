@@ -1,13 +1,15 @@
 /**
  * ShareCardCanvas — the reusable Strava-style share card component
- * (docs/MASTER_PLAN.md §O — Task 20).
+ * (docs/MASTER_PLAN.md §O — Task 20, layout per Task 23).
  *
  * Props are the spec's contract: the route polyline plus the three
  * pre-formatted stat values. The component owns the 1080×1920 canvas
- * (transparent background) and repaints whenever the props change —
- * after awaiting the card's Montserrat faces, so the preview is always
- * what the PNG export will contain (same painter, same scale-1 spec;
- * the export only raises the backing resolution).
+ * (solid #000000 background — the hairline ring is preview-only
+ * chrome so the black card reads against the dark stage; the PNG
+ * export is ring-free) and repaints whenever the props change —
+ * after awaiting the card's Montserrat faces, so the preview is
+ * always what the PNG export will contain (same painter, same
+ * scale-1 spec; the export only raises the backing resolution).
  *
  * Pure presentation: no session knowledge, no stats logic — any caller
  * can render a card from a polyline and three strings. The painting
@@ -90,7 +92,7 @@ export function ShareCardCanvas({
       role="img"
       aria-label={label}
       data-testid="share-card-canvas"
-      className="block h-full w-auto max-w-full"
+      className="block h-full w-auto max-w-full ring-1 ring-white/10"
     />
   );
 }

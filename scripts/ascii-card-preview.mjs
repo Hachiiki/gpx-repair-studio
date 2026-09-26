@@ -3,9 +3,11 @@ import { join } from "node:path";
 
 /**
  * Visual sanity check: downsample the exported card to a coarse
- * character grid — O = orange route, # = black casing, W = white
- * artwork (logo/stats/shoe), . = transparent. A human-readable
- * composition proof to complement the pixel-band assertions.
+ * character grid — O = orange route, W = white artwork (logo/stats/
+ * shoe), # = the solid-black background (Task 23: the card is fully
+ * opaque; the casing is black-on-black and intentionally invisible).
+ * A human-readable composition proof to complement the pixel-band
+ * assertions.
  */
 const SRC = join(process.cwd(), "download", "share-card-spec-rev-1x.png");
 
