@@ -608,3 +608,28 @@ Stage Summary:
 - Failure states now name their actual cause instead of a generic "no usable data".
 - Deploy follow-up: push + Vercel redeploy required to fix production (user hit the failure on gpx-repair-studio.vercel.app).
 - Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
+
+---
+Task ID: 26
+Agent: Super Z (main agent)
+Task: Gap Recovery section — a new, separate top-level feature for recovering a missing GPS section from an existing activity (user-requested addition; repair studio untouched)
+
+Work Log:
+- Read the worklog + git state: Tasks 1–25 done, the Open-Meteo CORS fix (Task 25) already pushed; repo clean at f831141.
+- Surveyed the existing architecture for maximal reuse: session/editor stores, useGpxSession/useMapController/useDrawEditor/useGpxExport, buildRouteView, drawModel commands, snap/roadFollow/resample/timestamps/merge/exportGpx, and the props-driven panels (MapCanvas, DrawEditorPanel, GapList, ExportCard/Dialog, StatsPanel, UploadZone, FileTimingCard, GpxSummaryCard, ValidationReport, SegmentList).
+- Key constraint found: the existing map/draw hooks read the GLOBAL editor store, so the new section got fully isolated state instead of shared hooks.
+- New: state/recovery-store.ts (session + editor slice over detected gaps, same pure drawModel commands, section-local selection; manual spans/pick modes deliberately absent).
+- New hooks: use-recovery-session (parse→validate→detect + view models, reuses describeParseError), use-recovery-map (own MapController, local selection, shared buildRouteView), use-recovery-draw (mirror of useDrawEditor bound to the recovery store, returns the same DrawEditorBinding so DrawEditorPanel + map chrome are reused; shares the page-level RoadFollowRouter — getRoadRouter exported from use-draw-editor), use-recovery-export (MergeRepairSite join → mergeRepairs → exportGpxRepaired; same GpxExportBinding → ExportCard/Dialog reused).
+- New components: recovery-studio (composition root), recovery-idle-view (hero + reused UploadZone), recovery-workspace (recovery-labeled layout sibling), recovery-guide-card (wizard progress), recovery-preview-card (completed-route preview: missing time covered, distance before→after, elapsed "unchanged" lock, average speed, points generated — all provenance-badged).
+- Additive wiring: ui-store + transient activeSection (never persisted); AppHeader section switcher (icons-only below sm); AppShell mounts RecoveryStudio for the recovery section; repair paths byte-identical.
+- Tests: 24 new unit (recovery-store incl. the isolation contract vs session/editor stores; recovery-pipeline: detection → draw → merge → export → re-parse with timestamps-strictly-inside-interval, verbatim originals, elapsed unchanged, markers, no re-flag; recovery-ui RTL incl. section isolation round-trip) + 3 new e2e (happy path with download assertions + section isolation; export re-upload round-trip; mobile 375px).
+- Fixed during verification: (a) header switcher short labels overflowed the 390px mobile viewport (strava-real-files URI-wrap spec caught it) → icons-only below sm; (b) preview-card average speed used ×3.6 on m/ms (1000× off, showed 0.0 km/h) → ×3600, caught in live browser verification.
+- Dev-server incident: the sandbox dev server died mid-session (EADDRINUSE race then gone; likely OOM during the 59-worker unit run); revived detached via setsid and re-verified.
+- Validation: typecheck clean, eslint clean, 794/794 unit (was 770), full e2e 53/53 (was 50; one map-display click flake re-run clean).
+- LIVE verification (agent-browser, dev server): repair landing unchanged; recovery landing → upload time-gap.gpx → section detected → editor → straight-line drawing (vertices landed exactly as projected) → spacing 10 m → commit (span replaced by emerald line) → preview (5:00 covered, 48 m → 122 m, 5:18 unchanged, 1.4 km/h, 8 points) → export downloaded: 16 trkpts = 8 verbatim originals + 8 generated, timestamps spread inside the interval, gpxr markers; section isolation round-trip live (repair landing clean, recovery session intact); mobile 375px no overflow; real multi-gap demo file: 2 sections detected, 26:01 gap recovered with real OSRM road-follow (3.87 km vs 2.10 km chord), 140 generated points exported all marked, 1400 total points. Fourteen screenshots saved to download/task26-*.png.
+
+Stage Summary:
+- Gap Recovery is shipped as the app's second section: upload → detect the missing GPS interval → draw the missing route (road-follow/snap/undo) → generated points with estimated timestamps fitted into the interval → integrated track → recalculated stats with the original elapsed time provably unchanged → preview → corrected GPX export with gpxr provenance markers.
+- The repair studio is untouched (byte-identical code paths; all 770 original unit tests and 50 original e2e tests pass unmodified); the two sections keep fully independent sessions/maps/repairs.
+- Root-cause note for the record: the earlier "0.0 km/h" proves the value of live verification — unit tests asserted presence, the browser revealed the unit error.
+- Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).

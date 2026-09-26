@@ -86,10 +86,12 @@ export type { PaceRow } from "@/features/statistics/pace";
  * The road-follow router (app layer owns the network): one shared
  * instance per page — its cache makes undo/redo and vertex re-drags of the
  * same leg instant. The browser `fetch` is injected (features/** must stay
- * fetch-free).
+ * fetch-free). Exported since Task 26: the Gap Recovery section's draw
+ * hook shares this instance (and its cache) — one router per page, not
+ * per section.
  */
 let sharedRoadRouter: RoadFollowRouter | null = null;
-function getRoadRouter(): RoadFollowRouter {
+export function getRoadRouter(): RoadFollowRouter {
   if (!sharedRoadRouter) {
     sharedRoadRouter = new RoadFollowRouter({
       fetch: (input, init) => fetch(input, init),

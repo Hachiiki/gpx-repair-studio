@@ -915,3 +915,110 @@ historical):
   black background; pixel-level casing assertions were retired with
   the transparent background, and the geometry (fit-box inset) is
   pinned by unit tests instead.
+
+---
+
+## R. Gap Recovery Section (Task 26 — user-requested addition)
+
+A second top-level section of the app, added after Phase 7 at the
+user's request: **Gap Recovery** — a self-contained workflow for
+recovering a missing GPS section from an existing activity whose
+elapsed time continued while coordinates were missing. Explicitly an
+ADDITION, not a redesign: the repair studio's processing, route
+drawing, calculation, and export are untouched, and the new section
+reuses the same pure machinery wherever possible.
+
+### R-1 Scope & contracts
+
+The user-facing flow, exactly as specified:
+
+- **Upload an activity with a GPS tracking gap** — the section has its
+  own upload (the same UploadZone component) and its own session; the
+  repair studio keeps whatever file it holds.
+- **Detect the missing GPS time interval** — the same `detectGaps`
+  engine (time-gap / speed-anomaly / segment-break, shared thresholds
+  setting) lists each missing section with its interval boundaries,
+  elapsed span, and straight-line diagnostics.
+- **Draw the missing route on the map** — the same draw editor
+  experience (clicks, road-follow car/foot/straight, snap magnet,
+  drag/midpoint-insert/delete, undo/redo, vertex cap) over the
+  activity's own map instance.
+- **Generate points + timestamps** — the drawn path is densified and
+  its points receive `Estimated` timestamps distributed inside the
+  missing interval (§J-1 case matrix; distance-proportional default),
+  so they seamlessly fit between the existing GPS points.
+- **Integrate** — the merge inserts the interior between the untouched
+  boundary anchors; original points are re-emitted verbatim by the
+  identity exporter (repair only inserts — §H).
+- **Elapsed time preserved — provably.** Originals (including both
+  anchors' timestamps) are never rewritten, so first→last time, wall
+  time, and every recorded statistic are byte-identical after export.
+  The preview card pins this with an "unchanged" lock badge.
+- **Recalculated statistics** — distance/pace/speed over the completed
+  route (recorded + reconstructed) via the §L-1 joins, with Estimated /
+  Mixed provenance badges; the StatsPanel (recorded / repaired /
+  overall) is reused below the fold.
+- **Visually distinct** — the map's existing language: recorded solid,
+  missing span dashed, committed reconstruction emerald, draft through
+  the draw session.
+- **Preview before export** — the Completed route card (missing time
+  covered, distance before→after, elapsed unchanged, average speed,
+  points generated) plus the reused pre-export dialog summary.
+- **Export as a new corrected GPX** — the reused ExportCard/dialog and
+  `exportGpxRepaired`; every generated point carries a
+  `gpxr:reconstructed` provenance marker, and re-uploading the export
+  is recognized (marked stretches render and count as repaired, seams
+  are not re-flagged as gaps).
+
+### R-2 Architecture (isolation by design)
+
+- `state/recovery-store.ts` — the section's own Zustand store: session
+  slice (status/file/frozen model/gaps/error) + a compact mirror of the
+  editor essentials for detected gaps (reconstructions, history,
+  transient aids, road legs, file timing, section-local gap selection).
+  It reuses the SAME pure drawModel commands; manual spans and pick
+  modes are deliberately absent (recovery repairs detected sections
+  only). Unit tests pin the isolation contract: no recovery action
+  ever touches `useSessionStore`/`useEditorStore`, and vice versa.
+- `hooks/use-recovery-session.ts` — parse → validate → detect → store,
+  plus the view-model joins (gap rows, segment rows, stats, extent).
+  Reuses `describeParseError`.
+- `hooks/use-recovery-map.ts` — its own `MapController` instance and
+  its own selection state (NOT the repair studio's shared
+  uiStore.selectedGapId, so the sections' hygiene effects cannot clear
+  each other); route views via the shared pure `buildRouteView`.
+- `hooks/use-recovery-draw.ts` — a mirror of `useDrawEditor`'s
+  controller driving + road-follow resolution, bound to the recovery
+  store, returning the SAME `DrawEditorBinding` interface so
+  `DrawEditorPanel`, the map chrome, and the undo/redo bar are reused
+  unchanged. Shares the page-level `RoadFollowRouter` (and its cache).
+- `hooks/use-recovery-export.ts` — committed recoveries →
+  `MergeRepairSite[]` → `mergeRepairs` → `exportGpxRepaired`;
+  returns the same `GpxExportBinding` so the export card + dialog are
+  reused.
+- `components/recovery/*` — the section root (composition), landing
+  view, two-section layout (recovery-labeled sibling of
+  WorkspaceLayout), guide card (wizard progress), and completed-route
+  preview card. Everything else in the tree is an existing component.
+- Shell wiring (additive): `ui-store` gains a transient
+  `activeSection` ("repair" | "recovery", never persisted — reload
+  returns to the repair studio); `AppHeader` gains the section
+  switcher (icons-only below `sm` to keep the 390 px header row
+  overflow-free); `AppShell` mounts `RecoveryStudio` when active.
+- Elevation estimation stays a repair-studio feature (recovery focuses
+  on geometry + time); the reused panel's elevation controls are
+  hidden via the null binding.
+
+### R-3 Verification
+
+24 new unit tests (store lifecycle + isolation; the pure pipeline:
+detection → draw → merge → export → re-parse with timestamp-in-interval,
+verbatim-originals, elapsed-unchanged, marker, and no-re-flag
+assertions; RTL acceptance including section isolation) and 3 new e2e
+tests (full happy path with download assertions, export re-upload
+round-trip, mobile viewport). Live verification ran the real flow
+against the real OSRM road-follow service on the multi-gap demo file:
+2 sections detected, a 26:01 gap recovered with a 3.87 km road-followed
+route, 140 generated points exported with provenance markers, elapsed
+time unchanged, average-speed math corrected (ms→s conversion bug
+caught and fixed during live verification).

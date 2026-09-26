@@ -73,3 +73,4 @@ server.log
 
 # Export-spec temp files (downloaded bytes re-uploaded in-test)
 /e2e/.export-*.gpx
+/e2e/.recovery-*.gpx

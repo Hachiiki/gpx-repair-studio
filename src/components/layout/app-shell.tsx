@@ -40,6 +40,7 @@ import { ExportCard } from "@/components/gpx/export-card";
 import { GpxSummaryCard } from "@/components/gpx/gpx-summary-card";
 import { SegmentList } from "@/components/gpx/segment-list";
 import { ValidationReport } from "@/components/gpx/validation-report";
+import { RecoveryStudio } from "@/components/recovery/recovery-studio";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import { FileTimingCard } from "@/components/reconstruction/file-timing-card";
 import { GapList } from "@/components/reconstruction/gap-list";
@@ -54,6 +55,7 @@ import { useMapController } from "@/hooks/use-map-controller";
 import { useShareCard } from "@/hooks/use-share-card";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { useUiStore } from "@/state/ui-store";
+import { useRecoveryStore } from "@/state/recovery-store";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
@@ -68,6 +70,17 @@ export function AppShell() {
   const setPaceUnit = useUiStore((s) => s.setPaceUnit);
   const landingMode = useUiStore((s) => s.landingMode);
   const setLandingMode = useUiStore((s) => s.setLandingMode);
+
+  // Task 26 — the top-level section switch. "repair" keeps this shell's
+  // original wiring untouched; "recovery" mounts the Gap Recovery
+  // section, a self-contained workflow with its own session, map, draw
+  // editor, and export (state/recovery-store — nothing is shared with the
+  // repair session except user preferences). Raw store selectors keep the
+  // header honest without duplicating the section's hook tree.
+  const section = useUiStore((s) => s.activeSection);
+  const setActiveSection = useUiStore((s) => s.setActiveSection);
+  const recoveryStatus = useRecoveryStore((s) => s.status);
+  const recoveryFileName = useRecoveryStore((s) => s.fileName);
 
   // Rehydrate persisted settings after mount — the prerendered HTML and
   // the first client render both use defaults, so there is no hydration
@@ -87,11 +100,17 @@ export function AppShell() {
       </a>
 
       <AppHeader
-        fileName={session.fileName}
-        status={session.status}
-        onReset={session.reset}
+        fileName={section === "recovery" ? recoveryFileName : session.fileName}
+        status={section === "recovery" ? recoveryStatus : session.status}
+        onReset={
+          section === "recovery"
+            ? () => useRecoveryStore.getState().reset()
+            : session.reset
+        }
         view={session.view}
         onSwitchView={session.setView}
+        section={section}
+        onSwitchSection={setActiveSection}
       />
 
       <main
@@ -99,7 +118,16 @@ export function AppShell() {
         tabIndex={-1}
         className={cn(SHELL_CONTAINER, "flex flex-1 flex-col py-6")}
       >
-        {session.status === "parsed" && session.data ? (
+        {section === "recovery" ? (
+          /*
+           * Task 26 — the Gap Recovery section: a separate workflow for
+           * recovering a missing GPS section (upload → detect the missing
+           * interval → draw the route → preview → export). Own session,
+           * own map, own repairs; the repair studio below keeps whatever
+           * file and repairs it already had.
+           */
+          <RecoveryStudio />
+        ) : session.status === "parsed" && session.data ? (
           session.view === "share" ? (
             /*
              * The share-card workspace (Task 20): the same parsed

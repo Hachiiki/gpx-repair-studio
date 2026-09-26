@@ -45,6 +45,16 @@ import type { GapId } from "@/types/domain";
 /** localStorage key — versioned so future setting renames can migrate. */
 export const UI_SETTINGS_STORAGE_KEY = "gpx-repair-studio.settings.v1";
 
+/**
+ * The top-level section of the app (Task 26). "repair" is the original
+ * repair studio (the app's core flow); "recovery" is the Gap Recovery
+ * section — a separate, self-contained workflow for recovering a missing
+ * GPS section from an activity whose elapsed time continued while
+ * coordinates were missing. Transient on purpose: a reload lands back on
+ * the repair studio, and the two sections keep fully independent sessions.
+ */
+export type AppSection = "repair" | "recovery";
+
 interface UiState {
   gapThresholds: GapThresholds;
   tileProvider: TileProviderId;
@@ -58,6 +68,13 @@ interface UiState {
   landingMode: SessionView;
   /** The gap highlighted on the map / gap list; `null` = none. Transient. */
   selectedGapId: GapId | null;
+  /**
+   * The active top-level section (Task 26). Transient — never persisted, a
+   * reload returns to the repair studio. Each section owns its own session
+   * state (session-store vs recovery-store), so switching never disturbs
+   * the other section's file or repairs.
+   */
+  activeSection: AppSection;
 
   setGapThresholds: (patch: Partial<GapThresholds>) => void;
   resetGapThresholds: () => void;
@@ -67,6 +84,7 @@ interface UiState {
   setExportPrettyPrint: (pretty: boolean) => void;
   setLandingMode: (mode: SessionView) => void;
   selectGap: (gapId: GapId | null) => void;
+  setActiveSection: (section: AppSection) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -79,6 +97,7 @@ export const useUiStore = create<UiState>()(
       exportPrettyPrint: false,
       landingMode: "repair" as SessionView,
       selectedGapId: null,
+      activeSection: "repair" as AppSection,
       setGapThresholds: (patch) =>
         set((state) => ({ gapThresholds: { ...state.gapThresholds, ...patch } })),
       resetGapThresholds: () =>
@@ -89,6 +108,7 @@ export const useUiStore = create<UiState>()(
       setExportPrettyPrint: (exportPrettyPrint) => set({ exportPrettyPrint }),
       setLandingMode: (landingMode) => set({ landingMode }),
       selectGap: (selectedGapId) => set({ selectedGapId }),
+      setActiveSection: (activeSection) => set({ activeSection }),
     }),
     {
       name: UI_SETTINGS_STORAGE_KEY,
