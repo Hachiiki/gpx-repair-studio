@@ -749,3 +749,22 @@ Work Log:
 
 Stage Summary:
 - Ink & Signal redesign verified live on https://gpx-repair-studio.vercel.app; dev-server QA findings all confirmed fixed in production.
+---
+Task ID: 31
+Agent: Super Z (main agent)
+Task: Generate static HTML design mockups proposing a full visual redesign of the app — same structure/layout and copy, new design language using the pinned five-anchor palette (#FC4C02 / #000000 / #FFFFFF / #5A5A5A / #222222) and the ui-skills.com guidance.
+
+Work Log:
+- Read all local ui-skills references (anthropics/frontend-design, pbakaus/impeccable, jakubkrehel/better-ui, wshobson/interaction-design, raphaelsalaja/12-principles; antfu file is a "source unavailable" stub).
+- Explore-agent inventory of the entire current UI (all screens, panels, exact copy strings, tokens, map color table) so the mockups include everything the app ships today.
+- Design direction "Field Plot": the app as a surveyor's plotting bench — faint graph-paper field, equipment-grade 1.5 px ink borders (hairlines only inside), keycap buttons (orange fill, black text, hard bottom edge that depresses), Big Shoulders condensed numerals for display/stats + Archivo UI + IBM Plex Mono scoped to coordinates, active toggle segments in signal orange, provenance chips lead with a color square (Mixed = half-ink/half-signal split square), map plate framed 2 px ink with the existing map semantics (ink route, severity dashes, orange recon, selection glow) untouched.
+- Built 6 static pages + shared CSS in download/design-mockups/: index.html (annotated design system: direction, changes/stays, palette, type, components incl. gap-selection overlay demo, screen nav), home.html (3-tab landing with working CSS-radio tab switching across hero + how-it-works, upload zone with faint broken-route art), repair.html (workspace: full SVG city map with selected gap + draft detour + vertex handles + all map chrome; editor/manual-repairs/gaps/export rail; statistics & file details section with stats table, elevation profile, file summary, validation, segments), recovery.html (guide card, unmeasured sections, "From your pace" draw flow with the production-verified task-28 numbers, completed-route preview, export, recovery details), share.html (dark stage + 9:16 black card), mobile.html (three 375 px frames: landing / workspace / share).
+- All copy taken verbatim from the current app; all colors are the five anchors or their alphas; hover/press states live (150 ms named properties, keycap press, 0.96 scale per better-ui); reduced-motion respected.
+- Bounded QA (impeccable-style): agent-browser screenshots of all 6 pages at 1440x900 + VLM critique rounds. Fixed 4 confirmed defects: rail button pairs now stack (336/384 px too narrow for 2-col labelled buttons), phone notch no longer collides with the header wordmark (content top padding), share-card stat numerals resized to fit (24 px desktop / 12 px at 196 px card), route terminus moved clear of the STRAVA wordmark. Re-verified in one confirm round — all clear; 5 earlier suspicions disproved by zoomed checks. Tab switching and no-horizontal-overflow verified live.
+- Baseline guard: vitest 823/823 pass (download/-only change, no src touched).
+- Archived download/task31-01..06 screenshots + download/field-plot-design-mockups.zip; QA evidence in scripts/qa/.
+
+Stage Summary:
+- Deliverable: download/design-mockups/ (open index.html first) — a complete static redesign proposal covering every current screen/state, same structure and copy, new "Field Plot" visual language in the pinned palette only.
+- Zero app-code changes; test baseline intact; mockups are pure HTML/CSS/SVG (Google-Fonts-linked with fallbacks) and work offline except webfonts.
+- Next step if approved: port the token/component layer into globals.css + Tailwind classes as a Task 30-style visual-only sweep.

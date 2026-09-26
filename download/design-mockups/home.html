@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home — Field Plot mockup · GPX Repair Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Big+Shoulders:opsz,wght@10..72,100..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="screens.css">
+<style>
+  /* radio-driven tabs: hidden inputs are siblings of the two paned containers */
+  .landing > input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+  #tab-repair:checked ~ .how .pane-repair,
+  #tab-share:checked ~ .how .pane-share,
+  #tab-recovery:checked ~ .how .pane-recovery { display: grid; gap: 16px; }
+  #tab-repair:checked ~ .landing__col .seg label[for="tab-repair"],
+  #tab-share:checked ~ .landing__col .seg label[for="tab-share"],
+  #tab-recovery:checked ~ .landing__col .seg label[for="tab-recovery"] {
+    background: var(--signal); color: var(--inkplus); box-shadow: inset 0 0 0 1.5px var(--ink);
+  }
+  #tab-repair:focus-visible ~ .landing__col .seg label[for="tab-repair"],
+  #tab-share:focus-visible ~ .landing__col .seg label[for="tab-share"],
+  #tab-recovery:focus-visible ~ .landing__col .seg label[for="tab-recovery"] {
+    outline: 2px solid var(--signal); outline-offset: 2px;
+  }
+  @media (max-width: 420px) {
+    .seg .long { display: none; }
+    .seg .short { display: block; }
+  }
+  .seg .short { display: none; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="app-header">
+    <div class="container app-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.5 17.5c4.6 0 2.6-5.6 6.1-6.6 2.4-.7 3.4.9 4.4-.4"/>
+            <circle cx="18.4" cy="6.4" r="1.7" fill="currentColor" stroke="none"/>
+          </svg>
+        </span>
+        <span class="brand__name">GPX Repair Studio</span>
+      </a>
+      <span class="chip chip--plain">Local-first</span>
+    </div>
+  </header>
+
+  <main class="container" id="main-content">
+    <div class="landing">
+
+      <input type="radio" name="mode" id="tab-repair" checked>
+      <input type="radio" name="mode" id="tab-share">
+      <input type="radio" name="mode" id="tab-recovery">
+
+      <div class="landing__col">
+
+        <div class="seg rise" role="radiogroup" aria-label="What do you want to do?">
+          <label class="seg__label" for="tab-repair"><span class="long">Repair a recording</span><span class="short">Repair</span></label>
+          <label class="seg__label" for="tab-share"><span class="long">Create a share card</span><span class="short">Share card</span></label>
+          <label class="seg__label" for="tab-recovery"><span class="long">Recover a GPS gap</span><span class="short">Recovery</span></label>
+        </div>
+
+        <div class="tabpane pane-repair">
+          <div class="hero rise rise--2">
+            <h2 class="hero__title">Repair incomplete GPS recordings</h2>
+            <p class="hero__sub">Upload a GPX activity with gaps or damage, inspect exactly what was recorded, then draw the missing route yourself — with a clear line between recorded and reconstructed data.</p>
+          </div>
+        </div>
+
+        <div class="tabpane pane-share">
+          <div class="hero">
+            <h2 class="hero__title">Create a share card from your GPX</h2>
+            <p class="hero__sub">Upload an activity and download a Strava-style share graphic — your route with the distance, pace, and time this file records. Need to fix it first? The repair workspace is one click away after upload.</p>
+          </div>
+        </div>
+
+        <div class="tabpane pane-recovery">
+          <div class="hero">
+            <h2 class="hero__title">Recover a missing GPS section</h2>
+            <p class="hero__sub">Upload an activity where the recording dropped out mid-workout — the clock kept running but the route has a hole. Draw the part that went missing and get a corrected GPX with the elapsed time untouched.</p>
+          </div>
+        </div>
+
+        <div class="upload rise rise--3" role="button" tabindex="0" aria-label="Upload a GPX file">
+          <svg class="upload__art" viewBox="0 0 640 240" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <path d="M-20 200 C80 200 120 150 190 150 S300 190 360 130 S430 60 520 60 L660 40"
+                  fill="none" stroke="rgba(34,34,34,0.10)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M190 150 S300 190 360 130" fill="none" stroke="rgba(252,76,2,0.28)" stroke-width="9" stroke-linecap="round" stroke-dasharray="2 14"/>
+            <circle cx="190" cy="150" r="7" fill="none" stroke="rgba(34,34,34,0.18)" stroke-width="3"/>
+            <circle cx="360" cy="130" r="6" fill="rgba(34,34,34,0.18)" stroke="#FFFFFF" stroke-width="2"/>
+          </svg>
+          <div class="upload__inner">
+            <span class="upload__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 12v6"/><path d="m15 15-3-3-3 3"/></svg>
+            </span>
+            <p class="upload__title">Drop your GPX file here</p>
+            <p class="upload__sub">or <span>click to browse</span></p>
+            <p class="upload__privacy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+              Processed entirely in your browser — the file never leaves this device.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <section class="how">
+        <div class="how__head">
+          <h3 class="how__title">How it works</h3>
+          <p class="how__sub">The whole workflow runs in this tab — nothing to install, no account.</p>
+        </div>
+
+        <div class="tabpane pane-repair">
+          <div class="steps">
+            <div class="step">
+              <span class="step__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 7a4 4 0 0 1 4 4"/><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 21l-4.3-4.3"/></svg></span>
+              <p class="step__title">Inspect</p>
+              <p class="step__text">See every segment, gap, and anomaly with recorded-only statistics — nothing is invented.</p>
+            </div>
+            <div class="step">
+              <span class="step__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg></span>
+              <p class="step__title">Repair</p>
+              <p class="step__text">Draw the missing route on the map — clicks follow real roads, every point drags, everything undoes.</p>
+            </div>
+            <div class="step">
+              <span class="step__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
+              <p class="step__title">Honest by default</p>
+              <p class="step__text">Download the repaired GPX with every reconstructed point marked — the original recording is never modified, and repairs stay labelled even after re-uploading.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabpane pane-share">
+          <div class="steps">
+            <div class="step">
+              <span class="step__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg></span>
+              <p class="step__title">Upload any GPX</p>
+              <p class="step__text">Drop an activity file — it is read locally in this tab, and nothing is uploaded anywhere.</p>
+            </div>
+            <div class="step">
+              <span class="step__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12.3a1 1 0 0 1 0-.7 10.8 10.8 0 0 1 19.8 0 1 1 0 0 1 0 .7 10.8 10.8 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></svg></span>
+              <p class="step__title">See the card</p>
+              <p class="step__text">Your route renders on a transparent 9:16 canvas with the distance, pace, and time the file actually records.</p>
+            </div>
+            <div class="step">
+              <span class="step__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></span>
+              <p class="step__title">Download as PNG</p>
+              <p class="step__text">Export a 1080×1920 image (2160×3840 optional) — white on transparent, ready for stories and posts.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabpane pane-recovery">
+          <div class="steps">
+            <div class="step">
+              <span class="step__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>
+              <p class="step__title">Detect the gap</p>
+              <p class="step__text">The app finds sections where your watch kept counting time but GPS coordinates went missing — the interval, its duration, and both anchor points.</p>
+            </div>
+            <div class="step">
+              <span class="step__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.4 3.6a1 1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.8a.5.5 0 0 1-.6-.6l.8-2.9a2 2 0 0 1 .5-.9z"/></svg></span>
+              <p class="step__title">Draw the missing route</p>
+              <p class="step__text">Trace where you actually went on the map — clicks follow real roads, every point drags, and everything undoes. The original recording is never modified.</p>
+            </div>
+            <div class="step">
+              <span class="step__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></span>
+              <p class="step__title">Export the corrected file</p>
+              <p class="step__text">GPS points are generated along your drawing with timestamps fitted into the missing interval, the completed route is previewed with recalculated statistics, and the export marks every generated point as estimated.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container app-footer__inner">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+      All processing happens in your browser — the file never leaves this device.
+    </div>
+  </footer>
+</div>
+</body>
+</html>

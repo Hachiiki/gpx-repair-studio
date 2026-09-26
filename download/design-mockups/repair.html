@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Repair studio — Field Plot mockup · GPX Repair Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Big+Shoulders:opsz,wght@10..72,100..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="screens.css">
+<style>
+  .editgrid { display: grid; gap: 16px; }
+  .settingsrow { display: grid; gap: 10px; }
+  @media (min-width: 420px) { .settingsrow { grid-template-columns: 1fr 1fr; } }
+  .rail .btn--primary, .rail .btn--outline { width: 100%; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="app-header">
+    <div class="container app-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.5 17.5c4.6 0 2.6-5.6 6.1-6.6 2.4-.7 3.4.9 4.4-.4"/>
+            <circle cx="18.4" cy="6.4" r="1.7" fill="currentColor" stroke="none"/>
+          </svg>
+        </span>
+        <span class="brand__name">GPX Repair Studio</span>
+      </a>
+      <span class="header-file" title="morning_10k_tunnel.gpx">morning_10k_tunnel.gpx</span>
+      <span class="app-header__spacer"></span>
+      <nav class="app-header__nav" aria-label="Sections">
+        <a class="nav-link" href="#repair" aria-current="true">Map &amp; tools</a>
+        <a class="nav-link" href="#details">Statistics</a>
+      </nav>
+      <div class="app-header__actions">
+        <button class="btn btn--outline btn--sm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
+          Share card
+        </button>
+        <button class="btn btn--outline btn--sm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          New file
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" id="main-content">
+
+    <!-- ============ section 1: map & tools ============ -->
+    <section class="ws" id="repair" aria-label="Repair map and tools">
+
+      <!-- the map plate -->
+      <div class="plate" role="application" aria-label="Interactive map of the recorded route and its gaps">
+        <div class="plate__map">
+          <svg viewBox="0 0 1000 640" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <!-- field -->
+            <rect width="1000" height="640" fill="rgba(34,34,34,0.045)"/>
+
+            <!-- park -->
+            <rect x="680" y="360" width="262" height="222" rx="20" fill="rgba(34,34,34,0.075)"/>
+            <g fill="rgba(34,34,34,0.11)">
+              <circle cx="722" cy="410" r="7"/><circle cx="760" cy="392" r="5"/><circle cx="812" cy="404" r="8"/>
+              <circle cx="872" cy="390" r="6"/><circle cx="908" cy="428" r="7"/><circle cx="714" cy="520" r="6"/>
+              <circle cx="756" cy="548" r="8"/><circle cx="886" cy="540" r="6"/><circle cx="918" cy="498" r="5"/>
+            </g>
+            <ellipse cx="806" cy="472" rx="40" ry="24" fill="rgba(34,34,34,0.13)"/>
+
+            <!-- road casings -->
+            <g stroke="rgba(34,34,34,0.20)" fill="none">
+              <path d="M0 470 H1000" stroke-width="17"/>
+              <path d="M0 250 H1000" stroke-width="17"/>
+              <path d="M300 0 V640" stroke-width="17"/>
+              <path d="M640 0 V640" stroke-width="17"/>
+              <path d="M80 640 L760 40" stroke-width="15"/>
+              <path d="M0 360 H1000" stroke-width="10"/>
+              <path d="M0 550 H1000" stroke-width="10"/>
+              <path d="M180 0 V640" stroke-width="10"/>
+              <path d="M460 0 V640" stroke-width="10"/>
+              <path d="M780 0 V640" stroke-width="10"/>
+              <path d="M880 0 V640" stroke-width="10"/>
+            </g>
+            <!-- road surfaces -->
+            <g stroke="#FFFFFF" fill="none">
+              <path d="M0 470 H1000" stroke-width="13"/>
+              <path d="M0 250 H1000" stroke-width="13"/>
+              <path d="M300 0 V640" stroke-width="13"/>
+              <path d="M640 0 V640" stroke-width="13"/>
+              <path d="M80 640 L760 40" stroke-width="11"/>
+              <path d="M0 360 H1000" stroke-width="7"/>
+              <path d="M0 550 H1000" stroke-width="7"/>
+              <path d="M180 0 V640" stroke-width="7"/>
+              <path d="M460 0 V640" stroke-width="7"/>
+              <path d="M780 0 V640" stroke-width="7"/>
+              <path d="M880 0 V640" stroke-width="7"/>
+              <path d="M0 310 H300" stroke-width="4"/>
+              <path d="M540 0 V250" stroke-width="4"/>
+              <path d="M380 250 V640" stroke-width="4"/>
+              <path d="M0 510 H180" stroke-width="4"/>
+              <path d="M700 360 V640" stroke-width="4"/>
+            </g>
+
+            <!-- buildings -->
+            <g fill="rgba(34,34,34,0.065)">
+              <rect x="40" y="290" width="52" height="46" rx="2"/><rect x="104" y="290" width="38" height="60" rx="2"/>
+              <rect x="40" y="380" width="66" height="66" rx="2"/><rect x="120" y="392" width="44" height="52" rx="2"/>
+              <rect x="210" y="284" width="60" height="50" rx="2"/><rect x="210" y="380" width="56" height="70" rx="2"/>
+              <rect x="330" y="284" width="48" height="54" rx="2"/><rect x="396" y="284" width="40" height="40" rx="2"/>
+              <rect x="330" y="380" width="44" height="64" rx="2"/><rect x="496" y="284" width="46" height="56" rx="2"/>
+              <rect x="560" y="284" width="52" height="44" rx="2"/><rect x="496" y="390" width="60" height="60" rx="2"/>
+              <rect x="672" y="120" width="50" height="58" rx="2"/><rect x="736" y="120" width="44" height="44" rx="2"/>
+              <rect x="820" y="110" width="56" height="66" rx="2"/><rect x="890" y="140" width="46" height="50" rx="2"/>
+              <rect x="200" y="120" width="56" height="60" rx="2"/><rect x="280" y="120" width="40" height="48" rx="2"/>
+              <rect x="352" y="110" width="52" height="56" rx="2"/><rect x="430" y="120" width="60" height="48" rx="2"/>
+              <rect x="60" y="120" width="52" height="56" rx="2"/><rect x="520" y="120" width="46" height="52" rx="2"/>
+              <rect x="680" y="284" width="0" height="0"/>
+            </g>
+
+            <!-- street labels -->
+            <g fill="rgba(34,34,34,0.45)" font-family="Archivo, Arial, sans-serif" font-size="11">
+              <text x="96" y="462">W Harbor Ave</text>
+              <text x="604" y="242">Meridian Rd</text>
+              <text x="740" y="352">Park Rd</text>
+              <text transform="rotate(-90 292 372)" x="292" y="372" text-anchor="end">N Signal St</text>
+              <text transform="rotate(-49 470 452)" x="470" y="452">Founders Blvd</text>
+            </g>
+
+            <!-- gap span: selection glow under the dashes -->
+            <line x1="460" y1="250" x2="640" y2="470" stroke="rgba(252,76,2,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <line x1="460" y1="250" x2="640" y2="470" stroke="#5A5A5A" stroke-width="3.4" stroke-dasharray="4 4"/>
+
+            <!-- recorded route (ink) -->
+            <path d="M70 560 L180 551 L300 553 L300 470 L300 360 L300 250 L380 250 L460 250"
+                  fill="none" stroke="#222222" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+            <path d="M640 470 L780 470 L780 360 L860 360 L902 336"
+                  fill="none" stroke="#222222" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+
+            <!-- open connection (closes on finish) -->
+            <path d="M640 360 L640 470" fill="none" stroke="rgba(252,76,2,0.6)" stroke-width="2.6" stroke-dasharray="2 3.4" stroke-linecap="round"/>
+
+            <!-- drawn reconstruction (signal) -->
+            <path d="M460 250 L460 360 L640 360" fill="none" stroke="#FC4C02" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <!-- gap boundary markers: ring = before, dot = after -->
+            <circle cx="460" cy="250" r="11" fill="#FFFFFF" opacity="0.85"/>
+            <circle cx="460" cy="250" r="7.5" fill="none" stroke="#5A5A5A" stroke-width="3.2"/>
+            <circle cx="640" cy="470" r="10" fill="#FFFFFF" opacity="0.85"/>
+            <circle cx="640" cy="470" r="5.8" fill="#5A5A5A" stroke="#FFFFFF" stroke-width="2.2"/>
+
+            <!-- midpoint + handles -->
+            <g stroke="rgba(252,76,2,0.85)" stroke-width="1.6">
+              <circle cx="460" cy="305" r="5.5" fill="#FFFFFF"/>
+              <path d="M457 305 h6 M460 302 v6" stroke-width="1.3"/>
+              <circle cx="550" cy="360" r="5.5" fill="#FFFFFF"/>
+              <path d="M547 360 h6 M550 357 v6" stroke-width="1.3"/>
+            </g>
+
+            <!-- vertex drag handles -->
+            <circle cx="460" cy="360" r="6.5" fill="#FFFFFF" stroke="#FC4C02" stroke-width="2.8"/>
+            <circle cx="640" cy="360" r="6.5" fill="#FFFFFF" stroke="#FC4C02" stroke-width="2.8"/>
+          </svg>
+        </div>
+
+        <!-- chrome: mode chip -->
+        <button class="mapchip" title="Draw mode — click to add points (D)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.4 3.6a1 1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.8a.5.5 0 0 1-.6-.6l.8-2.9a2 2 0 0 1 .5-.9z"/></svg>
+          Drawing <span class="keycap">D</span>
+        </button>
+
+        <!-- chrome: distance badge -->
+        <div class="distbadge" role="status">
+          <span class="distbadge__value tnum">212 m <span class="chip chip--est"><span class="sq"></span>Estimated</span></span>
+          <span class="distbadge__meta tnum">12 / 128 points</span>
+          <span class="distbadge__caption">road length, not straight line</span>
+        </div>
+
+        <!-- chrome: toolbar rail -->
+        <div class="toolbar" role="group" aria-label="Map tools">
+          <button class="toolbar__btn toolbar__btn--active" title="Draw mode — click to add points (D)" aria-pressed="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.4 3.6a1 1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.8a.5.5 0 0 1-.6-.6l.8-2.9a2 2 0 0 1 .5-.9z"/></svg>
+          </button>
+          <button class="toolbar__btn" title="Pan mode — drag to navigate (P)" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v2"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.3l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"/></svg>
+          </button>
+          <div class="toolbar__sep"></div>
+          <button class="toolbar__btn" title="Basemap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.8 2.2a2 2 0 0 0-1.7 0L2.6 6.1a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.7 0l8.5-3.9a1 1 0 0 0 0-1.8Z"/><path d="m22 17.7-9.2 4.1a2 2 0 0 1-1.6 0L2 17.7"/><path d="m22 12.7-9.2 4.1a2 2 0 0 1-1.6 0L2 12.7"/></svg>
+          </button>
+          <button class="toolbar__btn" title="Fit activity in view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          </button>
+        </div>
+
+        <!-- chrome: legend -->
+        <div class="legend" aria-hidden="true">
+          <div class="legend__row"><svg viewBox="0 0 26 10"><line x1="1" y1="5" x2="25" y2="5" stroke="#222222" stroke-width="3" stroke-linecap="round"/></svg>Recorded route (solid ink)</div>
+          <div class="legend__row"><svg viewBox="0 0 26 10"><line x1="1" y1="5" x2="25" y2="5" stroke="#5A5A5A" stroke-width="3" stroke-dasharray="3 3"/></svg>Gap span (dashed, severity shades)</div>
+          <div class="legend__row"><svg viewBox="0 0 26 10"><circle cx="7" cy="5" r="4" fill="none" stroke="#000000" stroke-width="2.5"/><circle cx="19" cy="5" r="3.2" fill="#000000" stroke="#FFFFFF" stroke-width="1.6"/></svg>Gap boundaries (ring = before, dot = after)</div>
+          <div class="legend__row"><svg viewBox="0 0 26 10"><line x1="1" y1="5" x2="25" y2="5" stroke="#FC4C02" stroke-width="3.4" stroke-linecap="round"/></svg>Repaired route (solid orange)</div>
+          <div class="legend__row"><svg viewBox="0 0 26 10"><line x1="1" y1="5" x2="25" y2="5" stroke="#FC4C02" stroke-width="3" stroke-dasharray="3 3" opacity=".6"/></svg>Open connection (closes on finish)</div>
+          <div class="legend__row"><svg viewBox="0 0 26 10"><circle cx="13" cy="5" r="3.6" fill="#FFFFFF" stroke="#FC4C02" stroke-width="2.4"/></svg>Drawn point (drag to move)</div>
+        </div>
+
+        <span class="plate__attribution">© OpenStreetMap contributors</span>
+      </div>
+
+      <!-- the tools rail -->
+      <aside class="rail" aria-label="Repair tools" data-testid="tools-panel">
+
+        <!-- draw editor -->
+        <section class="card card--strong" aria-label="Reconstruct route">
+          <div class="card__head">
+            <div>
+              <h3 class="card__title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M22 12h-4"/><path d="M6 12H2"/><path d="M12 6V2"/><path d="M12 22v-4"/></svg>
+                Reconstruct route
+              </h3>
+              <p class="card__desc row" style="margin-top:6px">
+                <span class="chip chip--sev-suspect">suspect</span> Time gap
+                <span class="chip chip--status-warning">Editing</span>
+              </p>
+            </div>
+            <button class="btn btn--ghost btn--sm" title="Close editor (keeps the drawn route)" aria-label="Close editor">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
+          <div class="card__body editgrid">
+
+            <div class="boundary">
+              <span><b>From</b> <span class="mono">53.55913, 9.99610</span></span>
+              <span><b>To</b> <span class="mono">53.56208, 10.00421</span></span>
+            </div>
+
+            <div>
+              <p class="subhead">Between clicks, follow</p>
+              <div class="followchips" style="margin-top:9px" role="radiogroup" aria-label="Follow mode">
+                <input type="radio" name="follow" id="fw1" checked><label class="followchips__label" for="fw1">Roads</label>
+                <input type="radio" name="follow" id="fw2"><label class="followchips__label" for="fw2">Footpaths</label>
+                <input type="radio" name="follow" id="fw3"><label class="followchips__label" for="fw3">Straight lines</label>
+              </div>
+              <p class="xs muted" style="margin-top:9px">Click before and after a curve — the line snaps to the road between your clicks. Roads/Footpaths send only the points you click to a public routing service (OSRM / Valhalla); your GPX file never leaves this browser.</p>
+              <p class="xs" style="margin-top:7px; color:var(--signal); font-weight:600">Drag any point to adjust it — the road re-finds itself.</p>
+            </div>
+
+            <div>
+              <p class="subhead">Timestamps for this repair</p>
+              <p class="small" style="margin-top:9px">The watch was paused for <b>3:12</b> — your drawn route's points will span exactly that gap, estimated as even effort.</p>
+              <div class="followchips" style="margin-top:9px" role="radiogroup" aria-label="Time strategy">
+                <input type="radio" name="time" id="ts1" checked><label class="followchips__label" for="ts1">By distance</label>
+                <input type="radio" name="time" id="ts2"><label class="followchips__label" for="ts2">Evenly</label>
+                <input type="radio" name="time" id="ts3"><label class="followchips__label" for="ts3">Manual</label>
+              </div>
+              <div class="readout" style="margin-top:10px">
+                <span class="readout__value tnum">3:12 <span class="chip chip--est"><span class="sq"></span>Estimated</span></span>
+                <span class="readout__note">
+                  <span class="readout__pace tnum">5:07 /km <span class="xs muted">estimated pace</span> <span class="chip chip--est"><span class="sq"></span>Estimated</span></span>
+                  <span class="xs muted">gap duration, spread by distance</span>
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <p class="subhead" style="margin-bottom:9px">Elevation <span class="chip chip--est" style="margin-left:4px"><span class="sq"></span>Estimated</span></p>
+              <p class="small"><b>▲ 42 m ▼ 18 m</b> <span class="xs muted">· 38 m – 61 m · Open-Meteo</span></p>
+              <div class="row" style="margin-top:8px">
+                <button class="btn btn--outline btn--sm">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                  Re-estimate
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div class="bigstat">
+                <span class="bigstat__value tnum">212 m</span>
+                <span class="chip chip--est"><span class="sq"></span>Estimated</span>
+              </div>
+              <p class="xs muted tnum" style="margin-top:4px">12 / 128 points</p>
+            </div>
+
+            <div class="historybar" aria-label="Drawing history">
+              <button class="btn btn--outline btn--sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+                Undo
+              </button>
+              <button class="btn btn--outline btn--sm" disabled style="opacity:.45; cursor:not-allowed">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+                Redo
+              </button>
+              <button class="btn btn--ghost btn--sm">Clear</button>
+            </div>
+
+            <div class="settingsrow">
+              <label class="field">
+                <span class="field__label">Resample spacing</span>
+                <select class="select"><option>Off (points only)</option><option>Every 10 m</option><option>Every 25 m</option><option>Every 50 m</option></select>
+              </label>
+              <label class="check" style="align-self:end; padding-bottom:9px">
+                <input type="checkbox" checked> Snap to recorded points
+              </label>
+            </div>
+
+            <div>
+              <p class="xs muted" style="margin-bottom:6px">Drawn points — drag on the map to adjust, double-click to remove</p>
+              <div class="vertexlist">
+                <div class="vertexrow">
+                  <span class="vertexrow__n">1</span>
+                  <span class="vertexrow__coord">53.56002, 9.99614</span>
+                  <span class="chip chip--est" style="padding:1px 6px">snapped</span>
+                  <button class="vertexrow__del" aria-label="Delete point 1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+                </div>
+                <div class="vertexrow">
+                  <span class="vertexrow__n">2</span>
+                  <span class="vertexrow__coord">53.56120, 9.99931</span>
+                  <button class="vertexrow__del" aria-label="Delete point 2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+                </div>
+                <div class="vertexrow">
+                  <span class="vertexrow__n">3</span>
+                  <span class="vertexrow__coord">53.56198, 10.00210</span>
+                  <button class="vertexrow__del" aria-label="Delete point 3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="spread" style="border-top:1px solid var(--ink-10); padding:12px 18px">
+            <button class="btn btn--ghost btn--sm btn--ghost--danger">Mark as skipped</button>
+            <button class="btn btn--primary btn--sm">Done</button>
+          </div>
+        </section>
+
+        <!-- manual repairs -->
+        <section class="card" aria-label="Manual repairs">
+          <div class="card__head">
+            <div>
+              <h3 class="card__title"><span class="sq"></span>Manual repairs</h3>
+              <p class="card__desc">Add or redraw route yourself — detection is only a helper.</p>
+            </div>
+          </div>
+          <div class="card__body stack">
+            <div class="grid2">
+              <button class="btn btn--primary btn--sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.4 3.6a1 1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.8a.5.5 0 0 1-.6-.6l.8-2.9a2 2 0 0 1 .5-.9z"/></svg>
+                Add missing route
+              </button>
+              <button class="btn btn--outline btn--sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4 7.07 17 2.51-7.39L21 11.07z"/></svg>
+                Redraw a stretch
+              </button>
+            </div>
+            <p class="xs muted">No manual repairs yet. Start one anywhere on the route — a detour the watch drew straight, a missing head or tail — even when no gap was detected.</p>
+          </div>
+        </section>
+
+        <!-- detected gaps -->
+        <section class="card" aria-label="Detected gaps">
+          <div class="card__head">
+            <div>
+              <h3 class="card__title"><span class="sq"></span>Detected gaps</h3>
+              <p class="card__desc">2 candidate repair sites</p>
+            </div>
+            <div class="card__action">
+              <button class="btn btn--ghost btn--sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4h-7"/><path d="M10 4H3"/><path d="M21 12h-9"/><path d="M8 12H3"/><path d="M21 20h-5"/><path d="M12 20H3"/><circle cx="12" cy="4" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="14" cy="20" r="2"/></svg>
+                Detection settings
+              </button>
+            </div>
+          </div>
+          <div class="card__body gaprows">
+            <div class="gaprow gaprow--selected" tabindex="0">
+              <div class="gaprow__top">
+                <span class="chip chip--sev-suspect">suspect</span> <b style="font-size:13px">Time gap</b>
+                <span class="chip chip--status-warning">Editing</span>
+                <span class="gaprow__elapsed tnum">3:12 elapsed</span>
+              </div>
+              <p class="gaprow__line"><b>From</b> Sep 22, 2025, 6:42:10 AM · <span class="mono">53.55913, 9.99610</span></p>
+              <p class="gaprow__line"><b>To</b> Sep 22, 2025, 6:45:22 AM · <span class="mono">53.56208, 10.00421</span></p>
+              <p class="gaprow__line">Straight-line: 1.1 km · implied speed 20.6 km/h</p>
+              <span class="gaprow__action">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.4 3.6a1 1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.8a.5.5 0 0 1-.6-.6l.8-2.9a2 2 0 0 1 .5-.9z"/></svg>
+                Edit route
+              </span>
+            </div>
+            <div class="gaprow" tabindex="0">
+              <div class="gaprow__top">
+                <span class="chip chip--sev-info">info</span> <b style="font-size:13px">Segment break</b>
+                <span class="chip chip--plain">Not repaired</span>
+                <span class="gaprow__elapsed">elapsed unknown</span>
+              </div>
+              <p class="gaprow__line"><b>From</b> no time · <span class="mono">53.54981, 9.99320</span></p>
+              <p class="gaprow__line"><b>To</b> no time · <span class="mono">53.55110, 9.99402</span></p>
+              <p class="gaprow__line">Straight-line: 84 m</p>
+              <span class="gaprow__action">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.4 3.6a1 1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.8a.5.5 0 0 1-.6-.6l.8-2.9a2 2 0 0 1 .5-.9z"/></svg>
+                Draw route
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <!-- export -->
+        <section class="card" aria-label="Export">
+          <div class="card__head">
+            <div>
+              <h3 class="card__title"><span class="sq"></span>Export</h3>
+              <p class="card__desc">Your committed repairs, ready to download with their provenance markers.</p>
+            </div>
+            <div class="card__action">
+              <button class="btn btn--primary btn--sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+                Review &amp; export
+              </button>
+            </div>
+          </div>
+          <div class="card__body">
+            <dl class="kv">
+              <div class="kv__row"><dt class="kv__label">Repairs to include</dt><dd class="kv__value tnum">2</dd></div>
+              <div class="kv__row"><dt class="kv__label">Distance added</dt><dd class="kv__value tnum">0.42 km</dd></div>
+              <div class="kv__row"><dt class="kv__label">Skipped gaps</dt><dd class="kv__value tnum">1</dd></div>
+              <div class="kv__row"><dt class="kv__label">Open in editor (excluded)</dt><dd class="kv__value tnum" style="color:var(--shade)">1</dd></div>
+            </dl>
+          </div>
+        </section>
+      </aside>
+    </section>
+
+    <div class="scroll-cue">
+      <a class="scroll-cue__link" href="#details">
+        Statistics &amp; file details
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </a>
+    </div>
+
+    <!-- ============ section 2: details ============ -->
+    <section id="details" aria-label="Statistics and file details" style="padding:28px 0 40px">
+      <div class="spread" style="align-items:flex-end">
+        <div>
+          <h2 class="section-h">Statistics &amp; file details</h2>
+          <p class="section-sub">Everything the app knows about the original recording — honest numbers with their provenance, never fabricated.</p>
+        </div>
+        <a class="btn btn--outline btn--sm" href="#repair">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+          Back to the map
+        </a>
+      </div>
+
+      <div class="grid3" style="margin-top:22px">
+
+        <section class="card" aria-label="File summary">
+          <div class="card__head">
+            <div>
+              <h3 class="card__title"><span class="sq"></span>File summary</h3>
+              <p class="card__desc">morning_10k_tunnel.gpx</p>
+            </div>
+          </div>
+          <div class="card__body">
+            <dl class="kv">
+              <div class="kv__row"><dt class="kv__label">Format</dt><dd class="kv__value"><span class="chip chip--plain">GPX 1.1</span></dd></div>
+              <div class="kv__row"><dt class="kv__label">Creator</dt><dd class="kv__value">StravaGPX iPhone</dd></div>
+              <div class="kv__row"><dt class="kv__label">Tracks</dt><dd class="kv__value tnum">1</dd></div>
+              <div class="kv__row"><dt class="kv__label">Segments</dt><dd class="kv__value tnum">2</dd></div>
+              <div class="kv__row"><dt class="kv__label">Track points</dt><dd class="kv__value tnum">1,250</dd></div>
+              <div class="kv__row"><dt class="kv__label">Waypoints</dt><dd class="kv__value tnum">0</dd></div>
+              <div class="kv__row"><dt class="kv__label">Routes</dt><dd class="kv__value tnum">0</dd></div>
+              <div class="kv__row"><dt class="kv__label">Timing</dt><dd class="kv__value">1,234 of 1,250 points timed</dd></div>
+            </dl>
+          </div>
+        </section>
+
+        <section class="card" aria-label="Validation report">
+          <div class="card__head">
+            <div>
+              <h3 class="card__title"><span class="sq"></span>Validation report</h3>
+              <p class="card__desc">0 errors · 0 warnings · 1 note</p>
+            </div>
+          </div>
+          <div class="card__body">
+            <p class="small row" style="gap:8px">
+              <span class="chip chip--status-success">note</span> Previously repaired
+            </p>
+            <p class="xs muted" style="margin-top:6px">78 points carry reconstruction markers from a previous repair — they count as repaired distance, not recorded, and the map draws them as repairs.</p>
+          </div>
+        </section>
+
+        <section class="card" aria-label="Segments">
+          <div class="card__head">
+            <div>
+              <h3 class="card__title"><span class="sq"></span>Segments</h3>
+              <p class="card__desc">2 segments across 1 track</p>
+            </div>
+          </div>
+          <div class="card__body">
+            <p class="tracklabel">MORNING 10K</p>
+            <div class="listrows" style="margin-top:8px">
+              <div class="listrow">
+                <div class="listrow__top"><span class="listrow__id">1/1</span><span class="tnum">1,166 points · 9.97 km</span></div>
+                <span class="xs muted tnum">6:41:02 AM → 6:47:12 AM</span>
+              </div>
+              <div class="listrow">
+                <div class="listrow__top"><span class="listrow__id">1/2</span><span class="tnum">84 points · 84 m</span><span class="chip chip--status-warning" style="margin-left:auto">2 flagged</span></div>
+                <span class="xs muted">No timestamps</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- statistics -->
+      <section class="card card--strong" style="margin-top:16px" aria-label="Statistics">
+        <div class="card__head">
+          <div>
+            <h3 class="card__title"><span class="sq"></span>Statistics</h3>
+            <p class="card__desc">Original recording plus committed repairs — every estimated value is labeled with its source.</p>
+          </div>
+          <div class="card__action">
+            <span class="segpill" role="radiogroup" aria-label="Pace unit">
+              <input type="radio" name="pu" id="pk1" checked><label class="segpill__label" for="pk1">/km</label>
+              <input type="radio" name="pu" id="pk2"><label class="segpill__label" for="pk2">/mi</label>
+            </span>
+          </div>
+        </div>
+        <div class="card__body">
+          <table class="stat-table">
+            <thead><tr><th>Metric</th><th>Value</th><th>Source</th></tr></thead>
+            <tbody>
+              <tr><td>Recorded distance</td><td class="tnum">10.05 km</td><td><span class="chip chip--rec"><span class="sq"></span>Recorded</span></td></tr>
+              <tr><td>Repaired distance</td><td class="tnum">0.42 km</td><td><span class="chip chip--est"><span class="sq"></span>Estimated</span></td></tr>
+              <tr><td>Total with repairs</td><td class="tnum">10.47 km</td><td><span class="chip chip--mix"><span class="sq"></span>Mixed</span></td></tr>
+              <tr><td>Recorded moving time</td><td class="tnum">51:32</td><td><span class="chip chip--rec"><span class="sq"></span>Recorded</span></td></tr>
+              <tr><td>Wall time</td><td class="tnum">1:02:10</td><td><span class="chip chip--rec"><span class="sq"></span>Recorded</span></td></tr>
+              <tr><td>Repair time</td><td class="tnum">3:12</td><td><span class="chip chip--est"><span class="sq"></span>Estimated</span></td></tr>
+              <tr><td>Moving time incl. repairs</td><td class="tnum">54:44</td><td><span class="chip chip--mix"><span class="sq"></span>Mixed</span></td></tr>
+              <tr><td>Pace (recorded)</td><td class="tnum">5:07 /km</td><td><span class="chip chip--rec"><span class="sq"></span>Recorded</span></td></tr>
+              <tr><td>Pace (repairs)</td><td class="tnum">5:04 /km</td><td><span class="chip chip--est"><span class="sq"></span>Estimated</span></td></tr>
+              <tr><td>Overall pace</td><td class="tnum">5:07 /km</td><td><span class="chip chip--mix"><span class="sq"></span>Mixed</span></td></tr>
+              <tr><td>Elevation gain (recorded)</td><td class="tnum">112 m</td><td><span class="chip chip--rec"><span class="sq"></span>Recorded</span></td></tr>
+              <tr><td>Elevation gain (repairs)</td><td class="tnum">24 m</td><td><span class="chip chip--est"><span class="sq"></span>Estimated</span></td></tr>
+              <tr><td>Elevation gain (total)</td><td class="tnum">136 m</td><td><span class="chip chip--mix"><span class="sq"></span>Mixed</span></td></tr>
+              <tr><td>Elevation loss (total)</td><td class="tnum">126 m</td><td><span class="chip chip--mix"><span class="sq"></span>Mixed</span></td></tr>
+            </tbody>
+          </table>
+          <div class="footnotes">
+            <p class="footnote">Gain/loss use a 2.0 m noise threshold (changes smaller than that are treated as GPS/DEM noise); repaired stretches are estimated from Open-Meteo terrain.</p>
+            <p class="footnote">78 points in this file were reconstructed by a previous repair — they count as repaired distance, not recorded, and the map draws them as repairs.</p>
+            <p class="footnote">Wall time includes 3:12 across 1 gap span (excluded from moving time).</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- elevation profile -->
+      <section class="card" style="margin-top:16px" aria-label="Elevation profile">
+        <div class="card__head">
+          <div>
+            <h3 class="card__title"><span class="sq"></span>Elevation profile</h3>
+            <p class="card__desc">18 m to 64 m over 10.5 km — recorded stretches solid, reconstructed stretches estimated.</p>
+          </div>
+        </div>
+        <div class="card__body elev">
+          <svg class="elev__svg" viewBox="0 0 640 180" role="img" aria-label="Elevation profile: 18 to 64 meters over 10.5 kilometers, 136 m up, 126 m down">
+            <g stroke="rgba(34,34,34,0.12)" stroke-width="1">
+              <line x1="46" y1="24" x2="624" y2="24"/><line x1="46" y1="24" x2="624" y2="24" stroke-dasharray="3 3"/>
+              <line x1="46" y1="82" x2="624" y2="82" stroke-dasharray="3 3"/>
+              <line x1="46" y1="140" x2="624" y2="140"/>
+            </g>
+            <g fill="#5A5A5A" font-family="Archivo, Arial, sans-serif" font-size="10.5" text-anchor="end">
+              <text x="40" y="28">64 m</text><text x="40" y="86">41 m</text><text x="40" y="144">18 m</text>
+            </g>
+            <g fill="#5A5A5A" font-family="Archivo, Arial, sans-serif" font-size="10.5" text-anchor="middle">
+              <text x="50" y="160">0 m</text><text x="335" y="160">5.2 km</text><text x="620" y="160">10.5 km</text>
+            </g>
+            <!-- recorded, solid ink -->
+            <path d="M46 128 C90 118 120 96 160 92 C205 88 230 104 268 106 L296 104"
+                  fill="none" stroke="#222222" stroke-width="1.9"/>
+            <!-- reconstructed, dashed signal -->
+            <path d="M296 104 C330 78 352 58 378 56 C404 54 420 74 442 88"
+                  fill="none" stroke="#FC4C02" stroke-width="2.1" stroke-dasharray="5 3"/>
+            <!-- recorded, solid ink -->
+            <path d="M442 88 C480 96 520 116 560 122 C586 126 606 124 624 120"
+                  fill="none" stroke="#222222" stroke-width="1.9"/>
+            <!-- the gap span region marker -->
+            <rect x="296" y="14" width="146" height="126" fill="rgba(252,76,2,0.05)"/>
+            <line x1="296" y1="14" x2="296" y2="140" stroke="rgba(34,34,34,0.2)" stroke-width="1" stroke-dasharray="2 3"/>
+            <line x1="442" y1="14" x2="442" y2="140" stroke="rgba(34,34,34,0.2)" stroke-width="1" stroke-dasharray="2 3"/>
+          </svg>
+          <div class="elev__legend">
+            <span><svg width="26" height="8" viewBox="0 0 26 8"><line x1="1" y1="4" x2="25" y2="4" stroke="#222222" stroke-width="2"/></svg>Recorded</span>
+            <span><svg width="26" height="8" viewBox="0 0 26 8"><line x1="1" y1="4" x2="25" y2="4" stroke="#FC4C02" stroke-width="2.2" stroke-dasharray="5 3"/></svg>Reconstructed (estimated)</span>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container app-footer__inner">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+      All processing happens in your browser — the file never leaves this device.
+    </div>
+  </footer>
+</div>
+</body>
+</html>

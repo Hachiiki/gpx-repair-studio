@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile — Field Plot mockup · GPX Repair Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Big+Shoulders:opsz,wght@10..72,100..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="screens.css">
+<style>
+  .pagehead { padding: 36px 0 8px; display: grid; gap: 8px; }
+  .phone .hero__title { font-size: 30px; }
+  .phone .upload { padding: 26px 14px; }
+  .phone .upload__icon { width: 46px; height: 46px; border-radius: 11px; }
+  .phone .upload__title { font-size: 15.5px; }
+  .phone .step { padding: 14px; }
+  .phone .plate { height: 300px; min-height: 0; border-radius: 10px; }
+  .phone .distbadge { padding: 6px 11px 5px; }
+  .phone .distbadge__value { font-size: 19px; }
+  .phone .distbadge__caption { display: none; }
+  .phone .legend { font-size: 9.5px; padding: 6px 8px; gap: 3.5px; }
+  .phone .toolbar { right: 8px; padding: 4px; }
+  .phone .toolbar__btn { width: 30px; height: 30px; }
+  .phone .card__body { padding: 14px; }
+  .phone .card__head { padding: 12px 14px 0 14px; }
+  .phone .stage { height: 380px; min-height: 0; border-radius: 10px; }
+  .phone .sharecard { width: 196px; }
+  .phone .sharecard__wordmark { font-size: 20px; }
+  .phone .sharecard__stats { padding: 0 12px; gap: 2px; }
+  .phone .sharecard__statvalue { font-size: 12px; margin-top: 2px; }
+  .phone .sharecard__statlabel { font-size: 7px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="app-header">
+    <div class="container app-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.5 17.5c4.6 0 2.6-5.6 6.1-6.6 2.4-.7 3.4.9 4.4-.4"/>
+            <circle cx="18.4" cy="6.4" r="1.7" fill="currentColor" stroke="none"/>
+          </svg>
+        </span>
+        <span class="brand__name">GPX Repair Studio</span>
+      </a>
+      <span class="app-header__spacer"></span>
+      <nav class="app-header__nav" aria-label="Proposal sections">
+        <a class="nav-link" href="index.html">Design system</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" id="main-content">
+    <div class="pagehead">
+      <h2 class="section-h">Mobile — 375 px</h2>
+      <p class="section-sub">The same field, equipment borders and keycap controls re-flowed for a phone. Compact toggle labels, the map takes the first viewport, tools stack below, share card stays 9:16. No horizontal overflow anywhere.</p>
+    </div>
+
+    <div class="phones" style="padding: 24px 0 64px">
+
+      <!-- phone 1: landing -->
+      <div class="phonecol">
+        <div class="phone">
+          <div class="phone__notch" aria-hidden="true"></div>
+          <div class="phone__content">
+            <header class="app-header" style="position:static">
+              <div class="container app-header__inner">
+                <a class="brand" href="index.html">
+                  <span class="brand__mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4.5 17.5c4.6 0 2.6-5.6 6.1-6.6 2.4-.7 3.4.9 4.4-.4"/>
+                      <circle cx="18.4" cy="6.4" r="1.7" fill="currentColor" stroke="none"/>
+                    </svg>
+                  </span>
+                  <span class="brand__name">GPX Repair Studio</span>
+                </a>
+              </div>
+            </header>
+            <div class="container" style="padding-top:26px; display:grid; gap:20px">
+              <div class="seg seg--compact" role="radiogroup" aria-label="What do you want to do?">
+                <input type="radio" name="m1" id="m1a" checked><label class="seg__label" for="m1a">Repair</label>
+                <input type="radio" name="m1" id="m1b"><label class="seg__label" for="m1b">Share card</label>
+                <input type="radio" name="m1" id="m1c"><label class="seg__label" for="m1c">Recovery</label>
+              </div>
+              <div class="hero">
+                <h2 class="hero__title">Repair incomplete GPS recordings</h2>
+                <p class="hero__sub" style="font-size:14px">Upload a GPX activity with gaps or damage, inspect exactly what was recorded, then draw the missing route yourself.</p>
+              </div>
+              <div class="upload">
+                <div class="upload__inner">
+                  <span class="upload__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 12v6"/><path d="m15 15-3-3-3 3"/></svg>
+                  </span>
+                  <p class="upload__title">Drop your GPX file here</p>
+                  <p class="upload__sub">or <span>click to browse</span></p>
+                  <p class="upload__privacy">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+                    Processed entirely in your browser — the file never leaves this device.
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="step__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 7a4 4 0 0 1 4 4"/><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 21l-4.3-4.3"/></svg></span>
+                <p class="step__title">Inspect</p>
+                <p class="step__text">See every segment, gap, and anomaly with recorded-only statistics — nothing is invented.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <span class="phonecol__caption">Landing</span>
+        <span class="phonecol__note">Compact three-tab toggle, single-column hero and upload.</span>
+      </div>
+
+      <!-- phone 2: workspace -->
+      <div class="phonecol">
+        <div class="phone">
+          <div class="phone__notch" aria-hidden="true"></div>
+          <div class="phone__content">
+            <header class="app-header" style="position:static">
+              <div class="container app-header__inner">
+                <a class="brand" href="index.html">
+                  <span class="brand__mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4.5 17.5c4.6 0 2.6-5.6 6.1-6.6 2.4-.7 3.4.9 4.4-.4"/>
+                      <circle cx="18.4" cy="6.4" r="1.7" fill="currentColor" stroke="none"/>
+                    </svg>
+                  </span>
+                  <span class="brand__name">GPX Repair Studio</span>
+                </a>
+                <span class="app-header__spacer"></span>
+                <button class="btn btn--outline btn--sm" style="padding:5px 9px">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                  New file
+                </button>
+              </div>
+            </header>
+            <div class="container" style="padding:14px 0 0; display:grid; gap:14px">
+              <div class="plate" role="application" aria-label="Map">
+                <div class="plate__map">
+                  <svg viewBox="0 0 343 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                    <rect width="343" height="300" fill="rgba(34,34,34,0.05)"/>
+                    <path d="M0 210 H343" stroke="#FFFFFF" stroke-width="12"/>
+                    <path d="M0 210 H343" stroke="rgba(34,34,34,0.18)" stroke-width="14" opacity=".5"/>
+                    <path d="M0 210 H343" stroke="#FFFFFF" stroke-width="9"/>
+                    <path d="M120 0 V300" stroke="#FFFFFF" stroke-width="9"/>
+                    <path d="M230 0 V300" stroke="#FFFFFF" stroke-width="9"/>
+                    <path d="M0 110 H343" stroke="#FFFFFF" stroke-width="6"/>
+                    <g fill="rgba(34,34,34,0.07)">
+                      <rect x="20" y="130" width="70" height="52" rx="2"/><rect x="150" y="130" width="56" height="60" rx="2"/>
+                      <rect x="30" y="30" width="60" height="50" rx="2"/><rect x="260" y="130" width="60" height="56" rx="2"/>
+                    </g>
+                    <path d="M24 250 L120 210 L120 110 L168 110" fill="none" stroke="#222222" stroke-width="3.2" stroke-linecap="round" opacity=".92"/>
+                    <path d="M230 210 L300 210 L322 186" fill="none" stroke="#222222" stroke-width="3.2" stroke-linecap="round" opacity=".92"/>
+                    <line x1="168" y1="110" x2="230" y2="210" stroke="rgba(252,76,2,0.45)" stroke-width="8" stroke-linecap="round"/>
+                    <line x1="168" y1="110" x2="230" y2="210" stroke="#5A5A5A" stroke-width="3" stroke-dasharray="4 4"/>
+                    <path d="M168 110 L168 160 L230 160 L230 210" fill="none" stroke="#FC4C02" stroke-width="4.2" stroke-linecap="round"/>
+                    <circle cx="168" cy="110" r="6.5" fill="none" stroke="#5A5A5A" stroke-width="2.8"/>
+                    <circle cx="230" cy="210" r="5" fill="#5A5A5A" stroke="#fff" stroke-width="1.8"/>
+                    <circle cx="168" cy="160" r="5" fill="#FFFFFF" stroke="#FC4C02" stroke-width="2.4"/>
+                    <circle cx="230" cy="160" r="5" fill="#FFFFFF" stroke="#FC4C02" stroke-width="2.4"/>
+                  </svg>
+                </div>
+                <div class="mapchip" style="top:8px; left:8px; padding:5px 8px; font-size:11px">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.4 3.6a1 1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.8a.5.5 0 0 1-.6-.6l.8-2.9a2 2 0 0 1 .5-.9z"/></svg>
+                  Drawing <span class="keycap">D</span>
+                </div>
+                <div class="distbadge">
+                  <span class="distbadge__value tnum">212 m <span class="chip chip--est" style="padding:1px 6px"><span class="sq"></span>Estimated</span></span>
+                  <span class="distbadge__meta tnum">12 / 128 points</span>
+                </div>
+                <div class="legend">
+                  <div class="legend__row"><svg viewBox="0 0 26 10"><line x1="1" y1="5" x2="25" y2="5" stroke="#222222" stroke-width="3" stroke-linecap="round"/></svg>Recorded route</div>
+                  <div class="legend__row"><svg viewBox="0 0 26 10"><line x1="1" y1="5" x2="25" y2="5" stroke="#5A5A5A" stroke-width="3" stroke-dasharray="3 3"/></svg>Gap span</div>
+                  <div class="legend__row"><svg viewBox="0 0 26 10"><line x1="1" y1="5" x2="25" y2="5" stroke="#FC4C02" stroke-width="3.4" stroke-linecap="round"/></svg>Repaired route</div>
+                  <div class="legend__row"><svg viewBox="0 0 26 10"><circle cx="13" cy="5" r="3.6" fill="#FFFFFF" stroke="#FC4C02" stroke-width="2.4"/></svg>Drawn point</div>
+                </div>
+              </div>
+
+              <section class="card card--strong" aria-label="Reconstruct route">
+                <div class="card__head">
+                  <div>
+                    <h3 class="card__title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M22 12h-4"/><path d="M6 12H2"/><path d="M12 6V2"/><path d="M12 22v-4"/></svg>
+                      Reconstruct route
+                    </h3>
+                    <p class="card__desc row" style="margin-top:5px">
+                      <span class="chip chip--sev-suspect">suspect</span> Time gap
+                      <span class="chip chip--status-warning">Editing</span>
+                    </p>
+                  </div>
+                </div>
+                <div class="card__body" style="display:grid; gap:13px">
+                  <div class="followchips">
+                    <input type="radio" name="mf" id="mf1" checked><label class="followchips__label" for="mf1">Roads</label>
+                    <input type="radio" name="mf" id="mf2"><label class="followchips__label" for="mf2">Footpaths</label>
+                    <input type="radio" name="mf" id="mf3"><label class="followchips__label" for="mf3">Straight lines</label>
+                  </div>
+                  <div class="readout" style="padding:8px 11px">
+                    <span class="readout__value tnum" style="font-size:24px">3:12 <span class="chip chip--est"><span class="sq"></span>Estimated</span></span>
+                    <span class="readout__note"><span class="xs muted">gap duration</span></span>
+                  </div>
+                  <div class="bigstat">
+                    <span class="bigstat__value tnum" style="font-size:32px">212 m</span>
+                    <span class="chip chip--est"><span class="sq"></span>Estimated</span>
+                  </div>
+                  <div class="historybar">
+                    <button class="btn btn--outline btn--sm">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+                      Undo
+                    </button>
+                    <button class="btn btn--ghost btn--sm">Clear</button>
+                  </div>
+                </div>
+                <div class="spread" style="border-top:1px solid var(--ink-10); padding:10px 14px">
+                  <button class="btn btn--ghost btn--sm btn--ghost--danger">Mark as skipped</button>
+                  <button class="btn btn--primary btn--sm">Done</button>
+                </div>
+              </section>
+
+              <section class="card" aria-label="Export">
+                <div class="card__head">
+                  <div>
+                    <h3 class="card__title"><span class="sq"></span>Export</h3>
+                    <p class="card__desc">Your committed repairs, ready to download.</p>
+                  </div>
+                </div>
+                <div class="card__body" style="padding-top:12px">
+                  <button class="btn btn--primary btn--block">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+                    Review &amp; export
+                  </button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+        <span class="phonecol__caption">Repair workspace</span>
+        <span class="phonecol__note">Map owns the first viewport; tools stack underneath with full function.</span>
+      </div>
+
+      <!-- phone 3: share -->
+      <div class="phonecol">
+        <div class="phone">
+          <div class="phone__notch" aria-hidden="true"></div>
+          <div class="phone__content">
+            <header class="app-header" style="position:static">
+              <div class="container app-header__inner">
+                <a class="brand" href="index.html">
+                  <span class="brand__mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4.5 17.5c4.6 0 2.6-5.6 6.1-6.6 2.4-.7 3.4.9 4.4-.4"/>
+                      <circle cx="18.4" cy="6.4" r="1.7" fill="currentColor" stroke="none"/>
+                    </svg>
+                  </span>
+                  <span class="brand__name">GPX Repair Studio</span>
+                </a>
+              </div>
+            </header>
+            <div class="container" style="padding:14px 0 0; display:grid; gap:14px">
+              <div class="stage">
+                <div class="sharecard">
+                  <svg class="sharecard__route" viewBox="0 0 300 533" aria-hidden="true">
+                    <path d="M64 414 C64 352 128 344 138 288 C148 232 104 214 124 162 C144 110 208 122 218 78 C228 52 232 36 240 22"
+                          fill="none" stroke="#000000" stroke-width="17" stroke-linecap="round"/>
+                    <path d="M64 414 C64 352 128 344 138 288 C148 232 104 214 124 162 C144 110 208 122 218 78 C228 52 232 36 240 22"
+                          fill="none" stroke="#FC4C02" stroke-width="10" stroke-linecap="round"/>
+                    <g transform="translate(104 348) scale(1.15)" fill="#FFFFFF">
+                      <path d="M10 30 C22 26 28 17 40 14 C47 12.3 52 15 57.5 12.6 C61.6 10.8 66.6 11 69.6 13.6 L79.6 21.8 C82 23.8 80.8 27.4 77.6 28 L14 39.4 C9.6 40.2 5.2 33.6 10 30 Z"/>
+                      <rect x="8" y="41" width="72" height="6.4" rx="3.2"/>
+                    </g>
+                  </svg>
+                  <span class="sharecard__wordmark">STRAVA</span>
+                  <div class="sharecard__stats">
+                    <div>
+                      <div class="sharecard__statlabel">DISTANCE</div>
+                      <div class="sharecard__statvalue tnum">21.12 km</div>
+                    </div>
+                    <div>
+                      <div class="sharecard__statlabel">PACE</div>
+                      <div class="sharecard__statvalue tnum">5:00 /km</div>
+                    </div>
+                    <div>
+                      <div class="sharecard__statlabel">TIME</div>
+                      <div class="sharecard__statvalue tnum">1h 45m</div>
+                    </div>
+                  </div>
+                </div>
+                <span class="stage__caption">Transparent background — shown on dark</span>
+              </div>
+
+              <section class="card card--strong" aria-label="On the card">
+                <div class="card__head">
+                  <div>
+                    <h3 class="card__title"><span class="sq"></span>On the card</h3>
+                    <p class="card__desc">Recorded values only.</p>
+                  </div>
+                  <div class="card__action">
+                    <span class="segpill">
+                      <input type="radio" name="mpu" id="mp1" checked><label class="segpill__label" for="mp1">/km</label>
+                      <input type="radio" name="mpu" id="mp2"><label class="segpill__label" for="mp2">/mi</label>
+                    </span>
+                  </div>
+                </div>
+                <div class="card__body" style="display:grid; gap:13px">
+                  <div class="trio">
+                    <div><div class="trio__label">DISTANCE</div><div class="trio__value tnum" style="font-size:21px">21.12 km</div></div>
+                    <div><div class="trio__label">PACE</div><div class="trio__value tnum" style="font-size:21px">5:00 /km</div></div>
+                    <div><div class="trio__label">TIME</div><div class="trio__value tnum" style="font-size:21px">1h 45m</div></div>
+                  </div>
+                  <div class="segpill" style="align-self:start">
+                    <input type="radio" name="mres" id="mr1" checked><label class="segpill__label" for="mr1">1× 1080 × 1920</label>
+                    <input type="radio" name="mres" id="mr2"><label class="segpill__label" for="mr2">2× 2160 × 3840</label>
+                  </div>
+                  <button class="btn btn--primary btn--block">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+                    Download PNG
+                  </button>
+                  <button class="btn btn--outline btn--block">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    Repair this file instead
+                  </button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+        <span class="phonecol__caption">Share view</span>
+        <span class="phonecol__note">The 9:16 card scales down cleanly; the honest-numbers panel follows.</span>
+      </div>
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container app-footer__inner">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+      All processing happens in your browser — the file never leaves this device.
+    </div>
+  </footer>
+</div>
+</body>
+</html>

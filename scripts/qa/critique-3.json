@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "**Defect 1: Share card wordmark clipping (Image 1)**\n*   **Location:** Center of the black 9:16 share card, upper third.\n*   **Issue:** The \"STRAVA\" text is horizontally clipped on the right side. The final letter 'A' is cut off by the edge of the orange route graphic or the container boundary.\n\n**Defect 2: Mobile share view stats overflow (Image 2, Right Frame)**\n*   **Location:** Bottom section of the 9:16 share card inside the rightmost phone frame.\n*   **Issue:** The statistics row (`21.12 km 5:00 /km 1h 45m`) is overflowing the horizontal boundaries of the black card container. The text is too wide for the mobile layout and extends beyond the card's edges.\n\n**Defect 3: Mobile header text clipping (Image 2, All Frames)**\n*   **Location:** Top header bar of all three phone frames.\n*   **Issue:** The application title \"GPX Repair Studio\" is clipped on the right side. The text overlaps with or is cut off by the dark status bar pill, rendering the full title illegible.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790438733,
+  "id": "20260927000524381a552fd37a41df",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260927000524381a552fd37a41df",
+  "usage": {
+    "completion_tokens": 251,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 4119,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 4370
+  }
+}

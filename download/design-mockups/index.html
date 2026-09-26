@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field Plot — a design proposal for GPX Repair Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Big+Shoulders:opsz,wght@10..72,100..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="screens.css">
+<style>
+  .comp-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .comp-grid { grid-template-columns: 1fr 1fr; } }
+  .comp { border: 1px solid var(--ink-20); border-radius: 10px; background: var(--paper); padding: 18px; display: grid; gap: 14px; align-content: start; }
+  .comp__label { font-size: 11.5px; font-weight: 600; color: var(--shade); }
+  .type-demo { border-left: 3px solid var(--signal); padding-left: 14px; }
+  .type-demo small { display: block; font-size: 11px; color: var(--shade); margin-top: 4px; font-weight: 500; }
+  .chrome-demo { position: relative; border: 2px solid var(--ink); border-radius: 12px; background: var(--paper); height: 300px; overflow: hidden;
+    background-image: linear-gradient(var(--ink-04) 1px, transparent 1px), linear-gradient(90deg, var(--ink-04) 1px, transparent 1px); background-size: 24px 24px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="app-header">
+    <div class="container app-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.5 17.5c4.6 0 2.6-5.6 6.1-6.6 2.4-.7 3.4.9 4.4-.4"/>
+            <circle cx="18.4" cy="6.4" r="1.7" fill="currentColor" stroke="none"/>
+          </svg>
+        </span>
+        <span class="brand__name">GPX Repair Studio</span>
+      </a>
+      <span class="chip chip--plain" style="margin-left:4px">Design proposal · v2</span>
+      <span class="app-header__spacer"></span>
+      <nav class="app-header__nav" aria-label="Proposal sections">
+        <a class="nav-link" href="#direction">Direction</a>
+        <a class="nav-link" href="#palette">Palette</a>
+        <a class="nav-link" href="#type">Type</a>
+        <a class="nav-link" href="#components">Components</a>
+        <a class="nav-link" href="#screens">Screens</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container doc" id="main-content">
+
+    <!-- ============ direction ============ -->
+    <section class="doc-hero" id="direction">
+      <span class="doc-hero__kicker"><span class="sq"></span>Field Plot · a redesign proposal for every screen of the app</span>
+      <h1 class="doc-hero__title">The app becomes a plotting bench for broken GPS tracks.</h1>
+      <p class="doc-hero__sub">
+        Same skeleton, same honest data language, new skin. The whole interface now sits on faint
+        graph paper — the native medium of plotted tracks. Structure is drawn with equipment-grade ink
+        borders instead of shadows, buttons behave like keycaps, and the numbers that matter are set
+        as timing-board numerals. The signal orange stays reserved for exactly one job: everything the
+        app reconstructs. Structure, copy, testids and flows are untouched — this is a visual layer swap.
+      </p>
+      <div>
+        <a class="btn btn--primary" href="home.html">
+          Open the mockups
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </a>
+      </div>
+    </section>
+
+    <!-- ============ what changes / stays ============ -->
+    <section>
+      <h2 class="section-h">What changes, what stays</h2>
+      <p class="section-sub">Six deliberate moves. Everything else — layout regions, copy, data semantics — is preserved exactly as shipped today.</p>
+      <div class="duo" style="margin-top:18px">
+        <div class="card card--strong">
+          <div class="card__body">
+            <div class="card__title"><span class="sq"></span>Changes</div>
+            <div class="changerows" style="margin-top:8px">
+              <div class="changerow changerow--new">Graph-paper field under every screen — the app reads as a surveyor's sheet.</div>
+              <div class="changerow changerow--new">Equipment borders: 1.5&nbsp;px ink outlines on primary cards and the map plate; hairlines only inside.</div>
+              <div class="changerow changerow--new">Keycap buttons — orange with black text and a hard bottom edge that depresses on click.</div>
+              <div class="changerow changerow--new">Big Shoulders condensed numerals for hero stats and headings; Archivo carries the UI.</div>
+              <div class="changerow changerow--new">Active toggle segments turn signal orange (today they turn black).</div>
+              <div class="changerow changerow--new">Provenance chips lead with a color square — the Mixed chip gets a half-ink / half-signal split.</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card__body">
+            <div class="card__title"><span class="sq" style="background:var(--paper);outline:1.5px solid var(--ink-45);outline-offset:-1.5px"></span>Stays</div>
+            <div class="changerows" style="margin-top:8px">
+              <div class="changerow changerow--same">Layout skeleton: header, three-tab landing, map-dominant workspace with a sticky tools rail, details section below.</div>
+              <div class="changerow changerow--same">Every label, hint, empty state and footnote — the product copy is identical.</div>
+              <div class="changerow changerow--same">Map semantics: ink route, severity-shaded gap dashes, orange reconstruction, selection glow.</div>
+              <div class="changerow changerow--same">The five pinned anchors only — #FC4C02, #000000, #FFFFFF, #5A5A5A, #222222 and their alphas.</div>
+              <div class="changerow changerow--same">Local-first privacy posture, provenance everywhere, destructive = black.</div>
+              <div class="changerow changerow--same">The share card itself — already the palette's native expression.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ palette ============ -->
+    <section id="palette">
+      <h2 class="section-h">Palette</h2>
+      <p class="section-sub">Five anchors, each with one job. Every tint in the mockups is an anchor at reduced alpha — no foreign hue anywhere, including the map.</p>
+      <div class="swatches" style="margin-top:18px">
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#FC4C02"></div>
+          <div class="swatch__meta">
+            <span class="swatch__name">Signal</span>
+            <span class="swatch__hex">#FC4C02</span>
+            <span class="swatch__role">What the app reconstructs — repairs, estimates, active intent.</span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#222222"></div>
+          <div class="swatch__meta">
+            <span class="swatch__name">Ink</span>
+            <span class="swatch__hex">#222222</span>
+            <span class="swatch__role">Recorded truth — body text, structure, the route line.</span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#000000"></div>
+          <div class="swatch__meta">
+            <span class="swatch__name">Ink+</span>
+            <span class="swatch__hex">#000000</span>
+            <span class="swatch__role">Hard surfaces — destructive actions, severe severity, the share card.</span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#FFFFFF;border-bottom:1.5px solid var(--ink)"></div>
+          <div class="swatch__meta">
+            <span class="swatch__name">Paper</span>
+            <span class="swatch__hex">#FFFFFF</span>
+            <span class="swatch__role">The field — cards, controls, breathing room.</span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#5A5A5A"></div>
+          <div class="swatch__meta">
+            <span class="swatch__name">Shade</span>
+            <span class="swatch__hex">#5A5A5A</span>
+            <span class="swatch__role">Secondary — hints, labels, suspect gap dashes.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ type ============ -->
+    <section id="type">
+      <h2 class="section-h">Typography</h2>
+      <p class="section-sub">Two voices, clearly distinct: Big Shoulders speaks in timing-board numerals; Archivo does the everyday work. IBM Plex Mono appears only for raw coordinates.</p>
+      <div class="duo" style="margin-top:18px">
+        <div class="specimen">
+          <span class="specimen__label">Display — Big Shoulders 700/800</span>
+          <div class="type-demo">
+            <span style="font-family:var(--font-display);font-weight:800;font-size:44px;line-height:.97;display:block">Repair incomplete GPS recordings</span>
+            <small>Hero, section headings, logo wordmark</small>
+          </div>
+          <div class="type-demo">
+            <span style="font-family:var(--font-display);font-weight:700;font-size:46px;line-height:1;display:block">10:24 <span style="font-size:26px">recovered</span></span>
+            <small>Stat numerals — the timing-board moment</small>
+          </div>
+        </div>
+        <div class="specimen">
+          <span class="specimen__label">UI &amp; body — Archivo 400–800</span>
+          <div class="type-demo">
+            <span style="font-weight:700;font-size:15.5px;display:block">Reconstruct route</span>
+            <small>Card titles · 700</small>
+          </div>
+          <div class="type-demo">
+            <span style="font-size:14px;color:var(--shade);display:block;line-height:1.6">Draw the missing route on the map — clicks follow real roads, every point drags, everything undoes.</span>
+            <small>Body &amp; hints · 400, Shade</small>
+          </div>
+          <div class="type-demo">
+            <span class="mono" style="display:block">53.55913, 9.99610</span>
+            <small>Coordinates &amp; IDs only — IBM Plex Mono</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ components ============ -->
+    <section id="components">
+      <h2 class="section-h">Components</h2>
+      <p class="section-sub">The control vocabulary, one sample of each. Hover and press states are live in these files — buttons depress, rows tint, toggles flip.</p>
+      <div class="comp-grid" style="margin-top:18px">
+
+        <div class="comp">
+          <span class="comp__label">Buttons — keycap system</span>
+          <div class="row">
+            <button class="btn btn--primary">Review &amp; export</button>
+            <button class="btn btn--outline">New file</button>
+            <button class="btn btn--ghost">Cancel picking</button>
+            <button class="btn btn--dark">Remove</button>
+          </div>
+          <div class="row">
+            <button class="btn btn--primary btn--sm">Draw route</button>
+            <button class="btn btn--outline btn--sm">Undo</button>
+            <button class="btn btn--ghost btn--sm btn--ghost--danger">Mark as skipped</button>
+          </div>
+        </div>
+
+        <div class="comp">
+          <span class="comp__label">Provenance &amp; status chips</span>
+          <div class="row">
+            <span class="chip chip--rec"><span class="sq"></span>Recorded</span>
+            <span class="chip chip--est"><span class="sq"></span>Estimated</span>
+            <span class="chip chip--mix"><span class="sq"></span>Mixed</span>
+          </div>
+          <div class="row">
+            <span class="chip chip--sev-severe">severe</span>
+            <span class="chip chip--sev-suspect">suspect</span>
+            <span class="chip chip--sev-info">info</span>
+            <span class="chip chip--status-danger">Not repaired</span>
+            <span class="chip chip--status-warning">Editing</span>
+            <span class="chip chip--status-success">Reconstructed</span>
+          </div>
+        </div>
+
+        <div class="comp">
+          <span class="comp__label">Mode toggle &amp; unit pills</span>
+          <div class="seg" role="radiogroup" aria-label="What do you want to do?">
+            <input type="radio" id="c1" name="cm" checked><label class="seg__label" for="c1">Repair a recording</label>
+            <input type="radio" id="c2" name="cm"><label class="seg__label" for="c2">Create a share card</label>
+            <input type="radio" id="c3" name="cm"><label class="seg__label" for="c3">Recover a GPS gap</label>
+          </div>
+          <div class="row">
+            <span class="segpill">
+              <input type="radio" id="u1" name="cu" checked><label class="segpill__label" for="u1">/km</label>
+              <input type="radio" id="u2" name="cu"><label class="segpill__label" for="u2">/mi</label>
+            </span>
+            <span class="segpill">
+              <input type="radio" id="r1" name="cr" checked><label class="segpill__label" for="r1">1× 1080 × 1920</label>
+              <input type="radio" id="r2" name="cr"><label class="segpill__label" for="r2">2× 2160 × 3840</label>
+            </span>
+          </div>
+        </div>
+
+        <div class="comp">
+          <span class="comp__label">Gap selection overlay (map, editor closed)</span>
+          <div style="position:relative; border:2px solid var(--ink); border-radius:12px; height:230px; overflow:hidden; background:rgba(34,34,34,0.05)">
+            <div class="gapcard" style="top:12px; left:12px">
+              <div class="gapcard__head">
+                <span class="chip chip--sev-suspect">suspect</span> Time gap
+                <button class="gapcard__close" aria-label="Clear gap selection">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <div class="gapcard__body">
+                <div class="gapcard__row"><span>Elapsed</span><b class="tnum">3:12</b></div>
+                <div class="gapcard__row"><span>Straight-line</span><b class="tnum">1.1 km</b></div>
+                <div class="gapcard__row"><span>Implied speed</span><b class="tnum">20.6 km/h</b></div>
+                <p class="gapcard__caption">The path between the markers was not recorded — it will be drawn in a later step.</p>
+              </div>
+            </div>
+            <svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 600 230" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M0 170 H600" stroke="#FFFFFF" stroke-width="13"/>
+              <path d="M180 0 V230" stroke="#FFFFFF" stroke-width="11"/>
+              <path d="M420 0 V230" stroke="#FFFFFF" stroke-width="11"/>
+              <path d="M40 205 L180 170 L180 60" fill="none" stroke="#222222" stroke-width="4.5" stroke-linecap="round"/>
+              <path d="M420 120 L560 60" fill="none" stroke="#222222" stroke-width="4.5" stroke-linecap="round"/>
+              <line x1="180" y1="60" x2="420" y2="120" stroke="rgba(252,76,2,0.45)" stroke-width="10" stroke-linecap="round"/>
+              <line x1="180" y1="60" x2="420" y2="120" stroke="#5A5A5A" stroke-width="3.4" stroke-dasharray="4 4"/>
+              <circle cx="180" cy="60" r="8" fill="none" stroke="#5A5A5A" stroke-width="3.2"/>
+              <circle cx="420" cy="120" r="6" fill="#5A5A5A" stroke="#FFFFFF" stroke-width="2.2"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="comp">
+          <span class="comp__label">Follow-mode chips &amp; inputs</span>
+          <div class="followchips">
+            <input type="radio" id="f1" name="cf" checked><label class="followchips__label" for="f1">Roads</label>
+            <input type="radio" id="f2" name="cf"><label class="followchips__label" for="f2">Footpaths</label>
+            <input type="radio" id="f3" name="cf"><label class="followchips__label" for="f3">Straight lines</label>
+          </div>
+          <div class="row" style="gap:14px">
+            <input class="input" style="max-width:200px" value="Every 25 m" readonly>
+            <label class="check"><input type="checkbox" checked> Snap to recorded points</label>
+          </div>
+        </div>
+
+        <div class="comp" style="grid-column:1/-1">
+          <span class="comp__label">Map chrome — plate frame, toolbar rail, distance badge, legend</span>
+          <div class="chrome-demo">
+            <div class="mapchip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.4 3.6a1 1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.8a.5.5 0 0 1-.6-.6l.8-2.9a2 2 0 0 1 .5-.9z"/></svg>
+              Drawing <span class="keycap">D</span>
+            </div>
+            <div class="distbadge">
+              <span class="distbadge__value">184 m <span class="chip chip--est"><span class="sq"></span>Estimated</span></span>
+              <span class="distbadge__meta tnum">12 / 128 points</span>
+              <span class="distbadge__caption">road length, not straight line</span>
+            </div>
+            <div class="toolbar">
+              <button class="toolbar__btn toolbar__btn--active" title="Draw mode (D)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.4 3.6a1 1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.8a.5.5 0 0 1-.6-.6l.8-2.9a2 2 0 0 1 .5-.9z"/></svg>
+              </button>
+              <button class="toolbar__btn" title="Pan mode (P)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v2"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.3l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"/></svg>
+              </button>
+              <div class="toolbar__sep"></div>
+              <button class="toolbar__btn" title="Basemap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.8 2.2a2 2 0 0 0-1.7 0L2.6 6.1a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.7 0l8.5-3.9a1 1 0 0 0 0-1.8Z"/><path d="m22 17.7-9.2 4.1a2 2 0 0 1-1.6 0L2 17.7"/><path d="m22 12.7-9.2 4.1a2 2 0 0 1-1.6 0L2 12.7"/></svg>
+              </button>
+              <button class="toolbar__btn" title="Fit activity">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+              </button>
+            </div>
+            <div class="legend">
+              <div class="legend__row"><svg viewBox="0 0 26 10"><line x1="1" y1="5" x2="25" y2="5" stroke="#222222" stroke-width="3" stroke-linecap="round"/></svg>Recorded route (solid ink)</div>
+              <div class="legend__row"><svg viewBox="0 0 26 10"><line x1="1" y1="5" x2="25" y2="5" stroke="#5A5A5A" stroke-width="3" stroke-dasharray="3 3"/></svg>Gap span (dashed, severity shades)</div>
+              <div class="legend__row"><svg viewBox="0 0 26 10"><circle cx="7" cy="5" r="4" fill="none" stroke="#000000" stroke-width="2.5"/><circle cx="19" cy="5" r="3.2" fill="#000000" stroke="#FFFFFF" stroke-width="1.6"/></svg>Gap boundaries (ring = before, dot = after)</div>
+              <div class="legend__row"><svg viewBox="0 0 26 10"><line x1="1" y1="5" x2="25" y2="5" stroke="#FC4C02" stroke-width="3.4" stroke-linecap="round"/></svg>Repaired route (solid orange)</div>
+              <div class="legend__row"><svg viewBox="0 0 26 10"><line x1="1" y1="5" x2="25" y2="5" stroke="#FC4C02" stroke-width="3" stroke-dasharray="3 3" opacity=".6"/></svg>Open connection (closes on finish)</div>
+              <div class="legend__row"><svg viewBox="0 0 26 10"><circle cx="13" cy="5" r="3.6" fill="#FFFFFF" stroke="#FC4C02" stroke-width="2.4"/></svg>Drawn point (drag to move)</div>
+            </div>
+            <svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true">
+              <rect width="1000" height="300" fill="rgba(34,34,34,0.05)"/>
+              <path d="M0 240 H1000" stroke="#FFFFFF" stroke-width="16"/><path d="M0 240 H1000" stroke="rgba(34,34,34,0.16)" stroke-width="18" fill="none" opacity=".5"/>
+              <path d="M0 240 H1000" stroke="#FFFFFF" stroke-width="13"/>
+              <path d="M340 0 V300" stroke="#FFFFFF" stroke-width="11"/>
+              <path d="M700 0 V300" stroke="#FFFFFF" stroke-width="11"/>
+              <path d="M60 250 L340 170 L700 60 L980 20" fill="none" stroke="#222222" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity=".92"/>
+              <path d="M340 170 L700 60" stroke="#FC4C02" stroke-width="9" opacity=".45" stroke-linecap="round"/>
+              <path d="M340 170 L700 60" stroke="#5A5A5A" stroke-width="3.4" stroke-dasharray="4 4"/>
+              <path d="M340 170 L460 90 L700 60" fill="none" stroke="#FC4C02" stroke-width="4.8" stroke-linecap="round"/>
+              <circle cx="460" cy="90" r="5.5" fill="#FFFFFF" stroke="#FC4C02" stroke-width="2.6"/>
+            </svg>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============ screens ============ -->
+    <section id="screens">
+      <h2 class="section-h">Screens</h2>
+      <p class="section-sub">Six mockups covering everything the app ships today — all three landing tabs, both workspaces with the editor open, the share view, and the mobile layout.</p>
+      <div class="screen-grid" style="margin-top:18px">
+
+        <a class="screencard" href="home.html">
+          <div class="screencard__thumb">
+            <svg viewBox="0 0 400 300" aria-hidden="true">
+              <rect width="400" height="300" fill="#FFFFFF"/>
+              <g stroke="rgba(34,34,34,0.07)"><path d="M0 40h400M0 90h400M0 140h400M0 190h400M0 240h400M50 0v300M100 0v300M150 0v300M200 0v300M250 0v300M300 0v300M350 0v300"/></g>
+              <rect x="70" y="34" width="260" height="26" rx="7" fill="#FFFFFF" stroke="#222222" stroke-width="2.5"/>
+              <rect x="76" y="39" width="76" height="16" rx="4" fill="#FC4C02"/>
+              <text x="114" y="51" font-family="Archivo,Arial" font-size="9" font-weight="700" fill="#000000" text-anchor="middle">Repair</text>
+              <text x="200" y="51" font-family="Archivo,Arial" font-size="9" font-weight="600" fill="#5A5A5A" text-anchor="middle">Share card</text>
+              <text x="272" y="51" font-family="Archivo,Arial" font-size="9" font-weight="600" fill="#5A5A5A" text-anchor="middle">Recovery</text>
+              <text x="70" y="92" font-family="Archivo,Arial" font-size="17" font-weight="800" fill="#222222">Repair incomplete</text>
+              <text x="70" y="110" font-family="Archivo,Arial" font-size="17" font-weight="800" fill="#222222">GPS recordings</text>
+              <rect x="70" y="128" width="260" height="92" rx="10" fill="#FFFFFF" stroke="#222222" stroke-width="2" stroke-dasharray="7 5"/>
+              <rect x="92" y="146" width="30" height="30" rx="8" fill="rgba(252,76,2,0.12)" stroke="#FC4C02" stroke-width="2"/>
+              <path d="M104 152v12m0 4v6" stroke="#FC4C02" stroke-width="2.4" stroke-linecap="round"/>
+              <text x="134" y="160" font-family="Archivo,Arial" font-size="10" font-weight="700" fill="#222222">Drop your GPX file here</text>
+              <text x="134" y="173" font-family="Archivo,Arial" font-size="8.5" fill="#5A5A5A">or click to browse</text>
+              <rect x="70" y="238" width="82" height="40" rx="8" fill="#FFFFFF" stroke="#222222" stroke-width="2"/>
+              <rect x="162" y="238" width="82" height="40" rx="8" fill="#FFFFFF" stroke="#222222" stroke-width="2"/>
+              <rect x="254" y="238" width="76" height="40" rx="8" fill="#FFFFFF" stroke="#222222" stroke-width="2"/>
+              <rect x="80" y="248" width="14" height="14" rx="4" fill="rgba(252,76,2,0.12)" stroke="#FC4C02" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="screencard__body">
+            <span class="screencard__title"><span class="sq"></span>Home — landing</span>
+            <span class="screencard__sub">Three-tab front door, hero, upload zone, how-it-works. The tabs actually switch in the mockup.</span>
+          </div>
+        </a>
+
+        <a class="screencard" href="repair.html">
+          <div class="screencard__thumb">
+            <svg viewBox="0 0 400 300" aria-hidden="true">
+              <rect width="400" height="300" fill="#FFFFFF"/>
+              <rect x="14" y="16" width="252" height="200" rx="10" fill="rgba(34,34,34,0.05)" stroke="#222222" stroke-width="2.5"/>
+              <path d="M0 0M30 60h230M30 130h230M100 16v200M180 16v200" stroke="#FFFFFF" stroke-width="7" transform="translate(14,16)"/>
+              <path d="M40 190 L100 130 L180 90 L250 40" fill="none" stroke="#222222" stroke-width="4" stroke-linecap="round"/>
+              <path d="M100 130 L180 90" stroke="#FC4C02" stroke-width="8" opacity=".4"/>
+              <path d="M100 130 L180 90" stroke="#5A5A5A" stroke-width="3" stroke-dasharray="4 4"/>
+              <path d="M100 130 L120 108 L160 96 L180 90" fill="none" stroke="#FC4C02" stroke-width="4" stroke-linecap="round"/>
+              <circle cx="120" cy="108" r="4" fill="#FFF" stroke="#FC4C02" stroke-width="2.2"/>
+              <rect x="284" y="16" width="102" height="58" rx="8" fill="#FFF" stroke="#222222" stroke-width="2"/>
+              <rect x="284" y="86" width="102" height="128" rx="8" fill="#FFF" stroke="#222222" stroke-width="2"/>
+              <rect x="292" y="96" width="58" height="9" rx="2" fill="rgba(34,34,34,0.18)"/>
+              <rect x="292" y="112" width="80" height="7" rx="2" fill="rgba(34,34,34,0.1)"/>
+              <rect x="292" y="126" width="70" height="7" rx="2" fill="rgba(34,34,34,0.1)"/>
+              <rect x="292" y="146" width="84" height="18" rx="4" fill="#FC4C02" stroke="#222222" stroke-width="1.5"/>
+              <rect x="14" y="232" width="180" height="52" rx="8" fill="#FFF" stroke="rgba(34,34,34,0.25)"/>
+              <rect x="204" y="232" width="86" height="52" rx="8" fill="#FFF" stroke="rgba(34,34,34,0.25)"/>
+              <rect x="300" y="232" width="86" height="52" rx="8" fill="#FFF" stroke="rgba(34,34,34,0.25)"/>
+            </svg>
+          </div>
+          <div class="screencard__body">
+            <span class="screencard__title"><span class="sq"></span>Repair studio</span>
+            <span class="screencard__sub">Gap selected, draw editor open — full tools rail, statistics, elevation profile, export.</span>
+          </div>
+        </a>
+
+        <a class="screencard" href="recovery.html">
+          <div class="screencard__thumb">
+            <svg viewBox="0 0 400 300" aria-hidden="true">
+              <rect width="400" height="300" fill="#FFFFFF"/>
+              <rect x="14" y="16" width="252" height="200" rx="10" fill="rgba(34,34,34,0.05)" stroke="#222222" stroke-width="2.5"/>
+              <path d="M40 180 L120 150 L200 150 L250 60" fill="none" stroke="#222222" stroke-width="4" stroke-linecap="round"/>
+              <path d="M120 150 L200 150" stroke="#FC4C02" stroke-width="8" opacity=".4"/>
+              <path d="M120 150 L200 150" stroke="#5A5A5A" stroke-width="3" stroke-dasharray="4 4"/>
+              <path d="M120 150 Q130 200 170 200 Q220 200 200 150" fill="none" stroke="#FC4C02" stroke-width="4" stroke-linecap="round"/>
+              <circle cx="170" cy="200" r="4" fill="#FFF" stroke="#FC4C02" stroke-width="2.2"/>
+              <rect x="284" y="16" width="102" height="40" rx="8" fill="#FFF" stroke="#222222" stroke-width="2"/>
+              <rect x="284" y="66" width="102" height="148" rx="8" fill="#FFF" stroke="#222222" stroke-width="2"/>
+              <rect x="292" y="76" width="64" height="9" rx="2" fill="rgba(34,34,34,0.18)"/>
+              <rect x="292" y="94" width="56" height="14" rx="3" fill="rgba(252,76,2,0.14)" stroke="#FC4C02" stroke-width="1.2"/>
+              <rect x="292" y="118" width="80" height="7" rx="2" fill="rgba(34,34,34,0.1)"/>
+              <rect x="292" y="132" width="74" height="7" rx="2" fill="rgba(34,34,34,0.1)"/>
+              <rect x="14" y="232" width="180" height="52" rx="8" fill="#FFF" stroke="rgba(34,34,34,0.25)"/>
+              <rect x="204" y="232" width="86" height="52" rx="8" fill="#FFF" stroke="rgba(34,34,34,0.25)"/>
+              <rect x="300" y="232" width="86" height="52" rx="8" fill="#FFF" stroke="rgba(34,34,34,0.25)"/>
+            </svg>
+          </div>
+          <div class="screencard__body">
+            <span class="screencard__title"><span class="sq"></span>Recovery studio</span>
+            <span class="screencard__sub">Guide card, unmeasured sections, the pace-estimated draw flow, completed-route preview.</span>
+          </div>
+        </a>
+
+        <a class="screencard" href="share.html">
+          <div class="screencard__thumb">
+            <svg viewBox="0 0 400 300" aria-hidden="true">
+              <rect width="400" height="300" fill="#222222"/>
+              <g stroke="rgba(255,255,255,0.05)"><path d="M0 50h400M0 100h400M0 150h400M0 200h400M0 250h400M60 0v300M120 0v300M180 0v300M240 0v300M300 0v300M360 0v300"/></g>
+              <rect x="120" y="24" width="112" height="200" rx="10" fill="#000000"/>
+              <path d="M145 150 C160 110 185 120 195 90 M195 90 C205 60 195 55 210 45" fill="none" stroke="#FC4C02" stroke-width="5" stroke-linecap="round"/>
+              <path d="M145 150 C160 110 185 120 195 90 M195 90 C205 60 195 55 210 45" fill="none" stroke="#000000" stroke-width="8" stroke-linecap="round" opacity=".35"/>
+              <text x="176" y="70" font-family="Archivo,Arial" font-size="11" font-weight="800" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">STRAVA</text>
+              <text x="146" y="196" font-family="Archivo,Arial" font-size="6" font-weight="600" fill="rgba(255,255,255,0.66)" text-anchor="middle" letter-spacing="1">DISTANCE</text>
+              <text x="176" y="196" font-family="Archivo,Arial" font-size="6" font-weight="600" fill="rgba(255,255,255,0.66)" text-anchor="middle" letter-spacing="1">PACE</text>
+              <text x="207" y="196" font-family="Archivo,Arial" font-size="6" font-weight="600" fill="rgba(255,255,255,0.66)" text-anchor="middle" letter-spacing="1">TIME</text>
+              <text x="146" y="210" font-family="Archivo,Arial" font-size="10" font-weight="800" fill="#FFFFFF" text-anchor="middle">21.12</text>
+              <text x="176" y="210" font-family="Archivo,Arial" font-size="10" font-weight="800" fill="#FFFFFF" text-anchor="middle">5:00</text>
+              <text x="207" y="210" font-family="Archivo,Arial" font-size="10" font-weight="800" fill="#FFFFFF" text-anchor="middle">1h 45m</text>
+              <rect x="252" y="24" width="134" height="46" rx="8" fill="#FFFFFF" stroke="#222222" stroke-width="2"/>
+              <rect x="252" y="82" width="134" height="142" rx="8" fill="#FFFFFF" stroke="#222222" stroke-width="2"/>
+              <rect x="262" y="94" width="60" height="8" rx="2" fill="rgba(34,34,34,0.18)"/>
+              <rect x="262" y="112" width="110" height="30" rx="5" fill="#FC4C02" stroke="#222222" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="screencard__body">
+            <span class="screencard__title"><span class="sq"></span>Share view</span>
+            <span class="screencard__sub">The 9:16 card on a dark plotting stage, with its honest-numbers side panel.</span>
+          </div>
+        </a>
+
+        <a class="screencard" href="mobile.html">
+          <div class="screencard__thumb">
+            <svg viewBox="0 0 400 300" aria-hidden="true">
+              <rect width="400" height="300" fill="#FFFFFF"/>
+              <g stroke="rgba(34,34,34,0.06)"><path d="M0 40h400M0 80h400M0 120h400M0 160h400M0 200h400M0 240h400M0 280h400"/></g>
+              <rect x="40" y="24" width="90" height="252" rx="14" fill="#FFFFFF" stroke="#222222" stroke-width="2.5"/>
+              <rect x="160" y="24" width="90" height="252" rx="14" fill="#FFFFFF" stroke="#222222" stroke-width="2.5"/>
+              <rect x="280" y="24" width="90" height="252" rx="14" fill="#FFFFFF" stroke="#222222" stroke-width="2.5"/>
+              <rect x="46" y="30" width="34" height="5" rx="2.5" fill="#222222"/>
+              <rect x="166" y="30" width="34" height="5" rx="2.5" fill="#222222"/>
+              <rect x="286" y="30" width="34" height="5" rx="2.5" fill="#222222"/>
+              <rect x="50" y="48" width="70" height="60" rx="6" fill="rgba(34,34,34,0.05)" stroke="#222222" stroke-width="1.8"/>
+              <path d="M58 96 L76 74 L98 62 L116 56" stroke="#222222" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+              <rect x="50" y="116" width="70" height="10" rx="3" fill="#FC4C02"/>
+              <rect x="170" y="48" width="70" height="100" rx="6" fill="rgba(34,34,34,0.05)" stroke="#222222" stroke-width="1.8"/>
+              <path d="M178 130 L200 100 L230 80 L240 60" stroke="#222222" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+              <path d="M200 100 Q214 140 236 118" stroke="#FC4C02" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+              <rect x="290" y="48" width="70" height="120" rx="6" fill="#222222"/>
+              <rect x="304" y="72" width="42" height="76" rx="5" fill="#000000"/>
+              <path d="M312 118 C322 100 334 106 340 92" stroke="#FC4C02" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="screencard__body">
+            <span class="screencard__title"><span class="sq"></span>Mobile — 375 px</span>
+            <span class="screencard__sub">Compact toggle, stacked workspace, and the share card — no horizontal overflow.</span>
+          </div>
+        </a>
+
+        <a class="screencard" href="repair.html#details">
+          <div class="screencard__thumb">
+            <svg viewBox="0 0 400 300" aria-hidden="true">
+              <rect width="400" height="300" fill="#FFFFFF"/>
+              <rect x="24" y="20" width="352" height="46" rx="8" fill="#FFFFFF" stroke="rgba(34,34,34,0.3)"/>
+              <rect x="34" y="30" width="90" height="8" rx="2" fill="rgba(34,34,34,0.25)"/>
+              <path d="M34 48h130v6H34z" fill="rgba(34,34,34,0.1)"/>
+              <rect x="24" y="80" width="352" height="90" rx="8" fill="#FFFFFF" stroke="rgba(34,34,34,0.3)"/>
+              <path d="M34 152 L90 130 L150 138 L210 108 L270 118 L330 96 L366 100" fill="none" stroke="#222222" stroke-width="2.6" stroke-linecap="round"/>
+              <path d="M150 138 L210 108" stroke="#FC4C02" stroke-width="2.6" stroke-dasharray="4 3"/>
+              <path d="M34 108h100M34 120h70" stroke="rgba(34,34,34,0.12)" stroke-width="2"/>
+              <rect x="24" y="184" width="170" height="92" rx="8" fill="#FFFFFF" stroke="rgba(34,34,34,0.3)"/>
+              <rect x="206" y="184" width="170" height="92" rx="8" fill="#FFFFFF" stroke="rgba(34,34,34,0.3)"/>
+              <rect x="34" y="194" width="60" height="8" rx="2" fill="rgba(34,34,34,0.25)"/>
+              <rect x="34" y="212" width="140" height="5" rx="2" fill="rgba(34,34,34,0.1)"/>
+              <rect x="34" y="224" width="120" height="5" rx="2" fill="rgba(34,34,34,0.1)"/>
+              <rect x="34" y="236" width="132" height="5" rx="2" fill="rgba(34,34,34,0.1)"/>
+              <rect x="216" y="194" width="60" height="8" rx="2" fill="rgba(34,34,34,0.25)"/>
+              <rect x="216" y="212" width="140" height="5" rx="2" fill="rgba(34,34,34,0.1)"/>
+              <rect x="216" y="224" width="110" height="5" rx="2" fill="rgba(34,34,34,0.1)"/>
+            </svg>
+          </div>
+          <div class="screencard__body">
+            <span class="screencard__title"><span class="sq"></span>Statistics &amp; file details</span>
+            <span class="screencard__sub">The details section below the map — stats table, elevation profile, file facts, validation.</span>
+          </div>
+        </a>
+
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container app-footer__inner">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+      Field Plot — a static design proposal. Same app, same copy, same palette: #FC4C02 · #000000 · #FFFFFF · #5A5A5A · #222222
+    </div>
+  </footer>
+</div>
+</body>
+</html>
