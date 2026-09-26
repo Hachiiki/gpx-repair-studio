@@ -9,13 +9,13 @@ import { abortRoadRouting } from "./helpers/road-follow";
  *   1. the opt-in contract (FR-6.5): NO request leaves the browser
  *      until the disclosure is confirmed; the disclosure states the
  *      exact point count and destination;
- *   2. the happy path: confirm → OpenTopoData (mocked) → per-gap
+ *   2. the happy path: confirm → Open-Meteo (mocked) → per-gap
  *      summary in the editor, provenance-split gain/loss rows + the
  *      profile chart in statistics, and `<ele>` + `eleMethod` markers
  *      + the attribution note in the exported file;
  *   3. the failure path: a dead service degrades honestly — a clear
- *      error, a retry, and the export still works WITHOUT elevation
- *      (never fabricated).
+ *      error naming the actual cause, a retry, and the export still
+ *      works WITHOUT elevation (never fabricated).
  *
  * Road routing is stubbed off (straight legs); the elevation API is
  * route-mocked with a request log for the privacy assertion.
@@ -115,23 +115,23 @@ async function drawRepair(page: Page) {
 }
 
 /**
- * Mock the OpenTopoData API. Every request's locations are echoed back
- * as deterministic elevations (48 then 52 m — a visible +4 m climb),
- * and the request log enables the privacy assertion.
+ * Mock the Open-Meteo Elevation API. Every request's coordinates are
+ * echoed back as deterministic elevations (48 then 52 m — a visible
+ * +4 m climb), and the request log enables the privacy assertion.
  */
 function mockElevation(page: Page): { requests: string[] } {
   const requests: string[] = [];
-  void page.route("**/api.opentopodata.org/**", async (route: Route) => {
+  void page.route("**/api.open-meteo.com/**", async (route: Route) => {
     requests.push(route.request().url());
     const url = new URL(route.request().url());
-    const count = (url.searchParams.get("locations") ?? "").split("|").length;
-    const results = Array.from({ length: count }, (_, i) => ({
-      elevation: i === 0 ? 48 : 52,
-    }));
+    const count = (url.searchParams.get("latitude") ?? "").split(",").length;
+    const elevation = Array.from({ length: count }, (_, i) =>
+      i === 0 ? 48 : 52,
+    );
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ status: "OK", results }),
+      body: JSON.stringify({ elevation }),
     });
   });
   return { requests };
@@ -160,13 +160,13 @@ test.describe("elevation estimation", () => {
     expect(requests).toHaveLength(0);
 
     // The disclosure states exactly what leaves the browser (2 drawn
-    // points, 1 request, OpenTopoData).
+    // points, 1 request, Open-Meteo).
     await page.getByTestId("elevation-estimate-button").click();
     const dialog = page.getByTestId("elevation-disclosure-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("2 coordinates");
     await expect(dialog).toContainText("1 request");
-    await expect(dialog).toContainText("OpenTopoData");
+    await expect(dialog).toContainText("Open-Meteo");
     expect(requests).toHaveLength(0); // still nothing before Confirm
 
     // Confirm → exactly one request with both reconstructed points.
@@ -174,7 +174,7 @@ test.describe("elevation estimation", () => {
     await expect
       .poll(() => requests.length, { timeout: 10_000 })
       .toBe(1);
-    expect(requests[0]).toContain("api.opentopodata.org/v1/srtm30m?locations=");
+    expect(requests[0]).toContain("api.open-meteo.com/v1/elevation?latitude=");
 
     // The per-gap summary lands: +4 m up (48 → 52), estimated badge.
     await expect(page.getByTestId("elevation-status-badge")).toContainText(
@@ -197,7 +197,7 @@ test.describe("elevation estimation", () => {
     expect(stats).toContain("Elevation gain (repairs)");
     expect(stats).toContain("4 m");
     expect(stats).toContain("Elevation gain (total)");
-    expect(stats).toContain("estimated from OpenTopoData terrain");
+    expect(stats).toContain("estimated from Open-Meteo terrain");
 
     const chart = page.getByTestId("elevation-profile-chart");
     await expect(chart).toBeVisible();
@@ -224,7 +224,7 @@ test.describe("elevation estimation", () => {
     expect(xml).toContain("<ele>52</ele>");
     expect(xml).toContain('eleMethod="elevation-api"');
     expect(xml).toContain(
-      "Elevation of reconstructed points estimated from OpenTopoData",
+      "Elevation of reconstructed points estimated from Open-Meteo",
     );
     // Recorded ele values stay verbatim.
     expect(xml).toContain("<ele>41.6</ele>");
@@ -233,7 +233,7 @@ test.describe("elevation estimation", () => {
   test("a dead service degrades honestly: error + retry, export without ele", async ({
     page,
   }) => {
-    await page.route("**/api.opentopodata.org/**", (route) =>
+    await page.route("**/api.open-meteo.com/**", (route) =>
       route.fulfill({ status: 503, body: "unavailable" }),
     );
     await page.goto("/");
@@ -246,12 +246,13 @@ test.describe("elevation estimation", () => {
     await page.getByTestId("elevation-disclosure-confirm").click();
 
     // The provider retries with backoff (1s/2s/4s) before giving up —
-    // poll generously for the honest failure state.
+    // poll generously for the honest failure state, whose copy names
+    // the actual cause (a 5xx outage, not a misleading "no data").
     await expect(page.getByTestId("elevation-failure")).toBeVisible({
       timeout: 25_000,
     });
     await expect(page.getByTestId("elevation-failure")).toContainText(
-      "no usable data",
+      "having trouble right now",
     );
     await expect(page.getByTestId("elevation-retry-button")).toBeVisible();
 
@@ -272,6 +273,6 @@ test.describe("elevation estimation", () => {
     if (path === null) throw new Error("download produced no file");
     const xml = readFileSync(path, "utf8");
     expect(xml).not.toContain("eleMethod");
-    expect(xml).not.toContain("estimated from OpenTopoData");
+    expect(xml).not.toContain("estimated from Open-Meteo");
   });
 });

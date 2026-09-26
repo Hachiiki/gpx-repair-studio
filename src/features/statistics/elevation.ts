@@ -63,6 +63,8 @@ export interface ElevationStatsRows {
   repairsWithoutElevation: number;
   /** Hysteresis threshold used (the tooltips disclose it). */
   hysteresisThresholdM: number;
+  /** Provider names behind the estimated elevation (the note names them). */
+  estimatedFrom: readonly string[];
 }
 
 export interface ElevationStatsOptions {
@@ -158,6 +160,7 @@ export function buildElevationStats(
       pointsTotal: 0,
       repairsWithoutElevation: 0,
       hysteresisThresholdM,
+      estimatedFrom: [],
     };
   }
 
@@ -197,6 +200,7 @@ export function buildElevationStats(
     pointsTotal,
     repairsWithoutElevation,
     hysteresisThresholdM,
+    estimatedFrom: merge.elevationProviders,
   };
 }
 

@@ -1,7 +1,7 @@
 /**
- * Unit tests — features/elevation/opentopodata.ts (§N-1: provider against
+ * Unit tests — features/elevation/openmeteo.ts (§N-1: provider against
  * mocked fetch — success, batching, throttle, 429 backoff, partial
- * failure, network error; FR-6.2).
+ * failure, network error, failure-reason reporting; FR-6.2).
  *
  * The provider's clock and sleep are injected, so timing behavior is
  * asserted as recorded sleep calls — no real timers, no real network.
@@ -11,15 +11,15 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ELEVATION_BATCH_SIZE,
   ELEVATION_MIN_REQUEST_INTERVAL_MS,
-  OpenTopoDataProvider,
-} from "@/features/elevation/opentopodata";
+  OpenMeteoProvider,
+} from "@/features/elevation/openmeteo";
 import type { ElevationFetch } from "@/features/elevation/provider";
 
 /** A test harness: fake clock + sleep recorder + scripted fetch. */
 function harness(fetchImpl: ElevationFetch) {
   let now = 0;
   const sleeps: number[] = [];
-  const provider = new OpenTopoDataProvider({
+  const provider = new OpenMeteoProvider({
     fetch: fetchImpl,
     now: () => now,
     sleep: async (ms) => {
@@ -30,20 +30,17 @@ function harness(fetchImpl: ElevationFetch) {
   return { provider, sleeps };
 }
 
-const ok = (results: unknown[]) => ({
+const ok = (elevation: unknown[]) => ({
   ok: true,
   status: 200,
-  json: async () => ({ status: "OK", results }),
+  json: async () => ({ elevation }),
 });
-const ele = (value: number | null) => ({ elevation: value });
 
 const P = (lat: number, lon = 13.4) => ({ lat, lon });
 
-describe("OpenTopoDataProvider — success paths", () => {
+describe("OpenMeteoProvider — success paths", () => {
   it("resolves elevations in query order and builds the documented URL", async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(
-      ok([ele(41.5), ele(null), ele(43)]),
-    );
+    const fetchSpy = vi.fn().mockResolvedValue(ok([41.5, null, 43]));
     const { provider, sleeps } = harness(fetchSpy);
 
     const values = await provider.getElevations([P(52.52), P(52.53), P(52.54)]);
@@ -51,9 +48,9 @@ describe("OpenTopoDataProvider — success paths", () => {
     expect(values).toEqual([41.5, undefined, 43]); // null = void → undefined
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const url = fetchSpy.mock.calls[0][0] as string;
-    expect(url).toContain("https://api.opentopodata.org/v1/srtm30m?locations=");
-    expect(url).toContain("52.520000,13.400000");
-    expect(url).toContain("|52.530000,13.400000");
+    expect(url).toContain("https://api.open-meteo.com/v1/elevation?latitude=");
+    expect(url).toContain("latitude=52.520000,52.530000,52.540000");
+    expect(url).toContain("longitude=13.400000,13.400000,13.400000");
     // Single batch → no throttle sleep.
     expect(sleeps).toEqual([]);
   });
@@ -69,7 +66,7 @@ describe("OpenTopoDataProvider — success paths", () => {
     const bad = {
       ok: true,
       status: 200,
-      json: async () => ({ status: "OK", results: "nope" }),
+      json: async () => ({ elevation: "nope" }),
     };
     const { provider } = harness(vi.fn().mockResolvedValue(bad));
     const values = await provider.getElevations([P(1), P(2)]);
@@ -78,7 +75,7 @@ describe("OpenTopoDataProvider — success paths", () => {
     const mismatch = {
       ok: true,
       status: 200,
-      json: async () => ({ status: "OK", results: [ele(5)] }), // length ≠ 2
+      json: async () => ({ elevation: [5] }), // length ≠ 2
     };
     const again = harness(vi.fn().mockResolvedValue(mismatch));
     expect(await again.provider.getElevations([P(1), P(2)])).toEqual([
@@ -86,9 +83,20 @@ describe("OpenTopoDataProvider — success paths", () => {
       undefined,
     ]);
   });
+
+  it("an all-null but well-formed answer is void, not a failure", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(ok([null, null]));
+    const onBatchFailure = vi.fn();
+    const { provider } = harness(fetchSpy);
+
+    const values = await provider.getElevations([P(1), P(2)], { onBatchFailure });
+
+    expect(values).toEqual([undefined, undefined]);
+    expect(onBatchFailure).not.toHaveBeenCalled();
+  });
 });
 
-describe("OpenTopoDataProvider — batching + throttling (FR-6.2)", () => {
+describe("OpenMeteoProvider — batching + throttling (FR-6.2)", () => {
   it("splits queries into ≤100-point batches, in order", async () => {
     const responses: unknown[][] = [];
     const fetchSpy = vi.fn().mockImplementation(() => {
@@ -102,7 +110,7 @@ describe("OpenTopoDataProvider — batching + throttling (FR-6.2)", () => {
     for (let b = 0; b < 3; b += 1) {
       responses.push(
         Array.from({ length: Math.min(100, 250 - b * 100) }, (_, i) =>
-          ele(b * 100 + i),
+          b * 100 + i,
         ),
       );
     }
@@ -114,15 +122,18 @@ describe("OpenTopoDataProvider — batching + throttling (FR-6.2)", () => {
     expect(values[99]).toBe(99);
     expect(values[100]).toBe(100);
     expect(values[249]).toBe(249);
-    // Every batch URL carries at most 100 locations.
+    // Every batch URL carries at most 100 coordinates.
     for (const call of fetchSpy.mock.calls) {
-      const locations = ((call[0] as string).match(/\|/g) ?? []).length + 1;
-      expect(locations).toBeLessThanOrEqual(ELEVATION_BATCH_SIZE);
+      const url = new URL(call[0] as string);
+      const lats = (url.searchParams.get("latitude") ?? "").split(",");
+      const lons = (url.searchParams.get("longitude") ?? "").split(",");
+      expect(lats).toHaveLength(lons.length);
+      expect(lats.length).toBeLessThanOrEqual(ELEVATION_BATCH_SIZE);
     }
   });
 
-  it("throttles to one request per second across batches", async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(ok([ele(1)]));
+  it("throttles across calls (shared interval state)", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(ok([1]));
     const { provider, sleeps } = harness(fetchSpy);
 
     // Two single-point calls = two batches.
@@ -130,28 +141,31 @@ describe("OpenTopoDataProvider — batching + throttling (FR-6.2)", () => {
     await provider.getElevations([P(2)]);
 
     // The first request leaves immediately; the second waits out the
-    // 1 s window (shared throttle state across calls).
+    // interval (shared throttle state across calls).
     expect(sleeps).toEqual([ELEVATION_MIN_REQUEST_INTERVAL_MS]);
   });
 
   it("waits between the batches of ONE call", async () => {
     const fetchSpy = vi
       .fn()
-      .mockResolvedValue(ok(Array.from({ length: 100 }, () => ele(1))));
+      .mockResolvedValue(ok(Array.from({ length: 100 }, () => 1)));
     const { provider, sleeps } = harness(fetchSpy);
 
     await provider.getElevations(Array.from({ length: 201 }, (_, i) => P(i)));
     expect(fetchSpy).toHaveBeenCalledTimes(3);
-    expect(sleeps).toEqual([1000, 1000]);
+    expect(sleeps).toEqual([
+      ELEVATION_MIN_REQUEST_INTERVAL_MS,
+      ELEVATION_MIN_REQUEST_INTERVAL_MS,
+    ]);
   });
 });
 
-describe("OpenTopoDataProvider — retry with backoff (FR-6.2)", () => {
+describe("OpenMeteoProvider — retry with backoff (FR-6.2)", () => {
   it("retries a 429 and succeeds after the backoff", async () => {
     const fetchSpy = vi
       .fn()
       .mockResolvedValueOnce({ ok: false, status: 429 })
-      .mockResolvedValueOnce(ok([ele(12)]));
+      .mockResolvedValueOnce(ok([12]));
     const { provider, sleeps } = harness(fetchSpy);
 
     const values = await provider.getElevations([P(1)]);
@@ -172,7 +186,7 @@ describe("OpenTopoDataProvider — retry with backoff (FR-6.2)", () => {
   });
 
   it("fails a non-retryable 4xx immediately", async () => {
-    const fetchSpy = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: false, status: 400 });
     const { provider, sleeps } = harness(fetchSpy);
 
     expect(await provider.getElevations([P(1)])).toEqual([undefined]);
@@ -183,8 +197,8 @@ describe("OpenTopoDataProvider — retry with backoff (FR-6.2)", () => {
   it("retries network errors (fetch rejects) with backoff", async () => {
     const fetchSpy = vi
       .fn()
-      .mockRejectedValueOnce(new TypeError("offline"))
-      .mockResolvedValueOnce(ok([ele(7)]));
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(ok([7]));
     const { provider, sleeps } = harness(fetchSpy);
 
     expect(await provider.getElevations([P(1)])).toEqual([7]);
@@ -194,12 +208,12 @@ describe("OpenTopoDataProvider — retry with backoff (FR-6.2)", () => {
   it("reports progress per batch with answered and resolved counts", async () => {
     // 101 points = two batches (100 + 1).
     const batch1 = Array.from({ length: 100 }, (_, i) =>
-      ele(i === 0 ? null : i),
+      i === 0 ? null : i,
     ); // 99 defined + 1 void
     const fetchSpy = vi
       .fn()
       .mockResolvedValueOnce(ok(batch1))
-      .mockResolvedValueOnce(ok([ele(500)]));
+      .mockResolvedValueOnce(ok([500]));
     const { provider } = harness(fetchSpy);
     const progress = vi.fn();
 
@@ -210,5 +224,85 @@ describe("OpenTopoDataProvider — retry with backoff (FR-6.2)", () => {
       [100, 99], // batch 1: all answered, 99 defined
       [101, 100], // batch 2: cumulative
     ]);
+  });
+});
+
+describe("OpenMeteoProvider — failure-reason reporting (§K-2 honesty)", () => {
+  it("reports network when fetch rejects through the full schedule", async () => {
+    const fetchSpy = vi.fn().mockRejectedValue(new TypeError("offline"));
+    const { provider } = harness(fetchSpy);
+    const onBatchFailure = vi.fn();
+
+    const values = await provider.getElevations([P(1)], { onBatchFailure });
+
+    expect(values).toEqual([undefined]);
+    expect(onBatchFailure).toHaveBeenCalledTimes(1);
+    expect(onBatchFailure).toHaveBeenCalledWith("network");
+  });
+
+  it("reports throttled when 429s outlast the backoff schedule", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: false, status: 429 });
+    const { provider } = harness(fetchSpy);
+    const onBatchFailure = vi.fn();
+
+    await provider.getElevations([P(1)], { onBatchFailure });
+
+    expect(onBatchFailure).toHaveBeenCalledWith("throttled");
+  });
+
+  it("reports server when 5xxs outlast the backoff schedule", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: false, status: 503 });
+    const { provider } = harness(fetchSpy);
+    const onBatchFailure = vi.fn();
+
+    await provider.getElevations([P(1)], { onBatchFailure });
+
+    expect(onBatchFailure).toHaveBeenCalledWith("server");
+  });
+
+  it("reports bad-response for a non-retryable 4xx", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+    const { provider } = harness(fetchSpy);
+    const onBatchFailure = vi.fn();
+
+    await provider.getElevations([P(1)], { onBatchFailure });
+
+    expect(onBatchFailure).toHaveBeenCalledWith("bad-response");
+  });
+
+  it("reports bad-response for an unparseable 200 body", async () => {
+    // A 200 whose body is not JSON:
+    const fetch200 = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError("not JSON");
+      },
+    });
+    const { provider } = harness(fetch200);
+    const onBatchFailure = vi.fn();
+
+    const values = await provider.getElevations([P(1)], { onBatchFailure });
+
+    expect(values).toEqual([undefined]);
+    expect(onBatchFailure).toHaveBeenCalledWith("bad-response");
+  });
+
+  it("reports each failing batch once (multi-batch partial failure)", async () => {
+    // 101 points: batch 1 succeeds, batch 2 dies on the network.
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(ok(Array.from({ length: 100 }, (_, i) => 10 + i)))
+      .mockRejectedValue(new TypeError("offline"));
+    const { provider } = harness(fetchSpy);
+    const onBatchFailure = vi.fn();
+
+    const coords = Array.from({ length: 101 }, (_, i) => P(i * 0.001));
+    const values = await provider.getElevations(coords, { onBatchFailure });
+
+    expect(values[0]).toBe(10);
+    expect(values[100]).toBeUndefined();
+    expect(onBatchFailure).toHaveBeenCalledTimes(1);
+    expect(onBatchFailure).toHaveBeenCalledWith("network");
   });
 });

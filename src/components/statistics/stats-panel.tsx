@@ -382,7 +382,11 @@ export function StatsPanel({
                   )}% of points carry elevation, so gain and loss are withheld rather than estimated.`
                 : `Gain/loss use a ${elevation.hysteresisThresholdM.toFixed(1)} m noise threshold (changes smaller than that are treated as GPS/DEM noise); ${
                     elevation.reconstructed
-                      ? "repaired stretches are estimated from OpenTopoData terrain."
+                      ? `repaired stretches are estimated from ${
+                          elevation.estimatedFrom.length > 0
+                            ? elevation.estimatedFrom.join(", ")
+                            : "the elevation service"
+                        } terrain.`
                       : "original elevation only — repairs without an estimate contribute nothing."
                   }`}
             </p>

@@ -40,8 +40,8 @@ function controls(
     total: 0,
     resolved: 0,
     disclosure: { sentPoints: 12, totalPoints: 12, requestCount: 1 },
-    providerName: "OpenTopoData",
-    attribution: "Elevation: OpenTopoData (SRTM 30 m)",
+    providerName: "Open-Meteo",
+    attribution: "Elevation: Open-Meteo (Copernicus DEM GLO-90)",
     privacyNote: PRIVACY_NOTE,
     summary: null,
     error: null,
@@ -120,7 +120,7 @@ describe("ElevationControls", () => {
     expect(summary).toHaveTextContent("▲ 33 m");
     expect(summary).toHaveTextContent("▼ 12 m");
     expect(summary).toHaveTextContent("38 m – 71 m");
-    expect(summary).toHaveTextContent("OpenTopoData");
+    expect(summary).toHaveTextContent("Open-Meteo");
     expect(screen.getByTestId("elevation-status-badge")).toHaveTextContent("Estimated");
   });
 
@@ -208,6 +208,7 @@ function rows(overrides: Partial<ElevationStatsRows> = {}): ElevationStatsRows {
     pointsTotal: 6,
     repairsWithoutElevation: 0,
     hysteresisThresholdM: 2,
+    estimatedFrom: ["Open-Meteo"],
     ...overrides,
   };
 }
@@ -253,7 +254,7 @@ describe("StatsPanel — elevation rows (§L-1)", () => {
     expect(gains[1]).toHaveTextContent("12 m");
     expect(gains[2]).toHaveTextContent("184 m");
     expect(screen.getByTestId("elevation-note")).toHaveTextContent(
-      "estimated from OpenTopoData terrain",
+      "estimated from Open-Meteo terrain",
     );
   });
 

@@ -87,7 +87,7 @@ export function ElevationControls({
         <HintTip
           side="left"
           title="Estimated elevation"
-          description="Looks up terrain elevation for the points you drew (OpenTopoData, SRTM 30 m). Opt-in: a disclosure shows exactly what leaves your browser before anything is sent."
+          description={`Looks up terrain elevation for the points you drew (${elevation.providerName}, a public terrain database). Opt-in: a disclosure shows exactly what leaves your browser before anything is sent.`}
         >
           <Button
             type="button"

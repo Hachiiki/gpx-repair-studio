@@ -17,7 +17,7 @@
  *     (revision + road-leg signature both match) for the merge, and the
  *     count of committed-but-stale repairs the export will exclude.
  *
- * The provider instance (OpenTopoData behind the LRU cache decorator)
+ * The provider instance (Open-Meteo behind the LRU cache decorator)
  * is shared per page — re-edits and retries of nearby geometry are
  * free (§K-2). The browser `fetch` is injected (features/** stays
  * fetch-free, ESLint §F-3).
@@ -29,8 +29,11 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 import { ElevationCache, withCache } from "@/features/elevation/cache";
-import { OpenTopoDataProvider } from "@/features/elevation/opentopodata";
-import type { ElevationProvider } from "@/features/elevation/provider";
+import { OpenMeteoProvider } from "@/features/elevation/openmeteo";
+import type {
+  ElevationFailureReason,
+  ElevationProvider,
+} from "@/features/elevation/provider";
 import {
   gapElevationSummary,
   pickFetchPoints,
@@ -81,7 +84,7 @@ let sharedProvider: ElevationProvider | null = null;
 function getElevationProvider(): ElevationProvider {
   if (!sharedProvider) {
     sharedProvider = withCache(
-      new OpenTopoDataProvider({ fetch: (input, init) => fetch(input, init) }),
+      new OpenMeteoProvider({ fetch: (input, init) => fetch(input, init) }),
       new ElevationCache(),
     );
   }
@@ -91,6 +94,27 @@ function getElevationProvider(): ElevationProvider {
 /** Rounds a raw request count the way the disclosure presents it. */
 function requestCountFor(sentPoints: number): number {
   return Math.max(1, Math.ceil(sentPoints / 100));
+}
+
+/**
+ * Honest failure copy by reason (§K-2): "no usable data" is reserved
+ * for the one case where the service genuinely answered with nothing
+ * (all-void terrain) — every transport failure says what actually
+ * happened instead.
+ */
+function elevationFailureMessage(reason: ElevationFailureReason | null): string {
+  switch (reason) {
+    case "network":
+      return "The elevation service could not be reached — check your connection and try again.";
+    case "throttled":
+      return "The elevation service is rate-limiting requests — wait a few seconds and try again.";
+    case "server":
+      return "The elevation service is having trouble right now — try again in a moment.";
+    case "bad-response":
+      return "The elevation service returned an unexpected response — try again in a moment.";
+    default:
+      return "The elevation service returned no usable data — try again in a moment.";
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -302,6 +326,10 @@ export function useElevation(
       sentPoints: sent.length,
     });
 
+    // Terminal batch failures report WHY (network/throttled/server/
+    // bad-response) so the failed state's copy names the real cause
+    // instead of a misleading "no usable data".
+    let failureReason: ElevationFailureReason | null = null;
     void provider
       .getElevations(
         sent.map((point): LatLon => ({ lat: point.lat, lon: point.lon })),
@@ -310,6 +338,9 @@ export function useElevation(
             useElevationStore
               .getState()
               .setProgress(gapId, fetchSeq, answered, resolved),
+          onBatchFailure: (reason) => {
+            failureReason = reason;
+          },
         },
       )
       .then((values) => {
@@ -334,10 +365,7 @@ export function useElevation(
           samples,
           resolvedPoints: resolved,
           ...(resolved === 0
-            ? {
-                error:
-                  "The elevation service returned no usable data — try again in a moment.",
-              }
+            ? { error: elevationFailureMessage(failureReason) }
             : {}),
         });
       })
@@ -346,8 +374,7 @@ export function useElevation(
           status: "failed",
           samples: [],
           resolvedPoints: 0,
-          error:
-            "The elevation service could not be reached — check your connection and try again.",
+          error: elevationFailureMessage("network"),
         });
       });
   }, [provider, draw.activeGap]);

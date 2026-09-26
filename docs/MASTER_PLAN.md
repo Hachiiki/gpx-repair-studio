@@ -241,8 +241,8 @@ Browser-native, zero dependencies, full control over namespace handling (GPX 1.1
 ### E-4 State management — **Zustand** ✅
 Single-page tool with high-frequency updates (drawing) + large arrays. Zustand gives: selector-level subscriptions (no context-wide re-render storms), plain-object stores testable outside React, tiny bundle, Immer optional. Rejected: Redux Toolkit (boilerplate outweighs scope), React Context (re-render storms on pointer events), Mutation-free derived data (stats recomputed via memoized pure functions keyed by revision counters).
 
-### E-5 Elevation — **provider abstraction; primary OpenTopoData, secondary Terrarium tiles** ✅
-Full analysis in Section K.
+### E-5 Elevation — **provider abstraction; primary Open-Meteo, secondary Terrarium tiles** ✅
+Full analysis in Section K. (Provider swapped 2026-09-26: OpenTopoData's public API sends no CORS headers — see §K-1.)
 
 ### E-6 Charts — **existing scaffold chart primitives (Recharts via shadcn charts)** ✅
 The elevation profile is a single area/line chart; scaffold chart components suffice. If render performance with dense profiles becomes an issue, decimation is applied before feeding the chart (bounded point count).
@@ -295,7 +295,7 @@ src/
 │   │   └── merge.ts                  #   build merged view (pure)
 │   ├── elevation/             (+)
 │   │   ├── provider.ts               #   ElevationProvider interface + registry
-│   │   ├── opentopodata.ts           #   primary provider (batch, throttle, retry)
+│   │   ├── openmeteo.ts            #   primary provider (batch, throttle, retry)
 │   │   ├── terrarium.ts              #   secondary (tile decode) — later phase
 │   │   ├── smoothing.ts              #   moving average + hysteresis gain/loss
 │   │   └── cache.ts                  #   in-memory LRU keyed by rounded coord
@@ -511,7 +511,8 @@ Internally all times are epoch ms (UTC). GPX timestamps are ISO-8601 with timezo
 ### K-1 Options evaluated
 | Option | Accuracy (typ.) | Coverage | Cost / key | Rate limits | What leaves the browser | Verdict |
 |---|---|---|---|---|---|---|
-| **OpenTopoData public API** (SRTM/ASTER 30 m) | ±5–10 m, 30 m grid | global land | free, no key | 1 req/s, 1000 req/day, ≤100 pts/req; CORS enabled | lat/lon of reconstructed points in GET query (server-logged) | **Primary** |
+| **Open-Meteo Elevation API** (Copernicus DEM GLO-90) | ~±10 m, 90 m grid | global land | free, no key (non-commercial, attribution) | 600 req/min, 10,000 req/day per IP, ≤100 pts/req; **CORS `*` (verified)** | lat/lon of reconstructed points in GET query (server-logged) | **Primary** |
+| OpenTopoData public API (SRTM/ASTER 30 m) | ±5–10 m, 30 m grid | global land | free, no key | 1 req/s, 1000 req/day | lat/lon in GET query | **Dropped 2026-09-26**: its responses carry NO `Access-Control-Allow-Origin` header (verified on 200s with an Origin header present), so browser fetches are always CORS-blocked — the feature cannot work client-side. Revisit only behind a server-side relay. |
 | **AWS Terrarium tiles** (open dataset, client-decoded) | ~10–100 m by zoom (max z15) | global incl. bathymetry | free, no key | effectively none (S3/CDN) | only tile x/y/z fetches — like map tiles; no precise coordinates | **Secondary** (added later if wanted) |
 | Open-Elevation public API | SRTM 30 m | global | free | undocumented; instance often flaky | lat/lon batch POST | Backup only |
 | Google / Mapbox elevation APIs | high | global | **API key + billing** | generous | lat/lon | Rejected (account/key/privacy) |
@@ -519,12 +520,12 @@ Internally all times are epoch ms (UTC). GPX timestamps are ISO-8601 with timezo
 
 ### K-2 Recommendation
 - **`ElevationProvider` interface** (`getElevations(coords): Promise<(number | undefined)[]>` + name/attribution/privacyNote) with a small registry; providers swappable at runtime from Settings.
-- **Primary: OpenTopoData** `srtm30m` batch endpoint — no key, documented limits, good accuracy for running terrain. Client-side: batch ≤ 100 points/request, 1 req/s throttle, exponential backoff on 429/5xx, partial failure tolerated (missing points → undefined, flagged).
+- **Primary: Open-Meteo Elevation** (`api.open-meteo.com/v1/elevation`, Copernicus DEM GLO-90) — no key, genuinely CORS-open, generous per-IP limits, each user burns their own budget. Client-side: batch ≤ 100 points/request, ≥250 ms between requests, exponential backoff on 429/5xx/network errors, partial failure tolerated (missing points → undefined, flagged) with terminal batch failures reporting a reason (`network`/`throttled`/`server`/`bad-response`) for honest error copy.
 - **Data minimization:** only *reconstructed, resampled* points are ever sent — never the full GPX, never original points. Per-gap cap (default 400; above it, sample every k-th point and geodesically interpolate the rest — disclosed in UI).
 - **Caching:** in-memory LRU keyed by coordinate rounded to 5 decimals (~1.1 m) — re-edits and retries are free. Optional Cache Storage/IndexedDB persistence deferred (Phase 10 decision).
 - **Terrarium as privacy-max fallback (later):** fetch z12–z14 PNG tiles covering the route, decode `(R·256 + G + B/256) − 32768`, bilinear-sample at points; zero precise-coordinate payload, tiles browser-cacheable. A Phase 6 spike verifies CORS headers before committing.
 - **Smoothing & gain/loss:** raw 30 m DEM along a resampled line is already fairly smooth; a light moving average (window ≈ 5 points) is applied for *profile display only*. Gain/loss uses **hysteresis**: accumulate elevation change only after net excursion exceeds a threshold (default 2.0 m, configurable) — the standard noise-robust method. Both original and reconstructed elevation use the same gain/loss routine but are reported separately.
-- **Provenance:** reconstructed elevation is `Estimated<number>` (`method: 'elevation-api'`); profile chart draws original as solid, reconstructed as dashed/amber with "estimated" legend; original `<ele>` values are never modified. Attribution (OpenTopoData / SRTM / NASA) shown in UI and embedded in export metadata comment.
+- **Provenance:** reconstructed elevation is `Estimated<number>` (`method: 'elevation-api'`); profile chart draws original as solid, reconstructed as dashed/amber with "estimated" legend; original `<ele>` values are never modified. Attribution (Open-Meteo / Copernicus DEM) shown in UI and embedded in export metadata comment.
 
 ---
 
@@ -563,7 +564,7 @@ The GPX file bytes, parsing, validation, gap detection, drawing edits, geodesy, 
 | # | Trigger | Destination | Payload | Granularity / notes |
 |---|---|---|---|---|
 | 1 | Map visible | Tile CDN (default: OpenFreeMap; optional: OSM raster) | tile x/y/z requests (+ standard HTTP metadata: IP, User-Agent) | coarse — tile-level only (~ kilometers at low zoom); no GPX data, no precise positions |
-| 2 | Elevation fetch (opt-in per gap, explicit disclosure shown first) | OpenTopoData (default) | lat/lon of reconstructed resampled points only (≤ cap), in GET query | precise but **minimal**: reconstructed points only — never the full GPX, never original track points; count shown before fetch |
+| 2 | Elevation fetch (opt-in per gap, explicit disclosure shown first) | Open-Meteo (default) | lat/lon of reconstructed resampled points only (≤ cap), in GET query | precise but **minimal**: reconstructed points only — never the full GPX, never original track points; count shown before fetch |
 
 That is the entire egress surface. An **automated E2E privacy test** runs the full core flow (upload → parse → draw → export) with a network allow-list and fails if any other host is contacted.
 
@@ -713,8 +714,8 @@ Conventions for every phase: each ends in a working, committed state (`phase(N):
 ### Phase 6 — Elevation
 
 - **Objective:** opt-in elevation estimation for reconstructed points, with gain/loss and a provenance-clear profile chart.
-- **Scope:** `features/elevation/{provider,opentopodata,cache,smoothing}.ts`; pre-fetch privacy disclosure (exact point count + destination); batch/throttle/retry; in-memory LRU; `ElevationProfileChart` (original solid vs reconstructed dashed, original elevation untouched); hysteresis-based gain/loss in stats; failure/retry/stale-revision states; attribution strings.
-- **Tasks:** provider interface + OpenTopoData implementation (fetch injected for tests); cache; smoothing + hysteresis + tests; chart component; disclosure + status UI; stats wiring.
+- **Scope:** `features/elevation/{provider,openmeteo,cache,smoothing}.ts`; pre-fetch privacy disclosure (exact point count + destination); batch/throttle/retry; in-memory LRU; `ElevationProfileChart` (original solid vs reconstructed dashed, original elevation untouched); hysteresis-based gain/loss in stats; failure/retry/stale-revision states; attribution strings.
+- **Tasks:** provider interface + Open-Meteo implementation (fetch injected for tests); cache; smoothing + hysteresis + tests; chart component; disclosure + status UI; stats wiring.
 - **Files/components:** `features/elevation/*`, `components/statistics/ElevationProfileChart.tsx`, stats extensions, settings for provider.
 - **Dependencies:** Phase 4 (reconstructed geometry); Phase 5 not strictly required but expected order.
 - **Tests:** unit (mocked fetch: success/429-backoff/partial/offline; hysteresis math; LRU behavior); E2E (mocked elevation API → profile renders with estimated styling; privacy allow-list test extended to include the elevation host; failed fetch → clear message, export still possible).
@@ -783,7 +784,7 @@ Conventions for every phase: each ends in a working, committed state (`phase(N):
 ### Phase 11 — Polish, Docs & Release Prep
 
 - **Objective:** release-ready v1.
-- **Scope:** empty/error/edge-state polish; help/onboarding tour (first-run: 4-step overlay); "Privacy & Data" page (exact egress table, offline behavior, provider switching, storage disclosure); About/attribution (OpenTopoData, SRTM/NASA, OpenFreeMap/OSM, MapLibre); README (dev setup, architecture summary, test guide); final full-suite regression + manual QA matrix sign-off.
+- **Scope:** empty/error/edge-state polish; help/onboarding tour (first-run: 4-step overlay); "Privacy & Data" page (exact egress table, offline behavior, provider switching, storage disclosure); About/attribution (Open-Meteo/Copernicus, OpenFreeMap/OSM, MapLibre); README (dev setup, architecture summary, test guide); final full-suite regression + manual QA matrix sign-off.
 - **Tasks:** polish pass; docs pages; regression run; manual matrix.
 - **Files/components:** help components, privacy/about pages, README, final test updates.
 - **Dependencies:** all prior phases.

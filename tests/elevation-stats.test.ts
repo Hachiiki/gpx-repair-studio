@@ -79,7 +79,7 @@ function mergeWith(
     ...(samples
       ? {
           elevation: {
-            providerName: "OpenTopoData",
+            providerName: "Open-Meteo",
             fetchedAtRevision: 1,
             fetchedAtRoadSignature: "none",
             samples,
@@ -125,6 +125,8 @@ describe("buildElevationStats", () => {
     expect(stats.coverage).toBe(1);
     expect(stats.insufficient).toBe(false);
     expect(stats.repairsWithoutElevation).toBe(0);
+    // The note's terrain source flows from the merge's provider list.
+    expect(stats.estimatedFrom).toEqual(["Open-Meteo"]);
   });
 
   it("withholds totals under the 60% coverage rule (§L-1)", () => {
@@ -148,6 +150,7 @@ describe("buildElevationStats", () => {
     expect(stats.mixed).toBeNull();
     expect(stats.insufficient).toBe(true);
     expect(stats.pointsTotal).toBe(0);
+    expect(stats.estimatedFrom).toEqual([]);
   });
 
   it("honors a custom hysteresis threshold", () => {
@@ -172,7 +175,7 @@ function statsFromNoEleFile(d1: number, d2: number) {
     timeStrategy: { kind: "distance-proportional" },
     roadLegs: [],
     elevation: {
-      providerName: "OpenTopoData",
+      providerName: "Open-Meteo",
       fetchedAtRevision: 1,
       fetchedAtRoadSignature: "none",
       samples: [

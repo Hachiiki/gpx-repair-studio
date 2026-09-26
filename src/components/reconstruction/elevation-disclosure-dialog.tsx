@@ -6,7 +6,7 @@
  * only, never the file, never the recorded route), HOW MANY (after the
  * per-gap cap, with the unsampled total when the cap applied), WHERE
  * they go (the provider's host), and how many requests that makes at
- * the provider's one-per-second limit.
+ * the provider's own rate limit.
  *
  * Pure presentation: props in (confirm intent out). The provider copy
  * (privacy note, attribution) flows in from the elevation binding so

@@ -10,8 +10,11 @@ import { join } from "node:path";
  *   1. upload → one-anchor tail extension → draw 2 points (road
  *      routing aborted for deterministic straight legs);
  *   2. "Estimate elevation" → the FR-6.5 disclosure (screenshot) →
- *      confirm → the mocked OpenTopoData answers with Berlin-ish
- *      terrain → the per-gap summary (▲/▼, min–max) lands;
+ *      confirm → the elevation API answers with terrain (mocked by
+ *      default; with ELEVATION_REAL_API=1 the REAL Open-Meteo service
+ *      is used — the true end-to-end check that the provider swap
+ *      works from a browser) → the per-gap summary (▲/▼, min–max)
+ *      lands;
  *   3. commit → the statistics table splits gain/loss by provenance
  *      and the profile chart paints recorded (solid) + reconstructed
  *      (dashed amber) — screenshots;
@@ -21,9 +24,10 @@ import { join } from "node:path";
  *      and the attribution note (bytes checked); the dialog counts
  *      "Repairs with estimated elevation".
  *
- * The elevation API is route-mocked (the sandbox has no external
- * network): deterministic elevations along the drawn chain, rising
- * from 36 m to 54 m — a visible +18 m climb for the summary rows.
+ * The elevation API is route-mocked by default (deterministic
+ * elevations along the drawn chain, rising from 36 m to 54 m — a
+ * visible climb for the summary rows); ELEVATION_REAL_API=1 skips
+ * the mock and exercises the real api.open-meteo.com.
  */
 
 const REAL = join(process.cwd(), "docs", "strava_gpx_original.gpx");
@@ -45,25 +49,30 @@ function elevationForIndex(i) {
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
-// Deterministic session: no road routing, mocked elevation API.
+// Deterministic session: no road routing; the elevation API is mocked
+// unless ELEVATION_REAL_API=1 (then the REAL Open-Meteo service runs
+// the show — requests are still observed for the opt-in assertion).
 await page.route("**/router.project-osrm.org/**", (r) => r.abort());
 await page.route("**/valhalla1.openstreetmap.de/**", (r) => r.abort());
+const REAL_API = process.env.ELEVATION_REAL_API === "1";
 const requestLog = [];
-await page.route("**/api.opentopodata.org/**", async (route) => {
+await page.route("**/api.open-meteo.com/**", async (route) => {
   requestLog.push(route.request().url());
+  if (REAL_API) {
+    await route.continue();
+    return;
+  }
   const url = new URL(route.request().url());
-  const count = (url.searchParams.get("locations") ?? "").split("|").length;
+  const count = (url.searchParams.get("latitude") ?? "").split(",").length;
   await route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
-      status: "OK",
-      results: Array.from({ length: count }, (_, i) => ({
-        elevation: elevationForIndex(i),
-      })),
+      elevation: Array.from({ length: count }, (_, i) => elevationForIndex(i)),
     }),
   });
 });
+console.log("elevation API:", REAL_API ? "REAL api.open-meteo.com" : "mocked");
 
 await page.goto(BASE);
 const chooser = page.waitForEvent("filechooser");
@@ -271,7 +280,7 @@ const interpolatedCount = (outXml.match(/eleMethod="interpolated"/g) ?? []).leng
 console.log(
   `export: ${eleCount} <ele>, ${markerCount} elevation-api, ${interpolatedCount} interpolated markers`,
 );
-if (!outXml.includes("Elevation of reconstructed points estimated from OpenTopoData"))
+if (!outXml.includes("Elevation of reconstructed points estimated from Open-Meteo"))
   throw new Error("attribution note missing from export metadata");
 // Original recorded ele values stay verbatim (the GloryFit file has eles).
 const originalEle = /<ele>([\d.]+)</.exec(xml)?.[1];

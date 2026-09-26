@@ -79,7 +79,7 @@ function gapSite(samples: readonly ElevationSample[] | null): MergeRepairSite {
     ...(samples
       ? {
           elevation: {
-            providerName: "OpenTopoData",
+            providerName: "Open-Meteo",
             fetchedAtRevision: 1,
             fetchedAtRoadSignature: "none",
             samples,
@@ -114,7 +114,7 @@ describe("merge — elevation attachment", () => {
     expect(points[1].ele).toEqual({ value: 55, method: "elevation-api" });
     // Totals for the attribution.
     expect(result.elevatedRepairCount).toBe(1);
-    expect(result.elevationProviders).toEqual(["OpenTopoData"]);
+    expect(result.elevationProviders).toEqual(["Open-Meteo"]);
   });
 
   it("interpolates between samples with the interpolated method", () => {
@@ -169,7 +169,7 @@ describe("merge — elevation attachment", () => {
       timeStrategy: { kind: "distance-proportional" },
       roadLegs: [],
       elevation: {
-        providerName: "OpenTopoData",
+        providerName: "Open-Meteo",
         fetchedAtRevision: 1,
         fetchedAtRoadSignature: "none",
         samples: [
@@ -218,7 +218,7 @@ describe("export — elevation wiring (§H-7 + §K-2 attribution)", () => {
     expect(xml).toContain('eleMethod="elevation-api"');
     // …and the metadata note credits the terrain source.
     expect(xml).toContain(
-      "Elevation of reconstructed points estimated from OpenTopoData",
+      "Elevation of reconstructed points estimated from Open-Meteo",
     );
     // Original points stay verbatim (recorded ele values, untouched).
     expect(xml).toContain("<ele>10</ele>");
@@ -235,6 +235,6 @@ describe("export — elevation wiring (§H-7 + §K-2 attribution)", () => {
       io,
     );
     expect(xml).not.toContain("eleMethod");
-    expect(xml).not.toContain("estimated from OpenTopoData");
+    expect(xml).not.toContain("estimated from Open-Meteo");
   });
 });

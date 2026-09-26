@@ -19,7 +19,7 @@ beforeEach(() => {
 describe("elevation store", () => {
   it("begins a fetch with the provenance snapshot", () => {
     useElevationStore.getState().beginFetch(GAP_A, {
-      providerId: "opentopodata",
+      providerId: "open-meteo",
       fetchedAtRevision: 3,
       fetchedAtRoadSignature: "none",
       totalPoints: 900,
@@ -28,7 +28,7 @@ describe("elevation store", () => {
     const record = useElevationStore.getState().byGap[GAP_A];
     expect(record).toMatchObject({
       status: "fetching",
-      providerId: "opentopodata",
+      providerId: "open-meteo",
       fetchedAtRevision: 3,
       fetchedAtRoadSignature: "none",
       samples: [],
@@ -42,7 +42,7 @@ describe("elevation store", () => {
   it("streams progress only while the fetch owns the record", () => {
     const store = useElevationStore.getState();
     const seq = store.beginFetch(GAP_A, {
-      providerId: "opentopodata",
+      providerId: "open-meteo",
       fetchedAtRevision: 1,
       fetchedAtRoadSignature: "none",
       totalPoints: 10,
@@ -71,7 +71,7 @@ describe("elevation store", () => {
   it("finishes with partial/failed statuses and error copy", () => {
     const store = useElevationStore.getState();
     const seq = store.beginFetch(GAP_A, {
-      providerId: "opentopodata",
+      providerId: "open-meteo",
       fetchedAtRevision: 1,
       fetchedAtRoadSignature: "none",
       totalPoints: 10,
@@ -92,7 +92,7 @@ describe("elevation store", () => {
   it("finish only touches a fetching record (a newer fetch wins)", () => {
     const store = useElevationStore.getState();
     const firstSeq = store.beginFetch(GAP_A, {
-      providerId: "opentopodata",
+      providerId: "open-meteo",
       fetchedAtRevision: 1,
       fetchedAtRoadSignature: "none",
       totalPoints: 10,
@@ -101,7 +101,7 @@ describe("elevation store", () => {
     // A second fetch replaces the record (a re-estimate while the first
     // is in flight) — the FIRST fetch's late finish must be dropped.
     store.beginFetch(GAP_A, {
-      providerId: "opentopodata",
+      providerId: "open-meteo",
       fetchedAtRevision: 2,
       fetchedAtRoadSignature: "none",
       totalPoints: 12,
@@ -124,7 +124,7 @@ describe("elevation store", () => {
     const store = useElevationStore.getState();
     for (const gap of [GAP_A, GAP_B]) {
       const seq = store.beginFetch(gap, {
-        providerId: "opentopodata",
+        providerId: "open-meteo",
         fetchedAtRevision: 1,
         fetchedAtRoadSignature: "none",
         totalPoints: 5,
