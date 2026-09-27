@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Yes, the orange line follows the geometry of the roads (making distinct turns at intersections) rather than being a straight diagonal. Yes, the right panel shows the \"Between clicks, follow\" controls with the **Footpaths** option selected (highlighted in black).",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790488836,
+  "id": "2026092714003491261216038a427c",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "2026092714003491261216038a427c",
+  "usage": {
+    "completion_tokens": 54,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1312,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1366
+  }
+}
