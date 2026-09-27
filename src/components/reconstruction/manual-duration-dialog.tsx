@@ -90,16 +90,21 @@ export function ManualDurationDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-3 gap-3">
+        {/* Three independent fields — each its own box (the app's input
+            language: card fill + ink border), sized by its grid cell (w-full:
+            a bare <input> defaults to ~178 px of intrinsic width, which
+            OVERFLOWS the ~146 px cell and makes neighbors overlap — the
+            "kissing fields" bug), separated by a full gap unit. */}
+        <div className="grid grid-cols-3 gap-3.5">
           {FIELDS.map((field) => (
-            <label key={field.key} className="grid gap-1 text-sm font-medium">
+            <label key={field.key} className="grid gap-1.5 text-xs font-semibold">
               {field.label}
               <input
                 type="number"
                 inputMode="numeric"
                 min={0}
                 step={1}
-                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm font-normal tabular-nums"
+                className="h-10 w-full rounded-[7px] border-[1.5px] border-ink/25 bg-card px-2 text-center text-[15px] font-semibold tabular-nums transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
                 data-testid={field.testid}
                 aria-label={field.label}
                 value={fields[field.key]}

@@ -100,6 +100,7 @@ export function RecoveryStudio() {
               rows={draw.manualRows}
               detectedGapIds={session.gapRows.map((row) => row.id)}
               pickMode={draw.pickMode}
+              editorActive={draw.active}
               onBeginPickAnchor={draw.beginPickAnchor}
               onBeginPickPair={draw.beginPickPair}
               onCancelPick={draw.cancelPickSpan}
@@ -112,14 +113,14 @@ export function RecoveryStudio() {
                   "Draw the route you lost — the app estimates its time from your pace in this file.",
                 anchorLabel: "Draw an unmeasured section",
                 anchorHint:
-                  "One click on any point of your recorded route, then click anywhere on the map — the line follows the road between your clicks. Use it for any stretch the watch never measured, even when nothing was detected.",
+                  "One click anywhere on the map — the section attaches to your recorded route's nearest end and your clicks draw the lost route outward from there, following the roads between them. Use it for any stretch the watch never measured, even when nothing was detected.",
                 pairLabel: "Redraw a stretch",
                 pairHint:
                   "Click two points on the recorded route — the stretch between them is what you replace. Use it when the watch drew a straight line over the road you actually took; the time comes from the file.",
                 empty:
                   "Nothing drawn yet. Start anywhere on the route — a tunnel the watch cut straight through, a section it never measured — even when no gap was detected.",
                 anchorInstructions:
-                  "Click ONE point on your recorded route where the unmeasured section attaches — then draw freely anywhere on the map. Route start/end extends into the open; a middle point inserts after it. Esc cancels.",
+                  "Click anywhere on the map near where the lost section goes — it anchors to your recorded route's nearest end and every click after that draws outward from it. Esc cancels.",
                 pairInstructions:
                   "Click two points on the recorded route — the stretch between them is what you replace. Pan and zoom stay available; Esc cancels.",
               }}
@@ -141,6 +142,7 @@ export function RecoveryStudio() {
               statusById={draw.statusById}
               onOpenEditor={draw.openEditor}
               onBeginPick={draw.beginPickAnchor}
+              editorActive={draw.active}
             />
             {/*
              * The drawing editor — the reused repair-studio panel, driven

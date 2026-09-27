@@ -221,6 +221,44 @@ interface ProviderPath {
   routeDistanceM: number;
 }
 
+/**
+ * Decode an encoded polyline string (1e-6 precision — the format the
+ * Valhalla demo server actually returns for `shape`, regardless of the
+ * requested `shape_format`). Standard variable-length delta encoding:
+ * each coordinate's chars carry 5 bits, value chunks are -63 offset,
+ * continuation flag 0x20; deltas zig-zag decode and accumulate.
+ *
+ * Verified against valhalla1.openstreetmap.de: "ycqdcBurdqX…" →
+ * [13.404987, 52.520013], … (lon-lat pairs, like every provider here).
+ */
+export function decodePolyline6(encoded: string): [number, number][] {
+  const coordinates: [number, number][] = [];
+  let index = 0;
+  let lat = 0;
+  let lon = 0;
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let byte: number;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    result = 0;
+    shift = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lon += result & 1 ? ~(result >> 1) : result >> 1;
+    coordinates.push([lon / 1e6, lat / 1e6]);
+  }
+  return coordinates;
+}
+
 const isLonLat = (candidate: unknown): candidate is [number, number] =>
   Array.isArray(candidate) &&
   candidate.length >= 2 &&
@@ -323,6 +361,25 @@ export class RoadFollowRouter {
     };
   }
 
+  /**
+   * The provider shape, coordinates only. The demo server ignores the
+   * requested `shape_format: "geojson"` and answers with an encoded
+   * polyline6 STRING (verified live) — accept both shapes so the parser
+   * tracks whichever the server sends:
+   *   - array  → [[lon, lat], …] (a server that honored the request);
+   *   - string → encoded polyline6 (the observed demo behavior).
+   */
+  #valhallaShape(shape: unknown): [number, number][] | null {
+    if (typeof shape === "string") {
+      if (shape.length === 0) return null;
+      const decoded = decodePolyline6(shape);
+      return decoded.length >= 2 ? decoded : null;
+    }
+    if (!Array.isArray(shape)) return null;
+    const parsed = shape.filter(isLonLat).map((c) => [c[0], c[1]] as [number, number]);
+    return parsed.length >= 2 ? parsed : null;
+  }
+
   async #valhalla(a: LatLon, b: LatLon, signal: AbortSignal): Promise<ProviderPath | null> {
     const response = await this.#fetchImpl(VALHALLA_ROUTE_URL, {
       method: "POST",
@@ -343,13 +400,11 @@ export class RoadFollowRouter {
       ?.[0] as
       | { shape?: unknown; summary?: { length?: unknown } }
       | undefined;
-    const shape = leg?.shape;
-    if (!Array.isArray(shape)) return null;
-    const parsed = shape.filter(isLonLat).map((c) => [c[0], c[1]] as [number, number]);
-    if (parsed.length < 2) return null;
+    const coordinates = this.#valhallaShape(leg?.shape);
+    if (!coordinates) return null;
     const km = leg?.summary?.length;
     return {
-      coordinates: parsed,
+      coordinates,
       routeDistanceM:
         typeof km === "number" && Number.isFinite(km) ? km * 1000 : 0,
     };

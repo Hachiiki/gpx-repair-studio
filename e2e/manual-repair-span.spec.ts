@@ -12,10 +12,14 @@ import { abortRoadRouting } from "./helpers/road-follow";
  *   1. "Redraw a stretch" starts the two-click pick mode (chip on map);
  *   2. two clicks on recorded points open the standard draw editor with
  *      the picked anchors;
- *   3. "Add missing route" needs ONE click — the anchor — and the editor
- *      opens immediately with NO far boundary: no closing segment ever
- *      renders, the drawn chain is exactly what the repair will be
- *      (WYSIWYG, the user's interaction design);
+ *   3. "Add missing route" needs ONE click — which resolves to the
+ *      segment endpoint NEAREST the click (user pass 36): near the
+ *      route's visible end that's the end itself; out in empty space
+ *      it's still the nearest end, never a mid-route insert that
+ *      behaves like redraw-a-stretch. The editor opens immediately
+ *      with NO far boundary: no closing segment ever renders, the
+ *      drawn chain is exactly what the repair will be (WYSIWYG, the
+ *      user's interaction design);
  *   4. drawing + committing works exactly like a detected-gap repair
  *      (reconstruction renders; the manual card shows "Reconstructed");
  *   5. the original recording is untouched (immutability);
@@ -273,7 +277,7 @@ test.describe("manual repair spans — draw anywhere, no detection required", ()
     // -- ONE click on the LAST recorded point = the route's tail ----------
     await page.getByTestId("begin-pick-anchor-button").click();
     await expect(page.getByTestId("pick-mode-chip")).toContainText(
-      "one point",
+      "nearest end",
     );
     await pollBridge(
       page,
@@ -372,5 +376,72 @@ test.describe("manual repair spans — draw anywhere, no detection required", ()
     expect(statsAfter).toContain(movingTime!);
     expect(statsAfter).toContain("Repaired distance");
     expect(statsAfter).toContain("Repair time");
+  });
+
+  test("add missing route — a click NOWHERE near the route anchors at its nearest end (user pass 36)", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await upload(page, DEMO);
+    await pollBridge(page, (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);
+
+    await page.getByTestId("begin-pick-anchor-button").click();
+    await pollBridge(
+      page,
+      (s) => s.pickSession?.active === true && s.pickSession.mode === "anchor",
+    );
+
+    // A click in EMPTY SPACE, past the route's north-east tail — the old
+    // behavior kept waiting (16 px radius miss) or, near a mid-route
+    // point, silently became an insert that replaced the [anchor, next]
+    // stretch (redraw-a-stretch in disguise). The user's contract: the
+    // tool detects the route ending nearest the click and anchors there.
+    const tail = pointAt(899);
+    // Frame the working area first (a real user pans before clicking far
+    // out — the initial fit only guarantees the recorded extent).
+    await page.evaluate(
+      ([lat, lon]) =>
+        window.__gpxMapController!.fitBounds(
+          {
+            minLat: (lat as number) - 0.001,
+            minLon: (lon as number) - 0.001,
+            maxLat: (lat as number) + 0.004,
+            maxLon: (lon as number) + 0.005,
+          },
+          { maxZoom: 17, action: "test-fit-far-click" },
+        ),
+      [tail.lat, tail.lon] as const,
+    );
+    await pollBridge(
+      page,
+      (s) => !s.moving && s.lastCameraAction === "test-fit-far-click",
+    );
+    const box = await canvasBox(page);
+    const far = { lat: tail.lat + 0.002, lon: tail.lon + 0.0022 };
+    await clickAt(page, far.lat, far.lon, box);
+
+    // The editor opened immediately — an OPEN extension, not an insert.
+    const editor = page.getByTestId("draw-editor-panel");
+    await expect(editor).toBeVisible();
+    await expect(editor).toContainText("Added route");
+    await expect(editor.getByTestId("open-end-instructions")).toBeVisible();
+    const session = await pollBridge(
+      page,
+      (s) => s.drawSession !== null && s.drawSession.drawMode === true,
+    );
+    // The nearest route ending to that click is the TAIL: an open
+    // "after" extension whose chain starts at the recorded last point.
+    expect(session.drawSession!.gapId).toMatch(/\/end$/);
+    expect(session.drawSession!.closingCoordinates).toHaveLength(0);
+    await pollBridge(page, (s) => !s.moving);
+
+    // The chain's anchor IS the tail point (the tool placed it there).
+    const chainStart = session.drawSession!.chainCoordinates[0];
+    expect(chainStart[0]).toBeCloseTo(tail.lon, 6);
+    expect(chainStart[1]).toBeCloseTo(tail.lat, 6);
+
+    // Cancel out — this spec only pins the anchoring contract.
+    await page.getByTestId("done-editing-button").click();
+    await expect(editor).toHaveCount(0);
   });
 });

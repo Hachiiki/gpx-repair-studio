@@ -216,21 +216,23 @@ describe("Gap Recovery section", () => {
     // Enter pick mode — the recovery-voiced instructions appear.
     fireEvent.click(screen.getByTestId("begin-pick-anchor-button"));
     expect(screen.getByTestId("pick-instructions")).toHaveTextContent(
-      "where the unmeasured section attaches",
+      "anchors to your recorded route's nearest end",
     );
 
-    // Pick a mid-route point (store-driven; the map needs WebGL):
-    // point 2 + its next recorded point → an insert span.
+    // The anchor resolves to the segment endpoint nearest the click
+    // (store-driven; the map needs WebGL): a click past the route's end
+    // anchors at its LAST point — an open "after" extension (user pass
+    // 36: never a mid-route insert that behaves like redraw-a-stretch).
     const SEG = segmentId(0, 0);
     await act(async () => {
-      useRecoveryStore.getState().addInsertSpan(pointId(SEG, 2), pointId(SEG, 3));
+      useRecoveryStore.getState().addExtendSpan(pointId(SEG, 5), "after");
     });
     expect(useRecoveryStore.getState().manualSpans).toEqual([
       {
-        id: "gap/t0s0:2/t0s0:3",
-        kind: "insert",
-        beforePointId: "t0s0:2",
-        afterPointId: "t0s0:3",
+        id: "gap/t0s0:5/end",
+        kind: "extend",
+        anchorPointId: "t0s0:5",
+        side: "after",
       },
     ]);
 

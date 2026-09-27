@@ -219,7 +219,7 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
                     aria-hidden="true"
                   />
                   {draw.pickMode === "anchor"
-                    ? "Click one point on the route — then draw anywhere · Esc cancels"
+                    ? "Click where the missing route goes — it anchors to the route's nearest end · Esc cancels"
                     : "Pick two points on the recorded route — Esc cancels"}
                 </span>
               </div>

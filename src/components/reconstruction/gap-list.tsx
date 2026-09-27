@@ -166,6 +166,12 @@ export interface GapListProps {
    * matters most: the empty state of a clean-looking file.
    */
   onBeginPick?: () => void;
+  /**
+   * A draw editor session is open (user pass 36): the cross-link
+   * disables alongside the manual-repairs card's tools — one repair
+   * at a time.
+   */
+  editorActive?: boolean;
 }
 
 export function GapList({
@@ -178,6 +184,7 @@ export function GapList({
   statusById,
   onOpenEditor,
   onBeginPick,
+  editorActive = false,
 }: GapListProps) {
   return (
     <Card data-testid="gap-list">
@@ -213,7 +220,13 @@ export function GapList({
               <button
                 type="button"
                 data-testid="empty-list-begin-pick"
-                className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-signal hover:bg-signal/10 focus-visible:outline-2"
+                className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-signal hover:bg-signal/10 focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-50"
+                disabled={editorActive}
+                title={
+                  editorActive
+                    ? "A repair editor is open — finish or close it first."
+                    : undefined
+                }
                 onClick={onBeginPick}
               >
                 <PenLine className="size-3.5" aria-hidden="true" />

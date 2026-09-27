@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  GPX Repair Studio mark (user pass 35): a ROUTE, not a glyph.
+
+  The signal-orange keycap field stays; what it carries is now the shape
+  every activity draws on every map — one white route line leaving a
+  filled start dot (bottom-left) and arriving at a hollow finish ring
+  (top-right). It reads at 16 px (favicon / tab) and at 32 px (header,
+  where the CSS adds the 1.5 px ink keycap border and hard bottom edge).
+-->
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
+  <!-- The signal field (same rounded square as before). -->
+  <path fill="#FC4C02" d="M24.51,28.51H5.49c-2.21,0-4-1.79-4-4V5.49c0-2.21,1.79-4,4-4h19.03c2.21,0,4,1.79,4,4v19.03
+    C28.51,26.72,26.72,28.51,24.51,28.51z"/>
+  <!-- The recorded route: solid white ink, round caps and joins. -->
+  <path fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"
+    d="M8.2 22.6 C 8.2 17.8, 13.4 18.8, 15 15 C 16.6 11.2, 15.2 9.2, 18 8.4 C 19.6 8, 21 8.2, 22.2 8.6"/>
+  <!-- Start: a filled dot where the watch began recording. -->
+  <circle cx="8.2" cy="22.6" r="2.6" fill="#FFFFFF"/>
+  <!-- Finish: a hollow ring where the route ends. -->
+  <circle cx="22.2" cy="8.6" r="2.9" fill="#FC4C02" stroke="#FFFFFF" stroke-width="2.1"/>
+</svg>

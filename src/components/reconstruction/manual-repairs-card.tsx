@@ -135,6 +135,13 @@ export interface ManualRepairsCardProps {
   detectedGapIds: readonly string[];
   /** Span-pick mode: which tool is collecting map clicks (null = off). */
   pickMode: PickMode | null;
+  /**
+   * A draw editor session is open (user pass 36): starting another
+   * pick while one editor is mid-flight would bury the open session —
+   * the two tools disable until it is closed. Default false (tests and
+   * standalone renders keep the old contract).
+   */
+  editorActive?: boolean;
   onBeginPickAnchor: () => void;
   onBeginPickPair: () => void;
   onCancelPick: () => void;
@@ -165,6 +172,7 @@ export function ManualRepairsCard({
   rows,
   detectedGapIds,
   pickMode,
+  editorActive = false,
   onBeginPickAnchor,
   onBeginPickPair,
   onCancelPick,
@@ -181,7 +189,7 @@ export function ManualRepairsCard({
   const anchorLabel = copy?.anchorLabel ?? "Add missing route";
   const anchorHint =
     copy?.anchorHint ??
-    "One click on any recorded point, then click anywhere on the map — the line follows the road between your clicks. Use it for a missing head, tail, or any stretch the watch never recorded.";
+    "One click anywhere on the map — the repair attaches to the recorded route's nearest end and your clicks draw the missing route outward from there, following the roads between them. Use it for a missing head or tail the watch never recorded.";
   const pairLabel = copy?.pairLabel ?? "Redraw a stretch";
   const pairHint =
     copy?.pairHint ??
@@ -191,7 +199,7 @@ export function ManualRepairsCard({
     "No manual repairs yet. Start one anywhere on the route — a detour the watch drew straight, a missing head or tail — even when no gap was detected.";
   const anchorInstructions =
     copy?.anchorInstructions ??
-    "Click ONE point on the recorded route to attach your repair — then draw freely anywhere on the map. Route start/end extends into the open; a middle point inserts after it. Esc cancels.";
+    "Click anywhere on the map near where the missing route goes — the repair anchors to the recorded route's nearest end and every click after that draws outward from it. Esc cancels.";
   const pairInstructions =
     copy?.pairInstructions ??
     "Click two points on the recorded route — the stretch between them is what you replace. Pan and zoom stay available; Esc cancels.";
@@ -227,7 +235,9 @@ export function ManualRepairsCard({
         {/* The two repair tools. Exactly one interaction shape each —
             one click to start adding, two clicks to bound a redraw.
             Stacked: the 336–384 px rail is too narrow for two labelled
-            buttons side by side (the mockup's rail rule). */}
+            buttons side by side (the mockup's rail rule). While a draw
+            editor is open they disable — a second pick would bury the
+            session mid-flight (user pass 36). */}
         <div className="grid gap-2">
           <HintTip side="left" title={anchorLabel} description={anchorHint}>
             <Button
@@ -235,7 +245,7 @@ export function ManualRepairsCard({
               size="sm"
               className="h-9 w-full gap-1.5"
               data-testid="begin-pick-anchor-button"
-              disabled={pickMode !== null}
+              disabled={pickMode !== null || editorActive}
               onClick={onBeginPickAnchor}
             >
               <PenLine className="size-3.5" aria-hidden="true" />
@@ -249,7 +259,7 @@ export function ManualRepairsCard({
               size="sm"
               className="h-9 w-full gap-1.5"
               data-testid="begin-pick-pair-button"
-              disabled={pickMode !== null}
+              disabled={pickMode !== null || editorActive}
               onClick={onBeginPickPair}
             >
               <MousePointer2 className="size-3.5" aria-hidden="true" />
@@ -257,6 +267,15 @@ export function ManualRepairsCard({
             </Button>
           </HintTip>
         </div>
+        {editorActive && !pickMode && (
+          <p
+            className="rounded-md border-[1.25px] border-ink/15 bg-ink/[0.03] px-3 py-2 text-xs leading-relaxed text-muted-foreground"
+            data-testid="tools-locked-note"
+          >
+            A repair editor is open — finish or close it before starting
+            another repair.
+          </p>
+        )}
         {pickMode === "anchor" && (
           <p
             className="rounded-lg border-[1.25px] border-signal bg-signal/[0.08] px-3 py-2.5 text-xs leading-relaxed text-ink"

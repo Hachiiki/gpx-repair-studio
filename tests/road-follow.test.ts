@@ -18,6 +18,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   closingLegCoordinates,
+  decodePolyline6,
   findLeg,
   isStraightLinePath,
   joinDrawChain,
@@ -150,6 +151,75 @@ describe("isStraightLinePath (rendered-path honesty)", () => {
   });
 });
 
+describe("decodePolyline6 (the demo server's actual shape format)", () => {
+  it("decodes the live valhalla1.openstreetmap.de response exactly", () => {
+    // Captured from a real POST to valhalla1.openstreetmap.de/route
+    // (2026-09-27): locations 52.52,13.405 → 52.525,13.41,
+    // costing pedestrian, shape_format geojson (ignored — the server
+    // answered with polyline6 anyway, which is exactly why this decoder
+    // exists: footpath routing resolved null and the editor reported
+    // "Road follow unavailable" on every leg).
+    const encoded =
+      "ycqdcBurdqXyFeM_@_AyJ}VyKiXm@yAvAsBp@cAkBmE_BwDkEcKmXer@eCeGqQyb@uJ}UaAaCyBwFqRof@aCwFUq@]{@Wi@Yo@Qa@e@}@[v@cAbEi@xBOj@WfAMf@u@xCw@bD_@v@~@`CsLhSoBM{@[w@q@}HyIoAeAkCyBOh@iArDyAzEwNiJmEsCc_@aV_Ag@_@PWn@UM}@m@g@[]W}@i@aAo@_@WAoAYq@u@g@yb@sZqKuH";
+    const decoded = decodePolyline6(encoded);
+    expect(decoded.length).toBeGreaterThan(50);
+    // First point: the response's own min corner — 52.520013, 13.404987.
+    expect(decoded[0][1]).toBeCloseTo(52.520013, 6);
+    expect(decoded[0][0]).toBeCloseTo(13.404987, 6);
+    // Monotone-ish walk: every step is a small delta, no jumps.
+    for (let i = 1; i < decoded.length; i += 1) {
+      const step = Math.max(
+        Math.abs(decoded[i][0] - decoded[i - 1][0]),
+        Math.abs(decoded[i][1] - decoded[i - 1][1]),
+      );
+      expect(step).toBeLessThan(0.001);
+    }
+  });
+
+  it("round-trips negative deltas and the zig-zag sign bit", () => {
+    // A reference encoder (the standard algorithm, 1e-6 precision):
+    // each 5-bit chunk carries the continuation flag; deltas zig-zag.
+    const encode = (coordinates: [number, number][]): string => {
+      let encoded = "";
+      let prevLat = 0;
+      let prevLon = 0;
+      for (const [lon, lat] of coordinates) {
+        const parts: [number, number][] = [
+          [lat, prevLat],
+          [lon, prevLon],
+        ];
+        for (const [current, previous] of parts) {
+          const delta = Math.round(current * 1e6) - Math.round(previous * 1e6);
+          let value = delta < 0 ? ~(delta << 1) : delta << 1;
+          do {
+            let chunk = value & 0x1f;
+            value >>>= 5;
+            if (value > 0) chunk |= 0x20;
+            encoded += String.fromCharCode(chunk + 63);
+          } while (value > 0);
+        }
+        prevLat = lat;
+        prevLon = lon;
+      }
+      return encoded;
+    };
+    // Deltas of both signs on both axes, west of Greenwich, south of
+    // the equator included (negative bases exercise the accumulators).
+    const coordinates: [number, number][] = [
+      [-13.404954, -10.123456],
+      [-13.404952, -10.123455],
+      [-13.404958, -10.123459],
+      [-13.404951, -10.12345],
+      [-13.405001, -10.1235],
+    ];
+    expect(decodePolyline6(encode(coordinates))).toEqual(coordinates);
+  });
+
+  it("an empty string yields no geometry", () => {
+    expect(decodePolyline6("")).toEqual([]);
+  });
+});
+
 describe("RoadFollowRouter (fetch injected)", () => {
   it("requests OSRM with lon,lat pairs and parses the geojson route", async () => {
     const fetchMock = vi.fn<RoadFetch>().mockResolvedValue(
@@ -199,6 +269,34 @@ describe("RoadFollowRouter (fetch injected)", () => {
       { lat: A.lat, lon: A.lon },
       { lat: B.lat, lon: B.lon },
     ]);
+  });
+
+  it("parses the polyline6 STRING the demo server actually returns (user pass 36)", async () => {
+    // The live valhalla1.openstreetmap.de ignores shape_format:"geojson"
+    // and answers with an encoded polyline6 string. Before the decoder,
+    // every footpath leg resolved null and the editor said "Road follow
+    // unavailable right now" — this is that regression test.
+    const encoded =
+      "ycqdcBurdqXyFeM_@_AyJ}VyKiXm@yAvAsBp@cAkBmE_BwDkEcKmXer@eCeGqQyb@uJ}UaAaCyBwFqRof@aCwFUq@]{@Wi@Yo@Qa@e@}@[v@cAbEi@xBOj@WfAMf@u@xCw@bD_@v@~@`CsLhSoBM{@[w@q@}HyIoAeAkCyBOh@iArDyAzEwNiJmEsCc_@aV_Ag@_@PWn@UM}@m@g@[]W}@i@aAo@_@WAoAYq@u@g@yb@sZqKuH";
+    const fetchMock = vi.fn<RoadFetch>().mockResolvedValue(
+      jsonResponse({
+        trip: {
+          legs: [{ shape: encoded, summary: { length: 0.781 } }],
+        },
+      }),
+    );
+    const router = new RoadFollowRouter({ fetch: fetchMock });
+    const leg = await router.segment("foot", A, B);
+    expect(leg).not.toBeNull();
+    expect(leg!.coordinates.length).toBeGreaterThan(50);
+    // Every coordinate is finite and lon/lat-ordered around the request.
+    for (const [lon, lat] of leg!.coordinates) {
+      expect(Number.isFinite(lon)).toBe(true);
+      expect(Number.isFinite(lat)).toBe(true);
+    }
+    expect(leg!.coordinates[0][1]).toBeCloseTo(52.520013, 6);
+    expect(leg!.coordinates[0][0]).toBeCloseTo(13.404987, 6);
+    expect(leg!.routeDistanceM).toBeCloseTo(781, 6);
   });
 
   it("caches successes — a second call never fetches", async () => {

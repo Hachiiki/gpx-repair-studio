@@ -300,32 +300,35 @@ test.describe("Gap Recovery section", () => {
     await expect(card).toContainText("Unmeasured sections");
     await expect(card).toContainText("Draw an unmeasured section");
 
-    // Anchor pick: one click on a recorded point (mid-route → an insert
-    // span after it).
+    // Anchor pick (user pass 36): ONE click resolves to the segment
+    // endpoint NEAREST it — clicking out in empty space past the route's
+    // end anchors there (the lost tail), never a mid-route insert.
     await page.getByTestId("begin-pick-anchor-button").click();
     await expect(page.getByTestId("pick-mode-chip")).toBeVisible();
     const box = await canvasBox(page);
-    // Point 2 of the fixture (52.520096, 13.405094).
-    await clickAt(page, 52.520096, 13.405094, box);
+    // North-east of the fixture's last point (52.520231, 13.405304) —
+    // empty map space, clearly outside the tiny recorded route.
+    await clickAt(page, 52.5206, 13.4055, box);
 
     // The pick became a draw session (the editor opened on the span).
     await pollBridge(page, (s) => s.drawSession !== null && s.drawSession.drawMode);
     const editor = page.getByTestId("draw-editor-panel");
     await expect(editor).toContainText("Reconstruct route");
 
-    // The app-calculated plan: "From your pace" is the source in force,
-    // the duration labeled as the pace estimate.
-    await expect(page.getByTestId("time-strategy-pace-estimated")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    await expect(page.getByTestId("gap-duration")).toContainText("pace estimate");
-
     // Draw the lost route (snap off — clicks land where clicked).
     await page.getByTestId("snap-toggle").click();
     await clickAt(page, DRAW_POINTS[0].lat, DRAW_POINTS[0].lon, box);
     await clickAt(page, DRAW_POINTS[1].lat, DRAW_POINTS[1].lon, box);
     await pollBridge(page, (s) => s.drawSession?.vertexCount === 2);
+
+    // The app-calculated plan: "From your pace" is the source in force,
+    // the duration labeled as the pace estimate (asserted once the drawn
+    // path has length — an open extension has none until then).
+    await expect(page.getByTestId("time-strategy-pace-estimated")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByTestId("gap-duration")).toContainText("pace estimate");
 
     // Commit: the drawn section becomes the recovered line.
     await page.getByTestId("done-editing-button").click();

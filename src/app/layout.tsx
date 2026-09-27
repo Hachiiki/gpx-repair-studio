@@ -34,7 +34,11 @@ export const metadata: Metadata = {
   description:
     "Repair and reconstruct incomplete GPX running activities — locally in your browser. No GPX data ever leaves your device.",
   keywords: ["GPX", "GPS repair", "running", "route reconstruction", "local-first"],
-  icons: { icon: "/logo.svg" },
+  // The tab icon is the app/icon.svg file convention — the same route mark
+  // as public/logo.svg (navbar), served from its OWN url. Favicons are
+  // cached by url and survive hard refreshes; a previous release pointed
+  // at /logo.svg and browsers kept showing the pre-route glyph forever.
+  // The convention route evicts that cache by construction.
 };
 
 export default function RootLayout({

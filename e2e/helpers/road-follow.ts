@@ -95,3 +95,78 @@ export function haversineM(
     Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(s));
 }
+
+/** Encode [lon, lat] pairs as a polyline6 string (Valhalla's shape). */
+function encodePolyline6(coordinates: [number, number][]): string {
+  let encoded = "";
+  let prevLat = 0;
+  let prevLon = 0;
+  for (const [lon, lat] of coordinates) {
+    for (const [current, previous] of [
+      [lat, prevLat],
+      [lon, prevLon],
+    ] as const) {
+      const delta = Math.round(current * 1e6) - Math.round(previous * 1e6);
+      let value = delta < 0 ? ~(delta << 1) : delta << 1;
+      do {
+        let chunk = value & 0x1f;
+        value >>>= 5;
+        if (value > 0) chunk |= 0x20;
+        encoded += String.fromCharCode(chunk + 63);
+      } while (value > 0);
+    }
+    prevLat = lat;
+    prevLon = lon;
+  }
+  return encoded;
+}
+
+/**
+ * Answer Valhalla (footpaths) with the demo server's REAL response shape:
+ * `trip.legs[0].shape` as an encoded polyline6 STRING (the server ignores
+ * `shape_format: "geojson"` — decoded client-side since user pass 36).
+ * The route echoes the request's own waypoints plus a mid-point bulged
+ * north — same deterministic "curve" contract as mockOsrmBulge.
+ */
+export async function mockValhallaBulge(
+  page: Page,
+  options: { offsetLat?: number; log?: OsrmCallLog } = {},
+): Promise<void> {
+  const offsetLat = options.offsetLat ?? 0.0004;
+  await page.route(/valhalla1\.openstreetmap\.de/, async (route) => {
+    const body = route.request().postDataJSON() as {
+      locations?: { lat: number; lon: number }[];
+    };
+    const locations = body.locations ?? [];
+    if (
+      locations.length !== 2 ||
+      locations.some((p) => !Number.isFinite(p.lat) || !Number.isFinite(p.lon))
+    ) {
+      await route.fulfill({ json: { trip: { legs: [] } } });
+      return;
+    }
+    const [a, b] = locations;
+    options.log?.legs.push({ a, b });
+    if (options.log) options.log.count += 1;
+    const mid = {
+      lat: (a.lat + b.lat) / 2 + offsetLat,
+      lon: (a.lon + b.lon) / 2,
+    };
+    await route.fulfill({
+      json: {
+        trip: {
+          legs: [
+            {
+              shape: encodePolyline6([
+                [a.lon, a.lat],
+                [mid.lon, mid.lat],
+                [b.lon, b.lat],
+              ]),
+              summary: { length: 1.5 },
+            },
+          ],
+        },
+      },
+    });
+  });
+}

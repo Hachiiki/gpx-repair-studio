@@ -128,7 +128,7 @@ export function FileTimingCard({ fileTiming, setFileTiming }: FileTimingCardProp
             Total duration (optional)
           </span>
           <div
-            className="flex items-center gap-1.5"
+            className="flex items-center gap-2.5"
             onBlur={() => {
               // Blur-commit (the gap-threshold pattern): keystrokes never
               // fight the store→fields sync; the committed value then

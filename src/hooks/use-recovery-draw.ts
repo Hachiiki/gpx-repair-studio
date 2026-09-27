@@ -311,11 +311,11 @@ export function useRecoveryDraw(
   // While pickMode is on, the controller collects clicks on recorded
   // points. Pair mode: the picked pair becomes a replace span (document-
   // order fixing happens here — the map layer knows nothing of the file's
-  // order). Anchor mode: ONE click — the point's position in its segment
-  // derives the shape: route start → open "before" extension; route end →
-  // open "after" extension; mid-route → insert at the [anchor, next]
-  // boundary (same id scheme as a picked pair, so it deduplicates into
-  // any existing repair there — detected or drawn).
+  // order). Anchor mode: ONE click — the segment endpoint NEAREST the
+  // click (user pass 36), with its role deciding the side: "start" →
+  // open "before" extension (the lost head), "end" → open "after"
+  // extension (the lost tail). A click nowhere near a route ending
+  // attaches at the nearest end — never a mid-route insert.
   useEffect(() => {
     const controller: MapController | null = map.getController();
     if (!controller) return;
@@ -327,7 +327,8 @@ export function useRecoveryDraw(
     for (const segment of session.data.segments) {
       // Endpoint flagging: the first/last usable point of each segment
       // wins pick near-ties (clicking the visible route end = the
-      // endpoint, even when its neighbor sits a sub-pixel away).
+      // endpoint, even when its neighbor sits a sub-pixel away) and
+      // serves as anchor mode's only resolution candidates.
       const usableIds = new Set(
         segment.points.filter(isUsableStatsPoint).map((point) => point.id),
       );
@@ -340,14 +341,18 @@ export function useRecoveryDraw(
       }
       for (const point of segment.points) {
         if (!isUsableStatsPoint(point)) continue;
+        const role =
+          point.id === firstUsableId
+            ? ("start" as const)
+            : point.id === lastUsableId
+              ? ("end" as const)
+              : null;
         targets.push({
           pointId: point.id,
           lat: point.lat,
           lon: point.lon,
           trackIndex: segment.trackIndex,
-          ...(point.id === firstUsableId || point.id === lastUsableId
-            ? { isSegmentEnd: true }
-            : {}),
+          ...(role ? { isSegmentEnd: true, segmentRole: role } : {}),
         });
       }
     }
@@ -363,19 +368,14 @@ export function useRecoveryDraw(
             entryA.ordinal <= entryB.ordinal ? [a, b] : [b, a];
           useRecoveryStore.getState().addManualSpan(before, after);
         },
-        onAnchorPicked: (pointId) => {
+        onAnchorPicked: (pointId, role) => {
           const entry = pointIndex.get(pointId);
           if (!entry) return;
-          const store = useRecoveryStore.getState();
-          if (entry.prevUsableId === null && entry.nextUsableId !== null) {
-            // The route's first usable point: the lost head precedes it.
-            store.addExtendSpan(pointId, "before");
-          } else if (entry.nextUsableId !== null) {
-            store.addInsertSpan(pointId, entry.nextUsableId);
-          } else {
-            // No next usable point: the segment's end — the lost tail.
-            store.addExtendSpan(pointId, "after");
-          }
+          // Always an open extension: "start" draws the lost head before
+          // the route, "end" the lost tail after it.
+          useRecoveryStore
+            .getState()
+            .addExtendSpan(pointId, role === "start" ? "before" : "after");
         },
         onCancel: () => useRecoveryStore.getState().cancelPickMode(),
       },

@@ -219,6 +219,11 @@ const PICK_RADIUS_PX = 16;
  * best interior target wins the pick (see #nearestPickTarget). */
 const ENDPOINT_TIE_PX = 2;
 
+/** Anchor picks resolving farther than this from the click refit the
+ * camera to frame click + anchor — the tool's chosen attachment must be
+ * visible, or a far click looks like nothing happened (user pass 36). */
+const ANCHOR_REFIT_PX = 120;
+
 /** Minimum pointer travel (px) before a handle press counts as a drag. */
 const DRAG_THRESHOLD_PX = 3;
 
@@ -321,6 +326,11 @@ export interface PickTarget {
    * (clicking the visible end of a route means the endpoint, even when
    * the neighbor sits a sub-pixel away). */
   isSegmentEnd?: boolean;
+  /** Which end of its segment an endpoint target is (user pass 36):
+   * anchor-mode clicks resolve to the nearest segment endpoint, and the
+   * role decides the extension side — "start" extends the missing
+   * head, "end" extends the tail. */
+  segmentRole?: "start" | "end";
 }
 
 export interface PickSessionOptions {
@@ -331,8 +341,10 @@ export interface PickSessionOptions {
   callbacks: {
     /** Both anchors picked (pair mode). Document-order fixing is the hook's job. */
     onSpanPicked: (a: PointId, b: PointId) => void;
-    /** The single anchor picked (anchor mode) — the hook derives the shape. */
-    onAnchorPicked: (pointId: PointId) => void;
+    /** The single anchor picked (anchor mode) — always a segment
+     * endpoint; `role` says which end (start = missing head,
+     * end = missing tail). */
+    onAnchorPicked: (pointId: PointId, role: "start" | "end") => void;
     /** The user cancelled (Esc or mode left). */
     onCancel: () => void;
   };
@@ -781,21 +793,44 @@ export class MapController {
     );
   }
 
-  /** Canvas click while picking → nearest target within PICK_RADIUS_PX. */
+  /** Canvas click while picking → the mode's resolution rule. */
   #handlePickClick(e: MapMouseEvent): void {
     const session = this.#pickSession;
     const map = this.#map;
     if (!session || !map) return;
-    const target = this.#nearestPickTarget(e.point);
-    if (!target) return; // empty space — keep waiting
     if (session.options.mode === "anchor") {
-      // One click is all the "add missing route" flow needs: the hook
-      // derives the span shape (insert vs open extension) from the point's
-      // position in the recording.
-      session.options.callbacks.onAnchorPicked(target.pointId);
+      // "Add missing route" (user pass 36): the click resolves to the
+      // segment ENDPOINT nearest to it — on the route's visible end or
+      // anywhere else on the map. Clicking far from the route therefore
+      // attaches at the route's nearest end (an honest "extend from
+      // where the recording stopped") instead of silently becoming a
+      // mid-route insert that behaves like redraw-a-stretch.
+      const resolved = this.#nearestAnchorTarget(e.point);
+      if (!resolved) return; // no recorded endpoints — keep waiting
+      const distancePx = resolved.distancePx;
+      session.options.callbacks.onAnchorPicked(
+        resolved.target.pointId,
+        resolved.target.segmentRole === "start" ? "start" : "end",
+      );
       this.endPickSession();
+      // Feedback for far clicks: the anchor the tool chose may sit well
+      // away from the click — frame BOTH so the attachment point is
+      // visible before the first drawn point lands.
+      if (distancePx > ANCHOR_REFIT_PX && e.lngLat) {
+        this.fitBounds(
+          {
+            minLat: Math.min(e.lngLat.lat, resolved.target.lat),
+            minLon: Math.min(e.lngLat.lng, resolved.target.lon),
+            maxLat: Math.max(e.lngLat.lat, resolved.target.lat),
+            maxLon: Math.max(e.lngLat.lng, resolved.target.lon),
+          },
+          { padding: 128, maxZoom: 16.5, action: "fit-anchor-pick" },
+        );
+      }
       return;
     }
+    const target = this.#nearestPickTarget(e.point);
+    if (!target) return; // empty space — keep waiting
     if (!session.anchor) {
       session.anchor = target;
       this.#applyPickAnchor();
@@ -810,6 +845,34 @@ export class MapController {
     // The hook flips pickMode off (which ends the session via its effect);
     // ending here as well makes the controller immediately consistent.
     this.endPickSession();
+  }
+
+  /**
+   * Nearest SEGMENT ENDPOINT by screen distance — anchor mode's
+   * resolution rule (no radius cap: any click attaches at the nearest
+   * route ending). Pair mode's 16 px rule lives in #nearestPickTarget.
+   */
+  #nearestAnchorTarget(
+    point: { x: number; y: number },
+  ): { target: PickTarget; distancePx: number } | null {
+    const map = this.#map;
+    const session = this.#pickSession;
+    if (!map || !session) return null;
+    let best: PickTarget | null = null;
+    let bestDistance = Infinity;
+    for (const target of session.options.targets) {
+      if (!target.isSegmentEnd) continue;
+      const projected = map.project([target.lon, target.lat]);
+      const distance = Math.hypot(
+        projected.x - point.x,
+        projected.y - point.y,
+      );
+      if (distance < bestDistance) {
+        best = target;
+        bestDistance = distance;
+      }
+    }
+    return best ? { target: best, distancePx: bestDistance } : null;
   }
 
   /** Nearest pick target within the click tolerance, or null.

@@ -168,6 +168,7 @@ export function AppShell() {
                   rows={draw.manualRows}
                   detectedGapIds={session.gapRows.map((row) => row.id)}
                   pickMode={draw.pickMode}
+                  editorActive={draw.active}
                   onBeginPickAnchor={draw.beginPickAnchor}
                   onBeginPickPair={draw.beginPickPair}
                   onCancelPick={draw.cancelPickSpan}
@@ -185,6 +186,7 @@ export function AppShell() {
                   statusById={draw.statusById}
                   onOpenEditor={draw.openEditor}
                   onBeginPick={draw.beginPickAnchor}
+                  editorActive={draw.active}
                 />
                 {/*
                  * File-level “no timing data” mode (§J-1 Case 3): only

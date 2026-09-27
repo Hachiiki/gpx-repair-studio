@@ -5,6 +5,7 @@ import {
   abortRoadRouting,
   haversineM,
   mockOsrmBulge,
+  mockValhallaBulge,
   type OsrmCallLog,
 } from "./helpers/road-follow";
 
@@ -372,5 +373,52 @@ test.describe("road follow — clicks trace the road between them", () => {
     await expect(page.getByTestId("road-follow-status")).toContainText(
       "unavailable right now",
     );
+  });
+
+  test("Footpaths follows the Valhalla demo server's polyline6 string (user pass 36)", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await upload(page, DEMO);
+    await pollBridge(page, (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);
+
+    // The live valhalla1.openstreetmap.de answers `shape` as an encoded
+    // polyline STRING even when asked for geojson — before the fix, every
+    // footpath leg resolved null and the editor said "Road follow
+    // unavailable right now — straight lines until it recovers."
+    const log: OsrmCallLog = { count: 0, legs: [] };
+    await mockValhallaBulge(page, { offsetLat: 0.0004, log });
+
+    const { tail } = await openTailEditor(page);
+    await page.getByTestId("road-follow-foot").click();
+
+    const box = await canvasBox(page);
+    const v1 = { lat: tail.lat + 0.0012, lon: tail.lon + 0.0012 };
+    await clickAt(page, v1.lat, v1.lon, box);
+    await pollBridge(page, (s) => s.drawSession?.vertexCount === 1);
+
+    // The foot leg routed through the mocked polyline: anchor + road
+    // interior + v1, with the exact clicked nodes bracketing the road.
+    const routed = await pollBridge(
+      page,
+      (s) => s.drawSession?.renderedChainCoordinates.length === 3,
+    );
+    const rendered = routed.drawSession!.renderedChainCoordinates;
+    const mid = {
+      lat: (tail.lat + v1.lat) / 2 + 0.0004,
+      lon: (tail.lon + v1.lon) / 2,
+    };
+    expect(rendered[0][0]).toBeCloseTo(tail.lon, 6);
+    expect(rendered[1][0]).toBeCloseTo(mid.lon, 4);
+    expect(rendered[1][1]).toBeCloseTo(mid.lat, 4);
+    expect(rendered[2][0]).toBeCloseTo(v1.lon, 4);
+    // The request actually went to Valhalla.
+    expect(log.count).toBeGreaterThanOrEqual(1);
+    // And the editor reports health, not the unavailable fallback.
+    await expect(page.getByTestId("road-follow-status")).toContainText(
+      "Drag any point",
+    );
+
+    await page.getByTestId("done-editing-button").click();
   });
 });

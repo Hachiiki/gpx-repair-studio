@@ -114,11 +114,11 @@ describe("ManualRepairsCard — the always-available entry point", () => {
     expect(props.onBeginPickPair).toHaveBeenCalledTimes(1);
   });
 
-  it("anchor pick mode shows the one-click instructions", () => {
+  it("anchor pick mode shows the nearest-end instructions", () => {
     const props = renderCard({ rows: [], pickMode: "anchor" });
     expect(screen.getByTestId("cancel-pick-button")).toBeVisible();
     expect(screen.getByTestId("pick-instructions")).toHaveTextContent(
-      "Click ONE point on the recorded route",
+      "anchors to the recorded route's nearest end",
     );
     fireEvent.click(screen.getByTestId("cancel-pick-button"));
     expect(props.onCancelPick).toHaveBeenCalledTimes(1);
@@ -129,6 +129,27 @@ describe("ManualRepairsCard — the always-available entry point", () => {
     expect(screen.getByTestId("pick-instructions")).toHaveTextContent(
       "Click two points on the recorded route",
     );
+  });
+
+  it("both tools disable while a draw editor is open (user pass 36)", () => {
+    const props = renderCard({ rows: [], editorActive: true });
+    expect(screen.getByTestId("begin-pick-anchor-button")).toBeDisabled();
+    expect(screen.getByTestId("begin-pick-pair-button")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("begin-pick-anchor-button"));
+    fireEvent.click(screen.getByTestId("begin-pick-pair-button"));
+    expect(props.onBeginPickAnchor).not.toHaveBeenCalled();
+    expect(props.onBeginPickPair).not.toHaveBeenCalled();
+    // The note explains the lock.
+    expect(screen.getByTestId("tools-locked-note")).toHaveTextContent(
+      "A repair editor is open",
+    );
+  });
+
+  it("tools stay enabled and the note is hidden with no editor", () => {
+    renderCard({ rows: [] });
+    expect(screen.getByTestId("begin-pick-anchor-button")).toBeEnabled();
+    expect(screen.getByTestId("begin-pick-pair-button")).toBeEnabled();
+    expect(screen.queryByTestId("tools-locked-note")).not.toBeInTheDocument();
   });
 });
 
