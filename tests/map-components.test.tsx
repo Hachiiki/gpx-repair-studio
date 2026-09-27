@@ -394,6 +394,23 @@ describe("MapLegend", () => {
     expect(legend).toHaveTextContent("Gap boundaries");
     expect(legend).toHaveTextContent("Repaired route (solid orange)");
   });
+
+  it("stays collapsed until clicked, then pins open (user pass 35)", () => {
+    render(<MapLegend />);
+    const toggle = screen.getByTestId("map-legend-toggle");
+    // Collapsed by default — but the entries stay in the DOM (the
+    // encoding contract is machine-readable even when hidden).
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("map-legend")).toHaveTextContent(
+      "Recorded route (solid ink)",
+    );
+
+    // A click pins the panel open; a second click folds it away.
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
 });
 
 describe("GapHighlightOverlay", () => {

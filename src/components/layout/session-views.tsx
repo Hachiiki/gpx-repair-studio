@@ -28,7 +28,6 @@ import {
   Clock,
   Download,
   Eye,
-  Loader2,
   PenLine,
   Route,
   ScanSearch,
@@ -38,6 +37,7 @@ import {
 import { SessionErrorAlert } from "@/components/gpx/session-error-alert";
 import { UploadZone } from "@/components/gpx/upload-zone";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { LandingMode } from "@/state/ui-store";
 import type { SessionError, SessionStatus } from "@/state/session-store";
 
@@ -267,27 +267,79 @@ export interface SessionLoadingViewProps {
   fileName: string | null;
 }
 
+/**
+ * One placeholder tools card — the bench's blocks taking shape (user
+ * pass 35: skeleton loading instead of a bare spinner). Same radius
+ * and rule vocabulary as the real cards so the swap is seamless.
+ */
+function SkeletonCard() {
+  return (
+    <div className="rounded-[10px] border-[1.5px] border-ink/25 bg-card p-4">
+      <Skeleton className="h-4 w-28 rounded-[3px]" />
+      <div className="mt-3 grid gap-2">
+        <Skeleton className="h-3 w-full rounded-[3px]" />
+        <Skeleton className="h-3 w-4/5 rounded-[3px]" />
+        <Skeleton className="h-3 w-3/5 rounded-[3px]" />
+      </div>
+      <div className="mt-3.5">
+        <Skeleton className="h-8 w-full rounded-[5px]" />
+      </div>
+    </div>
+  );
+}
+
 export function SessionLoadingView({ fileName }: SessionLoadingViewProps) {
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center gap-6 py-8">
+    <div
+      role="status"
+      data-testid="loading-state"
+      aria-label={`Parsing ${fileName ?? "your file"}`}
+      className="mx-auto w-full max-w-6xl flex-1 py-8"
+    >
       {/*
-       * role="status" → polite live region: screen readers announce the
-       * parsing state instead of staying silent through the load (the
-       * a11y fix of this pass; also implied aria-atomic="true").
+       * The workspace taking shape (user pass 35): the map plate and
+       * the tools column arrive as Field Plot skeletons — the same
+       * frame, radius, and rule vocabulary the parsed view will use, so
+       * the loading state reads as "the bench is being set" rather than
+       * a detached spinner. The parsing copy stays verbatim (it is the
+       * screen-reader announcement and the pinned string).
        */}
-      <div
-        role="status"
-        data-testid="loading-state"
-        className="flex flex-col items-center gap-3 rounded-[10px] border-[1.5px] border-ink bg-card px-8 py-10 text-center"
-      >
-        <Loader2
-          className="size-6 animate-spin text-muted-foreground"
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div
+          className="relative flex h-[65dvh] min-h-[420px] w-full min-w-0 items-center justify-center overflow-hidden rounded-[12px] border-2 border-ink bg-card lg:h-[calc(100dvh-11.875rem)] lg:min-h-[540px]"
+        >
+          {/* A ghost route — the plate's future content, drawn in the
+              field's own ink at a whisper. */}
+          <svg
+            className="absolute inset-0 size-full text-ink/[0.08]"
+            viewBox="0 0 1000 600"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M-20 240 C 120 80, 260 300, 420 180 S 640 60, 820 200 S 1060 320, 1240 160"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="10"
+              strokeLinecap="round"
+            />
+          </svg>
+          <div className="relative z-10 flex flex-col items-center gap-3 rounded-[10px] border-[1.5px] border-ink bg-card px-8 py-6 text-center shadow-float">
+            <p className="font-medium">Parsing {fileName ?? "your file"}…</p>
+            <p className="text-sm text-muted-foreground">
+              Everything happens locally in your browser.
+            </p>
+            <Skeleton className="mt-1 h-1.5 w-40 rounded-full" />
+          </div>
+        </div>
+        <aside
+          className="hidden min-w-0 grid-cols-1 content-start gap-4 lg:grid"
           aria-hidden="true"
-        />
-        <p className="font-medium">Parsing {fileName ?? "your file"}…</p>
-        <p className="text-sm text-muted-foreground">
-          Everything happens locally in your browser.
-        </p>
+        >
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </aside>
       </div>
     </div>
   );

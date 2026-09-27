@@ -110,7 +110,12 @@
   /* Field Plot radius scale (mockup): chip 3 / control 5 / card 10 /
    * plate 12 — the base (radius-lg) is the card radius. */
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
+  /* The plotting field is BONE, not paper-white (user pass 35): a step
+   * down from #FFFFFF so the white cards and plates sit ON the bench
+   * instead of dissolving into it, while staying far from dark-mode
+   * territory. oklch(0.958 0.002 286) ≈ #F1F1F0 — ink with a whisper
+   * of its own hue, one of the five anchors' tints. */
+  --background: oklch(0.958 0.002 286);
   --foreground: oklch(0.196 0.002 286);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.196 0.002 286);

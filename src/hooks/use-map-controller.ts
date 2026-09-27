@@ -49,9 +49,11 @@ import type {
   GapId,
   GapKind,
   GapSeverity,
+  ManualSpan,
   OriginalTrackData,
   OriginalTrackPoint,
   PointId,
+  Reconstruction,
   RoadLeg,
 } from "@/types/domain";
 import type { GapRow, GpxSession } from "@/hooks/use-gpx-session";
@@ -381,6 +383,117 @@ export function buildRouteView(
 }
 
 // ---------------------------------------------------------------------------
+// Editor route refs (pure; exported for the share card's join)
+// ---------------------------------------------------------------------------
+
+/**
+ * The editor-store slices `buildEditorRouteRefs` needs — satisfied
+ * structurally by the zustand state, so the join stays a pure function
+ * (no store import; node-side unit tests pass plain objects).
+ */
+export interface EditorRouteRefsInput {
+  data: OriginalTrackData | null;
+  gapRows: readonly RouteGapRef[];
+  manualSpans: readonly ManualSpan[];
+  skippedGapIds: readonly GapId[];
+  activeGapId: GapId | null;
+  reconstructions: Readonly<Record<string, Reconstruction>>;
+  roadLegs: Readonly<Record<string, readonly RoadLeg[]>>;
+}
+
+/**
+ * The render refs for the map's route view — and (Task 35) the share
+ * card's edited route: one join, so the card can never disagree with
+ * the map about what "the repaired route" is.
+ */
+export interface EditorRouteRefs {
+  reconstructionRefs: readonly ReconstructionRenderRef[];
+  manualGapRefs: readonly RouteGapRef[];
+  extendGapRefs: readonly ExtendSpanRef[];
+}
+
+/**
+ * Resolve the editor's committed work into route render refs — the pure
+ * core of the map hook, extracted (Task 35) so the share card renders
+ * the SAME edited route the map shows without duplicating the join:
+ *
+ *   - manual spans (replace/insert) resolve against the frozen model and
+ *     dedupe against currently-detected gaps;
+ *   - extend spans join as one-anchor refs;
+ *   - committed reconstructions (vertices, spacing, road legs) join for
+ *     every non-skipped row — the active editor's gap renders with
+ *     `active: true` (its span is suppressed; the draft lives in the
+ *     draw session), which for the share card means "uncommitted = not
+ *     on the card", exactly like the export population.
+ */
+export function buildEditorRouteRefs(
+  input: EditorRouteRefsInput,
+): EditorRouteRefs {
+  const { data, gapRows, manualSpans, skippedGapIds, activeGapId } = input;
+
+  // Manual repair spans as render refs — resolved against the frozen
+  // model, deduplicated against currently-detected gaps (the detected
+  // rendering wins for a shared boundary). Pair spans (replace/insert)
+  // carry both boundaries; extend spans join separately below.
+  const manualGapRefs: RouteGapRef[] = [];
+  const extendGapRefs: ExtendSpanRef[] = [];
+  if (data) {
+    const pointById = new Map<PointId, OriginalTrackPoint>();
+    for (const segment of data.segments) {
+      for (const point of segment.points) pointById.set(point.id, point);
+    }
+    const detectedIds = new Set(gapRows.map((row) => row.id));
+    for (const span of manualSpans) {
+      if (detectedIds.has(span.id)) continue;
+      if (span.kind === "extend") {
+        const anchor = pointById.get(span.anchorPointId);
+        if (!anchor || !isUsableStatsPoint(anchor)) continue;
+        extendGapRefs.push({
+          id: span.id,
+          anchor: { pointId: anchor.id, lat: anchor.lat, lon: anchor.lon },
+        });
+        continue;
+      }
+      const before = pointById.get(span.beforePointId);
+      const after = pointById.get(span.afterPointId);
+      if (!before || !after) continue;
+      if (!isUsableStatsPoint(before) || !isUsableStatsPoint(after)) {
+        continue;
+      }
+      manualGapRefs.push({
+        id: span.id,
+        kind: span.kind === "insert" ? "manual-insert" : "manual",
+        severity: "info",
+        before: { pointId: before.id, lat: before.lat, lon: before.lon },
+        after: { pointId: after.id, lat: after.lat, lon: after.lon },
+      });
+    }
+  }
+
+  const reconstructionRefs: ReconstructionRenderRef[] = [];
+  const seen = new Set<string>();
+  for (const row of [...gapRows, ...manualGapRefs, ...extendGapRefs]) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    if (skippedGapIds.includes(row.id)) continue;
+    const recon = input.reconstructions[row.id];
+    if (!recon || recon.vertices.length === 0) continue;
+    const legs = input.roadLegs[row.id] ?? [];
+    reconstructionRefs.push({
+      gapId: row.id,
+      vertices: recon.vertices,
+      spacingM: recon.resampleSpacingM,
+      // The gap being edited renders through the controller's draw
+      // session (draft styling) — the ref only suppresses its span.
+      ...(row.id === activeGapId ? { active: true } : {}),
+      ...(legs.length > 0 ? { roadLegs: legs } : {}),
+    });
+  }
+
+  return { reconstructionRefs, manualGapRefs, extendGapRefs };
+}
+
+// ---------------------------------------------------------------------------
 // The binding
 // ---------------------------------------------------------------------------
 
@@ -481,85 +594,33 @@ export function useMapController(session: GpxSession): MapBinding {
   }, [showMap]);
 
   // Route data: derive once per (model, gaps, committed reconstructions)
-  // change; drive the controller. The gap being edited renders through the
+  // change; drive the controller. The join is the shared pure
+  // `buildEditorRouteRefs` — the same refs the share card renders
+  // (Task 35), so the map and the card can never disagree about what
+  // "the repaired route" is. The gap being edited renders through the
   // controller's draw session (draft styling), not as a committed line.
-
-  // Manual repair spans as render refs — resolved against the frozen
-  // model, deduplicated against currently-detected gaps (the detected
-  // rendering wins for a shared boundary). Pair spans (replace/insert)
-  // carry both boundaries; extend spans join separately below.
-  const manualGapRefs = useMemo(() => {
-    if (!session.data) return [] as RouteGapRef[];
-    const pointById = new Map<PointId, OriginalTrackPoint>();
-    for (const segment of session.data.segments) {
-      for (const point of segment.points) pointById.set(point.id, point);
-    }
-    const detectedIds = new Set(gapRows.map((row) => row.id));
-    const refs: RouteGapRef[] = [];
-    for (const span of editorManualSpans) {
-      if (span.kind === "extend") continue; // joined as extendGapRefs
-      if (detectedIds.has(span.id)) continue;
-      const before = pointById.get(span.beforePointId);
-      const after = pointById.get(span.afterPointId);
-      if (!before || !after) continue;
-      if (!isUsableStatsPoint(before) || !isUsableStatsPoint(after)) {
-        continue;
-      }
-      refs.push({
-        id: span.id,
-        kind: span.kind === "insert" ? "manual-insert" : "manual",
-        severity: "info",
-        before: { pointId: before.id, lat: before.lat, lon: before.lon },
-        after: { pointId: after.id, lat: after.lat, lon: after.lon },
-      });
-    }
-    return refs;
-  }, [session.data, editorManualSpans, gapRows]);
-
-  // Open-ended extension spans: one anchor, no far boundary.
-  const extendGapRefs = useMemo(() => {
-    if (!session.data) return [] as ExtendSpanRef[];
-    const pointById = new Map<PointId, OriginalTrackPoint>();
-    for (const segment of session.data.segments) {
-      for (const point of segment.points) pointById.set(point.id, point);
-    }
-    const detectedIds = new Set(gapRows.map((row) => row.id));
-    const refs: ExtendSpanRef[] = [];
-    for (const span of editorManualSpans) {
-      if (span.kind !== "extend") continue;
-      if (detectedIds.has(span.id)) continue;
-      const anchor = pointById.get(span.anchorPointId);
-      if (!anchor || !isUsableStatsPoint(anchor)) continue;
-      refs.push({
-        id: span.id,
-        anchor: { pointId: anchor.id, lat: anchor.lat, lon: anchor.lon },
-      });
-    }
-    return refs;
-  }, [session.data, editorManualSpans, gapRows]);
-
-  const reconstructionRefs = useMemo(() => {
-    const refs: ReconstructionRenderRef[] = [];
-    const seen = new Set<string>();
-    for (const row of [...gapRows, ...manualGapRefs, ...extendGapRefs]) {
-      if (seen.has(row.id)) continue;
-      seen.add(row.id);
-      if (editorSkipped.includes(row.id)) continue;
-      const recon = editorReconstructions[row.id];
-      if (!recon || recon.vertices.length === 0) continue;
-      const legs = editorRoadLegs[row.id] ?? [];
-      refs.push({
-        gapId: row.id,
-        vertices: recon.vertices,
-        spacingM: recon.resampleSpacingM,
-        // The gap being edited renders through the controller's draw
-        // session (draft styling) — the ref only suppresses its span.
-        ...(row.id === editorActiveGapId ? { active: true } : {}),
-        ...(legs.length > 0 ? { roadLegs: legs } : {}),
-      });
-    }
-    return refs;
-  }, [gapRows, manualGapRefs, extendGapRefs, editorReconstructions, editorActiveGapId, editorSkipped, editorRoadLegs]);
+  const editorRefs = useMemo(
+    () =>
+      buildEditorRouteRefs({
+        data: session.data,
+        gapRows,
+        manualSpans: editorManualSpans,
+        skippedGapIds: editorSkipped,
+        activeGapId: editorActiveGapId,
+        reconstructions: editorReconstructions,
+        roadLegs: editorRoadLegs,
+      }),
+    [
+      session.data,
+      gapRows,
+      editorManualSpans,
+      editorSkipped,
+      editorActiveGapId,
+      editorReconstructions,
+      editorRoadLegs,
+    ],
+  );
+  const { manualGapRefs, extendGapRefs } = editorRefs;
 
   const route = useMemo(
     () =>
@@ -567,12 +628,12 @@ export function useMapController(session: GpxSession): MapBinding {
         ? buildRouteView(
             session.data,
             gapRows,
-            reconstructionRefs,
+            editorRefs.reconstructionRefs,
             manualGapRefs,
             extendGapRefs,
           )
         : null,
-    [showMap, session.data, gapRows, reconstructionRefs, manualGapRefs, extendGapRefs],
+    [showMap, session.data, gapRows, editorRefs, manualGapRefs, extendGapRefs],
   );
   useEffect(() => {
     controllerRef.current?.setRoute(route);

@@ -27,6 +27,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PaceUnitToggle } from "@/components/shared/pace-unit-toggle";
 import { ShareCardCanvas } from "@/components/share/share-card-canvas";
 import type {
@@ -56,6 +57,8 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
   const [scale, setScale] = useState<SharePngScale>(1);
   const content = share.content;
   const spec = share.spec;
+  // Task 35: committed repairs are part of the card — the copy says so.
+  const includesRepairs = content?.includesRepairs === true;
 
   return (
     <section
@@ -76,8 +79,10 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
           <p className="mt-1.5 max-w-[62ch] text-sm leading-relaxed text-muted-foreground">
             A Strava-style graphic of{" "}
             <span className="font-semibold text-foreground">{fileName ?? "this file"}</span>{" "}
-            — transparent background, rendered from the values the file
-            actually records.
+            — transparent background,{" "}
+            {includesRepairs
+              ? "rendered from your repaired route — committed repairs are included automatically."
+              : "rendered from the values the file actually records."}
           </p>
         </div>
       </div>
@@ -108,7 +113,43 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
               time={spec.time}
             />
           ) : (
-            <p className="text-sm text-paper/60">Preparing the card…</p>
+            /*
+             * The card taking shape (user pass 35): a 9:16 skeleton on
+             * the same composition anchors the real painter uses (route
+             * box, wordmark, stats trio, shoe slot — proportions from
+             * lib/share/layout.ts), so the swap from placeholder to
+             * painted card is seamless.
+             */
+            <div
+              data-testid="share-card-skeleton"
+              role="status"
+              aria-label="Preparing the share card"
+              className="relative aspect-[9/16] h-full w-auto max-w-full overflow-hidden rounded-[2px] bg-black ring-1 ring-white/10"
+            >
+              <div className="absolute inset-x-[5.9%] bottom-[38%] top-[11.4%]">
+                <svg
+                  className="absolute inset-0 size-full text-white/[0.14]"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M8 78 C 22 60, 30 82, 44 64 S 62 30, 74 44 S 88 30, 96 18"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+              <Skeleton className="absolute left-[33.5%] top-[66.7%] h-[2.9%] w-[30.5%] rounded-[2px] bg-white/[0.13]" />
+              <div className="absolute inset-x-[5.9%] top-[75.5%] grid grid-cols-3 gap-[6%]">
+                <Skeleton className="h-2.5 rounded-[2px] bg-white/[0.13]" />
+                <Skeleton className="h-2.5 rounded-[2px] bg-white/[0.13]" />
+                <Skeleton className="h-2.5 rounded-[2px] bg-white/[0.13]" />
+              </div>
+              <Skeleton className="absolute left-[44.9%] top-[83.5%] size-[9.6%] rounded-[3px] bg-white/[0.13]" />
+            </div>
           )}
           <p className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-3 py-1 text-[11.5px] text-paper/80">
             Transparent background — shown on dark
@@ -130,8 +171,9 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                 On the card
               </h3>
               <CardDescription>
-                Recorded values only — the same numbers the statistics
-                panel shows.
+                {includesRepairs
+                  ? "Your committed repairs are included — the same totals the statistics panel shows."
+                  : "Recorded values only — the same numbers the statistics panel shows."}
               </CardDescription>
               <CardAction>
                 <PaceUnitToggle
@@ -266,9 +308,9 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                   className="mt-0.5 size-4 shrink-0"
                   aria-hidden="true"
                 />
-                Distance is the recorded route length; pace divides it by
-                the recorded moving time; time is the recorded elapsed
-                span. Values the file cannot support show “—”.
+                {includesRepairs
+                  ? "Distance includes your committed repairs; pace is the overall pace over moving time plus repair time; time is the recorded elapsed span. Values the file cannot support show “—”."
+                  : "Distance is the recorded route length; pace divides it by the recorded moving time; time is the recorded elapsed span. Values the file cannot support show “—”."}
               </p>
               {(content?.notes ?? []).map((note) => (
                 <p key={note} className="flex items-start gap-2">

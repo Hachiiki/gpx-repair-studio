@@ -66,7 +66,17 @@ export function AppShell() {
   const elevation = useElevation(session, draw);
   const exporter = useGpxExport(session, draw, elevation.attachment);
   const elevationStats = useElevationStats(exporter.merge);
-  const share = useShareCard(session);
+  /*
+   * Task 35 — the share card renders the EDITED route: the committed
+   * repairs' join rides along, so the card's route and trio are the
+   * outcome (the same population the statistics panel and the export
+   * use), updated live as repairs commit.
+   */
+  const share = useShareCard(
+    session,
+    draw.repairTimeStats,
+    draw.fileTiming.totalDurationMs,
+  );
   const paceUnit = useUiStore((s) => s.paceUnit);
   const setPaceUnit = useUiStore((s) => s.setPaceUnit);
   const landingMode = useUiStore((s) => s.landingMode);
@@ -206,17 +216,23 @@ export function AppShell() {
                   <SegmentList rows={session.segmentRows} />
                 </div>
                 {session.distanceStats && session.timeStats && (
-                  <StatsPanel
-                    distanceStats={session.distanceStats}
-                    timeStats={session.timeStats}
-                    repair={draw.repairTimeStats}
-                    paceRows={draw.paceRows}
-                    elevation={elevationStats.rows}
-                    manualTotalDurationMs={draw.fileTiming.totalDurationMs}
-                    reimport={session.reimport}
-                    paceUnit={paceUnit}
-                    onPaceUnitChange={setPaceUnit}
-                  />
+                  /* mt-4 — the same breathing room the grid above gives
+                   * its cards; without it the two 1.5 px ink borders
+                   * sit flush against each other (recovery's layout
+                   * already had this gap). */
+                  <div className="mt-4">
+                    <StatsPanel
+                      distanceStats={session.distanceStats}
+                      timeStats={session.timeStats}
+                      repair={draw.repairTimeStats}
+                      paceRows={draw.paceRows}
+                      elevation={elevationStats.rows}
+                      manualTotalDurationMs={draw.fileTiming.totalDurationMs}
+                      reimport={session.reimport}
+                      paceUnit={paceUnit}
+                      onPaceUnitChange={setPaceUnit}
+                    />
+                  </div>
                 )}
                 {elevationStats.profile && elevationStats.profile.hasAnyEle && (
                   <div className="mt-4">

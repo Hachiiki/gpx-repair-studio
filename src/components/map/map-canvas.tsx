@@ -21,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import {
   Crosshair,
   Hand,
-  Loader2,
   MapIcon,
   PenLine,
   WifiOff,
@@ -30,6 +29,7 @@ import { DrawDistanceBadge } from "@/components/map/draw-distance-badge";
 import { GapHighlightOverlay } from "@/components/map/gap-highlight-overlay";
 import { MapLegend } from "@/components/map/map-legend";
 import { MapToolbar } from "@/components/map/map-toolbar";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
 import type { MapBinding } from "@/hooks/use-map-controller";
 import type { BBox } from "@/lib/geo/bbox";
@@ -73,14 +73,33 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
         role="application"
         aria-label="Interactive map of the recorded route and its gaps"
       >
-        {/* Initializing */}
+        {/* Initializing — the plate taking shape (user pass 35): a
+            ghost route in the field's ink plus a shimmer bar, the same
+            skeleton language as the parsing view. */}
         {map.status === "initializing" && (
           <div
-            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-muted/60 text-sm text-muted-foreground"
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-muted/60 text-sm text-muted-foreground"
             data-testid="map-initializing"
+            role="status"
           >
-            <Loader2 className="size-5 animate-spin" aria-hidden="true" />
-            Loading map…
+            <svg
+              className="absolute inset-0 size-full text-ink/[0.08]"
+              viewBox="0 0 1000 600"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M-20 240 C 120 80, 260 300, 420 180 S 640 60, 820 200 S 1060 320, 1240 160"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="10"
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="relative z-10 flex flex-col items-center gap-2.5">
+              <p>Loading map…</p>
+              <Skeleton className="h-1.5 w-36 rounded-full" />
+            </div>
           </div>
         )}
 

@@ -103,4 +103,40 @@ describe("StatsPanel — re-imported repairs join (the double-count fix)", () =>
       screen.queryByTestId("reimport-note"),
     ).toBeNull();
   });
+
+  it("answers original → repaired → outcome up front (user pass 35)", () => {
+    renderPanel(REIMPORT);
+
+    const banner = screen.getByTestId("stats-outcome-banner");
+    expect(banner).toHaveTextContent("Original");
+    expect(banner).toHaveTextContent("+ Repaired");
+    expect(banner).toHaveTextContent("Outcome");
+    // The same golden values the rows carry: 221 recorded + 111 marked
+    // = the file's 332 m total; moving time already contains the
+    // marked run's 1:00 (4:00, never 5:00).
+    expect(banner).toHaveTextContent("221 m");
+    expect(banner).toHaveTextContent("111 m");
+    expect(banner).toHaveTextContent("332 m");
+    expect(banner).toHaveTextContent("4:00");
+
+    // Without repairs the banner does not render at all.
+    cleanup();
+    renderPanel(null);
+    expect(screen.queryByTestId("stats-outcome-banner")).toBeNull();
+  });
+
+  it("groups the rows by category (user pass 35)", () => {
+    renderPanel(REIMPORT);
+
+    const labels = rows().map((r) => r.text);
+    // The quiet section labels are part of the table now (Pace joins
+    // when the binding supplies pace rows — the app always does).
+    expect(labels.some((t) => t.includes("Distance"))).toBe(true);
+    expect(labels.some((t) => t.includes("Time"))).toBe(true);
+    // Every data row still carries its exact label and value.
+    const byLabel = (label: string) =>
+      labels.find((t) => t.includes(label)) ?? "";
+    expect(byLabel("Recorded distance")).toContain("221 m");
+    expect(byLabel("Total with repairs")).toContain("332 m");
+  });
 });

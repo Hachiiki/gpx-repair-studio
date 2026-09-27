@@ -180,6 +180,134 @@ describe("buildShareCardContent — the recorded trio", () => {
   });
 });
 
+/** A timed 1 km / 10:00 moving / 15:00 elapsed activity. */
+function timedStats() {
+  return {
+    distance: { totalDistanceM: 1000 },
+    time: {
+      hasTimingData: true,
+      pointsWithTime: 2,
+      pointsTotal: 2,
+      firstTimeMs: 0,
+      lastTimeMs: 900_000,
+      wallTimeMs: 900_000,
+      recordedMovingTimeMs: 600_000,
+      gapLegs: 0,
+      gapTimeMs: 0,
+      untimedLegs: 0,
+      reversedLegs: 0,
+    } as TimeStats,
+  };
+}
+
+describe("buildShareCardContent — the committed-repair join (Task 35)", () => {
+  it("renders the outcome: repairs join the distance and the overall pace", () => {
+    const { distance, time } = timedStats();
+    const content = buildShareCardContent({
+      distance,
+      time,
+      unit: "km",
+      repair: {
+        repairCount: 1,
+        reconstructedDistanceM: 500,
+        repairTimeMs: 300_000,
+        gapsWithoutDuration: 0,
+      },
+    });
+
+    // The outcome distance (1.0 recorded + 0.5 repaired) and the
+    // overall pace (15:00 moving-incl over 1.5 km).
+    expect(content.distance).toBe("1.50 km");
+    expect(content.pace).toBe("10:00 /km");
+    // The watch's clock is the clock — elapsed time never changes.
+    expect(content.time).toBe("15m");
+    expect(content.complete).toBe(true);
+    expect(content.includesRepairs).toBe(true);
+    expect(
+      content.notes.some((n) =>
+        n.includes("Includes your committed repairs") &&
+        n.includes("+500 m")),
+    ).toBe(true);
+  });
+
+  it("withholds the overall pace while a repair still lacks a duration", () => {
+    const { distance, time } = timedStats();
+    const content = buildShareCardContent({
+      distance,
+      time,
+      unit: "km",
+      repair: {
+        repairCount: 1,
+        reconstructedDistanceM: 500,
+        repairTimeMs: null,
+        gapsWithoutDuration: 1,
+      },
+    });
+
+    // Distance is fully known; the combined pace is not (a partial sum
+    // would read as fast).
+    expect(content.distance).toBe("1.50 km");
+    expect(content.pace).toBe("—");
+    expect(content.complete).toBe(false);
+    expect(
+      content.notes.some((n) => n.includes("still needs a duration")),
+    ).toBe(true);
+  });
+
+  it("falls back to the entered total on a no-timing file", () => {
+    const content = buildShareCardContent({
+      distance: { totalDistanceM: 3000 },
+      time: {
+        hasTimingData: false,
+        pointsWithTime: 0,
+        pointsTotal: 4,
+        firstTimeMs: 0,
+        lastTimeMs: 0,
+        recordedMovingTimeMs: 0,
+        gapLegs: 0,
+        gapTimeMs: 0,
+        untimedLegs: 0,
+        reversedLegs: 0,
+      },
+      unit: "km",
+      repair: {
+        repairCount: 1,
+        reconstructedDistanceM: 1000,
+        repairTimeMs: null,
+        gapsWithoutDuration: 0,
+        manualTotalDurationMs: 1_200_000,
+      },
+    });
+
+    // 4.0 km over the entered 20:00 — the same mixed overall the
+    // statistics panel's overall row renders.
+    expect(content.distance).toBe("4.00 km");
+    expect(content.pace).toBe("5:00 /km");
+    expect(content.time).toBe("—");
+  });
+
+  it("keeps the no-repair presentation byte-identical when the join is empty", () => {
+    const { distance, time } = timedStats();
+    const content = buildShareCardContent({
+      distance,
+      time,
+      unit: "km",
+      repair: {
+        repairCount: 0,
+        reconstructedDistanceM: 500,
+        repairTimeMs: 300_000,
+        gapsWithoutDuration: 0,
+      },
+    });
+
+    expect(content.distance).toBe("1.00 km");
+    expect(content.pace).toBe("10:00 /km");
+    expect(content.time).toBe("15m");
+    expect(content.includesRepairs).toBe(false);
+    expect(content.notes).toEqual([]);
+  });
+});
+
 describe("reimportStats — the fixture pipeline stays sane", () => {
   it("a plain fixture has no markers", () => {
     const text = readFileSync(`${FIXTURES}/time-gap.gpx`, "utf8");

@@ -1,14 +1,21 @@
 /**
  * useShareCard — the share-card workflow's app-layer join
- * (docs/MASTER_PLAN.md §O — Task 20).
+ * (docs/MASTER_PLAN.md §O — Task 20; Task 35: the edited route).
  *
- * Turns the parsed session into the share card's inputs:
- *   - the route as polylines, reused verbatim from `buildRouteView`
- *     (the same honest split the map renders — recorded pieces, split
- *     at gaps and damage, plus re-imported reconstruction runs; never
- *     a fabricated connector across an unknown stretch);
+ * Turns the parsed session AND the committed repairs into the share
+ * card's inputs — clicking into the share view "exports the edited
+ * route" automatically, no manual export/re-upload round-trip:
+ *
+ *   - the route as polylines: the SAME route view the map renders
+ *     (recorded pieces split at gaps and damage, re-imported
+ *     reconstruction runs, and — Task 35 — every committed live
+ *     repair through the shared `buildEditorRouteRefs` join), never a
+ *     fabricated connector across an unknown stretch. Uncommitted
+ *     drafts (an open editor) and skipped gaps are NOT included —
+ *     exactly the export population;
  *   - the Distance/Pace/Time trio via `buildShareCardContent`
- *     (§L-2 honesty: "—" with reasons, never invented values);
+ *     (§L-2 honesty: "—" with reasons, never invented values; with
+ *     repairs, the outcome totals the statistics panel shows);
  *   - the download intent: one offscreen paint at the chosen scale →
  *     PNG blob → the shared anchor-download utility.
  *
@@ -27,7 +34,10 @@ import {
   buildShareCardContent,
   type ShareCardContent,
 } from "@/features/share/cardContent";
-import { buildRouteView } from "@/hooks/use-map-controller";
+import {
+  buildEditorRouteRefs,
+  buildRouteView,
+} from "@/hooks/use-map-controller";
 import { loadShareCardFonts } from "@/lib/share/fonts";
 import {
   paintShareCardCanvas,
@@ -36,7 +46,9 @@ import {
 import { downloadBlobFile, shareCardFileName } from "@/lib/utils/download";
 import type { PaceUnit } from "@/lib/utils/format";
 import type { LatLon } from "@/types/domain";
+import { useEditorStore } from "@/state/editor-store";
 import { useUiStore } from "@/state/ui-store";
+import type { RepairTimeStats } from "@/hooks/use-draw-editor";
 import type { GpxSession } from "@/hooks/use-gpx-session";
 
 // App-layer facade re-exports (components may not import feature
@@ -62,24 +74,66 @@ export interface ShareCardBinding {
   downloadPng: (scale: SharePngScale) => void;
 }
 
-export function useShareCard(session: GpxSession): ShareCardBinding {
+export function useShareCard(
+  session: GpxSession,
+  /**
+   * Task 35: the committed-repair time join (the draw binding's
+   * `repairTimeStats`). Omitted/null → the file as recorded, the exact
+   * pre-Task-35 behavior.
+   */
+  repair: RepairTimeStats | null = null,
+  /** File-level manual total for no-timing files (§J-1 Case 3). */
+  manualTotalDurationMs: number | null = null,
+): ShareCardBinding {
   const paceUnit = useUiStore((s) => s.paceUnit);
+
+  // The editor's committed work — the same slices the map hook joins,
+  // so the card's route and the map's route are one derivation.
+  const editorReconstructions = useEditorStore((s) => s.reconstructions);
+  const editorRoadLegs = useEditorStore((s) => s.roadLegs);
+  const editorSkipped = useEditorStore((s) => s.skippedGapIds);
+  const editorActiveGapId = useEditorStore((s) => s.activeGapId);
+  const editorManualSpans = useEditorStore((s) => s.manualSpans);
 
   const setPaceUnit = useCallback((unit: PaceUnit) => {
     useUiStore.getState().setPaceUnit(unit);
   }, []);
 
-  // The route: the same view the map renders (recorded pieces split at
-  // gaps/damage + re-imported reconstruction runs), converted from
-  // GeoJSON [lon, lat] pairs to the domain's LatLon. Recomputed only
-  // for a new file or re-detection.
+  // The route: the same view the map renders — recorded pieces split at
+  // gaps/damage, re-imported reconstruction runs, and (Task 35) every
+  // committed live repair — converted from GeoJSON [lon, lat] pairs to
+  // the domain's LatLon. Recomputed for a new file, re-detection, or a
+  // change in the committed repairs.
   const polylines = useMemo(() => {
     if (!session.data) return [] as (readonly LatLon[])[];
-    const view = buildRouteView(session.data, session.gapRows);
+    const refs = buildEditorRouteRefs({
+      data: session.data,
+      gapRows: session.gapRows,
+      manualSpans: editorManualSpans,
+      skippedGapIds: editorSkipped,
+      activeGapId: editorActiveGapId,
+      reconstructions: editorReconstructions,
+      roadLegs: editorRoadLegs,
+    });
+    const view = buildRouteView(
+      session.data,
+      session.gapRows,
+      refs.reconstructionRefs,
+      refs.manualGapRefs,
+      refs.extendGapRefs,
+    );
     return [...view.lines, ...view.reconstructions].map((part) =>
       part.coordinates.map(([lon, lat]) => ({ lat, lon }) as LatLon),
     );
-  }, [session.data, session.gapRows]);
+  }, [
+    session.data,
+    session.gapRows,
+    editorManualSpans,
+    editorSkipped,
+    editorActiveGapId,
+    editorReconstructions,
+    editorRoadLegs,
+  ]);
 
   const content = useMemo(
     () =>
@@ -89,9 +143,25 @@ export function useShareCard(session: GpxSession): ShareCardBinding {
             time: session.timeStats,
             reimport: session.reimport,
             unit: paceUnit,
+            repair: repair
+              ? {
+                  repairCount: repair.gapCount,
+                  reconstructedDistanceM: repair.reconstructedDistanceM,
+                  repairTimeMs: repair.reconstructedTimeMs,
+                  gapsWithoutDuration: repair.gapsWithoutDuration,
+                  manualTotalDurationMs,
+                }
+              : null,
           })
         : null,
-    [session.distanceStats, session.timeStats, session.reimport, paceUnit],
+    [
+      session.distanceStats,
+      session.timeStats,
+      session.reimport,
+      paceUnit,
+      repair,
+      manualTotalDurationMs,
+    ],
   );
 
   const spec = useMemo(

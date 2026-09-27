@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { abortRoadRouting } from "./helpers/road-follow";
 
 /**
  * Task 20 E2E — the Strava-style share card (layout per Task 23):
@@ -43,6 +44,32 @@ async function mapReady(page: Page): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Project a lat/lon onto the canvas through the test bridge. */
+async function project(page: Page, lat: number, lon: number) {
+  return page.evaluate(
+    ([lat_, lon_]) =>
+      window.__gpxMapController!.projectLatLon(lat_ as number, lon_ as number),
+    [lat, lon] as const,
+  );
+}
+
+async function canvasBox(page: Page) {
+  await page.getByTestId("map-canvas").scrollIntoViewIfNeeded();
+  const box = await page.locator(".maplibregl-canvas").boundingBox();
+  expect(box).not.toBeNull();
+  return box!;
+}
+
+async function clickAt(
+  page: Page,
+  lat: number,
+  lon: number,
+  box: { x: number; y: number },
+) {
+  const { x, y } = await project(page, lat, lon);
+  await page.mouse.click(box.x + x, box.y + y);
 }
 
 interface PngAnalysis {
@@ -263,5 +290,102 @@ test.describe("share card (Task 20)", () => {
     await upload(page, join(FIXTURES, "time-gap.gpx"));
     await expect(page.getByTestId("repair-section")).toBeVisible();
     await expect(page.getByTestId("share-section")).toHaveCount(0);
+  });
+
+  test("committed repairs flow into the card automatically (Task 35)", async ({
+    page,
+  }) => {
+    await abortRoadRouting(page);
+    await page.goto("/");
+    await upload(page, join(FIXTURES, "time-gap.gpx"));
+    await expect(page.getByTestId("repair-section")).toBeVisible();
+    await expect
+      .poll(() => mapReady(page), { timeout: 15_000 })
+      .toBe(true);
+
+    // Repair the detected gap: open the editor, draw two straight-leg
+    // vertices (road routing is stubbed off — deterministic geometry),
+    // commit. Same flow as the export happy path.
+    await page.getByTestId("open-editor-button").first().click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const controller = window.__gpxMapController;
+          if (!controller) return null;
+          const state = controller.getTestState() as {
+            drawSession: { drawMode: boolean } | null;
+          };
+          return state.drawSession?.drawMode ?? null;
+        }),
+      )
+      .toBe(true);
+    const box = await canvasBox(page);
+    await clickAt(page, 52.5206, 13.4055, box);
+    await clickAt(page, 52.5202, 13.4058, box);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const controller = window.__gpxMapController;
+          if (!controller) return null;
+          const state = controller.getTestState() as {
+            drawSession: { vertexCount: number } | null;
+          };
+          return state.drawSession?.vertexCount ?? null;
+        }),
+      )
+      .toBe(2);
+    await page.getByTestId("done-editing-button").click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const controller = window.__gpxMapController;
+          if (!controller) return null;
+          const state = controller.getTestState() as {
+            drawSession: unknown;
+            reconstructionLineCount: number;
+          };
+          return state.drawSession === null
+            ? state.reconstructionLineCount
+            : null;
+        }),
+      )
+      .toBe(1);
+
+    // Into the share view — no export, no re-upload: the card must
+    // carry the edited route and its outcome numbers on its own.
+    await page.getByTestId("header-share-link").click();
+    await expect(page.getByTestId("share-section")).toBeVisible();
+
+    const distance = await page
+      .getByTestId("share-summary-distance")
+      .innerText();
+    // The repair added real distance — the recorded-only value is gone.
+    expect(distance).not.toBe("48 m");
+    expect(distance).toMatch(/^\d+(\.\d+)? (m|km)$/);
+    // The copy and the notes say what happened.
+    await expect(page.getByTestId("share-section")).toContainText(
+      "committed repairs are included automatically",
+    );
+    await expect(page.getByTestId("share-section")).toContainText(
+      "Includes your committed repairs",
+    );
+    // The overall pace recomputed (window-derived repair time is known).
+    await expect(page.getByTestId("share-summary-pace")).not.toHaveText(
+      "6:12 /km",
+    );
+
+    // Consistency with the statistics panel: the card's headline is
+    // the panel's "Total with repairs", byte for byte.
+    await page.getByTestId("header-repair-link").click();
+    await expect(page.getByTestId("repair-section")).toBeVisible();
+    await page.getByTestId("details-section").scrollIntoViewIfNeeded();
+    const stats = page.getByTestId("stats-panel");
+    await expect(stats).toContainText("Total with repairs");
+    const statsText = await stats.innerText();
+    expect(statsText).toContain(distance);
+    // The outcome banner (user pass 35) answers the three columns.
+    await expect(page.getByTestId("stats-outcome-banner")).toContainText(
+      "Outcome",
+    );
   });
 });

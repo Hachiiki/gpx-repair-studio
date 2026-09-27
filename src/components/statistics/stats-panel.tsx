@@ -3,7 +3,15 @@
  * (§L-1/§L-2; Phase 2 original-only rows, Phase 5 repair + pace rows,
  * Phase 7 re-imported repairs).
  *
- * Every row carries the mandatory provenance column (Recorded /
+ * User pass 35 restructure: when repairs exist the panel opens with an
+ * OUTCOME BANNER — Original / + Repaired / Outcome, three ruled columns
+ * with the repaired one on the signal tint — so "what was edited, the
+ * original, and the outcome" answers itself before the table starts.
+ * The table itself is now grouped (Distance / Time / Pace / Elevation)
+ * with quiet ruled section labels instead of one undifferentiated run
+ * of rows.
+ *
+ * Every row still carries the mandatory provenance column (Recorded /
  * Estimated / Mixed). Unsupported statistics render "—" with their
  * reason — the app never fabricates values. When committed repairs
  * exist, the distance rows split (recorded / repaired / total-with) and
@@ -12,7 +20,8 @@
  * rows (estimated provenance, same as fresh repairs).
  *
  * Pure presentation: stats in (session view models + the repair join
- * from the draw binding), nothing computed here.
+ * from the draw binding), nothing computed here beyond the same joins
+ * the rows themselves render.
  */
 
 import {
@@ -49,6 +58,7 @@ import {
   formatElevationMeters,
   formatPace,
 } from "@/lib/utils/format";
+import { cn } from "@/lib/utils";
 
 function emDash(reason: string) {
   return <span title={reason}>—</span>;
@@ -59,6 +69,65 @@ const VALUE_CELL = "tabular-nums font-bold whitespace-nowrap";
 /** Field Plot stat-table head: small, quiet, ruled. */
 const HEAD_CELL =
   "h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25";
+
+/** A quiet ruled section label inside the table (user pass 35). */
+function GroupRow({ label }: { label: string }) {
+  return (
+    <TableRow className="hover:bg-transparent">
+      <TableCell
+        colSpan={3}
+        className="h-auto border-b-[1.5px] border-ink/25 pb-1 pt-3.5"
+      >
+        <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+          {label}
+        </span>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/** One column of the outcome banner (user pass 35). */
+function OutcomeColumn({
+  label,
+  value,
+  detail,
+  provenance,
+  accent,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  provenance: "recorded" | "estimated" | "mixed";
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "min-w-0 px-3 py-3",
+        accent ? "bg-signal/[0.07]" : "bg-transparent",
+      )}
+    >
+      <p className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
+        {accent && (
+          <span
+            className="size-[7px] shrink-0 rounded-[1px] bg-signal"
+            aria-hidden="true"
+          />
+        )}
+        {label}
+      </p>
+      <p className="mt-1 font-display text-[25px] font-bold leading-[1.05] tabular-nums">
+        {value}
+      </p>
+      {detail && (
+        <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground tabular-nums">
+          {detail}
+        </p>
+      )}
+      <ProvenanceBadge kind={provenance} className="mt-2" />
+    </div>
+  );
+}
 
 export interface StatsPanelProps {
   distanceStats: DistanceStats;
@@ -126,6 +195,13 @@ export function StatsPanel({
   const liveRepairsLackDuration =
     (repair?.gapCount ?? 0) > 0 && liveRepairTime === null;
 
+  // Outcome banner numbers (user pass 35): the same joins the rows
+  // below render, promoted to one glanceable strip.
+  const bannerOutcomeDistanceM = recordedDistanceM + repairedDistanceM;
+  const bannerOutcomeMovingMs = liveRepairsLackDuration
+    ? null
+    : timeStats.recordedMovingTimeMs + (liveRepairTime ?? 0);
+
   return (
     <Card
       className="border-[1.5px] border-ink"
@@ -146,6 +222,55 @@ export function StatsPanel({
         </CardAction>
       </CardHeader>
       <CardContent>
+        {hasRepairs && (
+          /* The outcome banner (user pass 35): original → what the edits
+           * added → the outcome. The repaired column carries the signal
+           * tint — it is the app's work, the one orange thing here. */
+          <div
+            data-testid="stats-outcome-banner"
+            className="mb-4 grid grid-cols-[repeat(3,minmax(0,1fr))] overflow-hidden rounded-[8px] border-[1.5px] border-ink"
+          >
+            <OutcomeColumn
+              label="Original"
+              value={formatDistanceMeters(recordedDistanceM)}
+              detail={
+                noTime
+                  ? undefined
+                  : `${formatDurationMs(timeStats.recordedMovingTimeMs)} moving`
+              }
+              provenance="recorded"
+            />
+            <div className="border-l-[1.5px] border-ink/15">
+              <OutcomeColumn
+                label="+ Repaired"
+                value={formatDistanceMeters(repairedDistanceM)}
+                detail={
+                  noTime
+                    ? undefined
+                    : repairTime === null
+                      ? "duration pending"
+                      : `+${formatDurationMs(repairTime)} (est.)`
+                }
+                provenance="estimated"
+                accent
+              />
+            </div>
+            <div className="border-l-[1.5px] border-ink/15">
+              <OutcomeColumn
+                label="Outcome"
+                value={formatDistanceMeters(bannerOutcomeDistanceM)}
+                detail={
+                  noTime
+                    ? undefined
+                    : bannerOutcomeMovingMs === null
+                      ? "duration pending"
+                      : `${formatDurationMs(bannerOutcomeMovingMs)} moving`
+                }
+                provenance="mixed"
+              />
+            </div>
+          </div>
+        )}
         <Table>
           <TableHeader>
             <TableRow>
@@ -162,6 +287,7 @@ export function StatsPanel({
           </TableHeader>
           <TableBody>
             {/* Distance rows. */}
+            <GroupRow label="Distance" />
             {hasRepairs ? (
               <>
                 <TableRow>
@@ -207,6 +333,7 @@ export function StatsPanel({
             )}
 
             {/* Time rows. */}
+            <GroupRow label="Time" />
             <TableRow>
               <TableCell>Recorded moving time</TableCell>
               <TableCell className="tabular-nums">
@@ -274,6 +401,7 @@ export function StatsPanel({
             )}
 
             {/* §L-1 pace rows (Phase 5). */}
+            {paceRows.length > 0 && <GroupRow label="Pace" />}
             {paceRows.map((row) => (
               <TableRow key={row.id} data-testid={`pace-row-${row.id}`}>
                 <TableCell>{PACE_ROW_LABELS[row.id]}</TableCell>
@@ -303,6 +431,7 @@ export function StatsPanel({
                 file. */}
             {elevation && elevation.pointsTotal > 0 && (
               <>
+                <GroupRow label="Elevation" />
                 {(elevation.insufficient
                   ? [
                       {
