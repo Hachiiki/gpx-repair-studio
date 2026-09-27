@@ -6,7 +6,7 @@
 <title>Field Plot — a design proposal for GPX Repair Studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Big+Shoulders:opsz,wght@10..72,100..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Big+Shoulders:opsz,wght@10..72,100..900&family=IBM+Plex+Mono:wght@400;500&family=Montserrat:wght@600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="screens.css">
 <style>
@@ -94,7 +94,7 @@
               <div class="changerow changerow--same">Map semantics: ink route, severity-shaded gap dashes, orange reconstruction, selection glow.</div>
               <div class="changerow changerow--same">The five pinned anchors only — #FC4C02, #000000, #FFFFFF, #5A5A5A, #222222 and their alphas.</div>
               <div class="changerow changerow--same">Local-first privacy posture, provenance everywhere, destructive = black.</div>
-              <div class="changerow changerow--same">The share card itself — already the palette's native expression.</div>
+              <div class="changerow changerow--same">The generated share card graphic — reproduced 1:1 from the shipping painter (layout, artwork, Montserrat); only the page around it is restyled.</div>
             </div>
           </div>
         </div>
@@ -432,16 +432,23 @@
             <svg viewBox="0 0 400 300" aria-hidden="true">
               <rect width="400" height="300" fill="#222222"/>
               <g stroke="rgba(255,255,255,0.05)"><path d="M0 50h400M0 100h400M0 150h400M0 200h400M0 250h400M60 0v300M120 0v300M180 0v300M240 0v300M300 0v300M360 0v300"/></g>
-              <rect x="120" y="24" width="112" height="200" rx="10" fill="#000000"/>
-              <path d="M145 150 C160 110 185 120 195 90 M195 90 C205 60 195 55 210 45" fill="none" stroke="#FC4C02" stroke-width="5" stroke-linecap="round"/>
-              <path d="M145 150 C160 110 185 120 195 90 M195 90 C205 60 195 55 210 45" fill="none" stroke="#000000" stroke-width="8" stroke-linecap="round" opacity=".35"/>
-              <text x="176" y="70" font-family="Archivo,Arial" font-size="11" font-weight="800" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">STRAVA</text>
-              <text x="146" y="196" font-family="Archivo,Arial" font-size="6" font-weight="600" fill="rgba(255,255,255,0.66)" text-anchor="middle" letter-spacing="1">DISTANCE</text>
-              <text x="176" y="196" font-family="Archivo,Arial" font-size="6" font-weight="600" fill="rgba(255,255,255,0.66)" text-anchor="middle" letter-spacing="1">PACE</text>
-              <text x="207" y="196" font-family="Archivo,Arial" font-size="6" font-weight="600" fill="rgba(255,255,255,0.66)" text-anchor="middle" letter-spacing="1">TIME</text>
-              <text x="146" y="210" font-family="Archivo,Arial" font-size="10" font-weight="800" fill="#FFFFFF" text-anchor="middle">21.12</text>
-              <text x="176" y="210" font-family="Archivo,Arial" font-size="10" font-weight="800" fill="#FFFFFF" text-anchor="middle">5:00</text>
-              <text x="207" y="210" font-family="Archivo,Arial" font-size="10" font-weight="800" fill="#FFFFFF" text-anchor="middle">1h 45m</text>
+              <!-- the app's card, 1:1 in miniature: route upper two-thirds,
+                   wordmark, stats trio, shoe — the generated artwork itself -->
+              <rect x="120" y="24" width="112" height="200" fill="#000000"/>
+              <g transform="translate(120 24) scale(0.1037 0.10417)">
+                <path d="M118 1160 C102 1005 190 915 175 824 C160 733 238 671 332 654 C426 637 470 705 556 683 C648 659 686 581 768 539 C855 494 950 505 965 415 C979 328 893 228 800 248 C712 268 660 340 580 372 C500 404 470 478 501 552 C532 626 618 648 650 722 C682 796 630 870 548 902 C466 934 385 901 313 935 C241 968 216 1072 225 1155"
+                      fill="none" stroke="#000000" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M118 1160 C102 1005 190 915 175 824 C160 733 238 671 332 654 C426 637 470 705 556 683 C648 659 686 581 768 539 C855 494 950 505 965 415 C979 328 893 228 800 248 C712 268 660 340 580 372 C500 404 470 478 501 552 C532 626 618 648 650 722 C682 796 630 870 548 902 C466 934 385 901 313 935 C241 968 216 1072 225 1155"
+                      fill="none" stroke="#FC4C02" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+              </g>
+              <text x="176" y="162.3" font-family="Montserrat,Arial" font-size="6" font-weight="800" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">STRAVA</text>
+              <text x="143" y="175" font-family="Montserrat,Arial" font-size="3.2" font-weight="600" fill="#FFFFFF" text-anchor="middle">Distance</text>
+              <text x="176" y="175" font-family="Montserrat,Arial" font-size="3.2" font-weight="600" fill="#FFFFFF" text-anchor="middle">Pace</text>
+              <text x="209" y="175" font-family="Montserrat,Arial" font-size="3.2" font-weight="600" fill="#FFFFFF" text-anchor="middle">Time</text>
+              <text x="143" y="181" font-family="Montserrat,Arial" font-size="4.6" font-weight="800" fill="#FFFFFF" text-anchor="middle">21.12</text>
+              <text x="176" y="181" font-family="Montserrat,Arial" font-size="4.6" font-weight="800" fill="#FFFFFF" text-anchor="middle">5:00</text>
+              <text x="209" y="181" font-family="Montserrat,Arial" font-size="4.6" font-weight="800" fill="#FFFFFF" text-anchor="middle">1h 45m</text>
+              <ellipse cx="176" cy="196.7" rx="5.2" ry="5.2" fill="#FFFFFF"/>
               <rect x="252" y="24" width="134" height="46" rx="8" fill="#FFFFFF" stroke="#222222" stroke-width="2"/>
               <rect x="252" y="82" width="134" height="142" rx="8" fill="#FFFFFF" stroke="#222222" stroke-width="2"/>
               <rect x="262" y="94" width="60" height="8" rx="2" fill="rgba(34,34,34,0.18)"/>
@@ -450,7 +457,7 @@
           </div>
           <div class="screencard__body">
             <span class="screencard__title"><span class="sq"></span>Share view</span>
-            <span class="screencard__sub">The 9:16 card on a dark plotting stage, with its honest-numbers side panel.</span>
+            <span class="screencard__sub">The 9:16 card — the app's own artwork, untouched — on a dark plotting stage with its honest-numbers side panel.</span>
           </div>
         </a>
 

@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Yes, the rightmost phone's 9:16 share card fits perfectly within the dark stage. The route, STRAVA wordmark, stats (Distance, Pace, Time), and the shoe icon are all fully visible and unclipped.\n\nThe other two phones (Landing and Repair workspace) also show no text clipping or layout defects; all elements are contained within their respective frames.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790474498,
+  "id": "20260927100135fb5cb65ddc734de1",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260927100135fb5cb65ddc734de1",
+  "usage": {
+    "completion_tokens": 79,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 2172,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2251
+  }
+}

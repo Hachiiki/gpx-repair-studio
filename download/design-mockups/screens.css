@@ -278,30 +278,20 @@
   background: rgba(0,0,0,0.55); padding: 4px 12px; border-radius: 999px;
   white-space: nowrap;
 }
+/* The share card is the app's own generated artwork, not Field Plot
+   chrome. It is reproduced 1:1 from the shipping card
+   (src/lib/share/layout.ts + render.ts + artwork.ts): a flat
+   1080×1920 solid-#000000 rectangle, sharp corners, every anchor
+   drawn in card units inside one SVG. The hairline ring is the real
+   preview's stage chrome (ring-1 ring-white/10). Only the page
+   around the card is redesigned. */
 .sharecard {
   width: min(300px, 62vw); aspect-ratio: 9 / 16;
-  background: var(--inkplus); border-radius: 16px;
-  position: relative; overflow: hidden;
-  box-shadow: 0 18px 44px rgba(0,0,0,0.5);
+  background: #000000;
+  position: relative;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
-.sharecard__route { position: absolute; inset: 0; width: 100%; height: 100%; }
-.sharecard__wordmark {
-  position: absolute; top: 7.5%; left: 50%; transform: translateX(-50%) scaleY(0.86);
-  font-family: var(--font-ui); font-weight: 800; font-size: 30px;
-  letter-spacing: 0.06em; color: var(--paper); white-space: nowrap;
-}
-.sharecard__stats {
-  position: absolute; bottom: 8.5%; left: 0; right: 0;
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
-  padding: 0 20px; text-align: center;
-}
-.sharecard__statlabel {
-  font-size: 9.5px; letter-spacing: 0.16em; font-weight: 600; color: rgba(255,255,255,0.66);
-}
-.sharecard__statvalue {
-  font-family: var(--font-display); font-weight: 700; font-size: 24px; line-height: 1.05;
-  color: var(--paper); margin-top: 3px; white-space: nowrap;
-}
+.sharecard > svg { display: block; width: 100%; height: 100%; }
 .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
 .trio__label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: var(--shade); }
 .trio__value { font-family: var(--font-display); font-weight: 700; font-size: 27px; line-height: 1.1; margin-top: 2px; }
