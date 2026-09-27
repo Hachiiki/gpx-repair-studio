@@ -29,6 +29,11 @@ beforeEach(() => {
     useUiStore.getState().resetGapThresholds();
     useUiStore.setState({
       selectedGapId: null,
+      // Task 42: start these flows on the repair tool page (the cards
+      // home is covered by session-views/recovery-ui tests — here the
+      // page is already open, the upload zone ready).
+      landingMode: "repair",
+      landingView: "tool",
       tileProvider: "openfreemap",
       paceUnit: "km",
     });

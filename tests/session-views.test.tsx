@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 /**
- * React Testing Library — the extracted session views (AppShell
- * reorganization pass):
+ * React Testing Library — the landing's two pages (Task 42) and the
+ * loading state:
  *
- *   - SessionIdleView: the landing hero (heading + upload zone), the
- *     error-retry path (alert above the hero, zone still available),
- *     and the three-step workflow teaching section;
+ *   - SessionIdleView (view "tool"): one tool's detail page — hero,
+ *     intake, the error-retry path (alert above the hero, zone still
+ *     available), the three-step workflow teaching section, the fact
+ *     strip, and the "All tools" way back;
+ *   - SessionIdleView (view "home"): the tool cards — four doors with
+ *     illustrations, the open intent, and the focus-return trip;
  *   - SessionLoadingView: a polite live region that announces the
  *     parsing state with the file name (the a11y fix of this pass).
  *
@@ -20,6 +23,7 @@ import {
   SessionLoadingView,
 } from "@/components/layout/session-views";
 import type { SessionError } from "@/state/session-store";
+import type { LandingMode } from "@/state/ui-store";
 
 afterEach(() => cleanup());
 
@@ -28,10 +32,12 @@ const error: SessionError = {
   detail: "The root element was <rss>, not <gpx>.",
 };
 
-/** Default idle-view props: the repair landing mode (Task 20). */
+/** Default idle-view props (the repair tool page — the default door). */
 const IDLE_PROPS = {
   error: null as SessionError | null,
   onFile: () => {},
+  onOpenTool: (_mode: LandingMode) => {},
+  onBackToCards: () => {},
   onCreateBegin: (_stats: { distanceM: number }) => {},
   createStats: null,
   paceUnit: "km" as const,
@@ -44,13 +50,13 @@ function renderIdle(
   const props = {
     ...IDLE_PROPS,
     mode: "repair" as const,
-    onModeChange: () => {},
+    view: "tool" as const,
     ...overrides,
   };
   return render(<SessionIdleView {...props} />);
 }
 
-describe("SessionIdleView", () => {
+describe("SessionIdleView — tool detail page", () => {
   it("renders the hero heading and the upload zone", () => {
     renderIdle();
 
@@ -98,10 +104,47 @@ describe("SessionIdleView", () => {
 
     expect(files).toEqual([file]);
   });
+
+  it("carries the tool's fact strip: input, output, and best for", () => {
+    renderIdle();
+
+    const facts = screen.getByTestId("tool-facts");
+    expect(facts).toHaveTextContent("Input");
+    expect(facts).toHaveTextContent("Output");
+    expect(facts).toHaveTextContent("Best for");
+    // Concrete contract, not filler — the repair tool's facts.
+    expect(facts).toHaveTextContent("Any GPX 1.0 or 1.1 activity file");
+    expect(facts).toHaveTextContent("every reconstructed point marked");
+  });
+
+  it("offers the way back to the cards and dispatches the intent", () => {
+    const backs: number[] = [];
+    renderIdle({ onBackToCards: () => backs.push(1) });
+
+    const back = screen.getByTestId("landing-back-to-cards");
+    expect(back).toBeVisible();
+    expect(back).toHaveTextContent("All tools");
+
+    fireEvent.click(back);
+    expect(backs).toHaveLength(1);
+    // Controlled view — the parent decides what renders next.
+    expect(
+      screen.getByRole("heading", { name: "Repair incomplete GPS recordings" }),
+    ).toBeVisible();
+  });
+
+  it("focuses the hero heading on mount — the page-turn announcement", () => {
+    renderIdle();
+
+    const heading = screen.getByRole("heading", {
+      name: "Repair incomplete GPS recordings",
+    });
+    expect(heading).toHaveFocus();
+  });
 });
 
-describe("SessionIdleView — landing mode (Task 20)", () => {
-  it("switches the hero and the trio to the share-card workflow", () => {
+describe("SessionIdleView — tool pages (Task 20 + 26 + 42)", () => {
+  it("teaches the share-card workflow on the share tool page", () => {
     renderIdle({ mode: "share" });
 
     expect(
@@ -114,9 +157,13 @@ describe("SessionIdleView — landing mode (Task 20)", () => {
     expect(steps.querySelectorAll("li")).toHaveLength(3);
     // The upload zone stays the one and only intake.
     expect(screen.getByTestId("upload-zone")).toBeVisible();
+    // The fact strip promises the transparent export.
+    expect(screen.getByTestId("tool-facts")).toHaveTextContent(
+      "1080×1920 transparent PNG",
+    );
   });
 
-  it("switches the hero and the trio to the gap-recovery workflow (Task 26 revision)", () => {
+  it("teaches the gap-recovery workflow on the recovery tool page", () => {
     renderIdle({ mode: "recovery" });
 
     expect(
@@ -127,11 +174,10 @@ describe("SessionIdleView — landing mode (Task 20)", () => {
     expect(steps).toHaveTextContent("Draw the missing route");
     expect(steps).toHaveTextContent("Export the corrected file");
     expect(steps.querySelectorAll("li")).toHaveLength(3);
-    // The upload zone stays the one and only intake.
     expect(screen.getByTestId("upload-zone")).toBeVisible();
   });
 
-  it("switches the hero and the trio to the create-from-stats workflow, replacing the upload zone with the statistics form", () => {
+  it("replaces the upload zone with the statistics form on the create tool page", () => {
     renderIdle({ mode: "create" });
 
     expect(
@@ -146,53 +192,97 @@ describe("SessionIdleView — landing mode (Task 20)", () => {
     expect(screen.queryByTestId("upload-zone")).toBeNull();
     expect(screen.getByTestId("activity-stats-form")).toBeVisible();
   });
+});
 
-  it("marks the active mode and dispatches the change intent", () => {
-    const changes: string[] = [];
-    renderIdle({ onModeChange: (mode) => changes.push(mode) });
+describe("SessionIdleView — the tool cards home (Task 42)", () => {
+  const CARD_MODES = ["repair", "share", "recovery", "create"] as const;
 
-    const toggle = screen.getByTestId("landing-mode-toggle");
-    expect(toggle).toHaveAttribute("role", "radiogroup");
-    const repair = screen.getByTestId("landing-mode-repair");
-    const share = screen.getByTestId("landing-mode-share");
-    const recovery = screen.getByTestId("landing-mode-recovery");
-    expect(repair).toHaveAttribute("aria-checked", "true");
-    expect(share).toHaveAttribute("aria-checked", "false");
-    expect(recovery).toHaveAttribute("aria-checked", "false");
+  it("asks the opening question and offers all four tools as cards", () => {
+    renderIdle({ view: "home" });
 
-    fireEvent.click(share);
-    expect(changes).toEqual(["share"]);
-    // The heading does not change until the parent re-renders with the
-    // new mode — the view is controlled, no local state.
     expect(
-      screen.getByRole("heading", { name: "Repair incomplete GPS recordings" }),
+      screen.getByRole("heading", { name: "What would you like to do?" }),
     ).toBeVisible();
+
+    const grid = screen.getByTestId("landing-mode-toggle");
+    const cards = grid.querySelectorAll("button");
+    expect(cards).toHaveLength(4);
+    for (const mode of CARD_MODES) {
+      expect(screen.getByTestId(`landing-mode-${mode}`)).toBeVisible();
+    }
+    // The repair door carries its title (the card is a button, the
+    // title its accessible label).
+    expect(screen.getByTestId("landing-mode-repair")).toHaveTextContent(
+      "Repair a recording",
+    );
   });
 
-  it("offers all four destinations as radios, each with a compact and a full label", () => {
-    renderIdle();
+  it("gives every card an illustration with descriptive alt text", () => {
+    renderIdle({ view: "home" });
 
-    const radios = screen
-      .getByTestId("landing-mode-toggle")
-      .querySelectorAll('[role="radio"]');
-    expect(radios).toHaveLength(4);
+    const grid = screen.getByTestId("landing-mode-toggle");
+    const images = grid.querySelectorAll("img");
+    expect(images).toHaveLength(4);
+    for (const image of Array.from(images)) {
+      expect(image.getAttribute("alt")).toBeTruthy();
+      expect(image.getAttribute("src")).toMatch(/^\/cards\/\w+\.webp$/);
+    }
+  });
 
-    // The responsive label pair: the compact span shows below sm, the
-    // full one from sm up — four tabs stay on one 375 px row.
-    const recovery = screen.getByTestId("landing-mode-recovery");
-    expect(recovery.querySelector(".sm\\:hidden")?.textContent).toBe(
-      "Recovery",
-    );
-    expect(recovery.querySelector(".hidden.sm\\:inline")?.textContent).toBe(
-      "Recover a GPS gap",
-    );
-    const create = screen.getByTestId("landing-mode-create");
-    expect(create.querySelector(".sm\\:hidden")?.textContent).toBe("Create");
-    expect(create.querySelector(".hidden.sm\\:inline")?.textContent).toBe(
-      "Create from stats",
+  it("dispatches the open intent when a card is clicked", () => {
+    const opened: string[] = [];
+    renderIdle({ view: "home", onOpenTool: (mode) => opened.push(mode) });
+
+    fireEvent.click(screen.getByTestId("landing-mode-recovery"));
+
+    expect(opened).toEqual(["recovery"]);
+    // Controlled view — the parent re-renders with view "tool".
+    expect(screen.getByTestId("landing-mode-toggle")).toBeVisible();
+  });
+
+  it("returns focus to the card that opened the tool page (the back trip)", () => {
+    const opened: string[] = [];
+    const backs: number[] = [];
+    const view = render(
+      <SessionIdleView
+        {...IDLE_PROPS}
+        mode="repair"
+        view="home"
+        onOpenTool={(mode) => opened.push(mode)}
+        onBackToCards={() => backs.push(1)}
+      />,
     );
 
-    fireEvent.click(recovery);
+    // Open the recovery card → the parent flips to the tool page.
+    fireEvent.click(screen.getByTestId("landing-mode-recovery"));
+    expect(opened).toEqual(["recovery"]);
+    view.rerender(
+      <SessionIdleView
+        {...IDLE_PROPS}
+        mode="recovery"
+        view="tool"
+        onOpenTool={(mode) => opened.push(mode)}
+        onBackToCards={() => backs.push(1)}
+      />,
+    );
+    // The page turn focused the new page's heading.
+    expect(
+      screen.getByRole("heading", { name: "Recover a missing GPS section" }),
+    ).toHaveFocus();
+
+    // Back to the cards → the recovery card receives focus.
+    fireEvent.click(screen.getByTestId("landing-back-to-cards"));
+    expect(backs).toHaveLength(1);
+    view.rerender(
+      <SessionIdleView
+        {...IDLE_PROPS}
+        mode="recovery"
+        view="home"
+        onOpenTool={(mode) => opened.push(mode)}
+        onBackToCards={() => backs.push(1)}
+      />,
+    );
+    expect(screen.getByTestId("landing-mode-recovery")).toHaveFocus();
   });
 });
 

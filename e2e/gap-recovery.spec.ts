@@ -209,10 +209,13 @@ test.describe("Gap Recovery section", () => {
     expect(xml).toContain("<time>2024-05-01T07:05:09Z</time>"); // untouched anchor
 
     // -- back to the landing, then into the repair studio ---------------------
-    // "New file" resets the ACTIVE section (recovery) and returns to the
-    // landing; the repair tab then opens the repair studio for the same
-    // file — its own workspace, not the recovery section.
+    // "New file" resets the ACTIVE section (recovery) and returns to
+    // the landing on the remembered tool's page (Task 42); "All tools"
+    // goes back to the cards, where the repair card opens the repair
+    // studio for the same file — its own workspace, not the recovery
+    // section.
     await page.getByRole("button", { name: "New file" }).click();
+    await page.getByTestId("landing-back-to-cards").click();
     await expect(page.getByTestId("landing-mode-toggle")).toBeVisible();
     await page.getByTestId("landing-mode-repair").click();
     await upload(page, join(FIXTURES, "time-gap.gpx"));
@@ -253,14 +256,14 @@ test.describe("Gap Recovery section", () => {
     if (path === null) throw new Error("download produced no file");
     const xml = readFileSync(path, "utf8");
 
-    // Round-trip: reset the section, upload the export itself — from the
-    // remembered recovery tab (the intent survived the reset).
+    // Round-trip: reset the section, upload the export itself — from
+    // the remembered recovery tool page (the intent survived the
+    // reset; Task 42 keeps the tool page open after "New file").
     await page.getByRole("button", { name: "New file" }).click();
     await page.getByTestId("upload-zone").waitFor({ state: "visible" });
-    await expect(page.getByTestId("landing-mode-recovery")).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    await expect(
+      page.getByRole("heading", { name: "Recover a missing GPS section" }),
+    ).toBeVisible();
     const tempPath = join(process.cwd(), "e2e", ".recovery-roundtrip.gpx");
     writeFileSync(tempPath, xml);
     await upload(page, tempPath);
@@ -367,12 +370,11 @@ test.describe("Gap Recovery section", () => {
     expect(xml).toContain("<time>2024-05-01T07:00:06Z</time>");
   });
 
-  test("works at a mobile viewport, three tabs on one row", async ({ page }) => {
+  test("works at a mobile viewport, cards stacked one per row", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto("/");
 
-    // The compact labels keep the trio on one 375 px row — the page
-    // never scrolls horizontally because of the toggle (the URI-wrap
+    // The stacked cards never force horizontal scroll (the URI-wrap
     // spec's overflow contract, applied to the landing).
     const toggle = page.getByTestId("landing-mode-toggle");
     await expect(toggle).toBeVisible();
@@ -385,9 +387,10 @@ test.describe("Gap Recovery section", () => {
     expect(toggleBox).not.toBeNull();
     expect(toggleBox!.width).toBeLessThanOrEqual(375);
 
-    // The compact label shows below sm; the tab still switches.
+    // The card still carries its full title below sm; the card still
+    // switches.
     await expect(page.getByTestId("landing-mode-recovery")).toContainText(
-      "Recovery",
+      "Recover a GPS gap",
     );
     await page.getByTestId("landing-mode-recovery").click();
     await expect(

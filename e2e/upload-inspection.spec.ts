@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { generateSyntheticGpx } from "../src/features/gpx/fixtures/generators";
+import { enterRepairTool } from "./helpers/landing";
 
 /**
  * Phase 2 E2E — the upload & inspection acceptance criteria:
@@ -40,6 +41,9 @@ test.beforeAll(() => {
 
 /** Upload a file through the zone's file picker. */
 async function upload(page: import("@playwright/test").Page, path: string) {
+  // Task 42: the landing opens on the tool cards — enter the repair
+  // tool's page before its upload zone exists.
+  await enterRepairTool(page);
   const chooser = page.waitForEvent("filechooser");
   await page.getByTestId("upload-zone").click();
   const fileChooser = await chooser;

@@ -9,7 +9,7 @@ import { expect, test } from "@playwright/test";
  */
 
 test.describe("app shell", () => {
-  test("renders header, upload hero, and footer", async ({ page }) => {
+  test("renders header, tool cards home, and footer", async ({ page }) => {
     await page.goto("/");
 
     const banner = page.getByRole("banner");
@@ -20,6 +20,20 @@ test.describe("app shell", () => {
 
     const main = page.getByRole("main");
     await expect(main).toBeVisible();
+
+    // Task 42: the landing opens on the tool cards — four doors, each
+    // with its illustration, instead of the tab switcher.
+    await expect(
+      page.getByRole("heading", { name: "What would you like to do?" }),
+    ).toBeVisible();
+    const cards = page.getByTestId("landing-mode-toggle");
+    await expect(cards).toBeVisible();
+    await expect(cards.locator("button")).toHaveCount(4);
+    await expect(cards.locator("img")).toHaveCount(4);
+
+    // Opening the repair card enters its page: hero, intake, and the
+    // three-step workflow (Inspect, Repair, and the honesty promise).
+    await page.getByTestId("landing-mode-repair").click();
     await expect(
       page.getByRole("heading", {
         level: 2,
@@ -27,9 +41,6 @@ test.describe("app shell", () => {
       }),
     ).toBeVisible();
     await expect(page.getByTestId("upload-zone")).toBeVisible();
-
-    // The landing page teaches the three-step workflow (AppShell
-    // reorganization pass) — Inspect, Repair, and the honesty promise.
     const steps = page.getByTestId("workflow-steps");
     await expect(steps).toBeVisible();
     await expect(steps).toContainText("Inspect");
@@ -53,6 +64,9 @@ test.describe("app shell", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "GPX Repair Studio" }),
     ).toBeVisible();
+    // The cards stack one per row on mobile; the repair card still
+    // opens its page with the intake.
+    await page.getByTestId("landing-mode-repair").click();
     await expect(page.getByTestId("upload-zone")).toBeVisible();
     await expect(page.getByRole("contentinfo")).toBeVisible();
   });
@@ -67,6 +81,12 @@ test.describe("app shell", () => {
     await page.goto("/");
     await expect(
       page.getByRole("heading", { level: 1, name: "GPX Repair Studio" }),
+    ).toBeVisible();
+    // Exercise the new front door once — the card click is part of the
+    // interactive surface under test.
+    await page.getByTestId("landing-mode-repair").click();
+    await expect(
+      page.getByRole("heading", { name: "Repair incomplete GPS recordings" }),
     ).toBeVisible();
 
     expect(errors, `console errors: ${errors.join(" | ")}`).toEqual([]);

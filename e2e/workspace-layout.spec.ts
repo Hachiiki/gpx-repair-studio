@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { join } from "node:path";
+import { enterRepairTool } from "./helpers/landing";
 
 /**
  * QoL workspace-layout E2E — the two-section redesign:
@@ -14,6 +15,9 @@ import { join } from "node:path";
 const FIXTURES = join("src", "features", "gpx", "fixtures", "files");
 
 async function upload(page: Page) {
+  // Task 42: the landing opens on the tool cards — enter the repair
+  // tool's page before its upload zone exists.
+  await enterRepairTool(page);
   const chooser = page.waitForEvent("filechooser");
   await page.getByTestId("upload-zone").click();
   const [file] = await Promise.all([chooser]);

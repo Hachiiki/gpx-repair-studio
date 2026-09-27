@@ -17,13 +17,21 @@
  *     Task 26 revision: the toggle gained a third tab, "Recover a GPS
  *     gap" — selecting it routes the next upload into the Gap Recovery
  *     section's own session (still one remembered intent, three
- *     destinations).
+ *     destinations). Task 42 revision: the tabs became tool cards —
+ *     opening a card writes this mode, so the remembered intent and
+ *     the open tool page can never drift apart.
  *
  * Transient state (NOT persisted):
  *   - Phase 3: `selectedGapId` — the gap currently highlighted on the map
  *     and in the gap list (GapList ↔ map selection sync). Cleared by the
  *     map binding hook when the session resets or re-detection removes the
  *     gap.
+ *   - Task 42: `landingView` — which landing page is showing: the tool
+ *     cards ("home") or the selected tool's detail page ("tool").
+ *     Never persisted: a fresh load always opens on the cards, while a
+ *     section reset keeps the tool page (the remembered-intent contract
+ *     the tab used to carry — "New file" returns to the same tool's
+ *     intake).
  *
  * `skipHydration` keeps SSR/prerender and the first client render identical
  * (defaults); `AppShell` rehydrates after mount.
@@ -58,17 +66,26 @@ export const UI_SETTINGS_STORAGE_KEY = "gpx-repair-studio.settings.v1";
  * a watch that recorded the statistics but no GPS at all. Derived, never
  * stored: each section is "active" exactly while its own session holds
  * the stage, so the sections keep fully independent sessions (there is
- * no switcher — the landing-page tab is the only front door, Task 26
- * revision).
+ * no switcher — the landing-page cards are the only front door, Task
+ * 26/42 revisions).
  */
 export type AppSection = "repair" | "recovery" | "create";
 
 /**
- * The landing page's tab (Task 20 + Task 26 revision): what the next
- * upload opens into — the repair workspace, the share-card view, or the
- * Gap Recovery section. Persisted as the remembered intent; "recovery"
- * and "create" values written by newer builds read back fine, and older
- * persisted "repair"/"share" values remain valid.
+ * The landing's page (Task 42): "home" shows the tool cards; "tool"
+ * shows the remembered mode's detail page (hero, explanation, and
+ * intake). Transient by design — see the store header.
+ */
+export type LandingView = "home" | "tool";
+
+/**
+ * The landing page's selected tool (Task 20 + Task 26 revision): what
+ * the next upload opens into — the repair workspace, the share-card
+ * view, or the Gap Recovery section. Persisted as the remembered
+ * intent; "recovery" and "create" values written by newer builds read
+ * back fine, and older persisted "repair"/"share" values remain
+ * valid. Task 42: opening a tool card writes this mode, so the
+ * remembered intent and the open tool page can never drift apart.
  */
 export type LandingMode = SessionView | "recovery" | "create";
 
@@ -81,8 +98,10 @@ interface UiState {
   exportMode: ExportMode;
   /** Pretty-print exported GPX (§H-7). Phase 7. */
   exportPrettyPrint: boolean;
-  /** Landing-page tab (Task 20 + Task 26 revision): what the next upload opens into. */
+  /** Landing-page tool (Task 20 + Task 42): what the next upload opens into. */
   landingMode: LandingMode;
+  /** Landing page (Task 42): the tool cards, or the tool's detail page. Transient. */
+  landingView: LandingView;
   /** The gap highlighted on the map / gap list; `null` = none. Transient. */
   selectedGapId: GapId | null;
 
@@ -93,6 +112,10 @@ interface UiState {
   setExportMode: (mode: ExportMode) => void;
   setExportPrettyPrint: (pretty: boolean) => void;
   setLandingMode: (mode: LandingMode) => void;
+  /** Task 42: open a tool's detail page (also becomes the remembered intent). */
+  openLandingTool: (mode: LandingMode) => void;
+  /** Task 42: leave the detail page, back to the tool cards. */
+  closeLandingTool: () => void;
   selectGap: (gapId: GapId | null) => void;
 }
 
@@ -105,6 +128,7 @@ export const useUiStore = create<UiState>()(
       exportMode: "structure-preserving" as ExportMode,
       exportPrettyPrint: false,
       landingMode: "repair" as LandingMode,
+      landingView: "home" as LandingView,
       selectedGapId: null,
       setGapThresholds: (patch) =>
         set((state) => ({ gapThresholds: { ...state.gapThresholds, ...patch } })),
@@ -115,6 +139,11 @@ export const useUiStore = create<UiState>()(
       setExportMode: (exportMode) => set({ exportMode }),
       setExportPrettyPrint: (exportPrettyPrint) => set({ exportPrettyPrint }),
       setLandingMode: (landingMode) => set({ landingMode }),
+      // Task 42 — the cards home: one action keeps the open tool page
+      // and the remembered upload intent the same value.
+      openLandingTool: (mode) =>
+        set({ landingMode: mode, landingView: "tool" }),
+      closeLandingTool: () => set({ landingView: "home" }),
       selectGap: (selectedGapId) => set({ selectedGapId }),
     }),
     {

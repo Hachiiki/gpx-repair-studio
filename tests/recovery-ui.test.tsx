@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 /**
  * React Testing Library — the Gap Recovery section's acceptance flow
- * (Task 26, revised to the landing-tab entry), end to end against the
- * real domain pipeline:
+ * (Task 26, revised to the landing-tab entry, then the Task-42 tool
+ * cards), end to end against the real domain pipeline:
  *
- *   - the landing toggle is the ONLY front door: three tabs (repair a
- *     recording / create a share card / recover a GPS gap) and no
- *     header section switcher;
+ *   - the landing tool cards are the ONLY front door: four cards
+ *     (repair a recording / create a share card / recover a GPS gap /
+ *     create from stats) and no header section switcher;
  *   - an upload from the recovery tab enters the section's own session
  *     (the repair studio's session stays untouched);
  *   - uploading an activity with a GPS tracking gap lists the missing
@@ -16,9 +16,10 @@
  *     elapsed time stays marked unchanged, generated points counted;
  *   - the export card reflects the committed recovery;
  *   - a failed load surfaces above the hero for retry, routed by the
- *     selected tab;
- *   - "New file" resets the active section and returns to the landing,
- *     where the repair tab opens the repair studio for the same file.
+ *     selected tool;
+ *   - "New file" resets the active section and returns to the landing
+ *     (the remembered tool's page), where the repair card opens the
+ *     repair studio for the same file.
  *
  * jsdom provides File/Blob.text and DOMParser, so the same XmlIo adapter
  * used in the browser runs here (no mocking of the domain). The map
@@ -46,6 +47,7 @@ beforeEach(() => {
     useUiStore.setState({
       selectedGapId: null,
       landingMode: "repair",
+      landingView: "home",
       tileProvider: "openfreemap",
       paceUnit: "km",
     });
@@ -66,7 +68,7 @@ async function dropFile(fixtureName: string) {
   });
 }
 
-/** Enter the recovery destination: click the landing's third tab. */
+/** Enter the recovery destination: open the landing's recovery card. */
 function chooseRecoveryTab() {
   fireEvent.click(screen.getByTestId("landing-mode-recovery"));
 }
@@ -78,21 +80,19 @@ const DRAWN = [
 ];
 
 describe("Gap Recovery section", () => {
-  it("offers the recovery destination as a landing tab — no header switcher", () => {
+  it("offers the recovery destination as a tool card — no header switcher", () => {
     render(<AppShell />);
 
-    // The toggle carries four mutually exclusive destinations (the
-    // create-from-stats tab joined in the create-section pass).
+    // The card grid carries four mutually exclusive destinations (the
+    // create-from-stats card joined in the create-section pass).
     const toggle = screen.getByTestId("landing-mode-toggle");
-    expect(toggle).toHaveAttribute("role", "radiogroup");
-    expect(
-      toggle.querySelectorAll('[role="radio"]'),
-    ).toHaveLength(4);
+    expect(toggle.querySelectorAll("button")).toHaveLength(4);
 
-    // The Task-26 header section switcher is gone: the tab is the only door.
+    // The Task-26 header section switcher is gone: the cards are the
+    // only door.
     expect(screen.queryByTestId("section-switcher")).toBeNull();
 
-    // Choosing the recovery tab swaps the hero to its workflow.
+    // Opening the recovery card swaps the page to its workflow.
     chooseRecoveryTab();
     expect(
       screen.getByRole("heading", { name: "Recover a missing GPS section" }),
@@ -103,7 +103,9 @@ describe("Gap Recovery section", () => {
     expect(steps).toHaveTextContent("Export the corrected file");
     expect(screen.getByTestId("upload-zone")).toBeVisible();
 
-    // And back: the repair hero returns (one remembered intent).
+    // And back: "All tools" returns to the cards, the repair card
+    // opens the repair page (one remembered intent).
+    fireEvent.click(screen.getByTestId("landing-back-to-cards"));
     fireEvent.click(screen.getByTestId("landing-mode-repair"));
     expect(
       screen.getByRole("heading", { name: "Repair incomplete GPS recordings" }),
@@ -306,14 +308,17 @@ describe("Gap Recovery section", () => {
 
     // "New file" resets the ACTIVE section (recovery) and returns to
     // the landing — the repair studio's stores were never involved.
+    // Task 42: the reset keeps the recovery tool page (the remembered
+    // intent); "All tools" is the way back to the cards.
     fireEvent.click(screen.getByRole("button", { name: "New file" }));
-    await screen.findByTestId("landing-mode-toggle");
+    await screen.findByTestId("landing-back-to-cards");
     expect(useRecoveryStore.getState().status).toBe("idle");
     expect(useSessionStore.getState().status).toBe("idle");
     expect(Object.keys(useEditorStore.getState().reconstructions)).toEqual([]);
 
-    // Upload the same file from the REPAIR tab: the repair studio opens
+    // Upload the same file from the REPAIR tool: the repair studio opens
     // — its own workspace, not the recovery section.
+    fireEvent.click(screen.getByTestId("landing-back-to-cards"));
     fireEvent.click(screen.getByTestId("landing-mode-repair"));
     await dropFile("time-gap.gpx");
     await screen.findByTestId("gap-list");
@@ -341,10 +346,12 @@ describe("Gap Recovery section", () => {
     expect(useRecoveryStore.getState().status).toBe("error");
 
     // Switching to another destination swaps the routed error away…
+    fireEvent.click(screen.getByTestId("landing-back-to-cards"));
     fireEvent.click(screen.getByTestId("landing-mode-repair"));
     expect(screen.queryByTestId("session-error")).toBeNull();
 
     // …and back: the recovery failure is still there, waiting for retry.
+    fireEvent.click(screen.getByTestId("landing-back-to-cards"));
     fireEvent.click(screen.getByTestId("landing-mode-recovery"));
     expect(screen.getByTestId("session-error")).toBeVisible();
   });

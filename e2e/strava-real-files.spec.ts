@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { join } from "node:path";
+import { enterRepairTool } from "./helpers/landing";
 
 /**
  * Real-world Strava samples — E2E upload coverage (user-supplied files).
@@ -19,6 +20,9 @@ const DOCS = join("docs");
 
 /** Upload a file through the zone's file picker. */
 async function upload(page: import("@playwright/test").Page, path: string) {
+  // Task 42: the landing opens on the tool cards — enter the repair
+  // tool's page before its upload zone exists.
+  await enterRepairTool(page);
   const chooser = page.waitForEvent("filechooser");
   await page.getByTestId("upload-zone").click();
   const fileChooser = await chooser;

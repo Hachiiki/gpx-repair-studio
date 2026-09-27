@@ -12,12 +12,14 @@
  *
  *   - parsed  → the two-section workspace (layout/workspace-layout.tsx)
  *   - loading → SessionLoadingView
- *   - idle or error → SessionIdleView (the landing page, which is also
+ *   - idle or error → SessionIdleView (the landing, which is also
  *     the retry surface — the error alert sits above the hero and the
  *     upload zone stays available)
  *
  * The non-workspace views live in layout/session-views.tsx; the shell
- * only picks between them (AppShell reorganization pass).
+ * only picks between them (AppShell reorganization pass). Task 42:
+ * the landing itself is two pages (tool cards ↔ tool detail), and the
+ * idle view dispatches between them from the ui-store's landingView.
  *
  * Also owns one app-level behavior: rehydrating persisted settings
  * after mount (skipHydration pattern, see state/ui-store.ts).
@@ -82,20 +84,20 @@ export function AppShell() {
   const paceUnit = useUiStore((s) => s.paceUnit);
   const setPaceUnit = useUiStore((s) => s.setPaceUnit);
   const landingMode = useUiStore((s) => s.landingMode);
-  const setLandingMode = useUiStore((s) => s.setLandingMode);
+  const landingView = useUiStore((s) => s.landingView);
 
   // Task 26 revision — the active section is DERIVED, not switched: the
   // Gap Recovery section is mounted exactly while its own session is
   // loading or parsed (its uploads arrive through the landing page's
-  // "Recover a GPS gap" tab; resetting it returns to the landing). The
+  // recovery tool page; resetting it returns to the landing). The
   // repair studio keeps this shell's original wiring; recovery state
   // lives in its own store (state/recovery-store) and raw selectors keep
   // the header honest without duplicating the section's hook tree.
   //
   // The Create-from-stats section follows the same rule: it holds the
   // stage exactly while its phase is past the form (its entry is the
-  // landing page's "Create from stats" tab, whose statistics form lives
-  // on the landing; resetting it returns there).
+  // landing page's create tool page, whose statistics form lives
+  // there; resetting it returns there).
   const recoveryStatus = useRecoveryStore((s) => s.status);
   const recoveryFileName = useRecoveryStore((s) => s.fileName);
   const recoveryError = useRecoveryStore((s) => s.error);
@@ -311,18 +313,21 @@ export function AppShell() {
         ) : session.status === "loading" ? (
           <SessionLoadingView fileName={session.fileName} />
         ) : (
-          /* The landing is a router (Task 26 revision): the selected tab
-             decides which session an upload enters — and which session's
-             failure sits above the hero for retry. Switching tabs swaps
-             the error along with the destination, so a stale failure
-             never guards the wrong intake. */
+          /* The landing is a two-page flow (Task 42): the tool cards,
+             then the chosen tool's page. The remembered mode decides
+             which session an upload enters — and which session's
+             failure sits above the hero for retry; the pages swap the
+             error along with the destination, so a stale failure never
+             guards the wrong intake. */
           <SessionIdleView
             error={landingMode === "recovery" ? recoveryError : session.error}
             onFile={
               landingMode === "recovery" ? loadRecoveryFile : session.loadFile
             }
             mode={landingMode}
-            onModeChange={setLandingMode}
+            view={landingView}
+            onOpenTool={(mode) => useUiStore.getState().openLandingTool(mode)}
+            onBackToCards={() => useUiStore.getState().closeLandingTool()}
             onCreateBegin={(stats) =>
               useCreateStore.getState().beginDrawing(stats)
             }

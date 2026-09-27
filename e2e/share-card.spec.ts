@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { enterRepairTool } from "./helpers/landing";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { abortRoadRouting } from "./helpers/road-follow";
@@ -23,6 +24,10 @@ import { abortRoadRouting } from "./helpers/road-follow";
 const FIXTURES = join("src", "features", "gpx", "fixtures", "files");
 
 async function upload(page: Page, path: string) {
+  // Task 42: from the cards home, enter the repair tool first (specs
+  // that already opened a tool page — e.g. via the share card — are
+  // left alone: the card is not showing).
+  await enterRepairTool(page);
   const chooser = page.waitForEvent("filechooser");
   await page.getByTestId("upload-zone").click();
   const fileChooser = await chooser;
@@ -278,8 +283,10 @@ test.describe("share card (Task 20)", () => {
     page,
   }) => {
     await page.goto("/");
-    // Default mode: the repair hero, the repair trio — existing tests'
-    // contract.
+    // Task 42: the landing opens on the tool cards; the repair card is
+    // the default door — its page carries the repair hero and trio
+    // (existing tests' contract).
+    await page.getByTestId("landing-mode-repair").click();
     await expect
       .poll(() =>
         page
@@ -288,10 +295,7 @@ test.describe("share card (Task 20)", () => {
           .count(),
       )
       .toBe(1);
-    await expect(page.getByTestId("landing-mode-repair")).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    await expect(page.getByTestId("upload-zone")).toBeVisible();
 
     // A normal upload still opens the repair workspace.
     await upload(page, join(FIXTURES, "time-gap.gpx"));

@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { abortRoadRouting } from "./helpers/road-follow";
+import { enterRepairTool } from "./helpers/landing";
 
 /**
  * Manual repair spans (draw-anywhere) — E2E acceptance:
@@ -96,6 +97,9 @@ async function pollBridge(
 }
 
 async function upload(page: Page, path: string) {
+  // Task 42: the landing opens on the tool cards — enter the repair
+  // tool's page before its upload zone exists.
+  await enterRepairTool(page);
   const chooser = page.waitForEvent("filechooser");
   await page.getByTestId("upload-zone").click();
   const fileChooser = await chooser;

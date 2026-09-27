@@ -4,27 +4,30 @@
  *
  * AppShell is the composition root (§D-6 "App.tsx rule"): it wires the
  * session hooks and picks the view. These are the views it picks while
- * there is no workspace yet — the landing/hero state (which doubles as
- * the retry surface when a load attempt failed) and the parsing state.
- * Pure presentation: props in, intents out, no session logic.
+ * there is no workspace yet — the landing (which doubles as the retry
+ * surface when a load attempt failed) and the parsing state. Pure
+ * presentation: props in, intents out, no session logic.
  *
- * The landing page speaks the design language established with the
+ * Task 42: the landing is TWO pages now, and SessionIdleView dispatches
+ * between them. "home" is the tool cards (LandingCardsView — one card
+ * per destination); "tool" is the selected tool's detail page
+ * (ToolDetailView below), which carries everything the old tab swap
+ * used to reveal: the hero, the "How it works" trio, the tool facts,
+ * and the intake. The mode toggle is gone — opening a card is the only
+ * way in, and "All tools" is the only way back, so the remembered
+ * intent and the open page can never disagree.
+ *
+ * The detail page speaks the design language established with the
  * two-section workspace (QoL pass): bordered cards, muted hierarchy,
  * tracking-tight headings, `minmax(0, 1fr)` grids, CSS-only motion
  * (hero entrance + scroll reveal), and use-case teaching copy — the
- * landing-page sibling of the map tools' dwell hints. The three
- * workflow steps only promise what the app does today.
- *
- * Task 26 revision: the mode toggle is a THREE-tab segmented control —
- * "Repair a recording" / "Create a share card" / "Recover a GPS gap" —
- * the single front door to all three destinations (the repair/share
- * workspaces of the repair studio's session, and the Gap Recovery
- * section's own session). There is no header section switcher; the
- * remembered tab is the intent for the NEXT upload. The recovery hero
- * and steps moved here from the retired RecoveryIdleView.
+ * copy is a contract, not a roadmap; the steps only promise what the
+ * app does today.
  */
 
+import { useEffect, useRef, useState } from "react";
 import {
+  ArrowLeft,
   Clock,
   Download,
   Eye,
@@ -39,11 +42,12 @@ import {
 import { SessionErrorAlert } from "@/components/gpx/session-error-alert";
 import { UploadZone } from "@/components/gpx/upload-zone";
 import { ActivityStatsForm } from "@/components/create/activity-stats-form";
+import { LandingCardsView } from "@/components/layout/landing-cards";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ActivityStats } from "@/hooks/use-create-session";
 import type { PaceUnit } from "@/lib/utils/format";
-import type { LandingMode } from "@/state/ui-store";
+import type { LandingMode, LandingView } from "@/state/ui-store";
 import type { SessionError, SessionStatus } from "@/state/session-store";
 
 export interface SessionIdleViewProps {
@@ -51,13 +55,18 @@ export interface SessionIdleViewProps {
   error: SessionError | null;
   /** File intake intent, handed to the UploadZone. */
   onFile: (file: File) => void;
-  /** The remembered landing tab (Task 20 + Task 26 revision): the destination of the next upload. */
+  /** The remembered tool (Task 20 + Task 42): whose detail page is open. */
   mode: LandingMode;
-  onModeChange: (mode: LandingMode) => void;
+  /** Which landing page is showing (Task 42): the cards or the tool page. */
+  view: LandingView;
+  /** Open a tool card — becomes the remembered intent. */
+  onOpenTool: (mode: LandingMode) => void;
+  /** Leave the tool page, back to the cards. */
+  onBackToCards: () => void;
   /**
-   * Create-tab intake (no file exists): confirm the statistics and enter
-   * the drawing phase. The landing's create branch renders the stats
-   * form instead of the upload zone.
+   * Create-tool intake (no file exists): confirm the statistics and
+   * enter the drawing phase. The tool page's create branch renders the
+   * stats form instead of the upload zone.
    */
   onCreateBegin: (stats: ActivityStats) => void;
   /** Previously confirmed statistics (prefill when returning to the form). */
@@ -67,11 +76,58 @@ export interface SessionIdleViewProps {
   onPaceUnitChange: (unit: PaceUnit) => void;
 }
 
+export function SessionIdleView({
+  error,
+  onFile,
+  mode,
+  view,
+  onOpenTool,
+  onBackToCards,
+  onCreateBegin,
+  createStats,
+  paceUnit,
+  onPaceUnitChange,
+}: SessionIdleViewProps) {
+  /*
+   * Focus return (Task 42): remember which card opened the tool page,
+   * so "All tools" can hand focus back to it — the SPA equivalent of
+   * the browser's back-focus. Local state: it only matters while the
+   * idle view stays mounted (a workspace upload unmounts this view and
+   * resets the trip).
+   */
+  const [returnFocus, setReturnFocus] = useState<LandingMode | null>(null);
+
+  if (view === "home") {
+    return (
+      <LandingCardsView
+        returnFocusTo={returnFocus}
+        onOpenTool={(tool) => {
+          setReturnFocus(tool);
+          onOpenTool(tool);
+        }}
+      />
+    );
+  }
+  return (
+    <ToolDetailView
+      error={error}
+      onFile={onFile}
+      mode={mode}
+      onBack={onBackToCards}
+      onCreateBegin={onCreateBegin}
+      createStats={createStats}
+      paceUnit={paceUnit}
+      onPaceUnitChange={onPaceUnitChange}
+    />
+  );
+}
+
 /**
- * What the app does with a file, as taught on the landing page. Kept in
+ * What the app does with a file, as taught on the tool page. Kept in
  * step with shipped behavior only — the copy is a contract, not a
- * roadmap. The trio follows the selected tab: the repair workflow, the
- * share-card workflow, or the gap-recovery workflow.
+ * roadmap. The trio follows the open tool: the repair workflow, the
+ * share-card workflow, the gap-recovery workflow, or the
+ * create-from-stats workflow.
  */
 const WORKFLOW_STEPS: Record<
   LandingMode,
@@ -189,30 +245,94 @@ const HERO_COPY: Record<
   },
 };
 
-const MODE_OPTIONS: readonly {
-  value: LandingMode;
-  /** Full label — shown from the sm breakpoint up. */
-  label: string;
-  /** Compact label for sub-sm viewports: four tabs share one 343 px row. */
-  shortLabel: string;
-}[] = [
-  { value: "repair", label: "Repair a recording", shortLabel: "Repair" },
-  { value: "share", label: "Create a share card", shortLabel: "Share card" },
-  { value: "recovery", label: "Recover a GPS gap", shortLabel: "Recovery" },
-  { value: "create", label: "Create from stats", shortLabel: "Create" },
-];
+/**
+ * The tool page's fact strip (Task 42): what goes in, what comes out,
+ * and who the tool is for — the concrete contract under the teaching
+ * copy, three slots per tool.
+ */
+const TOOL_FACTS: Record<
+  LandingMode,
+  { input: string; output: string; bestFor: string }
+> = {
+  repair: {
+    input:
+      "Any GPX 1.0 or 1.1 activity file — exported from any watch, phone, or platform.",
+    output:
+      "The same file with your repairs added — every reconstructed point marked, the original recording untouched.",
+    bestFor:
+      "Recordings with missing sections or suspicious stretches you want to see and fix yourself.",
+  },
+  share: {
+    input: "Any GPX activity file — gaps and all, no fixes needed.",
+    output:
+      "A 1080×1920 transparent PNG (2160×3840 at 2×) — route, distance, pace, and time exactly as recorded.",
+    bestFor:
+      "Turning a finished activity into a story-ready graphic for Strava, group chats, or anywhere else.",
+  },
+  recovery: {
+    input:
+      "A GPX with timestamps, where the clock kept running through a GPS dropout.",
+    output:
+      "A corrected .gpx — points generated along your drawing, timestamps fitted into the missing interval, elapsed time untouched.",
+    bestFor:
+      "Mid-activity signal loss — tunnels, downtown canyons, forest trails: the hole in an otherwise good recording.",
+  },
+  create: {
+    input:
+      "No file at all — just the distance, average pace, total time, and start time your watch recorded.",
+    output:
+      "A .gpx scaled to your recorded distance, your time spread along the route as timestamps — imports into Strava and every GPX platform.",
+    bestFor:
+      "Treadmill runs and GPS-less days: the numbers exist, the map does not — until you draw it.",
+  },
+};
 
-export function SessionIdleView({
+export interface ToolDetailViewProps {
+  /** A failed load attempt, surfaced above the hero; retry stays possible. */
+  error: SessionError | null;
+  /** File intake intent, handed to the UploadZone. */
+  onFile: (file: File) => void;
+  /** Whose page this is — picks the hero, the trio, the facts, the intake. */
+  mode: LandingMode;
+  /** Back to the tool cards ("All tools"). */
+  onBack: () => void;
+  /** Create-tool intake (no file exists): confirm the statistics and draw. */
+  onCreateBegin: (stats: ActivityStats) => void;
+  /** Previously confirmed statistics (prefill when returning to the form). */
+  createStats: ActivityStats | null;
+  /** The app-wide distance/pace unit (the create form's entry unit). */
+  paceUnit: PaceUnit;
+  onPaceUnitChange: (unit: PaceUnit) => void;
+}
+
+/**
+ * One tool's landing page (Task 42): the back link, the hero, the
+ * intake, the "How it works" trio, and the fact strip. The heading
+ * receives focus on mount — the page-turn announcement for screen
+ * readers and a sane Tab restart for keyboard users (the card that
+ * opened this page is gone from the DOM).
+ */
+export function ToolDetailView({
   error,
   onFile,
   mode,
-  onModeChange,
+  onBack,
   onCreateBegin,
   createStats,
   paceUnit,
   onPaceUnitChange,
-}: SessionIdleViewProps) {
+}: ToolDetailViewProps) {
   const hero = HERO_COPY[mode];
+  const facts = TOOL_FACTS[mode];
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  // The page-turn focus (see component doc). The error alert, when
+  // present, self-announces (role="alert") and sits above this heading
+  // in the DOM, so nothing is stolen from it.
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
   return (
     <div className="flex w-full flex-1 flex-col py-8">
       {/*
@@ -223,42 +343,25 @@ export function SessionIdleView({
        */}
       <div className="hero-entrance mx-auto mt-auto flex w-full max-w-lg flex-col items-center gap-6">
         {error && <SessionErrorAlert error={error} />}
-        {/*
-         * The mode switch (Task 20, widened in Task 26): the remembered
-         * intent for the next upload. Three mutually exclusive
-         * destinations for one upload — a segmented control in the app's
-         * toggle language. Below sm the compact labels keep the trio on
-         * one row (the 375 px mobile contract).
-         */}
-        <div
-          className="flex w-full gap-1 rounded-lg border-[1.5px] border-ink bg-card p-1"
-          role="radiogroup"
-          aria-label="What do you want to do?"
-          data-testid="landing-mode-toggle"
-        >
-          {MODE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={mode === option.value}
-              data-testid={`landing-mode-${option.value}`}
-              className={
-                mode === option.value
-                  ? "flex-1 rounded-[5px] bg-signal px-2 py-2.5 text-sm font-semibold text-inkplus shadow-[inset_0_0_0_1.5px_#222222] sm:px-3"
-                  : "flex-1 rounded-[5px] px-2 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2 sm:px-3"
-              }
-              onClick={() => onModeChange(option.value)}
-            >
-              {/* Full label from sm up; compact below (three tabs, one
-                  row — the sub-sm viewport has no room for sentences). */}
-              <span className="sm:hidden">{option.shortLabel}</span>
-              <span className="hidden sm:inline">{option.label}</span>
-            </button>
-          ))}
+        {/* The way back to the cards — the page's top-left control,
+            inside the hero column so it sits flush with the heading. */}
+        <div className="flex w-full justify-start">
+          <button
+            type="button"
+            data-testid="landing-back-to-cards"
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            All tools
+          </button>
         </div>
         <div className="space-y-2 text-center">
-          <h2 className="font-display text-[clamp(2.625rem,6vw,3.875rem)] font-extrabold leading-[0.98] tracking-[0.012em] text-balance">
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="font-display text-[clamp(2.625rem,6vw,3.875rem)] font-extrabold leading-[0.98] tracking-[0.012em] text-balance"
+          >
             {hero.heading}
           </h2>
           <p className="mx-auto max-w-[56ch] text-balance text-[15.5px] leading-relaxed text-muted-foreground">
@@ -283,14 +386,15 @@ export function SessionIdleView({
       </div>
 
       {/*
-       * The workflow trio: wider than the intake column so the three
+       * The teaching section: wider than the intake column so the three
        * cards keep a comfortable line length, revealed on scroll like
-       * the workspace's details section.
+       * the workspace's details section. The fact strip rides along —
+       * the concrete in/out/who-for contract under the workflow copy.
        */}
       <RevealOnScroll className="mx-auto mb-auto mt-12 w-full max-w-4xl">
-        <h2 className="text-center font-display text-[2rem] font-bold tracking-[0.01em]">
+        <h3 className="text-center font-display text-[2rem] font-bold tracking-[0.01em]">
           How it works
-        </h2>
+        </h3>
         <p className="mt-1.5 text-center text-sm text-muted-foreground">
           The whole workflow runs in this tab — nothing to install, no
           account.
@@ -310,13 +414,42 @@ export function SessionIdleView({
                   aria-hidden="true"
                 />
               </span>
-              <h3 className="mt-2.5 text-[15px] font-bold">{step.title}</h3>
+              <h4 className="mt-2.5 text-[15px] font-bold">{step.title}</h4>
               <p className="mt-1 text-pretty text-[13px] leading-relaxed text-muted-foreground">
                 {step.description}
               </p>
             </li>
           ))}
         </ol>
+        <dl
+          data-testid="tool-facts"
+          className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-4 rounded-[10px] border-[1.5px] border-ink bg-card p-[18px] sm:grid-cols-[repeat(3,minmax(0,1fr))]"
+        >
+          <div>
+            <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
+              Input
+            </dt>
+            <dd className="mt-1.5 text-pretty text-[13px] leading-relaxed text-muted-foreground">
+              {facts.input}
+            </dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
+              Output
+            </dt>
+            <dd className="mt-1.5 text-pretty text-[13px] leading-relaxed text-muted-foreground">
+              {facts.output}
+            </dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
+              Best for
+            </dt>
+            <dd className="mt-1.5 text-pretty text-[13px] leading-relaxed text-muted-foreground">
+              {facts.bestFor}
+            </dd>
+          </div>
+        </dl>
       </RevealOnScroll>
     </div>
   );
