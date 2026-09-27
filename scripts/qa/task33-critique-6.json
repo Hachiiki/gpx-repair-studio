@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "**LOOKS CORRECT**\n\n**Summary:** The UI accurately implements the \"Statistics & file details\" section as described. All specific visual requirements are met: the large condensed heading is preceded by a small orange square; the statistics table features a strong border, small gray uppercase headers, ruled rows, and \"Recorded\" chips containing tiny squares in the Source column. The file summary, validation report, and segments cards are correctly arranged in a 3-column grid layout. The segmented pill toggle for unit selection (km/mi) is present and functional in appearance. The overall hierarchy, spacing, and typographic details align with the provided specifications.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790476690,
+  "id": "20260927103806c083730f9a484896",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260927103806c083730f9a484896",
+  "usage": {
+    "completion_tokens": 130,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1778,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1908
+  }
+}

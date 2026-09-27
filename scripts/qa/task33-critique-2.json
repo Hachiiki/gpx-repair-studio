@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "**LOOKS CORRECT**\n\nThe implementation accurately reflects the specified \"Field Plot\" design system:\n\n*   **Graph-paper background:** The page background correctly uses a subtle grid pattern.\n*   **Map plate:** The central map area features a 2px ink (near-black) border with the requested 12px rounded corners.\n*   **Ink & Route styling:** The basemap is light, and the recorded route is rendered as a solid near-black line. The gap spans are clearly styled as orange dashed lines.\n*   **Toolbar rail:** A dark vertical toolbar is positioned on the map's right edge with a distinct 1.5px ink border.\n*   **Tools rail column:** The right-hand sidebar contains white cards with hairline borders and 10px radius.\n*   **Typography & Accents:** Card titles are preceded by small orange squares. The chips in the \"Detected gaps\" section include tiny color squares. The stat numerals utilize a condensed, bold typeface consistent with \"Big Shoulders.\"\n\nNo visual defects regarding overflow, misalignment, or color inconsistency were detected.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790476658,
+  "id": "20260927103734a1db6fedb00e43c1",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260927103734a1db6fedb00e43c1",
+  "usage": {
+    "completion_tokens": 224,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1814,
+    "prompt_tokens_details": {
+      "cached_tokens": 2
+    },
+    "total_tokens": 2038
+  }
+}

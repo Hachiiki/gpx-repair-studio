@@ -29,10 +29,10 @@ export interface GapHighlightOverlayProps {
 export function GapHighlightOverlay({ gap, onClear }: GapHighlightOverlayProps) {
   return (
     <div
-      className="absolute left-2 top-2 z-10 w-60 rounded-lg border bg-background/90 p-2.5 shadow-sm backdrop-blur-sm"
+      className="absolute left-2 top-2 z-10 w-[264px] overflow-hidden rounded-[10px] border-[1.5px] border-ink bg-card shadow-float"
       data-testid="gap-highlight-overlay"
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2 p-2.5">
         <div className="grid flex-1 gap-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <GapSeverityBadge severity={gap.severity} />
@@ -74,7 +74,7 @@ export function GapHighlightOverlay({ gap, onClear }: GapHighlightOverlayProps) 
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 shrink-0 p-0"
+          className="size-5.5 shrink-0 rounded-[5px] p-0"
           aria-label="Clear gap selection"
           onClick={onClear}
         >

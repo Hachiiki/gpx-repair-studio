@@ -21,29 +21,39 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * "Ink & Signal" theme (Task 29 redesign).
+ * "Field Plot" theme (Task 33 — the approved design mockups, ported
+ * from download/design-mockups/).
  *
- * The whole palette revolves around the five pinned anchors and
- * alpha blends of them — nothing else:
- *   signal  #FC4C02  the brand: CTAs, focus, links, and everything
- *                    the app itself creates (reconstructions,
- *                    estimates — the app's work is the one hot
- *                    color on the page)
- *   ink     #222222  recorded truth: body text, the recorded route
- *   ink+    #000000  hard surfaces: destructive actions, severity
+ * The app is a surveyor's plotting bench: a faint graph-paper field,
+ * equipment-grade 1.5 px ink borders, keycap buttons (orange fill,
+ * black text, a hard ink bottom edge that depresses), Big Shoulders
+ * condensed numerals for display/stat values, Archivo for UI, IBM
+ * Plex Mono scoped to coordinates and readouts.
+ *
+ * The palette stays the five pinned anchors and alpha blends of them —
+ * nothing else:
+ *   signal  #FC4C02  the brand: keycap fills, active toggles, focus,
+ *                    and everything the app itself creates
+ *   ink     #222222  recorded truth: body text, the recorded route,
+ *                    equipment borders
+ *   ink+    #000000  hard surfaces: dark keycaps, severity, the share
+ *                    stage
  *   paper   #FFFFFF  the field
  *   shade   #5A5A5A  secondary text, unmeasured data, disabled
- *
- * Every tint below is one of the anchors at reduced alpha on the
- * paper (e.g. --border = ink at 10%), so no foreign hue can leak in.
  */
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  /* Display face: the share card's own font (self-hosted above)
-   * becomes the app's brand face — the tool speaks like its most
-   * designed artifact. */
-  --font-display: "Montserrat", var(--font-geist-sans), sans-serif;
+  --font-sans: var(--font-archivo);
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  /* Display face: Big Shoulders condensed — the bench's stenciled
+   * numerals (wordmark, section headings, stat values). */
+  --font-display: var(--font-big-shoulders), var(--font-archivo), "Arial Narrow",
+    sans-serif;
+  /* Shadow vocabulary (mockup styles.css): the keycap hard edge and
+   * the floating map chrome. */
+  --shadow-key: 0 2px 0 0 #222222;
+  --shadow-key-hover: 0 3px 0 0 #222222;
+  --shadow-float: 0 6px 18px rgb(0 0 0 / 0.14), 0 1px 3px rgb(0 0 0 / 0.1);
+  --shadow-lift: 0 3px 0 0 rgb(34 34 34 / 0.15);
   /* Named anchors so components can address the palette directly
    * (text-ink, bg-signal, border-ink/20, text-shade …). */
   --color-signal: #fc4c02;
@@ -97,7 +107,9 @@
  *   #5A5A5A → oklch(0.446 0 0)          shade
  */
 :root {
-  --radius: 0.5rem;
+  /* Field Plot radius scale (mockup): chip 3 / control 5 / card 10 /
+   * plate 12 — the base (radius-lg) is the card radius. */
+  --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.196 0.002 286);
   --card: oklch(1 0 0);
@@ -105,16 +117,20 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.196 0.002 286);
   --primary: oklch(0.666 0.199 39.6);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.96 0.004 39.6);
+  /* Keycap text: black ink+ on the orange fill (the Strava look). */
+  --primary-foreground: oklch(0 0 0);
+  /* Neutral ink tints (Field Plot hovers/fills are ink alphas, not
+   * signal-tinted creams — the orange is spent on one thing at a
+   * time). */
+  --secondary: oklch(0.196 0.002 286 / 6%);
   --secondary-foreground: oklch(0.196 0.002 286);
-  --muted: oklch(0.958 0.002 286);
+  --muted: oklch(0.196 0.002 286 / 4%);
   --muted-foreground: oklch(0.446 0 0);
-  --accent: oklch(0.955 0.018 39.6);
+  --accent: oklch(0.196 0.002 286 / 6%);
   --accent-foreground: oklch(0.196 0.002 286);
   --destructive: oklch(0 0 0);
-  --border: oklch(0.196 0.002 286 / 10%);
-  --input: oklch(0.196 0.002 286 / 12%);
+  --border: oklch(0.196 0.002 286 / 20%);
+  --input: oklch(0.196 0.002 286 / 25%);
   --ring: oklch(0.666 0.199 39.6);
   --chart-1: oklch(0.666 0.199 39.6);
   --chart-2: oklch(0.196 0.002 286);
@@ -141,12 +157,12 @@
   --popover: oklch(0.239 0.002 286);
   --popover-foreground: oklch(1 0 0);
   --primary: oklch(0.666 0.199 39.6);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.289 0.002 286);
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(1 0 0 / 8%);
   --secondary-foreground: oklch(1 0 0);
-  --muted: oklch(0.289 0.002 286);
+  --muted: oklch(1 0 0 / 5%);
   --muted-foreground: oklch(0.647 0 0);
-  --accent: oklch(0.3 0.03 39.6);
+  --accent: oklch(1 0 0 / 8%);
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(1 0 0);
   --border: oklch(1 0 0 / 12%);
@@ -172,23 +188,36 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-[15px] leading-relaxed;
+    /* The plotting field: faint 28 px graph paper (ink at 4%). */
+    background-image:
+      linear-gradient(oklch(0.196 0.002 286 / 4%) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(0.196 0.002 286 / 4%) 1px, transparent 1px);
+    background-size: 28px 28px;
   }
   ::selection {
-    background: oklch(0.666 0.199 39.6 / 22%);
+    background: oklch(0.666 0.199 39.6 / 25%);
+  }
+  /* Field Plot focus: a 2 px signal outline, offset 2 — equipment
+   * grade, and the same on every interactive element. Components that
+   * opt out (outline-none) carry their own equivalent. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
 
 /*
- * MapLibre controls in the app's voice (Task 29): the stock controls
- * ship a 4px-ish gray look that reads generic next to the tightened
- * 6-8px ink UI. Radius, hairline ink border, and a signal-tinted
- * hover bring them into the system without touching the library.
+ * MapLibre controls in the app's voice (Field Plot): the stock
+ * controls read as generic web furniture — an equipment-grade ink
+ * border, the float shadow, and an ink-tinted hover bring them onto
+ * the bench. The map plate itself is framed by the component
+ * (2 px ink border, 12 px radius).
  */
 .maplibregl-ctrl-group {
-  border-radius: 6px;
-  border: 1px solid oklch(0.196 0.002 286 / 10%);
-  box-shadow: none;
+  border-radius: 8px;
+  border: 1.5px solid oklch(0.196 0.002 286);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.14), 0 1px 3px rgb(0 0 0 / 0.1);
   overflow: hidden;
 }
 .maplibregl-ctrl-group button {
@@ -196,7 +225,7 @@
   transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1);
 }
 .maplibregl-ctrl-group button:hover {
-  background-color: oklch(0.955 0.018 39.6);
+  background-color: oklch(0.196 0.002 286 / 6%);
 }
 .maplibregl-ctrl-attrib {
   border-radius: 6px 0 0 0;

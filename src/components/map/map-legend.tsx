@@ -15,7 +15,7 @@ const SAMPLE_LINE_CLASS = "h-1 w-7 rounded-full";
 export function MapLegend() {
   return (
     <div
-      className="pointer-events-none absolute bottom-2 left-2 z-10 rounded-lg border bg-background/85 px-2.5 py-2 text-[11px] leading-tight text-foreground shadow-sm backdrop-blur-sm"
+      className="pointer-events-none absolute bottom-2 left-2 z-10 rounded-lg border border-ink/20 bg-paper/90 px-2.5 py-2.5 text-[11px] leading-tight text-ink/70 backdrop-blur-[3px]"
       data-testid="map-legend"
       aria-hidden="true"
     >

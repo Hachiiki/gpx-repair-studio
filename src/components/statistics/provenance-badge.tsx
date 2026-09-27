@@ -17,24 +17,31 @@ import { cn } from "@/lib/utils";
 
 export type ProvenanceKind = "recorded" | "estimated" | "mixed";
 
-const PROVENANCE_STYLES: Record<ProvenanceKind, { label: string; className: string }> = {
-  /*
-   * Ink & Signal: what the watch recorded needs no color — it is the
-   * calm baseline (ink outline). What the app estimated is the brand
-   * (signal tint). Mixed carries the signal border but keeps ink text
-   * — partly estimated, partly recorded.
-   */
+/*
+ * Field Plot provenance chips lead with a 7 px color square — the
+ * legend-of-the-bench signature. Recorded carries the quiet ink square,
+ * Estimated the signal square on a signal-tinted field, and Mixed a
+ * square split diagonally half-signal/half-ink (partly measured,
+ * partly the app's work).
+ */
+const PROVENANCE_STYLES: Record<
+  ProvenanceKind,
+  { label: string; square: string; className: string }
+> = {
   recorded: {
     label: "Recorded",
-    className: "border-ink/25 bg-transparent text-ink",
+    square: "bg-ink",
+    className: "border-ink/35 bg-transparent text-ink",
   },
   estimated: {
     label: "Estimated",
-    className: "border-signal/40 bg-signal/10 text-signal",
+    square: "bg-signal",
+    className: "border-signal bg-signal/10 text-ink",
   },
   mixed: {
     label: "Mixed",
-    className: "border-signal/40 bg-signal/5 text-ink",
+    square: "bg-[linear-gradient(135deg,#FC4C02_0_50%,#222222_50%_100%)]",
+    className: "border-ink bg-card text-ink",
   },
 };
 
@@ -48,6 +55,10 @@ export function ProvenanceBadge({
   const style = PROVENANCE_STYLES[kind];
   return (
     <Badge variant="outline" className={cn(style.className, className)}>
+      <span
+        className={cn("size-[7px] shrink-0 rounded-[1px]", style.square)}
+        aria-hidden="true"
+      />
       {style.label}
     </Badge>
   );

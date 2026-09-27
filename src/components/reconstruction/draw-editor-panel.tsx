@@ -85,16 +85,18 @@ function VertexRow({
 }) {
   return (
     <li
-      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-accent"
+      className="flex items-center gap-2 rounded-[6px] border border-ink/10 bg-card px-2 py-1.5 text-xs transition-colors hover:bg-ink/[0.04]"
       data-testid="vertex-row"
     >
-      <span className="w-6 shrink-0 text-right font-mono text-muted-foreground">
-        {index + 1}.
+      <span className="grid size-[18px] shrink-0 place-items-center rounded-[4px] bg-ink/[0.06] text-[10px] font-bold text-shade">
+        {index + 1}
       </span>
-      <span className="font-mono">{formatLatLon(vertex.lat, vertex.lon)}</span>
+      <span className="font-mono text-[11px] text-ink/70">
+        {formatLatLon(vertex.lat, vertex.lon)}
+      </span>
       {vertex.snappedTo !== undefined && (
         <span
-          className="rounded bg-signal/10 px-1 py-0.5 text-[10px] font-medium text-signal"
+          className="rounded-[3px] border-[1.25px] border-signal bg-signal/10 px-1.5 py-px text-[10px] font-semibold text-ink"
           title={`Snapped to recorded point ${vertex.snappedTo}`}
         >
           snapped
@@ -104,7 +106,7 @@ function VertexRow({
         type="button"
         variant="ghost"
         size="sm"
-        className="ml-auto h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+        className="ml-auto size-5 shrink-0 rounded-[4px] p-0 text-shade hover:bg-inkplus hover:text-paper"
         aria-label={`Delete point ${index + 1}`}
         data-testid="delete-vertex-button"
         onClick={() => onDelete(vertex.id)}
@@ -130,15 +132,18 @@ export function DrawEditorPanel({
   const near = gap.before ?? gap.after;
 
   return (
-    <Card data-testid="draw-editor-panel">
+    <Card
+      className="border-[1.5px] border-ink"
+      data-testid="draw-editor-panel"
+    >
       <CardHeader>
-        <h3 className="flex items-center gap-2 leading-none font-semibold">
+        <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <Crosshair className="size-4 text-signal" aria-hidden="true" />
           Reconstruct route
         </h3>
         <CardDescription className="flex flex-wrap items-center gap-1.5">
           {!isManual && <GapSeverityBadge severity={gap.severity} />}
-          <span className="text-sm font-medium">
+          <span className="text-sm font-semibold">
             {GAP_KIND_LABELS[gap.kind]}
           </span>
           <GapStatusBadge status={draw.statusById[gap.id] ?? "in-progress"} />
@@ -158,12 +163,13 @@ export function DrawEditorPanel({
         </CardAction>
       </CardHeader>
       <CardContent className="grid gap-4">
-        {/* Boundary context (one compact line each; open ends say so). */}
-        <div className="grid gap-0.5 text-xs text-muted-foreground">
+        {/* Boundary context (one compact line each; open ends say so) —
+            the Field Plot boundary box: quiet ink-tinted field. */}
+        <div className="grid gap-[3px] rounded-lg border border-ink/15 bg-ink/[0.03] px-2.5 py-2 text-xs text-muted-foreground">
           <p>
-            <span className="font-medium text-foreground">From</span>{" "}
+            <span className="font-semibold text-ink">From</span>{" "}
             {gap.before ? (
-              <span className="font-mono">
+              <span className="font-mono text-[11px]">
                 {formatLatLon(gap.before.lat, gap.before.lon)}
               </span>
             ) : (
@@ -171,9 +177,9 @@ export function DrawEditorPanel({
             )}
           </p>
           <p>
-            <span className="font-medium text-foreground">To</span>{" "}
+            <span className="font-semibold text-ink">To</span>{" "}
             {gap.after ? (
-              <span className="font-mono">
+              <span className="font-mono text-[11px]">
                 {formatLatLon(gap.after.lat, gap.after.lon)}
               </span>
             ) : (
@@ -197,12 +203,15 @@ export function DrawEditorPanel({
 
         {/* Road follow: what the line does between clicks. */}
         <div
-          className="grid gap-1.5"
+          className="grid gap-2"
           data-testid="road-follow-group"
           role="group"
           aria-label="Road follow"
         >
-          <p className="text-xs font-medium">Between clicks, follow</p>
+          <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
+            Between clicks, follow
+            <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {ROAD_FOLLOW_CHOICES.map((choice) => (
               <HintTip
@@ -214,8 +223,12 @@ export function DrawEditorPanel({
                 <Button
                   type="button"
                   size="sm"
-                  variant={draw.roadFollow === choice.value ? "default" : "outline"}
-                  className="h-7 px-2.5 text-xs"
+                  variant="ghost"
+                  className={
+                    draw.roadFollow === choice.value
+                      ? "h-auto rounded-full border-[1.25px] border-inkplus bg-inkplus px-3 py-[5px] text-[12.5px] font-semibold text-paper hover:bg-inkplus hover:text-paper"
+                      : "h-auto rounded-full border-[1.25px] border-ink/25 bg-card px-3 py-[5px] text-[12.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
+                  }
                   aria-pressed={draw.roadFollow === choice.value}
                   data-testid={`road-follow-${choice.value}`}
                   onClick={() => draw.setRoadFollow(choice.value)}
@@ -265,10 +278,11 @@ export function DrawEditorPanel({
             first, staleness + partials honestly labeled). */}
         {elevation && <ElevationControls elevation={elevation} />}
 
-        {/* Live stats: distance + vertex cap. */}
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <p className="flex items-baseline gap-1.5" data-testid="draw-distance">
-            <span className="text-2xl font-semibold tabular-nums">
+        {/* Live stats: distance + vertex cap — the big stenciled
+            numeral (mockup .bigstat). */}
+        <div className="grid gap-1">
+          <p className="flex flex-wrap items-baseline gap-2.5" data-testid="draw-distance">
+            <span className="font-display text-[40px] font-bold leading-none tabular-nums">
               {draw.distanceM === null
                 ? "—"
                 : formatDistanceMeters(draw.distanceM)}
@@ -276,7 +290,7 @@ export function DrawEditorPanel({
             <ProvenanceBadge kind="estimated" />
           </p>
           <p
-            className="text-xs tabular-nums text-muted-foreground"
+            className="text-[11.5px] tabular-nums text-muted-foreground"
             data-testid="vertex-count"
           >
             {draw.vertexCount} / {draw.maxVertices} points
@@ -285,7 +299,10 @@ export function DrawEditorPanel({
         </div>
 
         {draw.straightLine && draw.vertexCount > 0 && (
-          <Alert data-testid="straight-line-warning">
+          <Alert
+            className="rounded-lg border-signal bg-signal/[0.08]"
+            data-testid="straight-line-warning"
+          >
             <TriangleAlert className="size-4" aria-hidden="true" />
             <AlertTitle>Nearly a straight line</AlertTitle>
             <AlertDescription>
@@ -310,13 +327,13 @@ export function DrawEditorPanel({
         {/* Settings row: spacing + snap. */}
         <div className="grid gap-2 sm:grid-cols-2">
           <label
-            className="grid gap-1 text-xs font-medium"
+            className="grid gap-1 text-xs font-semibold"
             data-testid="spacing-select-label"
             title="After you finish, the app densifies your drawing into evenly spaced points with this spacing — some platforms want regular points."
           >
             Resample spacing
             <select
-              className="h-8 rounded-md border border-input bg-transparent px-2 text-xs font-normal"
+              className="h-8 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2.5 text-xs font-normal transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
               data-testid="spacing-select"
               value={String(draw.resampleSpacing)}
               onChange={(event) => {
@@ -367,7 +384,7 @@ export function DrawEditorPanel({
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-2 border-t pt-3">
+        <div className="flex items-center justify-between gap-2 border-t border-ink/10 pt-3">
           {isManual ? (
             <Button
               type="button"

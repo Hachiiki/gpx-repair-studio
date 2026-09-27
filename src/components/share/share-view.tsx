@@ -66,12 +66,16 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
     >
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div className="max-w-xl">
-          <h2 className="text-xl font-semibold tracking-tight">
+          <h2 className="flex items-center gap-2.5 font-display text-[30px] font-bold leading-[1.05] tracking-[0.01em]">
+            <span
+              className="size-[11px] shrink-0 rounded-[1.5px] bg-signal"
+              aria-hidden="true"
+            />
             Share card
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1.5 max-w-[62ch] text-sm leading-relaxed text-muted-foreground">
             A Strava-style graphic of{" "}
-            <span className="text-foreground">{fileName ?? "this file"}</span>{" "}
+            <span className="font-semibold text-foreground">{fileName ?? "this file"}</span>{" "}
             — transparent background, rendered from the values the file
             actually records.
           </p>
@@ -80,13 +84,21 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
         {/*
-         * The stage: near-black so the card's white artwork and orange
-         * route read exactly as they will on a story surface. The
-         * canvas keeps its intrinsic 9:16 ratio (h-full, w-auto).
+         * The stage: the ink field — solid #222222 with a faint white
+         * plotting grid, framed by the 2 px ink equipment border — so
+         * the card's white artwork and orange route read exactly as
+         * they will on a story surface. The canvas keeps its intrinsic
+         * 9:16 ratio (h-full, w-auto); the card graphic itself is the
+         * painter's output and is never restyled here.
          */}
         <div
           data-testid="share-stage"
-          className="relative flex h-[70dvh] min-h-[30rem] min-w-0 items-center justify-center overflow-hidden rounded-xl border bg-zinc-950 p-4 lg:h-[calc(100dvh-13rem)]"
+          className="relative flex h-[70dvh] min-h-[30rem] min-w-0 items-center justify-center overflow-hidden rounded-[14px] border-2 border-ink bg-[#222222] p-4 lg:h-[calc(100dvh-13rem)]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
         >
           {spec ? (
             <ShareCardCanvas
@@ -96,11 +108,9 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
               time={spec.time}
             />
           ) : (
-            <p className="text-sm text-zinc-400">
-              Preparing the card…
-            </p>
+            <p className="text-sm text-paper/60">Preparing the card…</p>
           )}
-          <p className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-zinc-500">
+          <p className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-3 py-1 text-[11.5px] text-paper/80">
             Transparent background — shown on dark
           </p>
         </div>
@@ -112,7 +122,13 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
         >
           <Card data-testid="share-summary-card">
             <CardHeader>
-              <h3 className="leading-none font-semibold">On the card</h3>
+              <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+                <span
+                  className="size-2 shrink-0 rounded-[1px] bg-signal"
+                  aria-hidden="true"
+                />
+                On the card
+              </h3>
               <CardDescription>
                 Recorded values only — the same numbers the statistics
                 panel shows.
@@ -130,33 +146,33 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                 data-testid="share-summary-stats"
               >
                 <div>
-                  <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                     Distance
                   </dt>
                   <dd
-                    className="mt-1 text-lg font-semibold tabular-nums"
+                    className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
                     data-testid="share-summary-distance"
                   >
                     {content?.distance ?? "—"}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                     Pace
                   </dt>
                   <dd
-                    className="mt-1 text-lg font-semibold tabular-nums"
+                    className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
                     data-testid="share-summary-pace"
                   >
                     {content?.pace ?? "—"}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                     Time
                   </dt>
                   <dd
-                    className="mt-1 text-lg font-semibold tabular-nums"
+                    className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
                     data-testid="share-summary-time"
                   >
                     {content?.time ?? "—"}
@@ -166,11 +182,11 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
 
               {share.routeEmpty && (
                 <p
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                  className="flex items-start gap-2 rounded-lg border-[1.25px] border-inkplus bg-ink/[0.04] px-3 py-2.5 text-[13px] leading-relaxed text-ink"
                   data-testid="share-route-empty-note"
                 >
                   <TriangleAlert
-                    className="mt-0.5 size-4 shrink-0"
+                    className="mt-0.5 size-4 shrink-0 text-inkplus"
                     aria-hidden="true"
                   />
                   This file has no drawable route points — the card will
@@ -179,11 +195,9 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
               )}
 
               <div className="grid gap-2">
-                <span className="text-sm font-medium">
-                  PNG resolution
-                </span>
+                <span className="text-sm font-semibold">PNG resolution</span>
                 <div
-                  className="flex overflow-hidden rounded-md border"
+                  className="inline-flex w-fit gap-[3px] rounded-[7px] border-[1.25px] border-ink/25 bg-card p-[3px]"
                   role="group"
                   aria-label="PNG resolution"
                   data-testid="share-scale-toggle"
@@ -196,8 +210,8 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                       data-testid={`share-scale-${option.value}x`}
                       className={
                         scale === option.value
-                          ? "flex-1 bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
-                          : "flex-1 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          ? "rounded-[4px] bg-signal px-3 py-[4.5px] text-[12.5px] font-semibold text-inkplus"
+                          : "rounded-[4px] px-3 py-[4.5px] text-[12.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground"
                       }
                       onClick={() => setScale(option.value)}
                     >
@@ -235,7 +249,11 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
 
           <Card>
             <CardHeader>
-              <h3 className="leading-none font-semibold">
+              <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+                <span
+                  className="size-2 shrink-0 rounded-[1px] bg-signal"
+                  aria-hidden="true"
+                />
                 What the numbers mean
               </h3>
               <CardDescription>

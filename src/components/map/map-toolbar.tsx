@@ -41,7 +41,7 @@ import type { TileProviderId, TileProviderOption } from "@/hooks/use-map-control
 
 /** Shared rail button look: 36px square, quiet until hovered. */
 const RAIL_BUTTON =
-  "h-9 w-9 p-0 shadow-sm";
+  "h-9 w-9 p-0 border-transparent bg-transparent text-ink hover:bg-ink/[0.06] hover:text-ink";
 
 export interface MapToolbarProps {
   provider: TileProviderId;
@@ -66,14 +66,14 @@ export function MapToolbar({
 
   return (
     <div
-      className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-1.5"
+      className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-1 rounded-[10px] border-[1.5px] border-ink bg-card p-1 shadow-float"
       data-testid="map-toolbar"
       role="toolbar"
       aria-label="Map tools"
     >
       {drawMode !== null && onToggleDrawMode && (
         <div
-          className="flex flex-col overflow-hidden rounded-lg border bg-background/85 shadow-sm backdrop-blur-sm"
+          className="flex flex-col"
           role="group"
           aria-label="Pointer mode"
           data-testid="draw-mode-toggle"
@@ -88,10 +88,10 @@ export function MapToolbar({
               type="button"
               aria-pressed={drawMode === true}
               data-testid="draw-mode-draw"
-              className={`flex h-9 w-9 items-center justify-center transition-colors focus-visible:outline-2 ${
+              className={`flex h-9 w-9 items-center justify-center rounded-[7px] transition-colors focus-visible:outline-2 ${
                 drawMode
-                  ? "bg-signal text-white"
-                  : "text-foreground hover:bg-accent"
+                  ? "bg-signal text-white shadow-[inset_0_0_0_1px_#222222]"
+                  : "text-foreground hover:bg-ink/[0.06]"
               }`}
               onClick={() => onToggleDrawMode(true)}
             >
@@ -109,10 +109,10 @@ export function MapToolbar({
               type="button"
               aria-pressed={drawMode === false}
               data-testid="draw-mode-pan"
-              className={`flex h-9 w-9 items-center justify-center transition-colors focus-visible:outline-2 ${
+              className={`flex h-9 w-9 items-center justify-center rounded-[7px] transition-colors focus-visible:outline-2 ${
                 !drawMode
-                  ? "bg-primary text-primary-foreground"
-                  : "text-foreground hover:bg-accent"
+                  ? "bg-signal text-white shadow-[inset_0_0_0_1px_#222222]"
+                  : "text-foreground hover:bg-ink/[0.06]"
               }`}
               onClick={() => onToggleDrawMode(false)}
             >
@@ -122,6 +122,10 @@ export function MapToolbar({
           </HintTip>
         </div>
       )}
+
+      {/* Equipment divider between the pointer-mode group and the
+       * view tools (decorative). */}
+      <div className="mx-1 h-px bg-ink/15" aria-hidden="true" />
 
       <Popover>
         <HintTip
@@ -133,7 +137,7 @@ export function MapToolbar({
             <Button
               variant="secondary"
               size="sm"
-              className={`${RAIL_BUTTON} bg-background/85 backdrop-blur-sm`}
+              className={RAIL_BUTTON}
               aria-label="Basemap provider"
             >
               <Layers className="size-4" aria-hidden="true" />
@@ -152,7 +156,7 @@ export function MapToolbar({
                   <PopoverClose asChild>
                     <button
                       type="button"
-                      className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent"
+                      className="flex w-full items-start gap-2 rounded-[5px] px-2 py-1.5 text-left text-sm hover:bg-ink/[0.06] focus-visible:bg-ink/[0.06]"
                       aria-pressed={active}
                       data-provider-id={option.id}
                       onClick={() => onProviderChange(option.id)}
@@ -190,7 +194,7 @@ export function MapToolbar({
         <Button
           variant="secondary"
           size="sm"
-          className={`${RAIL_BUTTON} bg-background/85 backdrop-blur-sm`}
+          className={RAIL_BUTTON}
           aria-label="Fit activity in view"
           onClick={onFitActivity}
         >

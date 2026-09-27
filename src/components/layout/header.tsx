@@ -54,7 +54,7 @@ export function AppHeader({
   const showSession = status === "parsed" && fileName !== null;
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+    <header className="sticky top-0 z-40 border-b-2 border-ink bg-background">
       <div
         className={cn(
           SHELL_CONTAINER,
@@ -62,16 +62,17 @@ export function AppHeader({
         )}
       >
         <div className="flex min-w-0 items-center gap-3">
-          {/* Brand mark: the signal-orange square (public/logo.svg,
-           * recolored for the Ink & Signal theme) — decorative; the
-           * wordmark carries the accessible name. */}
+          {/* Brand mark: the signal-orange square (public/logo.svg) on
+           * the Field Plot keycap — a 1.5 px ink border and the hard
+           * bottom edge. Decorative; the wordmark carries the accessible
+           * name. */}
           <img
             src="/logo.svg"
             alt=""
             aria-hidden="true"
-            className="hidden size-7 rounded-md sm:block"
+            className="hidden size-8 rounded-lg border-[1.5px] border-ink shadow-key sm:block"
           />
-          <h1 className="truncate font-display text-lg font-bold tracking-tight">
+          <h1 className="truncate font-display text-[21px] font-bold tracking-[0.02em]">
             GPX Repair Studio
           </h1>
           <Badge variant="secondary" className="hidden sm:inline-flex">
@@ -79,7 +80,7 @@ export function AppHeader({
           </Badge>
           {showSession && (
             <span
-              className="hidden min-w-0 truncate text-sm text-muted-foreground md:inline"
+              className="hidden min-w-0 truncate border-l-[1.5px] border-ink/15 pl-3 text-[13px] font-medium text-muted-foreground md:inline"
               title={fileName}
             >
               {fileName}
@@ -119,13 +120,13 @@ export function AppHeader({
             >
               <a
                 href="#repair"
-                className="rounded-md px-2.5 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2"
+                className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
               >
                 Map &amp; tools
               </a>
               <a
                 href="#details"
-                className="rounded-md px-2.5 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2"
+                className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
               >
                 Statistics
               </a>
@@ -139,13 +140,13 @@ export function AppHeader({
             >
               <a
                 href="#recovery"
-                className="rounded-md px-2.5 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2"
+                className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
               >
                 Map &amp; tools
               </a>
               <a
                 href="#recovery-details"
-                className="rounded-md px-2.5 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2"
+                className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
               >
                 Preview &amp; stats
               </a>

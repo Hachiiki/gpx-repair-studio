@@ -106,7 +106,13 @@ export function ElevationProfileChart({
   return (
     <Card data-testid="elevation-profile-chart">
       <CardHeader>
-        <h3 className="leading-none font-semibold">Elevation profile</h3>
+        <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+          <span
+            className="size-2 shrink-0 rounded-[1px] bg-signal"
+            aria-hidden="true"
+          />
+          Elevation profile
+        </h3>
         <CardDescription>
           {formatElevationMeters(profile.minEleM)} to{" "}
           {formatElevationMeters(profile.maxEleM)} over {distanceLabel} —

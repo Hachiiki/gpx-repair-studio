@@ -24,7 +24,7 @@ export const GAP_KIND_LABELS: Record<GapKind, string> = {
 
 export const GAP_SEVERITY_TONE: Record<GapSeverity, StatusTone> = {
   severe: "danger",
-  suspect: "warning",
+  suspect: "outline",
   info: "neutral",
 };
 

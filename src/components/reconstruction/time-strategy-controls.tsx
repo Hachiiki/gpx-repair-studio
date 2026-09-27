@@ -117,12 +117,15 @@ export function TimeStrategyControls({
 
   return (
     <div
-      className="grid gap-1.5"
+      className="grid gap-2"
       data-testid="time-strategy-controls"
       role="group"
       aria-label="Time estimation"
     >
-      <p className="text-xs font-medium">Timestamps for this repair</p>
+      <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
+        Timestamps for this repair
+        <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
+      </p>
 
       {/* The case, in plain language. */}
       <p className="text-[11px] leading-snug text-muted-foreground">
@@ -200,8 +203,12 @@ export function TimeStrategyControls({
               <Button
                 type="button"
                 size="sm"
-                variant={strategyKind === choice.value ? "default" : "outline"}
-                className="h-7 px-2.5 text-xs"
+                variant="ghost"
+                className={
+                  strategyKind === choice.value
+                    ? "h-auto rounded-full border-[1.25px] border-inkplus bg-inkplus px-3 py-[5px] text-[12.5px] font-semibold text-paper hover:bg-inkplus hover:text-paper"
+                    : "h-auto rounded-full border-[1.25px] border-ink/25 bg-card px-3 py-[5px] text-[12.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
+                }
                 aria-pressed={strategyKind === choice.value}
                 data-testid={`time-strategy-${choice.value}`}
                 onClick={() =>
@@ -222,7 +229,7 @@ export function TimeStrategyControls({
               type="button"
               size="sm"
               variant="outline"
-              className="h-7 gap-1.5 px-2.5 text-xs"
+              className="h-auto gap-1.5 px-3 py-[5px] text-[12.5px]"
               data-testid="edit-duration-button"
               onClick={openDialog}
             >
@@ -233,7 +240,7 @@ export function TimeStrategyControls({
             <Button
               type="button"
               size="sm"
-              className="h-7 px-2.5 text-xs"
+              className="h-auto px-3 py-[5px] text-[12.5px]"
               data-testid="add-duration-button"
               onClick={openDialog}
             >
@@ -243,16 +250,17 @@ export function TimeStrategyControls({
         </div>
       )}
 
-      {/* Live duration + pace readout. */}
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      {/* Live duration + pace readout — the Field Plot readout box:
+          an ink-ruled instrument panel with the stenciled numeral. */}
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 rounded-lg border-[1.5px] border-ink bg-card px-3.5 py-2.5">
         <p
-          className="flex items-baseline gap-1.5 text-sm"
+          className="flex items-baseline gap-2"
           data-testid="gap-duration"
         >
-          <span className="font-medium tabular-nums">
+          <span className="font-display text-[30px] font-bold leading-none tabular-nums">
             {plan.durationMs === null ? "—" : formatDurationMs(plan.durationMs)}
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-[11.5px] font-medium text-muted-foreground">
             {plan.durationSource === "manual"
               ? "your estimate"
               : plan.durationSource === "estimated"
@@ -269,28 +277,31 @@ export function TimeStrategyControls({
           />
         </p>
         <p
-          className="flex items-baseline gap-1.5 text-sm"
+          className="flex items-baseline gap-2 text-[13px] font-semibold"
           data-testid="gap-pace"
         >
-          <span className="font-medium tabular-nums">
+          <span className="tabular-nums">
             {vertexCount > 0 && distanceM !== null && plan.durationMs !== null
               ? formatPace(plan.durationMs, distanceM, paceUnit)
               : "—"}
           </span>
-          <span className="text-xs text-muted-foreground">estimated pace</span>
+          <span className="text-[11.5px] font-medium text-muted-foreground">estimated pace</span>
           <ProvenanceBadge kind="estimated" />
         </p>
       </div>
 
       {plan.durationMs === null && plan.missingReason && (
-        <p className="text-[11px] text-muted-foreground" data-testid="time-missing-reason">
+        <p className="text-[11px] leading-snug text-muted-foreground" data-testid="time-missing-reason">
           {plan.missingReason}
         </p>
       )}
 
       {/* Case 4 / PE: the estimate-vs-recorded disagreement, surfaced. */}
       {plan.discrepancyMs !== null && plan.recordedSpanMs !== null && (
-        <Alert data-testid="duration-discrepancy">
+        <Alert
+          className="rounded-lg border-signal bg-signal/[0.08]"
+          data-testid="duration-discrepancy"
+        >
           <TriangleAlert className="size-4" aria-hidden="true" />
           <AlertTitle>Differs from the recorded span</AlertTitle>
           <AlertDescription>

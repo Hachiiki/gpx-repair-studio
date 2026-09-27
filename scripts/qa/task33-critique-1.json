@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "**LOOKS CORRECT.**\n\nThe implementation accurately follows the 'Field Plot' design language:\n\n*   **Typography:** Headings correctly use the tall, condensed **Big Shoulders Display** font; body text uses **Archivo UI**.\n*   **Segmented Control:** The 3-tab control features the active tab in **#FC4C02 orange** with a **black inner ring**, while inactive tabs have the standard ink border.\n*   **Keycap Styling:** The active tab and the upload icon tile exhibit the correct **keycap aesthetic** (orange fill, black text, hard dark bottom edge).\n*   **Upload Zone:** Correctly uses a **dashed ink border** and contains the specified bordered orange icon tile.\n*   **Step Cards:** The bottom cards show the required **1.5px ink borders** and **orange icon squares** with rounded corners.\n*   **Color Palette:** Strictly adheres to the near-black/ink, white, gray, and #FC4C02 orange scheme.\n*   **Layout:** Alignment is precise, text is legible, and the faint graph-paper background is present. No visual defects or unpolished areas detected.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790476648,
+  "id": "202609271037220e70b246a8e645b0",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "202609271037220e70b246a8e645b0",
+  "usage": {
+    "completion_tokens": 244,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1869,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2113
+  }
+}

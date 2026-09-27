@@ -42,7 +42,13 @@ export function ExportCard({ exporter }: ExportCardProps) {
     <>
       <Card data-testid="export-card">
         <CardHeader>
-          <h3 className="leading-none font-semibold">Export</h3>
+          <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+          <span
+            className="size-2 shrink-0 rounded-[1px] bg-signal"
+            aria-hidden="true"
+          />
+          Export
+        </h3>
           <CardDescription>
             {hasRepairs
               ? "Your committed repairs, ready to download with their provenance markers."
@@ -61,29 +67,29 @@ export function ExportCard({ exporter }: ExportCardProps) {
           </CardAction>
         </CardHeader>
         <CardContent>
-          <dl className="grid gap-1.5 text-sm" data-testid="export-card-stats">
-            <div className="flex items-center justify-between gap-3">
+          <dl className="grid text-[13px]" data-testid="export-card-stats">
+            <div className="flex items-center justify-between gap-3 border-b border-ink/[0.08] py-2">
               <dt className="text-muted-foreground">
                 Repairs to include
               </dt>
-              <dd className="tabular-nums">{summary.repairCount}</dd>
+              <dd className="text-[13.5px] font-semibold tabular-nums">{summary.repairCount}</dd>
             </div>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 border-b border-ink/[0.08] py-2">
               <dt className="text-muted-foreground">Distance added</dt>
-              <dd className="tabular-nums">
+              <dd className="text-[13.5px] font-semibold tabular-nums">
                 {formatDistanceMeters(summary.addedDistanceM)}
               </dd>
             </div>
             {summary.skippedCount > 0 && (
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3 border-b border-ink/[0.08] py-2">
                 <dt className="text-muted-foreground">Skipped gaps</dt>
-                <dd className="tabular-nums">{summary.skippedCount}</dd>
+                <dd className="text-[13.5px] font-semibold tabular-nums">{summary.skippedCount}</dd>
               </div>
             )}
             {summary.openRepairCount > 0 && (
-              <div className="flex items-center justify-between gap-3 text-muted-foreground">
+              <div className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
                 <dt>Open in editor (excluded)</dt>
-                <dd className="tabular-nums">{summary.openRepairCount}</dd>
+                <dd className="text-[13.5px] font-semibold tabular-nums">{summary.openRepairCount}</dd>
               </div>
             )}
           </dl>

@@ -54,6 +54,12 @@ function emDash(reason: string) {
   return <span title={reason}>—</span>;
 }
 
+/** Field Plot stat-table value cell: bold, tabular, never wrapped. */
+const VALUE_CELL = "tabular-nums font-bold whitespace-nowrap";
+/** Field Plot stat-table head: small, quiet, ruled. */
+const HEAD_CELL =
+  "h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25";
+
 export interface StatsPanelProps {
   distanceStats: DistanceStats;
   timeStats: TimeStats;
@@ -121,9 +127,15 @@ export function StatsPanel({
     (repair?.gapCount ?? 0) > 0 && liveRepairTime === null;
 
   return (
-    <Card data-testid="stats-panel">
+    <Card
+      className="border-[1.5px] border-ink"
+      data-testid="stats-panel"
+    >
       <CardHeader>
-        <h3 className="leading-none font-semibold">Statistics</h3>
+        <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+          <span className="size-2 shrink-0 rounded-[1px] bg-signal" aria-hidden="true" />
+          Statistics
+        </h3>
         <CardDescription>
           {hasRepairs
             ? "Original recording plus committed repairs — every estimated value is labeled with its source."
@@ -137,9 +149,15 @@ export function StatsPanel({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead scope="col">Metric</TableHead>
-              <TableHead scope="col">Value</TableHead>
-              <TableHead scope="col">Source</TableHead>
+              <TableHead scope="col" className={HEAD_CELL}>
+                Metric
+              </TableHead>
+              <TableHead scope="col" className={HEAD_CELL}>
+                Value
+              </TableHead>
+              <TableHead scope="col" className={`${HEAD_CELL} text-right`}>
+                Source
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -148,7 +166,7 @@ export function StatsPanel({
               <>
                 <TableRow>
                   <TableCell>Recorded distance</TableCell>
-                  <TableCell className="tabular-nums">
+                  <TableCell className={VALUE_CELL}>
                     {formatDistanceMeters(recordedDistanceM)}
                   </TableCell>
                   <TableCell>
@@ -157,7 +175,7 @@ export function StatsPanel({
                 </TableRow>
                 <TableRow>
                   <TableCell>Repaired distance</TableCell>
-                  <TableCell className="tabular-nums">
+                  <TableCell className={VALUE_CELL}>
                     {formatDistanceMeters(repairedDistanceM)}
                   </TableCell>
                   <TableCell>
@@ -166,7 +184,7 @@ export function StatsPanel({
                 </TableRow>
                 <TableRow>
                   <TableCell>Total with repairs</TableCell>
-                  <TableCell className="tabular-nums">
+                  <TableCell className={VALUE_CELL}>
                     {formatDistanceMeters(
                       recordedDistanceM + repairedDistanceM,
                     )}
@@ -179,7 +197,7 @@ export function StatsPanel({
             ) : (
               <TableRow>
                 <TableCell>Total distance</TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell className={VALUE_CELL}>
                   {formatDistanceMeters(distanceStats.totalDistanceM)}
                 </TableCell>
                 <TableCell>
@@ -216,7 +234,7 @@ export function StatsPanel({
             {hasRepairs && (
               <TableRow>
                 <TableCell>Repair time</TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell className={VALUE_CELL}>
                   {repairTime === null
                     ? emDash("Repairs still need durations")
                     : formatDurationMs(repairTime)}
@@ -229,7 +247,7 @@ export function StatsPanel({
             {hasRepairs && !noTime && (
               <TableRow>
                 <TableCell>Moving time incl. repairs</TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell className={VALUE_CELL}>
                   {liveRepairsLackDuration
                     ? emDash("Repairs still need durations")
                     : formatDurationMs(
@@ -244,7 +262,7 @@ export function StatsPanel({
             {noTime && manualTotalDurationMs !== null && (
               <TableRow>
                 <TableCell>Total duration (entered)</TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell className={VALUE_CELL}>
                   {manualTotalDurationMs > 0
                     ? formatDurationMs(manualTotalDurationMs)
                     : emDash("Enter a total duration")}
@@ -259,7 +277,7 @@ export function StatsPanel({
             {paceRows.map((row) => (
               <TableRow key={row.id} data-testid={`pace-row-${row.id}`}>
                 <TableCell>{PACE_ROW_LABELS[row.id]}</TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell className={VALUE_CELL}>
                   {row.durationMs === null ? (
                     <span
                       title={row.missingReason ?? "Not computable"}
@@ -348,7 +366,7 @@ export function StatsPanel({
                     }
                   >
                     <TableCell>{row.label}</TableCell>
-                    <TableCell className="tabular-nums">
+                    <TableCell className={VALUE_CELL}>
                       {elevation.insufficient
                         ? emDash(
                             `Insufficient elevation data — only ${Math.round(
@@ -373,7 +391,7 @@ export function StatsPanel({
           </TableBody>
         </Table>
 
-        <div className="mt-3 grid gap-1 text-xs text-muted-foreground">
+        <div className="mt-3 grid gap-1.5 text-[11.5px] leading-relaxed text-muted-foreground">
           {elevation && elevation.pointsTotal > 0 && (
             <p data-testid="elevation-note">
               {elevation.insufficient

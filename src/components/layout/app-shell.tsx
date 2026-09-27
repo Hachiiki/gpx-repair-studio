@@ -257,11 +257,11 @@ export function AppShell() {
         )}
       </main>
 
-      <footer className="mt-auto border-t">
+      <footer className="mt-auto border-t-[1.5px] border-ink/15 bg-background">
         <div
           className={cn(
             SHELL_CONTAINER,
-            "flex items-center gap-1.5 py-4 text-xs text-muted-foreground",
+            "flex items-center justify-center gap-1.5 py-4 text-[12.5px] text-muted-foreground",
           )}
         >
           <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />

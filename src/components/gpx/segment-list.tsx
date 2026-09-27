@@ -35,7 +35,13 @@ export function SegmentList({ rows }: { rows: readonly SegmentRow[] }) {
   return (
     <Card data-testid="segment-list">
       <CardHeader>
-        <h3 className="leading-none font-semibold">Segments</h3>
+        <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+          <span
+            className="size-2 shrink-0 rounded-[1px] bg-signal"
+            aria-hidden="true"
+          />
+          Segments
+        </h3>
         <CardDescription>
           {rows.length} segment{rows.length === 1 ? "" : "s"} across{" "}
           {trackCount} track{trackCount === 1 ? "" : "s"}
@@ -46,19 +52,19 @@ export function SegmentList({ rows }: { rows: readonly SegmentRow[] }) {
           <div className="grid gap-4 px-2">
             {groups.map((group) => (
               <div key={group.trackIndex} className="grid gap-2">
-                <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                <p className="text-[11px] font-bold tracking-[0.06em] text-muted-foreground uppercase">
                   {group.trackName}
                 </p>
                 {group.rows.map((row) => (
                   <div
                     key={row.segmentId}
-                    className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-ink/15 px-3 py-2.5 text-[13px]"
                   >
                     <div className="grid gap-0.5">
-                      <span className="font-mono text-xs text-muted-foreground">
+                      <span className="font-mono text-[11px] text-muted-foreground">
                         {row.segmentId}
                       </span>
-                      <span className="tabular-nums">
+                      <span className="font-semibold tabular-nums">
                         {row.pointCount.toLocaleString()} points ·{" "}
                         {formatDistanceMeters(row.distanceM)}
                         {row.excludedLegs > 0 && (
@@ -69,7 +75,7 @@ export function SegmentList({ rows }: { rows: readonly SegmentRow[] }) {
                           </span>
                         )}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[11.5px] text-muted-foreground">
                         {row.firstTimeMs !== undefined
                           ? `${formatDateTime(row.firstTimeMs)} → ${formatDateTime(row.lastTimeMs)}`
                           : "No timestamps"}

@@ -7,7 +7,10 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        // Field Plot card: flat paper panel, hairline ink border, 10 px
+        // radius (mockup --r-card). Strong cards override to the
+        // equipment-grade 1.5 px ink border.
+        "bg-card text-card-foreground flex flex-col gap-6 rounded-[10px] border py-6",
         className
       )}
       {...props}
@@ -32,7 +35,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-title"
-      className={cn("font-display leading-none font-bold tracking-tight", className)}
+      className={cn("leading-none font-bold tracking-tight", className)}
       {...props}
     />
   )

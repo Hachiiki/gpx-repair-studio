@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "**LOOKS CORRECT**\n\n**Summary:** The layout is fully responsive at 375px with no horizontal overflow. The three-tab toggle fits in a single row using compact labels (\"Repair\", \"Share card\", \"Recovery\"). The upload zone (dashed border, centered icon, stacked text) and step cards stack cleanly in the viewport. The \"Repair incomplete GPS recordings\" heading uses a bold, condensed display typeface appropriate for mobile. The graph-paper background pattern is visible and does not interfere with content readability. All interactive elements have adequate touch targets and spacing.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790476686,
+  "id": "20260927103801cf7898a44a5b4cb8",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260927103801cf7898a44a5b4cb8",
+  "usage": {
+    "completion_tokens": 116,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 405,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 521
+  }
+}

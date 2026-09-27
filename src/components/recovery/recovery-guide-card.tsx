@@ -43,7 +43,13 @@ export function RecoveryGuideCard({
   return (
     <Card data-testid="recovery-guide-card">
       <CardHeader>
-        <h3 className="leading-none font-semibold">Gap recovery</h3>
+        <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+          <span
+            className="size-2 shrink-0 rounded-[1px] bg-signal"
+            aria-hidden="true"
+          />
+          Gap recovery
+        </h3>
         <CardDescription>
           {detectedCount === 0 && recoveredCount === 0
             ? "No missing sections detected — you can still draw the route you lost below."

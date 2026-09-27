@@ -108,7 +108,7 @@ export function FileTimingCard({ fileTiming, setFileTiming }: FileTimingCardProp
           Activity start (optional)
           <input
             type="datetime-local"
-            className="h-8 rounded-md border border-input bg-transparent px-2 text-xs font-normal"
+            className="h-8 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2.5 text-xs font-normal transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
             data-testid="file-start-input"
             value={start}
             onChange={(event) => {
@@ -147,7 +147,7 @@ export function FileTimingCard({ fileTiming, setFileTiming }: FileTimingCardProp
                 step={1}
                 aria-label={`Total duration ${field.label}`}
                 data-testid={field.testid}
-                className="h-8 w-14 rounded-md border border-input bg-transparent px-2 text-xs tabular-nums"
+                className="h-8 w-14 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2 text-xs tabular-nums transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
                 value={fields[field.key]}
                 onChange={(event) =>
                   setFields((current) => ({

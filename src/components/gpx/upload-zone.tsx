@@ -43,10 +43,10 @@ export function UploadZone({ onFile, disabled = false }: UploadZoneProps) {
         if (!disabled) handleFiles(event.dataTransfer.files);
       }}
       className={cn(
-        "rounded-xl border-2 border-dashed bg-card p-8 text-center transition-[border-color,background-color] duration-150",
+        "rounded-xl border-2 border-dashed bg-card p-11 text-center transition-[border-color,background-color] duration-150",
         dragging
-          ? "border-primary bg-primary/5"
-          : "border-ink/20 hover:border-signal/70 hover:bg-signal/[0.03]",
+          ? "border-primary bg-signal/[0.08]"
+          : "border-ink/35 hover:border-signal hover:bg-signal/[0.04]",
         disabled && "pointer-events-none opacity-50",
       )}
       data-testid="upload-zone"
@@ -55,20 +55,22 @@ export function UploadZone({ onFile, disabled = false }: UploadZoneProps) {
         htmlFor={inputId}
         className="group/upload flex cursor-pointer flex-col items-center gap-4"
       >
-        <span className="rounded-full bg-signal/10 p-3 transition-colors group-hover/upload:bg-signal/15">
+        <span className="grid size-[58px] place-items-center rounded-[14px] border-[1.5px] border-signal bg-signal/10 shadow-key">
           <FileUp className="size-6 text-signal" aria-hidden="true" />
         </span>
         <span className="space-y-1">
-          <span className="block font-medium">Drop your GPX file here</span>
-          <span className="block text-sm text-muted-foreground">
+          <span className="block text-lg font-bold tracking-tight">
+            Drop your GPX file here
+          </span>
+          <span className="block text-[13.5px] text-muted-foreground">
             or{" "}
-            <span className="underline underline-offset-2">
+            <span className="font-semibold text-ink underline underline-offset-[3px]">
               click to browse
             </span>
           </span>
         </span>
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
+        <span className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <ShieldCheck className="size-3.5 shrink-0 text-ink/55" aria-hidden="true" />
           Processed entirely in your browser — the file never leaves this
           device.
         </span>

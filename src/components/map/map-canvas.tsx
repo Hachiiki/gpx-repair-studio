@@ -63,10 +63,13 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
   const editorActive = draw?.active === true;
 
   return (
-    <div className="overflow-hidden rounded-xl border" data-testid="map-canvas">
+    <div
+      className="overflow-hidden rounded-[12px] border-2 border-ink"
+      data-testid="map-canvas"
+    >
       <div
         ref={attachContainer}
-        className="relative h-[65dvh] min-h-[400px] w-full bg-muted/40 lg:h-[calc(100dvh-12.5rem)] lg:min-h-[520px]"
+        className="relative h-[65dvh] min-h-[420px] w-full bg-muted/40 lg:h-[calc(100dvh-11.875rem)] lg:min-h-[540px]"
         role="application"
         aria-label="Interactive map of the recorded route and its gaps"
       >
@@ -107,7 +110,7 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
         {/* Basemap offline / blocked — route and gaps still render. */}
         {map.status !== "unsupported" && map.offline && (
           <div
-            className="absolute inset-x-2 top-2 z-20 flex items-center gap-2 rounded-lg border border-signal/50 bg-signal/5 px-2.5 py-1.5 text-xs text-ink shadow-sm"
+            className="absolute inset-x-2 top-2 z-20 flex items-center gap-2 rounded-lg border-[1.25px] border-signal bg-signal/[0.08] px-2.5 py-1.5 text-xs text-ink shadow-float"
             data-testid="map-offline-notice"
             role="status"
           >
@@ -134,7 +137,7 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
             data-testid="map-empty-route"
             role="status"
           >
-            <p className="rounded-lg border bg-background/90 px-3 py-2 text-sm text-muted-foreground shadow-sm">
+            <p className="rounded-[10px] border-[1.5px] border-ink bg-card px-3 py-2 text-sm text-muted-foreground shadow-float">
               No renderable route points — all recorded coordinates are
               damaged.
             </p>
@@ -165,26 +168,29 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
                     ? "Draw mode — click to add points (D)"
                     : "Pan mode — drag to navigate (P). Dragging a drawn point still works."
                 }
-                className={`absolute left-2 top-2 z-10 flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm transition-colors focus-visible:outline-2 ${
+                className={`absolute left-2 top-2 z-10 flex items-center gap-2 rounded-lg border-[1.5px] border-ink px-2.5 py-1.5 text-xs font-semibold shadow-float transition-colors focus-visible:outline-2 ${
                   draw.drawMode
-                    ? "border-signal/40 bg-signal/10 text-ink dark:border-signal/40 dark:bg-signal/10 dark:text-ink"
-                    : "border-border bg-background/85 text-foreground hover:bg-accent"
+                    ? "bg-signal/[0.08] text-ink"
+                    : "bg-card text-foreground hover:bg-ink/[0.06]"
                 }`}
               >
                 {draw.drawMode ? (
-                  <PenLine className="size-3.5 shrink-0" aria-hidden="true" />
+                  <PenLine className="size-3.5 shrink-0 text-signal" aria-hidden="true" />
                 ) : (
                   <Hand className="size-3.5 shrink-0" aria-hidden="true" />
                 )}
                 {draw.drawMode ? "Drawing" : "Panning"}
-                <span className="text-[10px] font-normal opacity-70">
+                <span
+                  className="grid h-4 min-w-4 place-items-center rounded-[3px] border border-ink/25 border-b-2 bg-card px-0.5 text-[10px] font-bold text-shade"
+                  aria-hidden="true"
+                >
                   {draw.drawMode ? "D" : "P"}
                 </span>
               </button>
             )}
             {draw?.pickMode && (
               <div
-                className="pointer-events-none absolute inset-x-2 top-2 z-20 mx-auto w-fit max-w-full rounded-lg border border-signal/40 bg-signal/10 px-3 py-1.5 text-xs font-medium text-ink shadow-sm dark:border-signal/40 dark:bg-signal/10 dark:text-ink"
+                className="pointer-events-none absolute inset-x-2 top-2 z-20 mx-auto w-fit max-w-full rounded-lg border-[1.25px] border-signal bg-signal/[0.08] px-3 py-1.5 text-xs font-semibold text-ink shadow-float"
                 data-testid="pick-mode-chip"
                 role="status"
               >

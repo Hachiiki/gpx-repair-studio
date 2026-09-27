@@ -14,7 +14,7 @@ export interface PaceUnitToggleProps {
 export function PaceUnitToggle({ unit, onChange }: PaceUnitToggleProps) {
   return (
     <div
-      className="flex overflow-hidden rounded-md border"
+      className="inline-flex gap-[3px] rounded-[7px] border-[1.25px] border-ink/25 bg-card p-[3px]"
       role="group"
       aria-label="Pace unit"
       data-testid="pace-unit-toggle"
@@ -27,8 +27,8 @@ export function PaceUnitToggle({ unit, onChange }: PaceUnitToggleProps) {
           data-testid={`pace-unit-${option}`}
           className={
             unit === option
-              ? "bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
-              : "px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              ? "rounded-[4px] bg-signal px-3 py-[4.5px] text-[12.5px] font-semibold text-inkplus"
+              : "rounded-[4px] px-3 py-[4.5px] text-[12.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground"
           }
           onClick={() => onChange(option)}
         >

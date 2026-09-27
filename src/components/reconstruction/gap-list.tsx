@@ -45,11 +45,11 @@ function BoundaryLine({
   point: GapRow["before"];
 }) {
   return (
-    <p className="text-xs text-muted-foreground">
-      <span className="font-medium text-foreground">{role}</span>{" "}
+    <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+      <span className="font-semibold text-ink">{role}</span>{" "}
       {point.time !== undefined ? formatDateTime(point.time) : "no time"} ·{" "}
-      <span className="font-mono">{formatLatLon(point.lat, point.lon)}</span>{" "}
-      <span className="font-mono text-[11px]">({point.pointId})</span>
+      <span className="font-mono text-[10.5px]">{formatLatLon(point.lat, point.lon)}</span>{" "}
+      <span className="font-mono text-[10.5px] text-ink/55">({point.pointId})</span>
     </p>
   );
 }
@@ -88,10 +88,10 @@ function GapRowItem({
   return (
     <div
       data-gap-row-container
-      className={`grid gap-1 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+      className={`grid gap-1.5 rounded-[9px] border-[1.25px] px-3 py-2.5 text-left transition-colors duration-150 ${
         selected
-          ? "border-primary bg-primary/5 ring-1 ring-primary/40"
-          : ""
+          ? "border-[1.75px] border-signal bg-signal/[0.08]"
+          : "border-ink/15"
       }`}
     >
       <button
@@ -101,18 +101,18 @@ function GapRowItem({
         data-selected={selected}
         aria-pressed={selected}
         aria-label={`Gap ${GAP_KIND_LABELS[row.kind]}, ${row.severity}. ${selected ? "Deselect" : "Select and focus on map"}.`}
-        className={`grid w-full gap-1.5 rounded-md text-left focus-visible:outline-2 ${
-          selected ? "" : "hover:bg-accent"
+        className={`grid w-full gap-1.5 rounded-[6px] text-left focus-visible:outline-2 ${
+          selected ? "" : "hover:bg-ink/[0.04]"
         }`}
         onClick={() => onSelect(selected ? null : row.id)}
       >
         <span className="flex flex-wrap items-center gap-2">
           <GapSeverityBadge severity={row.severity} />
-          <span className="text-sm font-medium">
+          <span className="text-[13px] font-semibold">
             {GAP_KIND_LABELS[row.kind]}
           </span>
           {status !== "new" && <GapStatusBadge status={status} />}
-          <span className="ml-auto text-sm tabular-nums">
+          <span className="ml-auto text-[12.5px] font-bold tabular-nums">
             {row.elapsedMs !== undefined
               ? `${formatDurationMs(row.elapsedMs)} elapsed`
               : "elapsed unknown"}
@@ -120,7 +120,7 @@ function GapRowItem({
         </span>
         <BoundaryLine role="From" point={row.before} />
         <BoundaryLine role="To" point={row.after} />
-        <span className="text-xs text-muted-foreground">
+        <span className="text-[11.5px] leading-relaxed text-muted-foreground">
           Straight-line:{" "}
           {row.impliedDistanceM !== undefined
             ? formatDistanceMeters(row.impliedDistanceM)
@@ -137,7 +137,7 @@ function GapRowItem({
         <button
           type="button"
           data-testid="open-editor-button"
-          className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-signal hover:bg-signal/10 focus-visible:outline-2"
+          className="flex w-fit items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12.5px] font-bold text-signal hover:bg-signal/10 hover:underline hover:underline-offset-[3px] focus-visible:outline-2"
           onClick={() => onOpenEditor(row.id)}
         >
           <PenLine className="size-3.5" aria-hidden="true" />
@@ -182,7 +182,10 @@ export function GapList({
   return (
     <Card data-testid="gap-list">
       <CardHeader>
-        <h3 className="leading-none font-semibold">Detected gaps</h3>
+        <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+          <span className="size-2 shrink-0 rounded-[1px] bg-signal" aria-hidden="true" />
+          Detected gaps
+        </h3>
         <CardDescription>
           {rows.length === 1
             ? "1 candidate repair site"

@@ -25,14 +25,14 @@ export interface GpxSummaryCardProps {
 
 function CountRow({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="flex min-w-0 items-baseline justify-between gap-4">
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
+    <div className="flex min-w-0 items-baseline justify-between gap-4 border-b border-ink/[0.08] py-2 last:border-b-0">
+      <dt className="shrink-0 text-[13px] text-muted-foreground">{label}</dt>
       {/*
         Values are arbitrary device/platform strings (creator names can be
         long URLs or sentences). `overflow-wrap: anywhere` keeps the row's
         min-content small so it can never overflow the panel on mobile.
       */}
-      <dd className="min-w-0 text-right [overflow-wrap:anywhere] font-medium tabular-nums">
+      <dd className="min-w-0 text-right text-[13.5px] font-semibold [overflow-wrap:anywhere] tabular-nums">
         {value}
       </dd>
     </div>
@@ -52,15 +52,21 @@ export function GpxSummaryCard({
   return (
     <Card data-testid="gpx-summary">
       <CardHeader>
-        <h3 className="leading-none font-semibold">File summary</h3>
+        <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+          <span
+            className="size-2 shrink-0 rounded-[1px] bg-signal"
+            aria-hidden="true"
+          />
+          File summary
+        </h3>
         <CardDescription className="truncate" title={fileName}>
           {fileName}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <dl className="grid gap-2 text-sm">
-          <div className="flex min-w-0 items-baseline justify-between gap-4">
-            <dt className="shrink-0 text-muted-foreground">Format</dt>
+        <dl className="grid text-[13px]">
+          <div className="flex min-w-0 items-baseline justify-between gap-4 border-b border-ink/[0.08] py-2 last:border-b-0">
+            <dt className="shrink-0 text-[13px] text-muted-foreground">Format</dt>
             <dd className="min-w-0">
               <Badge variant="secondary">GPX {data.fileMeta.version}</Badge>
             </dd>
@@ -74,11 +80,11 @@ export function GpxSummaryCard({
           <CountRow label="Track points" value={pointCount} />
           <CountRow label="Waypoints" value={data.waypoints.length} />
           <CountRow label="Routes" value={data.routes.length} />
-          <div className="flex min-w-0 items-baseline justify-between gap-4">
-            <dt className="shrink-0 text-muted-foreground">Timing</dt>
+          <div className="flex min-w-0 items-baseline justify-between gap-4 border-b border-ink/[0.08] py-2 last:border-b-0">
+            <dt className="shrink-0 text-[13px] text-muted-foreground">Timing</dt>
             <dd className="min-w-0">
               {timeStats === null ? null : timeStats.hasTimingData ? (
-                <span className="font-medium tabular-nums">
+                <span className="text-[13.5px] font-semibold tabular-nums">
                   {timeStats.pointsWithTime.toLocaleString()} of{" "}
                   {timeStats.pointsTotal.toLocaleString()} points timed
                 </span>

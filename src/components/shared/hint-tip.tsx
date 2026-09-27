@@ -47,18 +47,18 @@ export function HintTip({
       <TooltipContent
         side={side}
         sideOffset={6}
-        className="max-w-60 p-3 text-left"
+        className="max-w-60 border-ink bg-inkplus p-3 text-left text-paper"
         data-testid="hint-tip"
       >
         <p className="text-xs font-semibold">{title}</p>
         {description && (
-          <p className="mt-1 text-[11px] leading-snug text-primary-foreground/80">
+          <p className="mt-1 text-[11px] leading-snug text-paper/80">
             {description}
           </p>
         )}
         {kbd && (
-          <p className="mt-2 flex items-center gap-1.5 text-[10px] text-primary-foreground/70">
-            <kbd className="rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 py-0.5 font-mono text-[10px]">
+          <p className="mt-2 flex items-center gap-1.5 text-[10px] text-paper/70">
+            <kbd className="rounded-[3px] border-b-2 border-white/25 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-paper">
               {kbd}
             </kbd>
             <span>to switch</span>

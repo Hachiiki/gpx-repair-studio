@@ -16,19 +16,28 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export type StatusTone = "danger" | "warning" | "success" | "info" | "neutral";
+export type StatusTone =
+  | "danger"
+  | "warning"
+  | "success"
+  | "info"
+  | "neutral"
+  | "outline";
 
 /*
- * Ink & Signal semantics: danger is the hardest thing on the paper —
- * solid ink+ with white text (icons and copy carry the meaning).
- * Warning is the hot outline (attention, but not failure). Success
- * and info stay calm: ink and shade outlines on the neutral field.
+ * Field Plot chip semantics (mockup styles.css): danger is the hardest
+ * thing on the paper — solid ink+ with white text. Warning is the hot
+ * outline (signal border, signal-tinted field, ink text). "outline" is
+ * the quiet equipment chip — a full ink border with ink text (the
+ * severity-suspect look). Success and info stay calm: ink and shade
+ * borders on the neutral field.
  */
 const TONE_CLASS: Record<StatusTone, string | null> = {
   danger: "border-transparent bg-inkplus text-white",
-  warning: "border-signal/50 bg-signal/10 text-signal",
-  success: "border-ink/25 bg-transparent text-ink",
-  info: "border-ink/15 bg-ink/5 text-shade",
+  warning: "border-signal bg-signal/[0.08] text-ink",
+  success: "border-ink/35 bg-transparent text-ink",
+  info: "border-ink/15 bg-ink/[0.04] text-shade",
+  outline: "border-ink bg-transparent text-ink",
   neutral: null, // plain secondary variant
 };
 

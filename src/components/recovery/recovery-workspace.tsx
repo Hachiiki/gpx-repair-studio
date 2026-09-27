@@ -52,7 +52,7 @@ export function RecoveryWorkspace({ map, tools, details }: RecoveryWorkspaceProp
           <a
             href="#recovery-details"
             data-testid="recovery-scroll-cue"
-            className="group inline-flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-sm text-muted-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground focus-visible:outline-2"
+            className="group inline-flex items-center gap-2 rounded-full border-[1.5px] border-ink bg-card px-4 py-2 text-[13px] font-semibold text-muted-foreground transition-colors hover:border-signal hover:bg-signal/[0.08] hover:text-foreground focus-visible:outline-2"
           >
             Preview &amp; statistics
             <ChevronDown
@@ -72,7 +72,11 @@ export function RecoveryWorkspace({ map, tools, details }: RecoveryWorkspaceProp
       >
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div className="max-w-xl">
-            <h2 className="text-xl font-semibold tracking-tight">
+            <h2 className="flex items-center gap-2.5 font-display text-[30px] font-bold leading-[1.05] tracking-[0.01em]">
+              <span
+                className="size-[11px] shrink-0 rounded-[1.5px] bg-signal"
+                aria-hidden="true"
+              />
               Completed route — preview &amp; statistics
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -84,7 +88,7 @@ export function RecoveryWorkspace({ map, tools, details }: RecoveryWorkspaceProp
           <a
             href="#recovery"
             data-testid="recovery-back-to-map-link"
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2"
+            className="inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
           >
             <ArrowUp className="size-3.5" aria-hidden="true" />
             Back to the map

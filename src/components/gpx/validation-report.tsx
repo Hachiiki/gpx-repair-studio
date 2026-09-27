@@ -93,14 +93,20 @@ export function ValidationReport({
   return (
     <Card data-testid="validation-report">
       <CardHeader>
-        <h3 className="leading-none font-semibold">Validation report</h3>
+        <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+          <span
+            className="size-2 shrink-0 rounded-[1px] bg-signal"
+            aria-hidden="true"
+          />
+          Validation report
+        </h3>
         <CardDescription>
           {issues.length > 0 ? summary : "No problems found"}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {issues.length === 0 ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
             <CircleCheck
               className="size-4 shrink-0 text-ink"
               aria-hidden="true"
@@ -109,15 +115,15 @@ export function ValidationReport({
           </p>
         ) : (
           <ScrollArea className="max-h-96 -mx-2">
-            <ul className="grid gap-3 px-2">
+            <ul className="grid gap-2 px-2">
               {ordered.map((issue, index) => (
                 <li
                   key={`${issue.kind}-${index}`}
-                  className="grid min-w-0 gap-1 text-sm"
+                  className="grid min-w-0 gap-1 rounded-lg border border-ink/15 px-3 py-2.5 text-[13px]"
                 >
                   <div className="flex items-center gap-2">
                     <SeverityBadge severity={issue.severity} />
-                    <span className="font-medium">
+                    <span className="font-semibold">
                       {KIND_LABELS[issue.kind]}
                     </span>
                   </div>
@@ -128,7 +134,7 @@ export function ValidationReport({
                     participates in min-content sizing, so a long token can
                     never blow out the panel grid on narrow viewports.
                   */}
-                  <p className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]">
+                  <p className="min-w-0 text-[11.5px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                     {issue.message}
                   </p>
                 </li>

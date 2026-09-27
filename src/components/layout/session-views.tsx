@@ -185,7 +185,7 @@ export function SessionIdleView({
          * one row (the 375 px mobile contract).
          */}
         <div
-          className="flex w-full overflow-hidden rounded-lg border bg-card p-1"
+          className="flex w-full gap-1 rounded-lg border-[1.5px] border-ink bg-card p-1"
           role="radiogroup"
           aria-label="What do you want to do?"
           data-testid="landing-mode-toggle"
@@ -199,8 +199,8 @@ export function SessionIdleView({
               data-testid={`landing-mode-${option.value}`}
               className={
                 mode === option.value
-                  ? "flex-1 rounded-md bg-inkplus px-2 py-2 text-sm font-semibold text-white sm:px-3"
-                  : "flex-1 rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 sm:px-3"
+                  ? "flex-1 rounded-[5px] bg-signal px-2 py-2.5 text-sm font-semibold text-inkplus shadow-[inset_0_0_0_1.5px_#222222] sm:px-3"
+                  : "flex-1 rounded-[5px] px-2 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2 sm:px-3"
               }
               onClick={() => onModeChange(option.value)}
             >
@@ -212,10 +212,10 @@ export function SessionIdleView({
           ))}
         </div>
         <div className="space-y-2 text-center">
-          <h2 className="font-display text-2xl font-bold tracking-tight text-balance sm:text-3xl">
+          <h2 className="font-display text-[clamp(2.625rem,6vw,3.875rem)] font-extrabold leading-[0.98] tracking-[0.012em] text-balance">
             {hero.heading}
           </h2>
-          <p className="text-balance text-muted-foreground">
+          <p className="mx-auto max-w-[56ch] text-balance text-[15.5px] leading-relaxed text-muted-foreground">
             {hero.description}
           </p>
         </div>
@@ -228,30 +228,30 @@ export function SessionIdleView({
        * the workspace's details section.
        */}
       <RevealOnScroll className="mx-auto mb-auto mt-12 w-full max-w-4xl">
-        <h2 className="text-center font-display text-lg font-bold tracking-tight">
+        <h2 className="text-center font-display text-[2rem] font-bold tracking-[0.01em]">
           How it works
         </h2>
-        <p className="mt-1 text-center text-sm text-muted-foreground">
+        <p className="mt-1.5 text-center text-sm text-muted-foreground">
           The whole workflow runs in this tab — nothing to install, no
           account.
         </p>
         <ol
-          className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))]"
+          className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[repeat(3,minmax(0,1fr))]"
           data-testid="workflow-steps"
         >
           {WORKFLOW_STEPS[mode].map((step) => (
             <li
               key={step.title}
-              className="rounded-xl border bg-card p-4 transition-colors hover:border-signal/50"
+              className="rounded-[10px] border-[1.5px] border-ink bg-card p-[18px] transition-[translate,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lift"
             >
-              <span className="inline-flex rounded-full bg-signal/10 p-2">
+              <span className="inline-flex rounded-[10px] border-[1.5px] border-signal bg-signal/10 p-2.5">
                 <step.icon
-                  className="size-4 text-signal"
+                  className="size-5 text-signal"
                   aria-hidden="true"
                 />
               </span>
-              <h3 className="mt-3 font-medium">{step.title}</h3>
-              <p className="mt-1 text-pretty text-sm text-muted-foreground">
+              <h3 className="mt-2.5 text-[15px] font-bold">{step.title}</h3>
+              <p className="mt-1 text-pretty text-[13px] leading-relaxed text-muted-foreground">
                 {step.description}
               </p>
             </li>
@@ -278,7 +278,7 @@ export function SessionLoadingView({ fileName }: SessionLoadingViewProps) {
       <div
         role="status"
         data-testid="loading-state"
-        className="flex flex-col items-center gap-3 rounded-xl border bg-card px-8 py-10 text-center"
+        className="flex flex-col items-center gap-3 rounded-[10px] border-[1.5px] border-ink bg-card px-8 py-10 text-center"
       >
         <Loader2
           className="size-6 animate-spin text-muted-foreground"

@@ -122,7 +122,7 @@ export function ElevationControls({
       {/* Stale: the route changed since the fetch — offer the re-run. */}
       {elevation.status === "stale" && (
         <p
-          className="flex flex-wrap items-center gap-1.5 rounded-md border border-signal/50 bg-signal/5 px-2 py-1.5 text-[11px] text-ink"
+          className="flex flex-wrap items-center gap-1.5 rounded-lg border-[1.25px] border-signal bg-signal/[0.08] px-2.5 py-2 text-[11px] leading-relaxed text-ink"
           data-testid="elevation-stale-note"
           role="status"
         >
@@ -146,7 +146,7 @@ export function ElevationControls({
       {/* Failure: honest message, retry offered, never blocking. */}
       {elevation.status === "failed" && elevation.error && (
         <div
-          className="grid gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1.5 text-[11px] text-destructive"
+          className="grid gap-1.5 rounded-lg border-[1.25px] border-inkplus bg-ink/[0.04] px-2.5 py-2 text-[11px] leading-relaxed text-ink"
           data-testid="elevation-failure"
           role="alert"
         >

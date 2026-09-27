@@ -56,10 +56,10 @@ function BoundaryLine({
   point: NonNullable<RepairRow["before"]>;
 }) {
   return (
-    <p className="text-xs text-muted-foreground">
-      <span className="font-medium text-foreground">{role}</span>{" "}
+    <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+      <span className="font-semibold text-ink">{role}</span>{" "}
       {point.time !== undefined ? formatDateTime(point.time) : "no time"} ·{" "}
-      <span className="font-mono">{formatLatLon(point.lat, point.lon)}</span>
+      <span className="font-mono text-[10.5px]">{formatLatLon(point.lat, point.lon)}</span>
     </p>
   );
 }
@@ -79,14 +79,14 @@ function ManualSpanRow({
   const openEnded = row.before === undefined || row.after === undefined;
   return (
     <li
-      className="grid gap-1 rounded-lg border px-3 py-2.5"
+      className="grid gap-1 rounded-[9px] border-[1.25px] border-ink/15 px-3 py-2.5"
       data-testid="manual-repair-row"
     >
       <span className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium">{GAP_KIND_LABELS[row.kind]}</span>
+        <span className="text-[13px] font-semibold">{GAP_KIND_LABELS[row.kind]}</span>
         <GapStatusBadge status={status} />
         {row.impliedDistanceM !== undefined && (
-          <span className="ml-auto text-sm tabular-nums">
+          <span className="ml-auto text-[12.5px] font-bold tabular-nums">
             {formatDistanceMeters(row.impliedDistanceM)} span
           </span>
         )}
@@ -106,7 +106,7 @@ function ManualSpanRow({
         <button
           type="button"
           data-testid="open-editor-button-manual"
-          className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-signal hover:bg-signal/10 focus-visible:outline-2"
+          className="flex w-fit items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12.5px] font-bold text-signal hover:bg-signal/10 hover:underline hover:underline-offset-[3px] focus-visible:outline-2"
           onClick={() => onOpenEditor(row.id)}
         >
           <PenLine className="size-3.5" aria-hidden="true" />
@@ -115,7 +115,7 @@ function ManualSpanRow({
         <button
           type="button"
           data-testid="remove-manual-span-button"
-          className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-2"
+          className="flex w-fit items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12.5px] font-semibold text-muted-foreground hover:bg-inkplus hover:text-paper focus-visible:outline-2"
           aria-label={`Remove manual repair span ${row.id}`}
           onClick={() => onRemoveSpan(row.id)}
         >
@@ -199,7 +199,13 @@ export function ManualRepairsCard({
   return (
     <Card data-testid="manual-repairs-card">
       <CardHeader>
-        <h3 className="leading-none font-semibold">{title}</h3>
+        <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+          <span
+            className="size-2 shrink-0 rounded-[1px] bg-signal"
+            aria-hidden="true"
+          />
+          {title}
+        </h3>
         <CardDescription>{description}</CardDescription>
         <CardAction>
           {pickMode && (
@@ -219,8 +225,10 @@ export function ManualRepairsCard({
       </CardHeader>
       <CardContent className="grid gap-3">
         {/* The two repair tools. Exactly one interaction shape each —
-            one click to start adding, two clicks to bound a redraw. */}
-        <div className="grid gap-2 sm:grid-cols-2">
+            one click to start adding, two clicks to bound a redraw.
+            Stacked: the 336–384 px rail is too narrow for two labelled
+            buttons side by side (the mockup's rail rule). */}
+        <div className="grid gap-2">
           <HintTip side="left" title={anchorLabel} description={anchorHint}>
             <Button
               type="button"
@@ -251,7 +259,7 @@ export function ManualRepairsCard({
         </div>
         {pickMode === "anchor" && (
           <p
-            className="rounded-md border border-signal/40 bg-signal/5 px-3 py-2 text-xs text-ink"
+            className="rounded-lg border-[1.25px] border-signal bg-signal/[0.08] px-3 py-2.5 text-xs leading-relaxed text-ink"
             data-testid="pick-instructions"
             role="status"
           >
@@ -260,7 +268,7 @@ export function ManualRepairsCard({
         )}
         {pickMode === "pair" && (
           <p
-            className="rounded-md border border-signal/40 bg-signal/5 px-3 py-2 text-xs text-ink"
+            className="rounded-lg border-[1.25px] border-signal bg-signal/[0.08] px-3 py-2.5 text-xs leading-relaxed text-ink"
             data-testid="pick-instructions"
             role="status"
           >

@@ -80,7 +80,13 @@ export function RecoveryPreviewCard({
   return (
     <Card data-testid="recovery-preview-card">
       <CardHeader>
-        <h3 className="leading-none font-semibold">Completed route</h3>
+        <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+          <span
+            className="size-2 shrink-0 rounded-[1px] bg-signal"
+            aria-hidden="true"
+          />
+          Completed route
+        </h3>
         <CardDescription>
           {hasCommits
             ? detectedCount > 0
