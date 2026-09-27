@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "(1) Yes, the checkerboard pattern is clearly visible through the empty areas, confirming the background is genuinely transparent (alpha) and not painted white.\n(2) The orange route with its dark outline remains clearly visible. The white wordmark (\"STRAVA\"), stats, and shoe icon are effectively invisible (or extremely faint), as expected for white artwork on a white background.\n(3) Yes, the card reads cleanly like a classic dark share card: the orange route pops against the dark background, and the white text/stats/shoe icon are crisp and fully legible.\n(4) No rendering artifacts (stray boxes, seams, or halos) are visible in any of the three images; the edges are clean.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790514466,
+  "id": "2026092721074056fe055223ff43f6",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "2026092721074056fe055223ff43f6",
+  "usage": {
+    "completion_tokens": 149,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 8371,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 8520
+  }
+}

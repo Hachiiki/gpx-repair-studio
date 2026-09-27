@@ -5,7 +5,9 @@
  *
  * Pins the reference card's measured anchors EXACTLY (the lesson of
  * Tasks 21–22: the reference's numbers are the spec — pin, don't
- * re-derive): the 1080×1920 canvas on solid black, the route's
+ * re-derive): the 1080×1920 canvas on a transparent background
+ * (Task 41 — the PNG carries alpha; Task 23's solid #000000 is
+ * superseded), the route's
  * visible box (x 64–1012, y 219–1190, contain + casing inset), the
  * wordmark's 330×55 box at top 1280 (ink CONTAINED at the SVG's
  * natural proportions since Task 40 — never stretched), the stats
@@ -115,9 +117,9 @@ describe("share card spec tokens (Task 23)", () => {
     expect(SHARE_CARD_STAT_LABELS).toEqual(["Distance", "Pace", "Time"]);
   });
 
-  it("colors: black background, orange route over black casing, white foreground", () => {
+  it("colors: transparent background, orange route over black casing, white foreground", () => {
     expect(SHARE_CARD_COLORS).toEqual({
-      background: "#000000",
+      background: "transparent",
       route: "#FC4C02",
       casing: "#000000",
       foreground: "#FFFFFF",

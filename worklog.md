@@ -959,3 +959,25 @@ Stage Summary:
 - Only the Strava logo changed, exactly as requested; route, stats trio, and shoe icon untouched.
 - Test contract: 936 unit + 67 e2e, all green (one documented flake); the one-token revert Task 23 predicted is now the pinned, documented spec.
 - Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
+---
+Task ID: 41
+Agent: Super Z (main agent)
+Task: User pass 41 — the downloaded share-card PNG had a solid black background; the user expected it to be transparent (as the UI itself claims).
+
+Work Log:
+- Root cause: Task 23 pinned SHARE_CARD_COLORS.background to opaque #000000 to match the user's reference card IMAGE, superseding the original transparent design — but both share views (repair ShareView + create CreateShareView) kept the note "Transparent background — shown on dark" and the create view's description says "transparent background". The UI promised alpha; the painter filled black. The user caught the contradiction.
+- One-token fix, as the codebase itself predicted: SHARE_CARD_COLORS.background → "transparent". The painter's fillRect with a transparent fillStyle is a documented deliberate no-op, kept so the token stays the single switch that restores an opaque card (set a color there). The clearRect at paint start already leaves the backing store transparent, and canvas.toBlob("image/png") preserves alpha — no export-path changes needed.
+- The route's 16px #000000 casing is now VISIBLE ink (black-on-black under Task 23): the orange line's outline on any backdrop — the classic map-casing look, exactly what render.ts's old comment anticipated ("it reappears intact if the background token ever changes"). Geometry untouched: the visible box was always measured to INCLUDE the casing.
+- Comments/docs rewritten to the new truth: layout.ts (header ASCII, anchors bullet, COLORS doc), render.ts (header, painter doc, background + route sections), share-card-canvas.tsx (preview ring is chrome for the transparent card on the dark stage), MASTER_PLAN §O intro + O-4 (Task 41 recorded as the second later revision; "Casing on black" bullet became "Casing as outline").
+- Tests re-pinned: share-layout COLORS pin (background "transparent"); e2e share-card happy path flipped from "fully opaque, dark > 50%" to "transparent > 50% of pixels + casing dark ink > 0.3x orange + > 100" (the ring around a 10px line through a 16px casing is ~0.6x the orange ink).
+- Live verify scripts extended: verify-share-card-layout.mjs classifies dark ink (isDark) in both report implementations, asserts the background is > 50% transparent, the casing is painted (route band), its bbox stays inside the visible box (x 96–979, y 219–1189 measured), and NO dark ink exists outside the route band (gaps/logo/stats/icon/bottom all dark === 0 — the casing is the card's only black content); the Task-20 smoke script's two opacity checks flipped to transparency + casing-ratio checks. These RESTORE the pixel-level casing assertions Task 23 had to retire when its black background made the casing unprobeable.
+- Validation: 936/936 unit, typecheck + eslint clean, e2e 66/67 + the documented draw-editor sandbox memory flake (7/7 isolated, 5th consecutive task). share-card spec 7/7 and create-from-stats spec 10/10 with the new contract.
+- Live QA (real GloryFit file, dev server): layout verification ALL CHECKS PASSED on preview + 1x export — 93.8% transparent, casing 22,018 dark px inside the box, gaps and bottom fully empty (no white/orange/dark), Task 40's logo containment untouched (244x53 bbox, aspect 4.604); smoke script ALL LIVE CHECKS PASSED incl. 2x IHDR and mobile no-overflow.
+- Transparency proof for the user: scripts/task41-alpha-proof.mjs composites the actual download onto white / checkerboard / dark-gray (sharp, blend "dest-over"); VLM critique 4/4 PASS — checkerboard visible through empty areas (genuinely transparent, not painted), orange route + dark outline clearly visible on white, reads as a classic dark share card on dark, no seams/halos/artifacts. Known caveat confirmed and expected: the white wordmark/stats/shoe are invisible on white backdrops (white ink) — inherent to a transparent card with white artwork, and exactly what the "shown on dark" note teaches.
+- Committed and pushed (see Stage Summary for the hash).
+
+Stage Summary:
+- The share card's PNG download is transparent again: 93.8% of pixels carry alpha, the UI's "Transparent background — shown on dark" note is finally true, and the route gains a crisp black casing outline on light backdrops.
+- One token flipped (background: "transparent"); everything else is test/script/doc re-pinning — the painter, export path, geometry, and Task 40's logo work are untouched.
+- Test contract: 936 unit + 67 e2e, all green (one documented flake); the e2e + live scripts now assert transparency AND the restored casing ink.
+- Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).

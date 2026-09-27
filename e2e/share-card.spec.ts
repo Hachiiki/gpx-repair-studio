@@ -9,9 +9,10 @@ import { abortRoadRouting } from "./helpers/road-follow";
  *   1. the full happy path: landing mode toggle → upload → the share
  *      view (stage + canvas + honest trio) → download → assert the
  *      PNG itself: signature, IHDR 1080×1920, and decoded pixels —
- *      the solid-black background dominating, with the orange route
- *      and white artwork actually painted (the file is the contract,
- *      like Phase 7);
+ *      the transparent background dominating (the PNG carries
+ *      alpha, Task 41), with the orange route over its visible black
+ *      casing outline and white artwork actually painted (the file
+ *      is the contract, like Phase 7);
  *   2. honesty: a no-timestamp file renders "—" pace/time with the
  *      explanation, and still downloads;
  *   3. the view bridge: share → repair workspace → the map comes
@@ -173,9 +174,15 @@ test.describe("share card (Task 20)", () => {
     const analysis = await analyzePng(page, bytes);
     expect(analysis.width).toBe(1080);
     expect(analysis.height).toBe(1920);
-    // Task 23: the card is fully opaque — solid #000000 background.
-    expect(analysis.transparent).toBe(0);
-    expect(analysis.dark / analysis.total).toBeGreaterThan(0.5);
+    // Task 41: the background is transparent — the PNG carries
+    // alpha, and the card is mostly empty space.
+    expect(analysis.transparent / analysis.total).toBeGreaterThan(0.5);
+    // The route's black casing is visible ink now — the line's
+    // outline (it was black-on-black on Task 23's solid card). The
+    // ring around a 10px line through a 16px casing is roughly
+    // 0.6× the orange ink, so 0.3× is a safe floor.
+    expect(analysis.dark).toBeGreaterThan(analysis.orange * 0.3);
+    expect(analysis.dark).toBeGreaterThan(100);
     // The route line is really there, in the spec's orange.
     expect(analysis.orange).toBeGreaterThan(200);
     // The wordmark / stats / icon are painted white.

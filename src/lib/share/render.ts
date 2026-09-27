@@ -1,18 +1,20 @@
 /**
  * Share card painter (docs/MASTER_PLAN.md §O — Task 20, spec
- * revisions Tasks 21–23; this revision implements Task 23's reference
- * layout).
+ * revisions Tasks 21–23 and 40–41; this revision implements Task
+ * 23's reference layout with Task 40's un-squashed wordmark and
+ * Task 41's transparent background).
  *
  * Draws the complete 1080×1920 Strava-style share card into a 2D canvas
- * context: the solid #000000 background, the route polyline (contained
- * in the visible box with a two-pass casing — 16px #000000 under 10px
- * #FC4C02, both round cap/join), the STRAVA wordmark (ink contained,
- * aspect preserved, in its 330×55 box), the Distance/Pace/Time stats
- * trio, and the shoe icon (ink contained in its 104px slot) — every
- * position from lib/share/layout.ts, every path from
- * lib/share/artwork.ts, the projection from lib/geo/mercator.ts, the
- * decimation from lib/geo/simplify.ts. This module executes; it
- * decides nothing.
+ * context: the transparent background (no fill is painted — the PNG
+ * carries alpha; Task 41), the route polyline (contained in the visible
+ * box with a two-pass casing — 16px #000000 under 10px #FC4C02, both
+ * round cap/join — the casing reads as the line's outline), the STRAVA
+ * wordmark (ink contained, aspect preserved, in its 330×55 box), the
+ * Distance/Pace/Time stats trio, and the shoe icon (ink contained in
+ * its 104px slot) — every position from lib/share/layout.ts, every
+ * path from lib/share/artwork.ts, the projection from
+ * lib/geo/mercator.ts, the decimation from lib/geo/simplify.ts. This
+ * module executes; it decides nothing.
  *
  * One painter serves both consumers (the same "what you see is what
  * you download" contract as the GPX export): the preview canvas at
@@ -185,10 +187,13 @@ function strokeRoutePass(
 /**
  * Paint the full card. The context is expected unscaled; the painter
  * applies `scale` itself (all internal math stays in 1080×1920 units).
- * The solid black background is painted first — the export is fully
- * opaque, and the casing pass (#000000 on #000000) is drawn anyway:
- * the spec mandates it, and it reappears intact if the background
- * token ever changes.
+ * No background is painted (Task 41: the token is "transparent", so
+ * the fill below is a kept, deliberate no-op — one token restores an
+ * opaque card); the clearRect above has already left the backing
+ * store fully transparent, and the PNG export carries alpha. The
+ * #000000 casing pass is visible ink on the transparent card — the
+ * route's outline on any backdrop, lost again only on genuinely
+ * black ones.
  */
 export function renderShareCard(
   ctx: CanvasRenderingContext2D,
@@ -205,7 +210,11 @@ export function renderShareCard(
   ctx.clearRect(0, 0, layout.width * scale, layout.height * scale);
   ctx.scale(scale, scale);
 
-  // --- Background: the spec's solid black, edge to edge. ---
+  // --- Background: none — the card is transparent (Task 41). The
+  // fill below is a deliberate no-op while the token is
+  // "transparent" (kept so the token stays the single switch that
+  // restores an opaque card); the clearRect above already left the
+  // backing store fully transparent, and the PNG carries alpha. ---
   ctx.fillStyle = SHARE_CARD_COLORS.background;
   ctx.fillRect(0, 0, layout.width, layout.height);
 
@@ -213,7 +222,8 @@ export function renderShareCard(
   // half-width), jitter preserved (decimation capped at the spec's
   // 5m tolerance), two-pass casing: every black 16px casing first,
   // then every orange 10px line — so one piece's outline never cuts
-  // through another piece's line.
+  // through another piece's line. On the transparent card the black
+  // casing is visible ink: the route's outline.
   const simplified = simplifyPolylines(
     spec.routePolyline,
     SHARE_CARD_SIMPLIFY_TOLERANCE_M,

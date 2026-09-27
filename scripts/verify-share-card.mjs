@@ -10,7 +10,8 @@ import sharp from "sharp";
  *
  *   1. desktop: landing toggle → upload → the share view renders the
  *      card on its dark stage; the PREVIEW canvas is pixel-probed
- *      in-page (solid-black opaque background, orange route, white
+ *      in-page (transparent background — the PNG carries alpha, Task
+ *      41 — orange route with its black casing outline, white
  *      artwork);
  *   2. download the 1× PNG → decode with sharp → same assertions on
  *      the actual file + exact 1080×1920 IHDR;
@@ -119,9 +120,9 @@ console.log(`  card trio: ${summary.distance} | ${summary.pace} | ${summary.time
 const painted = await waitForPaint(desktop);
 check("preview canvas is 1080×1920", painted.width === 1080 && painted.height === 1920);
 check(
-  "preview background opaque black",
-  painted.transparent === 0 && painted.dark / painted.total > 0.5,
-  `transparent ${painted.transparent}px, ${((painted.dark / painted.total) * 100).toFixed(1)}% dark`,
+  "preview background transparent (Task 41)",
+  painted.transparent / painted.total > 0.5 && painted.dark > painted.orange * 0.3,
+  `transparent ${((painted.transparent / painted.total) * 100).toFixed(1)}%, casing dark ${painted.dark}px vs orange ${painted.orange}px`,
 );
 check("preview route painted in orange", painted.orange > 500, `${painted.orange}px`);
 check("preview artwork painted white", painted.white > 1000, `${painted.white}px`);
@@ -156,9 +157,9 @@ check("suggested filename", download1x.suggestedFilename() === "strava_gpx_origi
 const decoded = await sharp(png1xPath).raw().toBuffer({ resolveWithObject: true });
 const stats1x = classifyPixels(decoded.data, decoded.info.width, decoded.info.height);
 check(
-  "exported background opaque black",
-  stats1x.transparent === 0 && stats1x.dark / stats1x.total > 0.5,
-  `transparent ${stats1x.transparent}px, ${((stats1x.dark / stats1x.total) * 100).toFixed(1)}% dark`,
+  "exported background transparent (Task 41)",
+  stats1x.transparent / stats1x.total > 0.5 && stats1x.dark > stats1x.orange * 0.3,
+  `transparent ${((stats1x.transparent / stats1x.total) * 100).toFixed(1)}%, casing dark ${stats1x.dark}px vs orange ${stats1x.orange}px`,
 );
 check("exported route orange", stats1x.orange > 500, `${stats1x.orange}px`);
 check("exported artwork white", stats1x.white > 1000, `${stats1x.white}px`);

@@ -14,13 +14,17 @@ import sharp from "sharp";
  *     centered;
  *   - stats: row 1422–1515, columns at x 220 / 540 / 857;
  *   - shoe: 104px slot at 1605, ink contained and centered;
- *   - solid #000000 background — fully opaque, nothing transparent;
+ *   - transparent background — the PNG carries alpha (Task 41); the
+ *     route's black casing is visible ink (the line's outline) and
+ *     must stay inside the visible box, which was measured to
+ *     include the casing;
  *   - the vertical rhythm: 90 / 87 / ~90 gaps, ~211px empty below.
  *
- * On the black background the casing is invisible (black on black),
- * so the route's bounds are probed via the ORANGE pass only — the
- * geometry math (fit box inset by the casing half-width) is pinned
- * by unit tests instead.
+ * The background is transparent, so the casing is directly probeable
+ * as dark ink: its bbox must sit inside the visible box, and no dark
+ * ink may exist anywhere outside the route band (the wordmark,
+ * stats, and icon are white; the gaps and the bottom are empty). The
+ * orange pass still pins the line itself.
  *
  *   1. band-probe the live preview canvas (in-page pixels);
  *   2. download the 1× PNG and repeat every probe on the file;
@@ -61,16 +65,18 @@ const COLUMN_WINDOWS = COLUMN_CENTERS.map((c) => [c - 90, c + 90]);
 
 const isOrange = (r, g, b, a) => a > 200 && r > 220 && g > 30 && g < 130 && b < 60;
 const isWhite = (r, g, b, a) => a > 200 && r > 230 && g > 230 && b > 230;
+const isDark = (r, g, b, a) => a > 200 && r < 40 && g < 40 && b < 40;
 
 /**
- * Classify an RGBA buffer (W×H): band stats, white bboxes for the
- * logo/icon bands, per-column text counts in the stats band, the
- * route's orange bounding box, and the global opacity census.
+ * Classify an RGBA buffer (W×H): band stats (white/orange/dark),
+ * white bboxes for the logo/icon bands, per-column text counts in
+ * the stats band, the route's orange and dark (casing) bounding
+ * boxes, and the global opacity census.
  */
 function report(data) {
   const bandStats = {};
   for (const name of Object.keys(BANDS)) {
-    bandStats[name] = { white: 0, orange: 0 };
+    bandStats[name] = { white: 0, orange: 0, dark: 0 };
   }
   const whiteBBox = { logo: null, icon: null, stats: null };
   const track = (name, x, y) => {
@@ -87,11 +93,16 @@ function report(data) {
   const columnCounts = [0, 0, 0];
   let orangeTotal = 0;
   let whiteTotal = 0;
+  let darkTotal = 0;
   let transparent = 0;
   let routeMinX = W;
   let routeMaxX = 0;
   let routeMinY = H;
   let routeMaxY = 0;
+  let darkMinX = W;
+  let darkMaxX = 0;
+  let darkMinY = H;
+  let darkMaxY = 0;
   for (let y = 0; y < H; y += 1) {
     const inBand = {};
     for (const [name, [y0, y1]] of Object.entries(BANDS)) {
@@ -106,18 +117,27 @@ function report(data) {
       if (a < 16) transparent += 1;
       const white = isWhite(r, g, b, a);
       const orange = isOrange(r, g, b, a);
+      const dark = isDark(r, g, b, a);
       if (white) whiteTotal += 1;
       if (orange) orangeTotal += 1;
+      if (dark) darkTotal += 1;
       if (orange) {
         if (x < routeMinX) routeMinX = x;
         if (x > routeMaxX) routeMaxX = x;
         if (y < routeMinY) routeMinY = y;
         if (y > routeMaxY) routeMaxY = y;
       }
+      if (dark) {
+        if (x < darkMinX) darkMinX = x;
+        if (x > darkMaxX) darkMaxX = x;
+        if (y < darkMinY) darkMinY = y;
+        if (y > darkMaxY) darkMaxY = y;
+      }
       for (const name of Object.keys(BANDS)) {
         if (!inBand[name]) continue;
         if (white) bandStats[name].white += 1;
         if (orange) bandStats[name].orange += 1;
+        if (dark) bandStats[name].dark += 1;
       }
       if (white) {
         if (inBand.logo) track("logo", x, y);
@@ -138,10 +158,15 @@ function report(data) {
     columnCounts,
     orangeTotal,
     whiteTotal,
+    darkTotal,
     transparent,
     routeBBox:
       orangeTotal > 0
         ? { minX: routeMinX, maxX: routeMaxX, minY: routeMinY, maxY: routeMaxY }
+        : null,
+    darkBBox:
+      darkTotal > 0
+        ? { minX: darkMinX, maxX: darkMaxX, minY: darkMinY, maxY: darkMaxY }
         : null,
   };
 }
@@ -154,13 +179,13 @@ const check = (name, ok, detail = "") => {
 };
 
 function assertLayout(an, label) {
-  const { bandStats, whiteBBox, columnCounts, routeBBox } = an;
+  const { bandStats, whiteBBox, columnCounts, routeBBox, darkBBox } = an;
 
-  // --- The black-background contract. ---
+  // --- The transparent-background contract (Task 41). ---
   check(
-    `${label}: fully opaque (solid #000000 background)`,
-    an.transparent === 0,
-    `${an.transparent} transparent px`,
+    `${label}: transparent background — the PNG carries alpha`,
+    an.transparent > W * H * 0.5,
+    `${((an.transparent / (W * H)) * 100).toFixed(1)}% transparent px`,
   );
 
   // --- Route: inside the visible box, centered, one dimension full. ---
@@ -206,11 +231,36 @@ function assertLayout(an, label) {
     check(`${label}: route bbox measurable`, false, "no orange pixels");
   }
 
-  // --- The 90px route→logo gap: nothing but background. ---
+  // --- Casing: the black outline around the orange line (visible
+  // ink since Task 41's transparent background; the geometry box
+  // was measured to INCLUDE the casing). ---
+  check(
+    `${label}: route casing painted black`,
+    bandStats.route.dark > 5000,
+    `${bandStats.route.dark}px dark ink in rows ${BANDS.route}`,
+  );
+  if (darkBBox) {
+    const within =
+      darkBBox.minX >= ROUTE_BOX.x - 1 &&
+      darkBBox.maxX <= ROUTE_BOX.x + ROUTE_BOX.width + 1 &&
+      darkBBox.minY >= ROUTE_BOX.y - 1 &&
+      darkBBox.maxY <= ROUTE_BOX.y + ROUTE_BOX.height + 1;
+    check(
+      `${label}: casing ink inside the visible box (geometry + 16px casing)`,
+      within,
+      `dark bbox x ${darkBBox.minX}..${darkBBox.maxX}, y ${darkBBox.minY}..${darkBBox.maxY}`,
+    );
+  } else {
+    check(`${label}: casing bbox measurable`, false, "no dark pixels");
+  }
+
+  // --- The 90px route→logo gap: nothing but transparency. ---
   check(
     `${label}: 90px gap between route and logo`,
-    bandStats.gapRouteLogo.white === 0 && bandStats.gapRouteLogo.orange === 0,
-    `white ${bandStats.gapRouteLogo.white}px, orange ${bandStats.gapRouteLogo.orange}px in rows ${BANDS.gapRouteLogo}`,
+    bandStats.gapRouteLogo.white === 0 &&
+      bandStats.gapRouteLogo.orange === 0 &&
+      bandStats.gapRouteLogo.dark === 0,
+    `white ${bandStats.gapRouteLogo.white}px, orange ${bandStats.gapRouteLogo.orange}px, dark ${bandStats.gapRouteLogo.dark}px in rows ${BANDS.gapRouteLogo}`,
   );
 
   // --- Logo: contained ink (~245×55) in the 330×55 box at top 1280. ---
@@ -253,8 +303,10 @@ function assertLayout(an, label) {
   // --- The 87px logo→stats gap. ---
   check(
     `${label}: 87px gap between logo and stats`,
-    bandStats.gapLogoStats.white === 0 && bandStats.gapLogoStats.orange === 0,
-    `white ${bandStats.gapLogoStats.white}px, orange ${bandStats.gapLogoStats.orange}px in rows ${BANDS.gapLogoStats}`,
+    bandStats.gapLogoStats.white === 0 &&
+      bandStats.gapLogoStats.orange === 0 &&
+      bandStats.gapLogoStats.dark === 0,
+    `white ${bandStats.gapLogoStats.white}px, orange ${bandStats.gapLogoStats.orange}px, dark ${bandStats.gapLogoStats.dark}px in rows ${BANDS.gapLogoStats}`,
   );
 
   // --- Stats: the trio at the pinned centers. ---
@@ -282,8 +334,10 @@ function assertLayout(an, label) {
   // --- The ~90px stats→shoe gap. ---
   check(
     `${label}: ~90px gap between stats and shoe`,
-    bandStats.gapStatsIcon.white === 0 && bandStats.gapStatsIcon.orange === 0,
-    `white ${bandStats.gapStatsIcon.white}px, orange ${bandStats.gapStatsIcon.orange}px in rows ${BANDS.gapStatsIcon}`,
+    bandStats.gapStatsIcon.white === 0 &&
+      bandStats.gapStatsIcon.orange === 0 &&
+      bandStats.gapStatsIcon.dark === 0,
+    `white ${bandStats.gapStatsIcon.white}px, orange ${bandStats.gapStatsIcon.orange}px, dark ${bandStats.gapStatsIcon.dark}px in rows ${BANDS.gapStatsIcon}`,
   );
 
   // --- Shoe: contained and centered in the 104px slot. ---
@@ -308,11 +362,26 @@ function assertLayout(an, label) {
     check(`${label}: icon bbox measurable`, false, "no white pixels");
   }
 
-  // --- Nothing below the content bottom: ~211px of pure background. ---
+  // --- Nothing below the content bottom: ~211px of pure
+  // transparency, and no black ink anywhere outside the route
+  // band (the casing is the card's only dark content). ---
   check(
     `${label}: content ends at 1709 — nothing below`,
-    bandStats.bottom.white === 0 && bandStats.bottom.orange === 0,
-    `white ${bandStats.bottom.white}px, orange ${bandStats.bottom.orange}px in rows ${BANDS.bottom}`,
+    bandStats.bottom.white === 0 &&
+      bandStats.bottom.orange === 0 &&
+      bandStats.bottom.dark === 0,
+    `white ${bandStats.bottom.white}px, orange ${bandStats.bottom.orange}px, dark ${bandStats.bottom.dark}px in rows ${BANDS.bottom}`,
+  );
+  check(
+    `${label}: no dark ink outside the route band (casing only)`,
+    bandStats.logo.dark === 0 &&
+      bandStats.gapRouteLogo.dark === 0 &&
+      bandStats.gapLogoStats.dark === 0 &&
+      bandStats.stats.dark === 0 &&
+      bandStats.gapStatsIcon.dark === 0 &&
+      bandStats.icon.dark === 0 &&
+      bandStats.bottom.dark === 0,
+    `dark px — logo ${bandStats.logo.dark}, stats ${bandStats.stats.dark}, icon ${bandStats.icon.dark}`,
   );
   check(
     `${label}: white artwork total sane (logo + stats + icon)`,
@@ -345,8 +414,9 @@ const pageReport = () =>
       const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const isOrange = (r, g, b, a) => a > 200 && r > 220 && g > 30 && g < 130 && b < 60;
       const isWhite = (r, g, b, a) => a > 200 && r > 230 && g > 230 && b > 230;
+      const isDark = (r, g, b, a) => a > 200 && r < 40 && g < 40 && b < 40;
       const bandStats = {};
-      for (const name of Object.keys(BANDS)) bandStats[name] = { white: 0, orange: 0 };
+      for (const name of Object.keys(BANDS)) bandStats[name] = { white: 0, orange: 0, dark: 0 };
       const whiteBBox = { logo: null, icon: null, stats: null };
       const track = (name, x, y) => {
         const bb = whiteBBox[name];
@@ -361,11 +431,16 @@ const pageReport = () =>
       const columnCounts = [0, 0, 0];
       let orangeTotal = 0;
       let whiteTotal = 0;
+      let darkTotal = 0;
       let transparent = 0;
       let routeMinX = W;
       let routeMaxX = 0;
       let routeMinY = H;
       let routeMaxY = 0;
+      let darkMinX = W;
+      let darkMaxX = 0;
+      let darkMinY = H;
+      let darkMaxY = 0;
       for (let y = 0; y < H; y += 1) {
         const inBand = {};
         for (const [name, [y0, y1]] of Object.entries(BANDS)) {
@@ -380,18 +455,27 @@ const pageReport = () =>
           if (a < 16) transparent += 1;
           const white = isWhite(r, g, b, a);
           const orange = isOrange(r, g, b, a);
+          const dark = isDark(r, g, b, a);
           if (white) whiteTotal += 1;
           if (orange) orangeTotal += 1;
+          if (dark) darkTotal += 1;
           if (orange) {
             if (x < routeMinX) routeMinX = x;
             if (x > routeMaxX) routeMaxX = x;
             if (y < routeMinY) routeMinY = y;
             if (y > routeMaxY) routeMaxY = y;
           }
+          if (dark) {
+            if (x < darkMinX) darkMinX = x;
+            if (x > darkMaxX) darkMaxX = x;
+            if (y < darkMinY) darkMinY = y;
+            if (y > darkMaxY) darkMaxY = y;
+          }
           for (const name of Object.keys(BANDS)) {
             if (!inBand[name]) continue;
             if (white) bandStats[name].white += 1;
             if (orange) bandStats[name].orange += 1;
+            if (dark) bandStats[name].dark += 1;
           }
           if (white) {
             if (inBand.logo) track("logo", x, y);
@@ -414,10 +498,15 @@ const pageReport = () =>
         columnCounts,
         orangeTotal,
         whiteTotal,
+        darkTotal,
         transparent,
         routeBBox:
           orangeTotal > 0
             ? { minX: routeMinX, maxX: routeMaxX, minY: routeMinY, maxY: routeMaxY }
+            : null,
+        darkBBox:
+          darkTotal > 0
+            ? { minX: darkMinX, maxX: darkMaxX, minY: darkMinY, maxY: darkMaxY }
             : null,
       };
     },

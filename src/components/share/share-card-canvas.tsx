@@ -4,9 +4,10 @@
  *
  * Props are the spec's contract: the route polyline plus the three
  * pre-formatted stat values. The component owns the 1080×1920 canvas
- * (solid #000000 background — the hairline ring is preview-only
- * chrome so the black card reads against the dark stage; the PNG
- * export is ring-free) and repaints whenever the props change —
+ * (transparent background — the PNG carries alpha; the hairline ring
+ * is preview-only chrome so the transparent card reads against the
+ * dark stage; the PNG export is ring-free) and repaints whenever the
+ * props change —
  * after awaiting the card's Montserrat faces, so the preview is
  * always what the PNG export will contain (same painter, same
  * scale-1 spec; the export only raises the backing resolution).

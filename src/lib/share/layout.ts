@@ -7,7 +7,7 @@
  * 1080×1920 (9:16) Strava-style share card, in card units:
  *
  *   ┌───────────────────────────────────────────┐
- *   │ #000000 background (opaque)               │
+ *   │ transparent background (the PNG has alpha) │
  *   │ ┌───────────────────────────────────────┐ │
  *   │ │ route, contained (incl. 16px casing)  │ │ ← visible box
  *   │ │ x 64–1012, y 219–1190                 │ │   948×971
@@ -46,7 +46,13 @@
  *     x 220 / 540 / 857 (text centered per column);
  *   - shoe: 104×104 slot, top 1605, ink contained (aspect preserved)
  *     and centered in the slot;
- *   - background: solid #000000 — the PNG is fully opaque.
+ *   - background: transparent — no fill is painted, the PNG carries
+ *     alpha (Task 41: the download is transparent again, matching
+ *     what the share views' "shown on dark" note always claimed;
+ *     Task 23's solid #000000 matched the reference image's card
+ *     but made that note a lie). The route's #000000 casing is
+ *     visible ink on the transparent card — the line's outline on
+ *     any backdrop;
  *
  * The vertical rhythm those anchors imply (asserted by tests, not
  * re-derived): route bottom 1190 —90→ logo 1280 —87→ stats 1422
@@ -124,8 +130,15 @@ export const SHARE_CARD_TYPE = {
 
 /** Brand colors from the spec. */
 export const SHARE_CARD_COLORS = {
-  /** The card's solid background — the PNG is fully opaque. */
-  background: "#000000",
+  /**
+   * The card's background — "transparent" (Task 41, the user's
+   * call): the painter's background fill becomes a deliberate no-op,
+   * the PNG export carries alpha, and the route's black casing
+   * reads as the line's outline on any backdrop. Task 23 had pinned
+   * solid #000000 (fully opaque) to match the reference card image;
+   * setting a color here restores that in one token.
+   */
+  background: "transparent",
   /** The route's top pass. */
   route: "#FC4C02",
   /** The route's casing (under-stroke) pass. */

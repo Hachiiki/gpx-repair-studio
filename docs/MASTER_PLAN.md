@@ -821,8 +821,10 @@ Per instruction, implementation has **not** begun. No Phase 1 work has been perf
 
 A second destination for an uploaded file, added after Phase 7 at the
 user's request: a Strava-style activity share graphic — the route on a
-solid-black 1080×1920 (9:16) canvas (transparent until the Task 23
-revision, black per the reference card since), the STRAVA wordmark, a
+transparent 1080×1920 (9:16) canvas whose PNG carries alpha (black
+per the reference card during Tasks 23–40, transparent again since
+Task 41 — the user's call, matching what the share views' "shown on
+dark" note always claimed), the STRAVA wordmark, a
 Distance / Pace / Time stats row, and a running-shoe icon — previewed
 in-app and exported as a PNG (1× per the spec, 2× optional).
 
@@ -890,9 +892,13 @@ time). Pinned by `tests/stats-panel-reimport.test.tsx`.
 
 The card's geometry was revised three times against the user's
 reference card; **Task 23 is the operative spec** (Tasks 21–22 are
-historical), with one later revision: **Task 40 un-squashes the
+historical), with two later revisions: **Task 40 un-squashes the
 STRAVA wordmark** (the user's call — the SVG keeps its own
-proportions).
+proportions), and **Task 41 restores the transparent background**
+(the download carries alpha again — what the share views'
+"Transparent background — shown on dark" note had claimed all
+along; Task 23's solid #000000 matched the reference image but
+contradicted that note).
 
 - **Anchor-based, not derived.** Every position is a measured
   constant from the reference, pinned exactly (the lesson of the
@@ -901,8 +907,9 @@ proportions).
   inset by the casing half-width so the stroked ink cannot cross it);
   wordmark box 330×55 at top 1280, centered; stats top 1422, column
   centers 220 / 540 / 857, label 29px SemiBold over value 40px
-  ExtraBold with a 9px gap; shoe slot 104×104 at top 1605; solid
-  #000000 background (fully opaque export). The implied rhythm —
+  ExtraBold with a 9px gap; shoe slot 104×104 at top 1605;
+  transparent background — the PNG carries alpha (Task 41). The
+  implied rhythm —
   90 / 87 / ~90 gaps, content ending at 1709 with ~211px empty — is
   asserted by tests rather than used as an input.
 - **Ink-based artwork placement.** The layout consumes each artwork's
@@ -916,11 +923,16 @@ proportions).
   flatness; the user rejected the squeeze — the SVG stands as it
   is, and the height binding keeps the measured vertical rhythm
   (90/87 gaps) exact.
-- **Casing on black.** The 16px #000000 casing pass stays under the
-  10px #FC4C02 route (spec-mandated) but is invisible against the
-  black background; pixel-level casing assertions were retired with
-  the transparent background, and the geometry (fit-box inset) is
-  pinned by unit tests instead.
+- **Casing as outline (Task 41).** The 16px #000000 casing pass
+  stays under the 10px #FC4C02 route (spec-mandated) and is now
+  VISIBLE ink — the background is transparent, so the casing reads
+  as the route's outline on any backdrop (and disappears only on
+  genuinely black ones). Task 23's solid-black interim had made it
+  black-on-black and unprobeable, which retired its pixel
+  assertions; Task 41's transparency restores both the ink and the
+  assertions (the e2e asserts the casing's dark-ink share, and the
+  live verify script probes its bbox plus its absence outside the
+  route band).
 
 ---
 
