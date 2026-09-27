@@ -930,6 +930,9 @@ Work Log:
 - VLM critiques (7): review card with elevation PASS ×3 points; warning dialog PASS ×3; share view PASS ×3; mobile PASS ×2 with one flag — a round "N" button bottom-left that turned out to be the Next.js dev-tools indicator inside the nextjs-portal SHADOW ROOT (invisible to regular DOM queries), present on every dev page, absent in production. Not a defect.
 - Committed 6adfa10 (feature, 19 files) + QA evidence; pushed to main.
 
+- Production verification round 2 (after the cap): the SAME world-scale drawing (three clicks at world view, 22,416 km) now finishes into a 5,829-point review instantly; header Share → confirm → GPX download + share view with the painted card → back to review, all in seconds; VLM critique 3/3 PASS (scripts/qa/task39-critique-8.json, screenshot task39-12); zero page errors. Production evidence committed 2ecd881.
+- Hot fix during production QA: the first world-scale share confirm hung the tab for minutes (661k generated points through the DOM XML serializer + the share-card painter) — the create map starts at world view, so continent-scale draws are reachable. fix(create): MAX_CREATE_TRACK_POINTS = 6000 — beyond the budget the chain is decimated (every k-th point, first + last kept); the polyline is visually identical at that scale, cumDistanceM (the distance basis) is untouched, and export/timestamps/painter/elevation all stay fast. +2 unit tests (budget + distance intact + exact timestamp span; city-scale identity). 936/936 unit, 10/10 create e2e re-run green. Committed 8353e16.
+
 Stage Summary:
 - The Create studio now calculates elevation: opt-in, privacy-gated, real DEM terrain on the drawn route, exported as labeled <ele> with attribution, and honestly excluded the moment the route or basis changes under it.
 - The header Share button (create only): warn → export the GPX → share card view (same painter as the repair card), with a one-click way back to the review.
