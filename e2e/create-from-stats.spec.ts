@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { abortRoadRouting } from "./helpers/road-follow";
 
@@ -21,9 +21,18 @@ import { abortRoadRouting } from "./helpers/road-follow";
  *   6. no warning at all when the drawn route matches the recording
  *      (inside the 2% notice ratio);
  *   7. "Edit route" returns to the drawing phase; "Back to statistics"
- *      prefills the form.
+ *      prefills the form;
+ *   8. the header's Share flow: the warning dialog gates "export the
+ *      GPX + open the share card" — confirm downloads the file and
+ *      opens the card view (trio = the review's numbers, PNG download,
+ *      back to the review);
+ *   9. elevation estimation: opt-in, disclosure-gated, `<ele>` + method
+ *      markers + attribution in the exported file — and honestly
+ *      EXCLUDED again after a distance-basis change stales it.
  *
- * Road routing is stubbed off (straight legs — deterministic geometry).
+ * Road routing is stubbed off (straight legs — deterministic geometry);
+ * the elevation API is route-mocked with a request log for the
+ * privacy assertion.
  */
 
 interface DrawSessionState {
@@ -201,6 +210,53 @@ function haversineM(
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+/**
+ * Mock the Open-Meteo Elevation API (the elevation spec's helper, made
+ * batch-stable): the route's FIRST point resolves 48 m and every later
+ * point 52 m — a single visible +4 m climb, however the client batches
+ * the requests (a per-request "first" would dip mid-route).
+ */
+function mockElevation(page: Page): { requests: string[] } {
+  const requests: string[] = [];
+  void page.route("**/api.open-meteo.com/**", async (route: Route) => {
+    const isFirstRequest = requests.length === 0;
+    requests.push(route.request().url());
+    const url = new URL(route.request().url());
+    const count = (url.searchParams.get("latitude") ?? "").split(",").length;
+    const elevation = Array.from({ length: count }, (_, i) =>
+      isFirstRequest && i === 0 ? 48 : 52,
+    );
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ elevation }),
+    });
+  });
+  return { requests };
+}
+
+/** Drive the workflow to the review card on the drawn-distance basis. */
+async function reachReview(page: Page) {
+  await page.goto("/");
+  await page.getByTestId("landing-mode-create").click();
+  await fillStats(page);
+  await page.getByTestId("begin-drawing-button").click();
+
+  await expect(page.getByTestId("create-section")).toBeVisible();
+  await pollBridge(
+    page,
+    (s) => s.drawSession !== null && s.drawSession.drawMode === true,
+  );
+  await drawRoute(page, ROUTE_POINTS);
+
+  await page.getByTestId("finish-route-button").click();
+  const dialog = page.getByTestId("reconcile-distance-dialog");
+  await expect(dialog).toBeVisible();
+  await page.getByTestId("use-drawn-distance-button").click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByTestId("route-review-card")).toBeVisible();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -463,5 +519,179 @@ test.describe("create from activity stats", () => {
       page.getByLabel("Distance recorded by your watch"),
     ).toHaveValue("5.23");
     await expect(page.getByLabel("Total time minutes")).toHaveValue("32");
+  });
+
+  test("the header's Share: warning first, then the GPX download + the share card", async ({
+    page,
+  }) => {
+    await reachReview(page);
+
+    // The Share button lives in the header exactly when the review does.
+    const shareButton = page.getByTestId("header-create-share");
+    await expect(shareButton).toBeVisible();
+    await expect(shareButton).toContainText("Share card");
+
+    // Click → the warning dialog says exactly what will happen (the file
+    // name, the trio the card will show) — and nothing has downloaded.
+    await shareButton.click();
+    const dialog = page.getByTestId("create-share-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("activity-2026-09-20.gpx");
+    await expect(dialog).toContainText("4.51 km");
+    await expect(dialog).toContainText("32:35");
+    await expect(dialog).toContainText(/7:1\d \/km/);
+    await expect(dialog).toContainText("marked as reconstructed");
+
+    // Cancel is a full no-op: still in the review, nothing downloaded.
+    await page.getByTestId("create-share-cancel").click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByTestId("route-review-card")).toBeVisible();
+
+    // Confirm → the GPX downloads (the same contract as the Export
+    // button) and the share card view opens with the review's numbers.
+    await shareButton.click();
+    await expect(dialog).toBeVisible();
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("create-share-confirm").click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("activity-2026-09-20.gpx");
+    const xml = readFileSync(await download.path(), "utf8");
+    const { trkpts, times } = parseDownload(xml);
+    expectValidGpx(xml, trkpts, times);
+
+    await expect(page.getByTestId("create-share-section")).toBeVisible();
+    await expect(page.getByTestId("route-review-card")).toHaveCount(0);
+    // The header now offers the way back.
+    await expect(page.getByTestId("header-create-back")).toBeVisible();
+    await expect(page.getByTestId("header-create-share")).toHaveCount(0);
+
+    // The trio is the review's own arithmetic (drawn basis).
+    await expect(
+      page.getByTestId("create-share-summary-distance"),
+    ).toContainText("4.51 km");
+    await expect(page.getByTestId("create-share-summary-time")).toContainText(
+      "32:35",
+    );
+    await expect(page.getByTestId("create-share-summary-pace")).toContainText(
+      /7:1\d \/km/,
+    );
+    // The card itself is on the stage, and the notes are honest.
+    await expect(page.getByTestId("share-card-canvas")).toBeVisible();
+    await expect(page.getByTestId("create-share-tools")).toContainText(
+      /reconstructed by hand/,
+    );
+
+    // The PNG downloads from the share view.
+    const [png] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("create-share-download").click(),
+    ]);
+    expect(png.suggestedFilename()).toBe(
+      "activity-2026-09-20.share-card.png",
+    );
+
+    // Back to review — same track, no re-draw, the map returns.
+    await page.getByTestId("create-share-back").click();
+    await expect(page.getByTestId("route-review-card")).toBeVisible();
+    await expect(page.getByTestId("create-share-section")).toHaveCount(0);
+    await expect(page.getByTestId("header-create-share")).toBeVisible();
+  });
+
+  test("elevation estimation: opt-in, disclosure-gated, exported and labeled", async ({
+    page,
+  }) => {
+    const { requests } = mockElevation(page);
+    await reachReview(page);
+
+    // The elevation section is present with the opt-in button — and
+    // NOTHING has been sent (the disclosure gates every request).
+    await expect(page.getByTestId("elevation-controls")).toBeVisible();
+    await expect(page.getByTestId("elevation-estimate-button")).toBeVisible();
+    expect(requests).toHaveLength(0);
+
+    // The disclosure states what leaves (the track's points, Open-Meteo).
+    await page.getByTestId("elevation-estimate-button").click();
+    const disclosure = page.getByTestId("elevation-disclosure-dialog");
+    await expect(disclosure).toBeVisible();
+    await expect(disclosure).toContainText(/coordinates/);
+    await expect(disclosure).toContainText("Open-Meteo");
+    expect(requests).toHaveLength(0);
+
+    // Confirm → the requests fire against the FINAL track's points.
+    await page.getByTestId("elevation-disclosure-confirm").click();
+    await expect
+      .poll(() => requests.length, { timeout: 10_000 })
+      .toBeGreaterThanOrEqual(1);
+    expect(requests[0]).toContain("api.open-meteo.com/v1/elevation?latitude=");
+
+    // The summary lands: +4 m up (48 → 52), the estimated label, and the
+    // "file will carry" row states the elevation contract.
+    await expect(page.getByTestId("elevation-status-badge")).toContainText(
+      "Estimated",
+      { timeout: 10_000 },
+    );
+    const summary = page.getByTestId("elevation-gap-summary");
+    await expect(summary).toContainText("▲ 4 m");
+    await expect(summary).toContainText("48 m – 52 m");
+    await expect(page.getByTestId("summary-elevation-row")).toContainText(
+      "▲ 4 m",
+    );
+
+    // Export → the file carries <ele> on every point, an estimation
+    // method marker per point, and the attribution note. (Every point is
+    // an exact sample hit under the 400-point cap, so the methods read
+    // "elevation-api"; the interpolated label is covered by unit tests.)
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("export-gpx-button").click(),
+    ]);
+    const xml = readFileSync(await download.path(), "utf8");
+    const eleCount = (xml.match(/<ele>/g) ?? []).length;
+    const trkptCount = (xml.match(/<trkpt /g) ?? []).length;
+    const methodCount = (xml.match(/eleMethod="/g) ?? []).length;
+    expect(trkptCount).toBeGreaterThan(100);
+    expect(eleCount).toBe(trkptCount);
+    expect(methodCount).toBe(trkptCount);
+    expect(xml).toContain("<ele>48</ele>");
+    expect(xml).toContain("<ele>52</ele>");
+    expect(xml.match(/eleMethod="elevation-api"/g)?.length ?? 0).toBeGreaterThan(0);
+    expect(xml).toContain("estimated from Open-Meteo");
+  });
+
+  test("a distance-basis change stales the estimate — the export excludes it", async ({
+    page,
+  }) => {
+    const { requests } = mockElevation(page);
+    await reachReview(page);
+
+    // Estimate on the drawn basis (as above, compressed).
+    await page.getByTestId("elevation-estimate-button").click();
+    await expect(page.getByTestId("elevation-disclosure-dialog")).toBeVisible();
+    await page.getByTestId("elevation-disclosure-confirm").click();
+    await expect(page.getByTestId("elevation-status-badge")).toContainText(
+      "Estimated",
+      { timeout: 10_000 },
+    );
+    expect(requests.length).toBeGreaterThanOrEqual(1);
+
+    // Switch to the watch's distance — the shape scales, the estimate no
+    // longer describes the file's geometry: STALE, excluded, re-offered.
+    await page.getByTestId("match-distance-toggle").check();
+    await expect(page.getByTestId("elevation-status-badge")).toContainText(
+      "Stale",
+    );
+    const staleNote = page.getByTestId("elevation-stale-note");
+    await expect(staleNote).toContainText(/route changed since the estimate/);
+    await expect(page.getByTestId("summary-elevation-row")).toHaveCount(0);
+
+    // The export is honest: no <ele> at all until a re-estimate.
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("export-gpx-button").click(),
+    ]);
+    const xml = readFileSync(await download.path(), "utf8");
+    expect(xml).not.toContain("<ele>");
+    expect(xml).toContain("No elevation is included");
   });
 });

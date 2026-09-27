@@ -740,6 +740,13 @@ export interface GeneratedTrackPoint {
   timeMs: number;
   /** The estimation method the timestamp carries (marker attribute). */
   timeMethod: Estimated<number>["method"];
+  /**
+   * Estimated elevation, when the user opted into the terrain lookup —
+   * `elevation-api` at sample hits, `interpolated` between them. Omitted
+   * entirely when none was estimated (the honest default: the watch
+   * recorded none and none is invented).
+   */
+  ele?: Estimated<number>;
 }
 
 /** The input of {@link exportGpxGenerated}. */
@@ -762,8 +769,8 @@ export interface GeneratedGpxInput {
  * one segment, one `<trkpt>` per generated point, each with a `<time>` and
  * a `gpxr:reconstructed` provenance marker (the honesty invariant: every
  * point the app authored stays labeled as such, and re-importing into GPX
- * Repair Studio recognizes its own work). Elevation is deliberately
- * omitted — the watch recorded none, and none is invented.
+ * Repair Studio recognizes its own work). Elevation is included only when
+ * the caller estimated it (the opt-in terrain lookup) — never invented.
  *
  * Shares the coordinate/timestamp formatters, the gpxr schema, and the
  * pretty-printer with the repair exporters — one GPX emission module.
@@ -805,10 +812,12 @@ export function exportGpxGenerated(
   const segEl = doc.createElementNS(ns, "trkseg");
   for (const point of input.points) {
     // The same emission the repair exporter uses for its generated
-    // interiors — one implementation of "write a reconstructed point".
+    // interiors — one implementation of "write a reconstructed point"
+    // (elevation rides the same Estimated wrapper + marker attribute).
     appendReconstructedPoint(doc, segEl, ns, {
       lat: point.lat,
       lon: point.lon,
+      ...(point.ele !== undefined ? { ele: point.ele } : {}),
       time: { value: point.timeMs, method: point.timeMethod },
     });
   }

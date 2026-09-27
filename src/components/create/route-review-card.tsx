@@ -29,8 +29,10 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
+import { ElevationControls } from "@/components/reconstruction/elevation-controls";
 import { ConsistencyNote } from "@/components/create/consistency-note";
 import type { CreateReview } from "@/hooks/use-create-export";
+import type { ElevationControlsBinding } from "@/hooks/use-elevation";
 import type {
   ActivityStats,
   ConsistencyNotice,
@@ -39,6 +41,7 @@ import {
   formatDateTime,
   formatDistanceForUnit,
   formatDurationMs,
+  formatElevationMeters,
   formatPaceMs,
   type PaceUnit,
 } from "@/lib/utils/format";
@@ -50,6 +53,8 @@ export interface RouteReviewCardProps {
   paceUnit: PaceUnit;
   /** The confirmed statistics' cross-check verdict (null = consistent). */
   consistency: ConsistencyNotice | null;
+  /** The opt-in elevation estimate's controls (same UI as the repairs). */
+  elevation: ElevationControlsBinding;
   /** Leave the review → back to the map to keep drawing. */
   onEditRoute: () => void;
 }
@@ -59,6 +64,7 @@ export function RouteReviewCard({
   stats,
   paceUnit,
   consistency,
+  elevation,
   onEditRoute,
 }: RouteReviewCardProps) {
   const { track } = review;
@@ -204,13 +210,40 @@ export function RouteReviewCard({
             <dd className="font-semibold">
               Reconstructed manually — {track.pointCount} points
             </dd>
+            {elevation.summary && (
+              <>
+                <dt className="text-xs font-semibold text-muted-foreground">
+                  Elevation
+                </dt>
+                <dd
+                  className="flex flex-wrap items-baseline gap-2 font-semibold"
+                  data-testid="summary-elevation-row"
+                >
+                  ▲ {formatElevationMeters(elevation.summary.gainM)} ▼{" "}
+                  {formatElevationMeters(elevation.summary.lossM)}
+                  <ProvenanceBadge kind="estimated" />
+                </dd>
+              </>
+            )}
           </dl>
         </div>
 
+        {/*
+         * The opt-in terrain estimate — the same controls, disclosure,
+         * and staleness honesty the repair editors use (Phase 6), judged
+         * against the FINAL track (the current distance basis).
+         */}
+        <ElevationControls elevation={elevation} />
+
         <p className="text-[11px] leading-snug text-muted-foreground">
           Timestamps are estimated — your recorded total time, spread evenly by
-          effort along the route. No elevation is included: the watch recorded
-          none, and none is invented.
+          effort along the route. {elevation.summary ? (
+            <>Elevation is estimated from {elevation.providerName} terrain and
+            labeled as estimated in the file.{" "}</>
+          ) : (
+            <>No elevation is included: the watch recorded none, and none is
+            invented.</>
+          )}
         </p>
 
         {consistency && consistency.level !== "consistent" && (

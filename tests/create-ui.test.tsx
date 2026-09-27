@@ -26,8 +26,12 @@ import { ActivityStatsForm } from "@/components/create/activity-stats-form";
 import { CreateGuideCard } from "@/components/create/create-guide-card";
 import { RouteDrawPanel } from "@/components/create/route-draw-panel";
 import { RouteReviewCard } from "@/components/create/route-review-card";
+import { ShareCreateDialog } from "@/components/create/share-create-dialog";
+import { CreateShareView } from "@/components/create/create-share-view";
 import type { CreateDrawBinding } from "@/hooks/use-create-draw";
 import type { CreateReview } from "@/hooks/use-create-export";
+import type { ElevationControlsBinding } from "@/hooks/use-elevation";
+import type { CreateShareBinding } from "@/hooks/use-create-share";
 import type { ActivityStats } from "@/hooks/use-create-session";
 import { ReconcileDistanceDialog } from "@/components/create/reconcile-distance-dialog";
 import {
@@ -336,6 +340,31 @@ function scaledReviewBinding(): CreateReview {
   };
 }
 
+/** A not-fetched elevation binding — the review card's default state. */
+function elevationBinding(
+  overrides: Partial<ElevationControlsBinding> = {},
+): ElevationControlsBinding {
+  return {
+    canFetch: true,
+    blockedReason: null,
+    status: "not-fetched",
+    stale: false,
+    fetching: false,
+    answered: 0,
+    sent: 0,
+    total: 0,
+    resolved: 0,
+    disclosure: { sentPoints: 181, totalPoints: 181, requestCount: 2 },
+    providerName: "Open-Meteo",
+    attribution: "Open-Meteo",
+    privacyNote: "Coordinates are sent over HTTPS.",
+    summary: null,
+    error: null,
+    confirmFetch: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe("RouteReviewCard", () => {
   it("defaults to the drawn distance — the watch's is an unchecked choice", () => {
     const review = reviewBinding();
@@ -345,6 +374,7 @@ describe("RouteReviewCard", () => {
         stats={STATS}
         paceUnit="km"
         consistency={null}
+        elevation={elevationBinding()}
         onEditRoute={() => {}}
       />,
     );
@@ -367,6 +397,7 @@ describe("RouteReviewCard", () => {
         stats={STATS}
         paceUnit="km"
         consistency={null}
+        elevation={elevationBinding()}
         onEditRoute={() => {}}
       />,
     );
@@ -395,6 +426,7 @@ describe("RouteReviewCard", () => {
         stats={STATS}
         paceUnit="km"
         consistency={null}
+        elevation={elevationBinding()}
         onEditRoute={() => {}}
       />,
     );
@@ -418,6 +450,7 @@ describe("RouteReviewCard", () => {
         stats={STATS}
         paceUnit="km"
         consistency={null}
+        elevation={elevationBinding()}
         onEditRoute={onEditRoute}
       />,
     );
@@ -458,6 +491,7 @@ describe("RouteReviewCard", () => {
         stats={STATS}
         paceUnit="km"
         consistency={null}
+        elevation={elevationBinding()}
         onEditRoute={() => {}}
       />,
     );
@@ -549,5 +583,249 @@ describe("ReconcileDistanceDialog", () => {
     const hint = screen.getByTestId("reconcile-extreme-hint");
     expect(hint).toHaveTextContent(/km\/miles mixup/);
     expect(hint).toHaveTextContent(/missed loop/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RouteReviewCard — elevation (the opt-in terrain estimate)
+// ---------------------------------------------------------------------------
+
+describe("RouteReviewCard elevation", () => {
+  it("offers the opt-in estimate (disclosure-gated) while none exists", () => {
+    const confirmFetch = vi.fn();
+    render(
+      <RouteReviewCard
+        review={reviewBinding()}
+        stats={STATS}
+        paceUnit="km"
+        consistency={null}
+        elevation={elevationBinding({ confirmFetch })}
+        onEditRoute={() => {}}
+      />,
+    );
+
+    // The honest default note: nothing estimated, nothing invented.
+    expect(screen.getByTestId("elevation-controls")).toBeVisible();
+    expect(screen.getByTestId("elevation-status-badge")).toHaveTextContent(
+      "Not estimated",
+    );
+    expect(screen.queryByTestId("summary-elevation-row")).toBeNull();
+    expect(screen.getByText(/No elevation is included/)).toBeVisible();
+
+    // Opt-in → the disclosure states what leaves, confirm runs the fetch.
+    fireEvent.click(screen.getByTestId("elevation-estimate-button"));
+    const disclosure = screen.getByTestId("elevation-disclosure-dialog");
+    expect(disclosure).toBeVisible();
+    expect(disclosure).toHaveTextContent("181 coordinates");
+    expect(disclosure).toHaveTextContent("Open-Meteo");
+    expect(confirmFetch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("elevation-disclosure-confirm"));
+    expect(confirmFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries a fresh estimate in the summary with the estimated label", () => {
+    render(
+      <RouteReviewCard
+        review={reviewBinding()}
+        stats={STATS}
+        paceUnit="km"
+        consistency={null}
+        elevation={elevationBinding({
+          status: "complete",
+          summary: { minEleM: 48, maxEleM: 52, gainM: 4, lossM: 0 },
+        })}
+        onEditRoute={() => {}}
+      />,
+    );
+
+    const row = screen.getByTestId("summary-elevation-row");
+    expect(row).toHaveTextContent("▲ 4 m");
+    expect(row).toHaveTextContent("▼ 0 m");
+    // The detail block carries the range + provider; the honest note
+    // switches from "none is invented" to the attribution.
+    expect(screen.getByTestId("elevation-gap-summary")).toHaveTextContent(
+      "48 m – 52 m",
+    );
+    expect(screen.getByText(/estimated from Open-Meteo terrain/)).toBeVisible();
+  });
+
+  it("offers a re-estimate when the estimate went stale", () => {
+    render(
+      <RouteReviewCard
+        review={reviewBinding()}
+        stats={STATS}
+        paceUnit="km"
+        consistency={null}
+        elevation={elevationBinding({ status: "stale", stale: true })}
+        onEditRoute={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("elevation-stale-note")).toBeVisible();
+    expect(screen.getByTestId("elevation-stale-note")).toHaveTextContent(
+      /route changed since the estimate/,
+    );
+    expect(screen.queryByTestId("summary-elevation-row")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ShareCreateDialog (the header Share gate)
+// ---------------------------------------------------------------------------
+
+describe("ShareCreateDialog", () => {
+  const content = {
+    distance: "4.51 km",
+    pace: "7:14 /km",
+    time: "32:35",
+    notes: ["Route reconstructed by hand."],
+    includesEstimatedElevation: false,
+  };
+
+  it("says exactly what will happen and dispatches confirm", () => {
+    const onConfirm = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <ShareCreateDialog
+        open
+        onOpenChange={onOpenChange}
+        fileName="activity-2026-09-20.gpx"
+        content={content}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    const dialog = screen.getByTestId("create-share-dialog");
+    expect(dialog).toBeVisible();
+    // The two steps, named: the GPX download and the share card.
+    expect(dialog).toHaveTextContent("activity-2026-09-20.gpx");
+    expect(dialog).toHaveTextContent(
+      /same file the Export button produces/,
+    );
+    expect(dialog).toHaveTextContent("4.51 km");
+    expect(dialog).toHaveTextContent("7:14 /km");
+    expect(dialog).toHaveTextContent("32:35");
+    expect(dialog).not.toHaveTextContent(/including the estimated elevation/);
+
+    fireEvent.click(screen.getByTestId("create-share-confirm"));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancel is a full no-op", () => {
+    const onConfirm = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <ShareCreateDialog
+        open
+        onOpenChange={onOpenChange}
+        fileName="activity-2026-09-20.gpx"
+        content={content}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("create-share-cancel"));
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("mentions the estimated elevation when the file carries it", () => {
+    render(
+      <ShareCreateDialog
+        open
+        onOpenChange={() => {}}
+        fileName="activity-2026-09-20.gpx"
+        content={{ ...content, includesEstimatedElevation: true }}
+        onConfirm={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("create-share-dialog")).toHaveTextContent(
+      /including the estimated elevation/,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CreateShareView
+// ---------------------------------------------------------------------------
+
+function shareBinding(
+  overrides: Partial<CreateShareBinding> = {},
+): CreateShareBinding {
+  return {
+    content: {
+      distance: "4.51 km",
+      pace: "7:14 /km",
+      time: "32:35",
+      notes: [
+        "Route reconstructed by hand from the statistics your watch recorded.",
+        "Distance is the route you drew.",
+      ],
+      includesEstimatedElevation: false,
+    },
+    spec: {
+      routePolyline: [
+        [
+          { lat: 52.52, lon: 13.405 },
+          { lat: 52.53, lon: 13.455 },
+        ],
+      ],
+      distance: "4.51 km",
+      pace: "7:14 /km",
+      time: "32:35",
+    },
+    paceUnit: "km",
+    setPaceUnit: () => {},
+    downloadPng: () => {},
+    ...overrides,
+  };
+}
+
+describe("CreateShareView", () => {
+  it("renders the stage, the card canvas, and the trio", () => {
+    render(
+      <CreateShareView share={shareBinding()} onBackToReview={() => {}} />,
+    );
+
+    expect(screen.getByTestId("create-share-section")).toBeVisible();
+    expect(screen.getByTestId("create-share-stage")).toBeVisible();
+    expect(screen.getByTestId("share-card-canvas")).toBeInTheDocument();
+    expect(screen.getByTestId("create-share-summary-distance")).toHaveTextContent(
+      "4.51 km",
+    );
+    expect(screen.getByTestId("create-share-summary-pace")).toHaveTextContent(
+      "7:14 /km",
+    );
+    expect(screen.getByTestId("create-share-summary-time")).toHaveTextContent(
+      "32:35",
+    );
+    // The honest notes say what the activity is.
+    expect(screen.getByTestId("create-share-tools")).toHaveTextContent(
+      /reconstructed by hand/,
+    );
+    expect(screen.getByTestId("create-share-tools")).toHaveTextContent(
+      /Distance is the route you drew/,
+    );
+  });
+
+  it("downloads the PNG at the selected scale and bridges back", () => {
+    const downloads: number[] = [];
+    const back: string[] = [];
+    render(
+      <CreateShareView
+        share={shareBinding({ downloadPng: (scale) => downloads.push(scale) })}
+        onBackToReview={() => back.push("review")}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("create-share-download"));
+    expect(downloads).toEqual([1]);
+
+    fireEvent.click(screen.getByTestId("create-share-scale-2x"));
+    fireEvent.click(screen.getByTestId("create-share-download"));
+    expect(downloads).toEqual([1, 2]);
+
+    fireEvent.click(screen.getByTestId("create-share-back"));
+    expect(back).toEqual(["review"]);
   });
 });

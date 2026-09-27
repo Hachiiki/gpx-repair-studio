@@ -101,6 +101,7 @@ export function AppShell() {
   const recoveryError = useRecoveryStore((s) => s.error);
   const createPhase = useCreateStore((s) => s.phase);
   const createStats = useCreateStore((s) => s.stats);
+  const createView = useCreateStore((s) => s.view);
   const section: AppSection =
     createPhase !== "form"
       ? "create"
@@ -151,6 +152,23 @@ export function AppShell() {
         onSwitchView={session.setView}
         section={section}
         resetLabel={section === "create" ? "Start over" : undefined}
+        /*
+         * The create section's Share flow: the header button appears
+         * in the review phase (a finishable route exists) and opens the
+         * warning dialog; from the share view it becomes the way back.
+         */
+        onShare={
+          section === "create" &&
+          createPhase === "review" &&
+          createView === "studio"
+            ? () => useCreateStore.getState().openShareDialog()
+            : undefined
+        }
+        onLeaveShare={
+          section === "create" && createView === "share"
+            ? () => useCreateStore.getState().setView("studio")
+            : undefined
+        }
       />
 
       <main

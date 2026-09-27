@@ -155,3 +155,76 @@ describe("exportGpxGenerated — the app's own parser accepts it back", () => {
     expect(parsed.data.repairMarkers).toHaveLength(3);
   });
 });
+
+describe("exportGpxGenerated — estimated elevation (the opt-in terrain join)", () => {
+  /** The same three points, carrying an estimated elevation profile. */
+  function elevatedPoints(): GeneratedTrackPoint[] {
+    return points().map((point, index) => ({
+      ...point,
+      ele:
+        index === 1
+          ? { value: 50, method: "interpolated" as const }
+          : { value: 48 + index * 2, method: "elevation-api" as const },
+    }));
+  }
+
+  it("emits <ele> and the eleMethod marker on every estimated point", () => {
+    const xml = exportGpxGenerated(
+      {
+        trackName: "Reconstructed activity",
+        description: "A test reconstruction.",
+        points: elevatedPoints(),
+      },
+      io,
+    );
+    expect(xml.match(/<ele>/g)).toHaveLength(3);
+    expect(xml).toContain("<ele>48</ele>");
+    expect(xml).toContain("<ele>50</ele>");
+    expect(xml).toContain("<ele>52</ele>");
+    expect(xml.match(/eleMethod="elevation-api"/g)).toHaveLength(2);
+    expect(xml.match(/eleMethod="interpolated"/g)).toHaveLength(1);
+    // The provenance marker is still on every point.
+    expect(xml.match(/gpxr:reconstructed/g)).toHaveLength(3);
+  });
+
+  it("round-trips the elevations back through the parser", () => {
+    const xml = exportGpxGenerated(
+      {
+        trackName: "Reconstructed activity",
+        description: "A test reconstruction.",
+        points: elevatedPoints(),
+      },
+      io,
+    );
+    const parsed = parseGpx(xml, io);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const segment = parsed.data.segments[0];
+    expect(segment.points.map((p) => p.ele)).toEqual([48, 50, 52]);
+    // The estimation methods ride the provenance markers home (§H-7) —
+    // the file never presents estimated terrain as a recording.
+    const markers = parsed.data.repairMarkers ?? [];
+    expect(markers.map((m) => m.eleMethod)).toEqual([
+      "elevation-api",
+      "interpolated",
+      "elevation-api",
+    ]);
+  });
+
+  it("omits elevation entirely when none was estimated (mixed input)", () => {
+    const mixed = points().map((point, index) =>
+      index === 1 ? { ...point, ele: { value: 50, method: "interpolated" as const } } : point,
+    );
+    const xml = exportGpxGenerated(
+      {
+        trackName: "Reconstructed activity",
+        description: "A test reconstruction.",
+        points: mixed,
+      },
+      io,
+    );
+    // Only the point that carried a value gets an <ele> — per-point honesty.
+    expect(xml.match(/<ele>/g)).toHaveLength(1);
+    expect(xml).toContain("<ele>50</ele>");
+  });
+});

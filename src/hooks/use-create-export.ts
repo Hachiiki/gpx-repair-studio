@@ -11,6 +11,13 @@
  * their watch's number, and the recorded duration distributed across
  * the points by movement along the route.
  *
+ * Elevation joins at DOWNLOAD time: the opt-in terrain estimate (see
+ * `useCreateElevation`) is read fresh from the store at click time —
+ * `<ele>` values + `eleMethod` markers and the attribution note ride
+ * along only while the estimate matches the current basis; a stale or
+ * absent estimate exports a file with no elevation at all, never a
+ * fabricated one.
+ *
  * "Create from activity stats" section. Client-side hook.
  */
 
@@ -23,6 +30,10 @@ import {
   type CreateTrack,
 } from "@/features/create/track";
 import { exportGpxGenerated } from "@/features/gpx/exportGpx";
+import {
+  createPointElevation,
+  readFreshCreateElevation,
+} from "@/hooks/use-create-elevation";
 import { createDomXmlIo } from "@/lib/utils/xml";
 import { downloadTextFile } from "@/lib/utils/download";
 import { useCreateStore } from "@/state/create-store";
@@ -68,20 +79,33 @@ export function useCreateExport(): CreateReview | null {
 
   const download = useCallback((): string | null => {
     if (!stats || !track) return null;
+    // The click-time elevation join: rebuilt fresh from the store and
+    // judged against the CURRENT basis — or nothing (the honest rule: a
+    // stale estimate never exports).
+    const elevation = readFreshCreateElevation();
+    const points = track.path.map((point, index) => {
+      const ele = createPointElevation(elevation, point.cumDistanceM);
+      return {
+        lat: point.lat,
+        lon: point.lon,
+        timeMs: track.times[index]?.value ?? stats.startMs,
+        timeMethod: track.times[index]?.method ?? "distance-proportional",
+        ...(ele !== undefined ? { ele } : {}),
+      };
+    });
+    const description =
+      "Route reconstructed by hand in GPX Repair Studio from activity " +
+      "statistics recorded by the watch (distance, pace, time). " +
+      "Timestamps are estimated from the recorded total time; no GPS " +
+      "was recorded. " +
+      (elevation
+        ? `Elevation of generated points estimated from ${elevation.providerName}.`
+        : "No elevation is included.");
     const xml = exportGpxGenerated(
       {
         trackName: "Reconstructed activity",
-        description:
-          "Route reconstructed by hand in GPX Repair Studio from activity " +
-          "statistics recorded by the watch (distance, pace, time). " +
-          "Timestamps are estimated from the recorded total time; no GPS " +
-          "was recorded and no elevation is included.",
-        points: track.path.map((point, index) => ({
-          lat: point.lat,
-          lon: point.lon,
-          timeMs: track.times[index]?.value ?? stats.startMs,
-          timeMethod: track.times[index]?.method ?? "distance-proportional",
-        })),
+        description,
+        points,
         ...(prettyPrint ? { prettyPrint } : {}),
       },
       createDomXmlIo(),

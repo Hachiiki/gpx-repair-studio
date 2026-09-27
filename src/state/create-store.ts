@@ -58,6 +58,13 @@ import { vertexId } from "@/types/ids";
 export type CreatePhase = "form" | "draw" | "review";
 
 /**
+ * The in-section view: the studio (map + draw panel / review card) or the
+ * share card (the review's companion view — same track, same numbers, a
+ * Strava-style graphic). Mirrors the repair session's `view` split.
+ */
+export type CreateView = "studio" | "share";
+
+/**
  * The default point spacing of the generated track — denser than the
  * repair editor's "off" default because a from-scratch file has no
  * recorded points to carry it; 25 m reads like a watch on a normal run.
@@ -71,6 +78,8 @@ function initialReconstruction() {
 interface CreateState {
   // -- phase + statistics ----------------------------------------------------
   phase: CreatePhase;
+  /** The in-section view (studio or share); share is reachable from review. */
+  view: CreateView;
   /** The confirmed statistics (null until the form submits). */
   stats: ActivityStats | null;
   /**
@@ -92,8 +101,25 @@ interface CreateState {
   /** Full reset — new activity, empty form (the header's "Start over"). */
   reset: () => void;
 
+  /** Switch the in-section view (studio ⇄ share; share only from review). */
+  setView: (view: CreateView) => void;
+  /** The header's Share intent — opens the warning dialog (review only). */
+  openShareDialog: () => void;
+  /** Close the warning dialog (no export, no view change). */
+  closeShareDialog: () => void;
+
+  /** The header's Share warning dialog (open state only). */
+  shareDialogOpen: boolean;
+
   // -- route slice (the drawn chain) -----------------------------------------
   reconstruction: ReturnType<typeof initialReconstruction>;
+  /**
+   * Monotonic session token — bumped by every full reset, kept by
+   * "Back to statistics" (same route, same session). Part of the
+   * elevation freshness signature: two different routes can land on the
+   * same geometryRevision/legs/basis tuple, but never on the same token.
+   */
+  sessionSeq: number;
   history: DrawHistory;
   /** Monotonic vertex-id allocator (never reused within a session). */
   vertexSeq: number;
@@ -132,12 +158,15 @@ interface CreateState {
 
 const INITIAL = {
   phase: "form" as CreatePhase,
+  view: "studio" as CreateView,
+  shareDialogOpen: false,
   stats: null as ActivityStats | null,
   consistency: null as ConsistencyNotice | null,
 
   reconstruction: initialReconstruction(),
   history: EMPTY_HISTORY,
   vertexSeq: 0,
+  sessionSeq: 0,
   roadLegs: [] as readonly RoadLeg[],
   roadRouting: { pending: 0, failed: false },
   drawMode: true,
@@ -155,20 +184,51 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       consistency: checkStatsConsistency(stats),
       phase: "draw",
       // A fresh entry starts on the map ready to click (the same contract
-      // as opening a repair editor).
+      // as opening a repair editor) — and in the studio view (a previous
+      // share visit can never leak into a new activity).
       drawMode: true,
+      view: "studio",
+      shareDialogOpen: false,
     }),
 
-  backToForm: () => set({ phase: "form", drawMode: false }),
+  backToForm: () =>
+    set({
+      phase: "form",
+      drawMode: false,
+      view: "studio",
+      shareDialogOpen: false,
+    }),
 
   finishRoute: () => {
     if (get().reconstruction.vertices.length < 2) return;
     set({ phase: "review", drawMode: false });
   },
 
-  editRoute: () => set({ phase: "draw", drawMode: true }),
+  editRoute: () =>
+    set({
+      phase: "draw",
+      drawMode: true,
+      view: "studio",
+      shareDialogOpen: false,
+    }),
 
-  reset: () => set({ ...INITIAL, reconstruction: initialReconstruction() }),
+  reset: () =>
+    set((state) => ({
+      ...INITIAL,
+      sessionSeq: state.sessionSeq + 1,
+      reconstruction: initialReconstruction(),
+    })),
+
+  setView: (view) => set({ view }),
+
+  openShareDialog: () =>
+    set((state) =>
+      state.phase === "review" && state.view === "studio"
+        ? { shareDialogOpen: true }
+        : state,
+    ),
+
+  closeShareDialog: () => set({ shareDialogOpen: false }),
 
   setDrawMode: (drawMode) => set({ drawMode }),
   setRoadFollow: (roadFollow) => set({ roadFollow }),

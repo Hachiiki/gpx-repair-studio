@@ -21,7 +21,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ImageUp, RotateCcw, Wrench } from "lucide-react";
+import { ArrowLeft, ImageUp, RotateCcw, Wrench } from "lucide-react";
 import { SHELL_CONTAINER } from "@/components/layout/shell-container";
 import { cn } from "@/lib/utils";
 import type { SessionStatus, SessionView } from "@/state/session-store";
@@ -46,6 +46,14 @@ export interface AppHeaderProps {
    * section has no file — it says "Start over".
    */
   resetLabel?: string;
+  /**
+   * Create section: open the share flow — the warning dialog that
+   * gates "export the GPX + open the share card". Provided (and so
+   * rendered) only in the review phase with the studio view active.
+   */
+  onShare?: () => void;
+  /** Create section: leave the share view, back to the route review. */
+  onLeaveShare?: () => void;
 }
 
 export function AppHeader({
@@ -56,6 +64,8 @@ export function AppHeader({
   onSwitchView,
   section = "repair",
   resetLabel = "New file",
+  onShare,
+  onLeaveShare,
 }: AppHeaderProps) {
   const showSession = status === "parsed" && fileName !== null;
 
@@ -94,6 +104,30 @@ export function AppHeader({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {section === "create" && onShare && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              data-testid="header-create-share"
+              onClick={onShare}
+            >
+              <ImageUp className="size-3.5" aria-hidden="true" />
+              Share card
+            </Button>
+          )}
+          {section === "create" && onLeaveShare && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              data-testid="header-create-back"
+              onClick={onLeaveShare}
+            >
+              <ArrowLeft className="size-3.5" aria-hidden="true" />
+              Back to review
+            </Button>
+          )}
           {section === "repair" && showSession && view === "share" && onSwitchView && (
             <Button
               variant="outline"

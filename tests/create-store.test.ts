@@ -92,6 +92,79 @@ describe("phase lifecycle", () => {
     expect(state.spacingM).toBe(DEFAULT_CREATE_SPACING_M);
     expect(state.history.undo).toHaveLength(0);
   });
+
+  it("reset advances the session token (elevation never inherits across activities)", () => {
+    const before = useCreateStore.getState().sessionSeq;
+    useCreateStore.getState().reset();
+    expect(useCreateStore.getState().sessionSeq).toBe(before + 1);
+    // Back-to-statistics retreats keep the token — same route, same session.
+    useCreateStore.getState().beginDrawing(STATS);
+    useCreateStore.getState().backToForm();
+    useCreateStore.getState().beginDrawing(STATS);
+    expect(useCreateStore.getState().sessionSeq).toBe(before + 1);
+  });
+});
+
+describe("view + share dialog (the in-section share flow)", () => {
+  function reachReview() {
+    useCreateStore.getState().beginDrawing(STATS);
+    useCreateStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
+    useCreateStore.getState().addVertex({ lat: 52.53, lon: 13.405 });
+    useCreateStore.getState().finishRoute();
+    expect(useCreateStore.getState().phase).toBe("review");
+  }
+
+  it("starts in the studio view and switches to share and back", () => {
+    expect(useCreateStore.getState().view).toBe("studio");
+    reachReview();
+
+    useCreateStore.getState().setView("share");
+    expect(useCreateStore.getState().view).toBe("share");
+    // The share dialog can't open from inside the share view.
+    useCreateStore.getState().openShareDialog();
+    expect(useCreateStore.getState().shareDialogOpen).toBe(false);
+
+    useCreateStore.getState().setView("studio");
+    expect(useCreateStore.getState().view).toBe("studio");
+  });
+
+  it("opens the share dialog only from the review phase, closes freely", () => {
+    useCreateStore.getState().beginDrawing(STATS);
+    useCreateStore.getState().openShareDialog();
+    expect(useCreateStore.getState().shareDialogOpen).toBe(false); // draw phase
+
+    useCreateStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
+    useCreateStore.getState().addVertex({ lat: 52.53, lon: 13.405 });
+    useCreateStore.getState().finishRoute();
+
+    useCreateStore.getState().openShareDialog();
+    expect(useCreateStore.getState().shareDialogOpen).toBe(true);
+    useCreateStore.getState().closeShareDialog();
+    expect(useCreateStore.getState().shareDialogOpen).toBe(false);
+  });
+
+  it("leaving the review (edit/form/reset) always returns to the studio view", () => {
+    reachReview();
+    useCreateStore.getState().setView("share");
+
+    useCreateStore.getState().editRoute();
+    expect(useCreateStore.getState().view).toBe("studio");
+
+    useCreateStore.getState().finishRoute();
+    useCreateStore.getState().setView("share");
+    useCreateStore.getState().backToForm();
+    expect(useCreateStore.getState().view).toBe("studio");
+
+    useCreateStore.getState().beginDrawing(STATS);
+    useCreateStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
+    useCreateStore.getState().addVertex({ lat: 52.53, lon: 13.405 });
+    useCreateStore.getState().finishRoute();
+    useCreateStore.getState().openShareDialog();
+    useCreateStore.getState().reset();
+    const state = useCreateStore.getState();
+    expect(state.view).toBe("studio");
+    expect(state.shareDialogOpen).toBe(false);
+  });
 });
 
 describe("vertex commands (the shared drawModel machinery)", () => {
