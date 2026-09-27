@@ -791,3 +791,27 @@ Stage Summary:
 - The mockup's share page now shows the app's own generated card 1:1 (same layout math, same artwork paths, same Montserrat faces, same flat rectangle + hairline ring); only the stage/rail/components around it carry the Field Plot redesign. The share.html header comment documents every card-unit anchor so future edits don't drift.
 - No app code touched (mockups only); test baseline unaffected.
 - Committed as its own change: "fix(mockups): share card graphic restored 1:1 — only the page around it is redesigned (Task 32)".
+
+---
+Task ID: 34
+Agent: Super Z (main agent)
+Task: Apply the approved Field Plot design (Task 31/32 mockups, user-approved) to the real app — a Task 30-style visual-only sweep with the share card painter frozen byte-identical.
+
+Work Log:
+- Foundation: fonts switched Geist → Archivo (UI) + Big Shoulders (display, opsz axis) + IBM Plex Mono (data) via next/font/google; Montserrat stays self-hosted for the share card painter only. Fixed the preflight scope issue by moving the font variables from <body> to <html> (body was silently falling back to the system stack before the fix — verified via computed styles + document.fonts).
+- globals.css: "Field Plot" tokens — graph-paper body field (28px ink-4% grid), radius scale (chip 3 / control 5 / card 10 / plate 12 via --radius 0.625rem), --border ink-20, neutral ink-alpha accent/secondary/muted (no more signal-tinted creams), --primary-foreground black (keycap text), shadow vocabulary (--shadow-key / --shadow-key-hover / --shadow-float / --shadow-lift), 2px signal focus-visible outline, MapLibre controls on the equipment frame (1.5px ink border + float shadow + ink hover).
+- Primitives: keycap buttons (orange fill, black text, 1.5px ink border, hard bottom edge; hover lifts 1px, active depresses 2px — replaces the 0.96 scale), dark keycap destructive, outline/ghost on ink hovers; flat 10px cards (shadow-sm removed) with Archivo-bold titles; 3px/1.25px chip badges; ink-ruled inputs (5px radius, signal focus + 2.5px halo); 17px signal checkboxes; alert strips (danger = inkplus border + ink-4 fill); dialog 12px ink-bordered surface; popover 10px; tooltip → inkplus surface with keycap-styled kbd.
+- App chrome: header 2px ink rule + solid paper, keycap-framed logo, Big Shoulders 21px wordmark, ink-divided file name; footer 1.5px ink-15 rule.
+- Landing: toggle = signal active segment with inset 1.5px ink ring; hero Big Shoulders clamp(42–62px); upload zone 2px dashed ink-35 with signal hover + 58px keycap icon tile (border-primary literal class preserved for the unit test); step cards 1.5px ink borders with lift hover + signal icon squares; "How it works" 32px display.
+- Map: plate 2px ink / 12px radius; toolbar rail consolidated onto one 1.5px ink + float-shadow rail with an equipment divider (active tool = signal + inset ink ring); legend paper/90 + blur; gap card 264px ink-bordered; distance badge with 26px Big Shoulders numeral; mode chip with keycap D/P squares; offline/pick strips on the signal field.
+- Rail: draw editor as the strong card (1.5px ink); boundary box (ink-3 fill, mono 10.5px coords); road-follow/time-strategy pills (active = inkplus solid, replacing variant toggles — testids/aria intact); ink-ruled readout box with 30px stenciled duration; 40px bigstat distance; vertex rows with numbered squares; rail buttons stacked per the mockup's 336/384px rule; ruled stat table (11.5px shade heads, bold values) + square-led provenance chips (Mixed = half-signal/half-ink square) + new "outline" severity tone (suspect = full ink border).
+- Details/share/recovery: kv rows ruled ink-8; section headings 30px Big Shoulders with signal squares; share stage = #222222 ink field with white plotting grid + 2px frame around the untouched card preview (painter diff empty); trio numerals 27px display; segpill unit/scale toggles with signal actives; recovery cards/titles on the same system.
+- Validation: typecheck clean, eslint clean, 823/823 unit, 54/54 e2e (full suite re-run after every layer; smoke re-run after the font-scope fix).
+- Visual QA (agent-browser + VLM, 7 critique rounds — all LOOKS CORRECT): landing, workspace, draw editor, stats/details, share, mobile 375 landing + workspace (no horizontal overflow), production editor. Screenshots download/task33-01..07 + task33-prod-01..04; critiques scripts/qa/task33-critique-1..7.json.
+- Committed acb7f31 (55 files, +724/−334) and pushed; production evidence committed as d9c4c34.
+- Production verification (https://gpx-repair-studio.vercel.app): Archivo/Big Shoulders computed live + graph-paper field rendering; time-gap.gpx upload → workspace + 1540 ink-route pixels; share stage renders the card with route-box y-anchors 0.116/0.616 vs the reference 0.116/0.618 (x-spread differs only because the fixture's route differs); draw editor chrome live; zero page errors.
+
+Stage Summary:
+- The approved Field Plot design is now the app: same structure, same DOM contract, same copy, 877-test baseline intact, share card painter byte-identical.
+- One real defect found and fixed during QA (body font fallback from the <html>/<body> variable scope) — everything else passed first-round critique.
+- Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
