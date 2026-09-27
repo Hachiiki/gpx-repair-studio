@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Yes, there is a map compass control (a round button with the letter \"N\") in the bottom-left corner. It is positioned so that it overlaps the bottom-left corner of the dark card (the \"stage\" showing the Strava graphic) and also slightly overlaps the light gray background area below it.\n\nHere is a description of what I see in the bottom 25% of the image, from top to bottom:\n\n1.  **The Lower Half of the Dark Card:** This area contains the white \"STRAVA\" logo, followed by activity statistics in two rows: \"Distance 6.73 km\", \"Pace 4:50 /km\", and \"Time 32:35\". Below that is a small white shoe icon.\n2.  **Footer Text:** At the very bottom inside the dark card, there is small text reading \"Transparent background — shown on dark\".\n3.  **The Compass Control:** A dark circular button with a white \"N\" is located at the bottom-left vertex of the image. It sits on top of the rounded corner of the black card and extends down onto the light gray background beneath it.\n\n**Overlap Assessment:** The compass button does appear to be overlapping the border of the dark card stage incorrectly. It looks like a floating UI element (likely for rotating or orienting a map view) that has been placed too far to the left or bottom, causing it to cover the edge of the preview card.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790504001,
+  "id": "2026092718131235d342657a924f60",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "2026092718131235d342657a924f60",
+  "usage": {
+    "completion_tokens": 296,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 403,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 699
+  }
+}

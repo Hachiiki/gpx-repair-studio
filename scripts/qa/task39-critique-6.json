@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "**YES**\n\nThere is a **round compass control button with the letter \"N\" (indicating North)** visible in the **bottom-left corner** of the map preview area. It appears as a dark circular button with a white \"N\" inside it, partially overlapping the bottom edge of the map container.\n\nNo other floating UI elements (such as zoom buttons, layer toggles, or location markers) are visible on the map in this screenshot.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790504077,
+  "id": "202609271814355b2400d4e3904f02",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "202609271814355b2400d4e3904f02",
+  "usage": {
+    "completion_tokens": 91,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 401,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 492
+  }
+}

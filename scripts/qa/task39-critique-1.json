@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "(1) **PASS**: The Elevation section is properly aligned with the summary table, maintains consistent vertical spacing, and shows no visual clipping or layout breaks.\n(2) **PASS**: The summary table rows (Distance, Time, Pace, Start, Route) are cleanly legible with consistent label/value alignment and appropriate use of the \"Estimated\" badge.\n(3) **PASS**: There is no text overlap or cut-off content; all elements within the card, including the elevation controls and footer notes, are fully contained and readable.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790503949,
+  "id": "20260927181226f34d5eae0f8c4b72",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260927181226f34d5eae0f8c4b72",
+  "usage": {
+    "completion_tokens": 109,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 2152,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2261
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "(1) **PASS**: The 9:16 card renders correctly with a visible orange route, legible white text, and no visual distortion on the dark stage.\n(2) **PASS**: The tools column is neatly aligned with clear sections for stats, resolution options, and navigation links without clutter.\n(3) **PASS**: There is no content overflow or overlap between the stage and the sidebar, and all UI elements are fully intact.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790503974,
+  "id": "20260927181252fbce4b1eb8e84a14",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260927181252fbce4b1eb8e84a14",
+  "usage": {
+    "completion_tokens": 90,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 2167,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2257
+  }
+}

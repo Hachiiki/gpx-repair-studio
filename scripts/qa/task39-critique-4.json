@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "(1) PASS: The 9:16 black card is contained within the 375px viewport width with visible padding and no horizontal overflow or cropping.\n(2) PASS: The tool cards (Back to review, Start over) are clearly legible, well-spaced, and uncluttered below the main content area.\n(3) FAIL: A minor UI defect is present where the \"N\" compass icon in the bottom-left corner overlaps the card's rounded border, appearing slightly misaligned.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790503982,
+  "id": "20260927181300cf0986e6d0c64b04",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260927181300cf0986e6d0c64b04",
+  "usage": {
+    "completion_tokens": 104,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 435,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 539
+  }
+}
