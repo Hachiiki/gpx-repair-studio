@@ -78,15 +78,16 @@ const DRAWN = [
 ];
 
 describe("Gap Recovery section", () => {
-  it("offers the recovery destination as the landing's third tab — no header switcher", () => {
+  it("offers the recovery destination as a landing tab — no header switcher", () => {
     render(<AppShell />);
 
-    // The toggle carries three mutually exclusive destinations.
+    // The toggle carries four mutually exclusive destinations (the
+    // create-from-stats tab joined in the create-section pass).
     const toggle = screen.getByTestId("landing-mode-toggle");
     expect(toggle).toHaveAttribute("role", "radiogroup");
     expect(
       toggle.querySelectorAll('[role="radio"]'),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
 
     // The Task-26 header section switcher is gone: the tab is the only door.
     expect(screen.queryByTestId("section-switcher")).toBeNull();

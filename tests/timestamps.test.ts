@@ -13,6 +13,7 @@ import {
   distributeTimestamps,
   MISSING_REASON,
   resolveGapTimePlan,
+  wholeActivityTimePlan,
   type DistributedTime,
   type GapTimePlan,
 } from "@/features/reconstruction/timestamps";
@@ -529,5 +530,75 @@ describe("resolveGapTimePlan — the pace-estimated source (Task 28, PE)", () =>
     for (let i = 1; i < values.length; i += 1) {
       expect(values[i]).toBeGreaterThan(values[i - 1]);
     }
+  });
+});
+
+describe("wholeActivityTimePlan (the create-from-stats source)", () => {
+  const START = Date.UTC(2026, 8, 20, 5, 30);
+  const DURATION = 1_955_000; // 32:35
+
+  it("builds a no-boundaries plan carrying the entered duration and start", () => {
+    const plan = wholeActivityTimePlan(DURATION, START);
+    expect(plan.boundaryCase).toBe("no-boundaries");
+    expect(plan.durationMs).toBe(DURATION);
+    expect(plan.durationSource).toBe("manual");
+    expect(plan.method).toBe("distance-proportional");
+    expect(plan.anchorStartMs).toBe(START);
+    expect(plan.anchoredByFileStart).toBe(true);
+    expect(plan.missingReason).toBeNull();
+  });
+
+  it("resolves unanchored when no start exists (times stay undefined)", () => {
+    const plan = wholeActivityTimePlan(DURATION, null);
+    expect(plan.anchorStartMs).toBeNull();
+    expect(plan.anchoredByFileStart).toBe(false);
+  });
+
+  it("stamps EVERY point of an anchor-less path: first = start, last = start + duration", () => {
+    const vertices = [
+      { lat: 52.52, lon: 13.405 },
+      { lat: 52.525, lon: 13.407 },
+      { lat: 52.53, lon: 13.41 },
+    ].map((p, i) => ({ id: vertexId(i + 1), ...p }));
+    const path = resamplePath(null, vertices, null, 25, []);
+    expect(path.some((p) => p.role === "before-anchor")).toBe(false);
+
+    const times = distributeTimestamps(path, wholeActivityTimePlan(DURATION, START));
+    expect(times).toHaveLength(path.length);
+    expect(times.every((t) => t !== undefined)).toBe(true);
+    const values = times.map((t) => t!.value);
+    expect(values[0]).toBe(START);
+    expect(values[values.length - 1]).toBe(START + DURATION);
+    for (let i = 1; i < values.length; i += 1) {
+      expect(values[i]).toBeGreaterThan(values[i - 1]);
+    }
+    // Every estimate carries its method (the honesty invariant).
+    expect(times.every((t) => t!.method === "distance-proportional")).toBe(true);
+  });
+
+  it("spreads by movement, not by index (the halfway point by distance ≈ half the duration)", () => {
+    const vertices = [
+      { lat: 52.52, lon: 13.405 },
+      { lat: 52.53, lon: 13.405 },
+    ].map((p, i) => ({ id: vertexId(i + 1), ...p }));
+    const path = resamplePath(null, vertices, null, 25, []);
+    const times = distributeTimestamps(path, wholeActivityTimePlan(DURATION, START));
+    const total = path[path.length - 1].cumDistanceM;
+    for (let i = 0; i < path.length; i += 1) {
+      const distanceFraction = path[i].cumDistanceM / total;
+      const timeFraction =
+        (times[i]!.value - START) / DURATION;
+      expect(timeFraction).toBeCloseTo(distanceFraction, 5);
+    }
+  });
+
+  it("leaves everything undefined without an anchor (statistics only)", () => {
+    const vertices = [
+      { lat: 52.52, lon: 13.405 },
+      { lat: 52.53, lon: 13.405 },
+    ].map((p, i) => ({ id: vertexId(i + 1), ...p }));
+    const path = resamplePath(null, vertices, null, "off", []);
+    const times = distributeTimestamps(path, wholeActivityTimePlan(DURATION, null));
+    expect(times.every((t) => t === undefined)).toBe(true);
   });
 });

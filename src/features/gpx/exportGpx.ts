@@ -53,6 +53,7 @@
 
 import type {
   AnchoredExtra,
+  Estimated,
   OriginalTrackData,
   OriginalTrackPoint,
   OriginalSegment,
@@ -362,11 +363,21 @@ function placeExtras(
   return placements;
 }
 
+/**
+ * The emission-relevant shape of one reconstructed/generated point
+ * (a structural subset — both `ReconstructedPoint`s and the generated
+ * exporter's lighter points satisfy it).
+ */
+type EmittableReconstructedPoint = Pick<
+  ReconstructedPoint,
+  "lat" | "lon" | "ele" | "time"
+>;
+
 function appendReconstructedPoint(
   doc: Document,
   segEl: Element,
   ns: string,
-  point: ReconstructedPoint,
+  point: EmittableReconstructedPoint,
 ): void {
   const ptEl = doc.createElementNS(ns, "trkpt");
   ptEl.setAttribute("lat", formatCoordinate(point.lat));
@@ -715,6 +726,97 @@ function appendMergedSegment(
   }
 
   trk.appendChild(segEl);
+}
+
+// ---------------------------------------------------------------------------
+// Generated export ("create from activity stats" — a GPX from nothing)
+// ---------------------------------------------------------------------------
+
+/** One track point of a generated activity. */
+export interface GeneratedTrackPoint {
+  lat: number;
+  lon: number;
+  /** Epoch ms — the distributed timestamp (never undefined here). */
+  timeMs: number;
+  /** The estimation method the timestamp carries (marker attribute). */
+  timeMethod: Estimated<number>["method"];
+}
+
+/** The input of {@link exportGpxGenerated}. */
+export interface GeneratedGpxInput {
+  /** Human track name (`<trk><name>`, metadata name). */
+  trackName: string;
+  /** Metadata description — the honesty note about the reconstruction. */
+  description: string;
+  /** The ordered track points (first = activity start). */
+  points: readonly GeneratedTrackPoint[];
+  /** Optional pretty-print (the shared export preference). */
+  prettyPrint?: boolean;
+}
+
+/**
+ * Serialize a generated activity as a standalone GPX 1.1 document.
+ *
+ * This is the "create from activity stats" exporter: there is no original
+ * file to re-emit, so it emits the full document from scratch — one track,
+ * one segment, one `<trkpt>` per generated point, each with a `<time>` and
+ * a `gpxr:reconstructed` provenance marker (the honesty invariant: every
+ * point the app authored stays labeled as such, and re-importing into GPX
+ * Repair Studio recognizes its own work). Elevation is deliberately
+ * omitted — the watch recorded none, and none is invented.
+ *
+ * Shares the coordinate/timestamp formatters, the gpxr schema, and the
+ * pretty-printer with the repair exporters — one GPX emission module.
+ * Deterministic: same input → same bytes.
+ */
+export function exportGpxGenerated(
+  input: GeneratedGpxInput,
+  io: XmlIo,
+): string {
+  const ns = GPX_NAMESPACE_11;
+  const doc = io.createDocument(ns, "gpx");
+  const root = doc.documentElement;
+
+  root.setAttribute("version", "1.1");
+  root.setAttribute("creator", "GPX Repair Studio");
+
+  const first = input.points[0];
+
+  // --- Metadata: name, the reconstruction note, the activity start -------
+  const metadata = doc.createElementNS(ns, "metadata");
+  appendTextElement(doc, metadata, ns, "name", input.trackName);
+  appendTextElement(doc, metadata, ns, "desc", input.description);
+  if (first !== undefined) {
+    appendTextElement(
+      doc,
+      metadata,
+      ns,
+      "time",
+      formatTimestamp(first.timeMs),
+    );
+  }
+  root.appendChild(metadata);
+
+  // --- Track: one segment, the generated points --------------------------
+  const trk = doc.createElementNS(ns, "trk");
+  appendTextElement(doc, trk, ns, "name", input.trackName);
+  appendTextElement(doc, trk, ns, "desc", input.description);
+
+  const segEl = doc.createElementNS(ns, "trkseg");
+  for (const point of input.points) {
+    // The same emission the repair exporter uses for its generated
+    // interiors — one implementation of "write a reconstructed point".
+    appendReconstructedPoint(doc, segEl, ns, {
+      lat: point.lat,
+      lon: point.lon,
+      time: { value: point.timeMs, method: point.timeMethod },
+    });
+  }
+  trk.appendChild(segEl);
+  root.appendChild(trk);
+
+  const body = input.prettyPrint ? prettySerialize(root, io) : io.serialize(root);
+  return `${XML_DECLARATION}\n${body}\n`;
 }
 
 // ---------------------------------------------------------------------------

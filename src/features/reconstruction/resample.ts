@@ -71,9 +71,14 @@ export type ResampleSpacing = (typeof RESAMPLE_SPACING_OPTIONS)[number] | "off";
  *
  * `after` may be null/absent (open-ended extension): the path then ends at
  * the last vertex and no after-anchor role appears.
+ *
+ * `before` may also be null/absent (the "create from activity stats"
+ * workflow): the path is then a pure user-drawn chain `[v0…vN]` with no
+ * anchor roles at all — every point is interior, which is exactly what a
+ * whole-activity time distribution needs (see timestamps.ts).
  */
 export function resamplePath(
-  before: LatLon,
+  before: LatLon | null | undefined,
   vertices: readonly DrawVertex[],
   after: LatLon | null | undefined,
   spacingM: number | "off",
@@ -81,7 +86,9 @@ export function resamplePath(
 ): PathPoint[] {
   const nodes: { point: LatLon; role: PathPoint["role"]; vertexId?: VertexId }[] =
     [
-      { point: before, role: "before-anchor" },
+      ...(before
+        ? [{ point: before, role: "before-anchor" as const }]
+        : []),
       ...vertices.map((vertex) => ({
         point: vertex as LatLon,
         role: "vertex" as const,

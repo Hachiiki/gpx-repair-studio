@@ -294,8 +294,13 @@ export type DrawClosingJoinFn = (from: LatLon, to: LatLon) => [number, number][]
 
 export interface DrawSessionOptions {
   gapId: string;
-  /** The near anchor the chain starts from (always present). */
-  anchors: { before: LatLon; after: LatLon | null };
+  /**
+   * The near anchor the chain starts from. Null for the "create from
+   * activity stats" workflow: with no recorded route there is nothing to
+   * attach to — the chain is purely the user-placed vertices (the first
+   * click IS the route's start point).
+   */
+  anchors: { before: LatLon | null; after: LatLon | null };
   vertices: readonly { id: VertexId; lat: number; lon: number }[];
   /** Snap magnet (null/undefined = snapping disabled). */
   snap?: DrawSnapFn | null;
@@ -1543,13 +1548,16 @@ export class MapController {
     this.#applyDrawSession();
   }
 
-  /** The user-placed chain (drag override applied): before-anchor → vertices. */
+  /** The user-placed chain (drag override applied): before-anchor → vertices
+   *  (the anchor is absent for anchor-less sessions — vertices only). */
   #draftChainPoints(): LatLon[] {
     const session = this.#drawSession;
     if (!session) return [];
     const override = this.#handleDrag?.override ?? null;
     const overrideId = this.#handleDrag?.vertexId ?? null;
-    const points: LatLon[] = [session.anchors.before];
+    const points: LatLon[] = session.anchors.before
+      ? [session.anchors.before]
+      : [];
     for (const vertex of session.vertices) {
       points.push(
         override && vertex.id === overrideId

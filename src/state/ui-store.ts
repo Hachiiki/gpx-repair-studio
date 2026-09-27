@@ -54,21 +54,23 @@ export const UI_SETTINGS_STORAGE_KEY = "gpx-repair-studio.settings.v1";
  * repair studio (the app's core flow); "recovery" is the Gap Recovery
  * section — a separate, self-contained workflow for recovering a missing
  * GPS section from an activity whose elapsed time continued while
- * coordinates were missing. Derived, never stored: the recovery section
- * is "active" exactly while its own session is loading or parsed, so the
- * two sections keep fully independent sessions (there is no switcher —
- * the landing-page tab is the only front door, Task 26 revision).
+ * coordinates were missing; "create" is the Create-from-stats section —
+ * a watch that recorded the statistics but no GPS at all. Derived, never
+ * stored: each section is "active" exactly while its own session holds
+ * the stage, so the sections keep fully independent sessions (there is
+ * no switcher — the landing-page tab is the only front door, Task 26
+ * revision).
  */
-export type AppSection = "repair" | "recovery";
+export type AppSection = "repair" | "recovery" | "create";
 
 /**
  * The landing page's tab (Task 20 + Task 26 revision): what the next
  * upload opens into — the repair workspace, the share-card view, or the
  * Gap Recovery section. Persisted as the remembered intent; "recovery"
- * values written by newer builds read back fine, and older persisted
- * "repair"/"share" values remain valid.
+ * and "create" values written by newer builds read back fine, and older
+ * persisted "repair"/"share" values remain valid.
  */
-export type LandingMode = SessionView | "recovery";
+export type LandingMode = SessionView | "recovery" | "create";
 
 interface UiState {
   gapThresholds: GapThresholds;

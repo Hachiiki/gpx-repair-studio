@@ -295,3 +295,65 @@ describe("resamplePath — road-follow legs", () => {
     expect(path.map((p) => p.role)).toEqual(["before-anchor", "vertex"]);
   });
 });
+
+describe("open chain (the create-from-stats shape: no anchors)", () => {
+  it("with a null before anchor the path is exactly the vertices, all interior", () => {
+    const path = resamplePath(null, vertices([52.52, 13.405], [52.53, 13.405]), null, "off", []);
+    expect(path.map((p) => p.role)).toEqual(["vertex", "vertex"]);
+    expect(path[0].cumDistanceM).toBe(0);
+    expect(path[1].cumDistanceM).toBeGreaterThan(1000);
+    // No before/after anchor roles anywhere — every point is interior,
+    // which is what a whole-activity time distribution needs.
+    expect(path.some((p) => p.role === "before-anchor" || p.role === "after-anchor")).toBe(false);
+  });
+
+  it("densifies straight legs with spacing and keeps cumulative distances monotonic", () => {
+    const path = resamplePath(
+      null,
+      vertices([52.52, 13.405], [52.53, 13.405], [52.53, 13.455]),
+      null,
+      100,
+      [],
+    );
+    expect(path.length).toBeGreaterThan(3);
+    for (const point of path) {
+      expect([point.lat, point.lon]).toEqual(
+        [expect.any(Number), expect.any(Number)],
+      );
+    }
+    for (let i = 1; i < path.length; i += 1) {
+      expect(path[i].cumDistanceM).toBeGreaterThan(path[i - 1].cumDistanceM);
+    }
+    const total = path[path.length - 1].cumDistanceM;
+    expect(total).toBeGreaterThan(4400);
+    expect(total).toBeLessThan(4600);
+  });
+
+  it("handles a single vertex (a degenerate but non-crashing chain)", () => {
+    const path = resamplePath(null, vertices([52.52, 13.405]), null, 25, []);
+    expect(path).toHaveLength(1);
+    expect(path[0].role).toBe("vertex");
+    expect(path[0].cumDistanceM).toBe(0);
+  });
+
+  it("applies road legs between consecutive vertices exactly as with anchors", () => {
+    const roadLeg = {
+      a: { lat: 52.52, lon: 13.405 },
+      b: { lat: 52.53, lon: 13.405 },
+      coordinates: [
+        [13.405, 52.52],
+        [13.4052, 52.525], // interior bulge
+        [13.405, 52.53],
+      ] as [number, number][],
+      routeDistanceM: 1113,
+    };
+    const path = resamplePath(
+      null,
+      vertices([52.52, 13.405], [52.53, 13.405]),
+      null,
+      "off",
+      [roadLeg],
+    );
+    expect(path.map((p) => p.role)).toEqual(["vertex", "road", "vertex"]);
+  });
+});

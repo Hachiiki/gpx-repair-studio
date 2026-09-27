@@ -310,6 +310,42 @@ export function resolveGapTimePlan(
 // Interior distribution (path points → Estimated timestamps)
 // ---------------------------------------------------------------------------
 
+/**
+ * The time plan of a whole user-authored activity ("create from activity
+ * stats"): there are no boundaries because there is no recording — the
+ * user-entered total duration IS the activity, anchored at the user-entered
+ * start time.
+ *
+ * The plan deliberately pairs a `manual-duration` strategy (the duration is
+ * user-stated, not derived from anything) with a `distance-proportional`
+ * distribution method: the entered time spreads across the generated track
+ * points by movement along the route (the §J-2 "assumes even effort"
+ * honesty rule, stated on a whole-activity scale). `distributeTimestamps`
+ * consumes it exactly like a repair plan — with no anchor roles on the
+ * path, every generated point receives a timestamp.
+ *
+ * `anchorStartMs` null → the plan resolves but nothing anchors the
+ * interior (times stay undefined; statistics still carry the duration).
+ */
+export function wholeActivityTimePlan(
+  durationMs: number,
+  anchorStartMs: number | null,
+): GapTimePlan {
+  return {
+    boundaryCase: "no-boundaries",
+    strategy: { kind: "manual-duration", durationMs },
+    method: "distance-proportional",
+    durationMs,
+    durationSource: "manual",
+    anchorStartMs,
+    anchoredByFileStart: anchorStartMs !== null,
+    recordedEndMs: null,
+    recordedSpanMs: null,
+    discrepancyMs: null,
+    missingReason: null,
+  };
+}
+
 /** A distributed interior timestamp: the value plus its method. */
 export type DistributedTime = Estimated<number>;
 

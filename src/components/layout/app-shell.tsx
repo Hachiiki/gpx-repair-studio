@@ -41,6 +41,7 @@ import { GpxSummaryCard } from "@/components/gpx/gpx-summary-card";
 import { SegmentList } from "@/components/gpx/segment-list";
 import { ValidationReport } from "@/components/gpx/validation-report";
 import { RecoveryStudio } from "@/components/recovery/recovery-studio";
+import { CreateStudio } from "@/components/create/create-studio";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import { FileTimingCard } from "@/components/reconstruction/file-timing-card";
 import { GapList } from "@/components/reconstruction/gap-list";
@@ -56,6 +57,7 @@ import { useShareCard } from "@/hooks/use-share-card";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { useUiStore, type AppSection } from "@/state/ui-store";
 import { useRecoveryStore } from "@/state/recovery-store";
+import { useCreateStore } from "@/state/create-store";
 import { loadRecoveryFile } from "@/hooks/use-recovery-session";
 import { cn } from "@/lib/utils";
 
@@ -89,13 +91,22 @@ export function AppShell() {
   // repair studio keeps this shell's original wiring; recovery state
   // lives in its own store (state/recovery-store) and raw selectors keep
   // the header honest without duplicating the section's hook tree.
+  //
+  // The Create-from-stats section follows the same rule: it holds the
+  // stage exactly while its phase is past the form (its entry is the
+  // landing page's "Create from stats" tab, whose statistics form lives
+  // on the landing; resetting it returns there).
   const recoveryStatus = useRecoveryStore((s) => s.status);
   const recoveryFileName = useRecoveryStore((s) => s.fileName);
   const recoveryError = useRecoveryStore((s) => s.error);
+  const createPhase = useCreateStore((s) => s.phase);
+  const createStats = useCreateStore((s) => s.stats);
   const section: AppSection =
-    recoveryStatus === "loading" || recoveryStatus === "parsed"
-      ? "recovery"
-      : "repair";
+    createPhase !== "form"
+      ? "create"
+      : recoveryStatus === "loading" || recoveryStatus === "parsed"
+        ? "recovery"
+        : "repair";
 
   // Rehydrate persisted settings after mount — the prerendered HTML and
   // the first client render both use defaults, so there is no hydration
@@ -115,16 +126,31 @@ export function AppShell() {
       </a>
 
       <AppHeader
-        fileName={section === "recovery" ? recoveryFileName : session.fileName}
-        status={section === "recovery" ? recoveryStatus : session.status}
+        fileName={
+          section === "recovery"
+            ? recoveryFileName
+            : section === "create"
+              ? "Activity from stats"
+              : session.fileName
+        }
+        status={
+          section === "recovery"
+            ? recoveryStatus
+            : section === "create"
+              ? "parsed"
+              : session.status
+        }
         onReset={
           section === "recovery"
             ? () => useRecoveryStore.getState().reset()
-            : session.reset
+            : section === "create"
+              ? () => useCreateStore.getState().reset()
+              : session.reset
         }
         view={session.view}
         onSwitchView={session.setView}
         section={section}
+        resetLabel={section === "create" ? "Start over" : undefined}
       />
 
       <main
@@ -132,7 +158,15 @@ export function AppShell() {
         tabIndex={-1}
         className={cn(SHELL_CONTAINER, "flex flex-1 flex-col py-6")}
       >
-        {section === "recovery" ? (
+        {section === "create" ? (
+          /*
+           * The Create-from-stats section: no file was uploaded — the
+           * statistics were entered on the landing's create tab and the
+           * whole route is drawn by hand. Own store, own map; the repair
+           * studio below keeps whatever file and repairs it already had.
+           */
+          <CreateStudio />
+        ) : section === "recovery" ? (
           /*
            * Task 26 — the Gap Recovery section: a separate workflow for
            * recovering a missing GPS section (upload → detect the missing
@@ -271,6 +305,12 @@ export function AppShell() {
             }
             mode={landingMode}
             onModeChange={setLandingMode}
+            onCreateBegin={(stats) =>
+              useCreateStore.getState().beginDrawing(stats)
+            }
+            createStats={createStats}
+            paceUnit={paceUnit}
+            onPaceUnitChange={setPaceUnit}
           />
         )}
       </main>

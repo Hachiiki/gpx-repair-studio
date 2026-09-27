@@ -30,14 +30,19 @@ import {
   Eye,
   PenLine,
   Route,
+  Ruler,
   ScanSearch,
   ShieldCheck,
   Upload,
+  Watch,
 } from "lucide-react";
 import { SessionErrorAlert } from "@/components/gpx/session-error-alert";
 import { UploadZone } from "@/components/gpx/upload-zone";
+import { ActivityStatsForm } from "@/components/create/activity-stats-form";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { ActivityStats } from "@/hooks/use-create-session";
+import type { PaceUnit } from "@/lib/utils/format";
 import type { LandingMode } from "@/state/ui-store";
 import type { SessionError, SessionStatus } from "@/state/session-store";
 
@@ -49,6 +54,17 @@ export interface SessionIdleViewProps {
   /** The remembered landing tab (Task 20 + Task 26 revision): the destination of the next upload. */
   mode: LandingMode;
   onModeChange: (mode: LandingMode) => void;
+  /**
+   * Create-tab intake (no file exists): confirm the statistics and enter
+   * the drawing phase. The landing's create branch renders the stats
+   * form instead of the upload zone.
+   */
+  onCreateBegin: (stats: ActivityStats) => void;
+  /** Previously confirmed statistics (prefill when returning to the form). */
+  createStats: ActivityStats | null;
+  /** The app-wide distance/pace unit (the create form's entry unit). */
+  paceUnit: PaceUnit;
+  onPaceUnitChange: (unit: PaceUnit) => void;
 }
 
 /**
@@ -125,6 +141,26 @@ const WORKFLOW_STEPS: Record<
         "GPS points are generated along your drawing with timestamps fitted into the missing interval, the completed route is previewed with recalculated statistics, and the export marks every generated point as estimated.",
     },
   ],
+  create: [
+    {
+      icon: Watch,
+      title: "Enter your statistics",
+      description:
+        "The distance, average pace, total time, and start your watch recorded — no GPX needed. The app checks they agree (time ≈ distance × pace) and never overwrites your numbers.",
+    },
+    {
+      icon: Route,
+      title: "Draw the route",
+      description:
+        "Trace where you went on the map — clicks follow real roads, every point drags, and everything undoes. This is the whole activity, drawn from scratch.",
+    },
+    {
+      icon: Ruler,
+      title: "Export the GPX",
+      description:
+        "The route is scaled to your recorded distance, your recorded time is spread along it as timestamps, and the file imports into Strava and other GPX platforms.",
+    },
+  ],
 };
 
 const HERO_COPY: Record<
@@ -146,18 +182,24 @@ const HERO_COPY: Record<
     description:
       "Upload an activity where the recording dropped out mid-workout — the clock kept running but the route has a hole. Draw the part that went missing and get a corrected GPX with the elapsed time untouched.",
   },
+  create: {
+    heading: "Create an activity from its stats",
+    description:
+      "Your watch recorded the distance, pace, and time — but no map. Enter those statistics, draw the route you took, and download a GPX ready for Strava and every other platform.",
+  },
 };
 
 const MODE_OPTIONS: readonly {
   value: LandingMode;
   /** Full label — shown from the sm breakpoint up. */
   label: string;
-  /** Compact label for sub-sm viewports: three tabs share one 343 px row. */
+  /** Compact label for sub-sm viewports: four tabs share one 343 px row. */
   shortLabel: string;
 }[] = [
   { value: "repair", label: "Repair a recording", shortLabel: "Repair" },
   { value: "share", label: "Create a share card", shortLabel: "Share card" },
   { value: "recovery", label: "Recover a GPS gap", shortLabel: "Recovery" },
+  { value: "create", label: "Create from stats", shortLabel: "Create" },
 ];
 
 export function SessionIdleView({
@@ -165,6 +207,10 @@ export function SessionIdleView({
   onFile,
   mode,
   onModeChange,
+  onCreateBegin,
+  createStats,
+  paceUnit,
+  onPaceUnitChange,
 }: SessionIdleViewProps) {
   const hero = HERO_COPY[mode];
   return (
@@ -219,7 +265,21 @@ export function SessionIdleView({
             {hero.description}
           </p>
         </div>
-        <UploadZone onFile={onFile} />
+        {/*
+         * The intake: the upload zone for the three file workflows, the
+         * statistics form for the create workflow (there is no file to
+         * upload — the watch recorded no GPS at all).
+         */}
+        {mode === "create" ? (
+          <ActivityStatsForm
+            initialStats={createStats}
+            paceUnit={paceUnit}
+            onPaceUnitChange={onPaceUnitChange}
+            onBegin={onCreateBegin}
+          />
+        ) : (
+          <UploadZone onFile={onFile} />
+        )}
       </div>
 
       {/*

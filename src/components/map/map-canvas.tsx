@@ -30,7 +30,9 @@ import { GapHighlightOverlay } from "@/components/map/gap-highlight-overlay";
 import { MapLegend } from "@/components/map/map-legend";
 import { MapToolbar } from "@/components/map/map-toolbar";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
+import type {
+  MapDrawChromeBinding,
+} from "@/hooks/use-draw-editor";
 import type { MapBinding } from "@/hooks/use-map-controller";
 import type { BBox } from "@/lib/geo/bbox";
 
@@ -53,11 +55,20 @@ export interface MapCanvasProps {
    * dataflow analysis. The hook guarantees a stable identity.
    */
   attachContainer: (element: HTMLDivElement | null) => void;
-  /** Phase 4: the draw-editor binding (badge + Draw/Pan toggle chrome). */
-  draw?: DrawEditorBinding | null;
+  /**
+   * The draw-editor chrome binding (badge + Draw/Pan toggle + pick
+   * banner). Structural subset — the repair/recovery DrawEditorBindings
+   * and the create section's lighter binding all satisfy it.
+   */
+  draw?: MapDrawChromeBinding | null;
+  /**
+   * A section-specific line appended to the screen-reader summary (the
+   * shared wording assumes a parsed file; sections without one say so).
+   */
+  srNote?: string;
 }
 
-export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps) {
+export function MapCanvas({ map, attachContainer, draw = null, srNote }: MapCanvasProps) {
   const routeEmpty =
     map.status === "ready" && map.route !== null && map.route.lines.length === 0;
   const editorActive = draw?.active === true;
@@ -255,6 +266,7 @@ export function MapCanvas({ map, attachContainer, draw = null }: MapCanvasProps)
         {editorActive && draw && draw.vertexCount > 0
           ? ` Reconstruction in progress: ${draw.vertexCount} drawn point${draw.vertexCount === 1 ? "" : "s"}.`
           : ""}
+        {srNote ?? ""}
       </p>
     </div>
   );

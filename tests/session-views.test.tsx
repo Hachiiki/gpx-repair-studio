@@ -29,7 +29,14 @@ const error: SessionError = {
 };
 
 /** Default idle-view props: the repair landing mode (Task 20). */
-const IDLE_PROPS = { error: null as SessionError | null, onFile: () => {} };
+const IDLE_PROPS = {
+  error: null as SessionError | null,
+  onFile: () => {},
+  onCreateBegin: (_stats: { distanceM: number }) => {},
+  createStats: null,
+  paceUnit: "km" as const,
+  onPaceUnitChange: (_unit: "km" | "mi") => {},
+};
 
 function renderIdle(
   overrides: Partial<Parameters<typeof SessionIdleView>[0]> = {},
@@ -124,6 +131,22 @@ describe("SessionIdleView — landing mode (Task 20)", () => {
     expect(screen.getByTestId("upload-zone")).toBeVisible();
   });
 
+  it("switches the hero and the trio to the create-from-stats workflow, replacing the upload zone with the statistics form", () => {
+    renderIdle({ mode: "create" });
+
+    expect(
+      screen.getByRole("heading", { name: "Create an activity from its stats" }),
+    ).toBeVisible();
+    const steps = screen.getByTestId("workflow-steps");
+    expect(steps).toHaveTextContent("Enter your statistics");
+    expect(steps).toHaveTextContent("Draw the route");
+    expect(steps).toHaveTextContent("Export the GPX");
+    expect(steps.querySelectorAll("li")).toHaveLength(3);
+    // No file exists in this workflow — the statistics form is the intake.
+    expect(screen.queryByTestId("upload-zone")).toBeNull();
+    expect(screen.getByTestId("activity-stats-form")).toBeVisible();
+  });
+
   it("marks the active mode and dispatches the change intent", () => {
     const changes: string[] = [];
     renderIdle({ onModeChange: (mode) => changes.push(mode) });
@@ -146,22 +169,27 @@ describe("SessionIdleView — landing mode (Task 20)", () => {
     ).toBeVisible();
   });
 
-  it("offers all three destinations as radios, each with a compact and a full label", () => {
+  it("offers all four destinations as radios, each with a compact and a full label", () => {
     renderIdle();
 
     const radios = screen
       .getByTestId("landing-mode-toggle")
       .querySelectorAll('[role="radio"]');
-    expect(radios).toHaveLength(3);
+    expect(radios).toHaveLength(4);
 
     // The responsive label pair: the compact span shows below sm, the
-    // full one from sm up — three tabs stay on one 375 px row.
+    // full one from sm up — four tabs stay on one 375 px row.
     const recovery = screen.getByTestId("landing-mode-recovery");
     expect(recovery.querySelector(".sm\\:hidden")?.textContent).toBe(
       "Recovery",
     );
     expect(recovery.querySelector(".hidden.sm\\:inline")?.textContent).toBe(
       "Recover a GPS gap",
+    );
+    const create = screen.getByTestId("landing-mode-create");
+    expect(create.querySelector(".sm\\:hidden")?.textContent).toBe("Create");
+    expect(create.querySelector(".hidden.sm\\:inline")?.textContent).toBe(
+      "Create from stats",
     );
 
     fireEvent.click(recovery);

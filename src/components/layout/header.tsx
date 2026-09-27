@@ -41,6 +41,11 @@ export interface AppHeaderProps {
    * section itself is derived by the shell, never switched here.
    */
   section?: AppSection;
+  /**
+   * The reset button's label ("New file" by default). The create
+   * section has no file — it says "Start over".
+   */
+  resetLabel?: string;
 }
 
 export function AppHeader({
@@ -50,6 +55,7 @@ export function AppHeader({
   view = "repair",
   onSwitchView,
   section = "repair",
+  resetLabel = "New file",
 }: AppHeaderProps) {
   const showSession = status === "parsed" && fileName !== null;
 
@@ -158,9 +164,10 @@ export function AppHeader({
               size="sm"
               onClick={onReset}
               className="gap-1.5"
+              data-testid="header-reset-button"
             >
               <RotateCcw className="size-3.5" aria-hidden="true" />
-              New file
+              {resetLabel}
             </Button>
           )}
         </div>

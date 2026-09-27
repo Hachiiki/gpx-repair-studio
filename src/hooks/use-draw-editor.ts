@@ -135,6 +135,28 @@ export interface RepairTimeStats {
   beyondWallMs: number;
 }
 
+/**
+ * The structural subset of {@link DrawEditorBinding} the shared map chrome
+ * (MapCanvas) actually renders: the distance badge, the Draw/Pan chip, and
+ * the pick-mode banner. Deliberately extracted so the "create from
+ * activity stats" section can drive the SAME chrome with its own lighter
+ * binding (no gap vocabulary) — full DrawEditorBindings satisfy it
+ * structurally, so the existing sections are unaffected.
+ */
+export interface MapDrawChromeBinding {
+  /** A draw editor session is open (the chrome is visible). */
+  active: boolean;
+  /** Draw mode on = pointer draws; off = normal map navigation. */
+  drawMode: boolean;
+  /** Live geodesic path length (null when inactive). */
+  distanceM: number | null;
+  vertexCount: number;
+  maxVertices: number;
+  /** Span-pick mode banner (null = off; always null in the create section). */
+  pickMode: PickMode | null;
+  setDrawMode: (on: boolean) => void;
+}
+
 /** App-layer facade: the draw-editor view consumed by components. */
 export interface DrawEditorBinding {
   /** An editor session is open for a gap. */
