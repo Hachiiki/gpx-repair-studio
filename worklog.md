@@ -938,3 +938,24 @@ Stage Summary:
 - The header Share button (create only): warn → export the GPX → share card view (same painter as the repair card), with a one-click way back to the review.
 - Test contract: 934 unit + 67 e2e, all green; the three existing workflows untouched.
 - Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
+---
+Task ID: 40
+Agent: Super Z (main agent)
+Task: User pass 40 — the STRAVA wordmark on the share card was squeezed; render the SVG as it is (uniform scale, natural proportions). Scope: the Strava logo ONLY (route, stats, and shoe untouched).
+
+Work Log:
+- Root cause: Task 23 had mapped the wordmark's ink NON-UNIFORMLY onto the measured 330×55 box (x scale 0.598, y 0.444 — the trace's ink is ~4.45:1 while the reference card's wordmark is ~6:1, and the squash chased the reference's flatness). The letters rendered vertically flattened — the squeeze the user saw. The worklog's Task 23 entry had pre-identified the fix as a one-token revert ("unsquashed 245×55").
+- layout.ts: the logo block now CONTAINS the ink in the box at a UNIFORM scale (min of the two axis scales, the binding dimension wins) and centers it — the same contract as the shoe's slot. For the current trace the height binds: ink ≈ 244.95×55 at top 1280, centered — so the card's measured vertical rhythm (route→logo 90px, logo→stats 87px) is preserved EXACTLY. SHARE_CARD_LOGO_INK_BOX renamed SHARE_CARD_LOGO_BOX (the ink no longer fills it — it is the containment box); header ASCII art, anchor bullets, and the logoRect/logoInkRect interface docs updated to tell the new truth.
+- artwork.ts + render.ts: comments rewritten (the painter needed no code change — it is rect-driven, and the contained rect carries the viewBox's aspect, making fillArtwork's per-axis scales equal).
+- tests/share-layout.test.ts: the stretch test replaced by a containment test mirroring the shoe's (contained ≤ box; height binds = 55; width 55×551.8/123.9; centered on (540, 1307.5); UNIFORM scale pinned to 9 decimals; ink aspect = source aspect pinned to 6 decimals); the artwork-agnostic square test re-derived (square ink → 55×55 centered in the 330×55 box); token test re-pinned for the renamed constant; the rhythm test unchanged and still passing (height binding keeps 1280/1335 exact).
+- scripts/verify-share-card-layout.mjs: live pixel probes re-pinned — logo bbox ~245×55 at y 1280, centered, plus a new source-aspect probe. First run caught the probe's own tolerance: the white-threshold bbox clips 1–2 antialiased rows (reads 244×53 → aspect 4.604), so the aspect tolerance is ±0.5 (still separates contained ~4.45 from stretched ~6.2; the geometric aspect is pinned exactly by unit tests).
+- docs/MASTER_PLAN.md §O-4: Task 40 documented as the one later revision — every artwork now CONTAINED (uniform) and centered; Task 23's stretch recorded as history with the user's rationale.
+- Validation: 936/936 unit, typecheck clean, eslint clean, live layout verification ALL CHECKS PASSED (preview + 1× export: logo band 5976 white px, bbox 244×53 at y 1281, center x 539.5, 90/87 gaps intact, zero page errors implied by clean probes).
+- Live QA (real GloryFit file, dev server): VLM critique 1 (before/after, labeled) — observation correct (after = narrower/taller glyphs) but its "brand flatness" preference favored the old squeeze; the user's explicit instruction overrides. VLM critique 2 (neutral framing, stroke-weight cues): the NEW render has consistent stroke weight in all directions (uniform scaling); the OLD render shows the classic anisotropic squeeze — horizontal strokes fatter than vertical stems, oval-squashed bowls, splayed V legs. VLM critique 3 (full card): wordmark clean/centered/no clipping, gaps balanced, no overlaps, coherent shareable card — 4/4 PASS. QA artifacts: download/task40-logo-after.png, download/task40-logo-before-simulated.png (the old squeeze synthesized exactly, = new × 1.347 horizontal), scripts/qa/task40-critique-1..3.json, scripts/task40-logo-critique-prep.mjs.
+- E2E: 66/67 + the documented draw-editor sandbox memory flake — 7/7 in isolation (4th consecutive task; unmodified code flakes 3/10 per Task 37's investigation).
+
+Stage Summary:
+- The share card's STRAVA wordmark now renders at the source SVG's own proportions — uniform scale, contained and centered in the measured 330×55 box (~245×55), vertical rhythm bit-identical to the reference anchors.
+- Only the Strava logo changed, exactly as requested; route, stats trio, and shoe icon untouched.
+- Test contract: 936 unit + 67 e2e, all green (one documented flake); the one-token revert Task 23 predicted is now the pinned, documented spec.
+- Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).

@@ -6,12 +6,13 @@
  * Draws the complete 1080×1920 Strava-style share card into a 2D canvas
  * context: the solid #000000 background, the route polyline (contained
  * in the visible box with a two-pass casing — 16px #000000 under 10px
- * #FC4C02, both round cap/join), the STRAVA wordmark (ink stretched
- * onto its 330×55 box), the Distance/Pace/Time stats trio, and the
- * shoe icon (ink contained in its 104px slot) — every position from
- * lib/share/layout.ts, every path from lib/share/artwork.ts, the
- * projection from lib/geo/mercator.ts, the decimation from
- * lib/geo/simplify.ts. This module executes; it decides nothing.
+ * #FC4C02, both round cap/join), the STRAVA wordmark (ink contained,
+ * aspect preserved, in its 330×55 box), the Distance/Pace/Time stats
+ * trio, and the shoe icon (ink contained in its 104px slot) — every
+ * position from lib/share/layout.ts, every path from
+ * lib/share/artwork.ts, the projection from lib/geo/mercator.ts, the
+ * decimation from lib/geo/simplify.ts. This module executes; it
+ * decides nothing.
  *
  * One painter serves both consumers (the same "what you see is what
  * you download" contract as the GPX export): the preview canvas at
@@ -235,7 +236,7 @@ export function renderShareCard(
     );
   }
 
-  // --- STRAVA wordmark (ink on its 330×55 box, white). ---
+  // --- STRAVA wordmark (ink contained in its 330×55 box, white). ---
   // The white fillStyle is set BEFORE any foreground artwork: the
   // wordmark, stats, and icon all draw in white; only the route (set
   // above, per-piece) differs. (A VLM review caught the logo rendering

@@ -33,7 +33,9 @@ export interface VectorArtwork {
 /**
  * The STRAVA wordmark. Source SVG: 600×164 viewbox, wordmark paths
  * (S-T-R-A-V-A with the chevron A/V ligature), rendered white with
- * its ink stretched onto the card's 330×55 logo box (Task 23).
+ * its ink CONTAINED (uniform scale, aspect preserved) in the card's
+ * 330×55 logo box — ~245×55 (Task 23 stretched it; Task 40 removed
+ * the stretch at the user's request: the SVG stands as it is).
  */
 export const STRAVA_LOGO_ARTWORK: VectorArtwork = {
   viewBoxWidth: 600,
@@ -70,8 +72,9 @@ export function artworkAspectRatio(artwork: VectorArtwork): number {
 /**
  * The STRAVA wordmark's ink bounds in viewBox units — the paths span
  * x 24.2–576.0, y 19.1–143.0 of the 600×164 viewBox (the trace is
- * ~4.45:1; the reference card's wordmark is flatter, ~6:1 — the
- * layout stretches the ink onto its 330×55 box, see Task 23).
+ * ~4.45:1). The layout CONTAINS the ink in its 330×55 box at this
+ * natural aspect (~245×55, height binding — Task 40: never
+ * stretched).
  * Measured with lib/share/path-bounds.ts; tests re-derive and pin
  * these so an artwork edit can't silently drift.
  */

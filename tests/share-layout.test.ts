@@ -1,15 +1,18 @@
 /**
- * Share card layout + artwork tests (Task 23 spec revision) —
- * lib/share/layout.ts, lib/share/artwork.ts, lib/share/path-bounds.ts.
+ * Share card layout + artwork tests (Task 23 spec revision; Task 40
+ * logo revision) — lib/share/layout.ts, lib/share/artwork.ts,
+ * lib/share/path-bounds.ts.
  *
  * Pins the reference card's measured anchors EXACTLY (the lesson of
  * Tasks 21–22: the reference's numbers are the spec — pin, don't
  * re-derive): the 1080×1920 canvas on solid black, the route's
  * visible box (x 64–1012, y 219–1190, contain + casing inset), the
- * wordmark's 330×55 ink box at top 1280, the stats trio (29px/40px,
- * 9px label→value, centers 220/540/857, top 1422), the 104px shoe
- * slot at top 1605 — and the vertical rhythm those anchors imply
- * (gaps 90 / 87 / ≈90, content ending at 1709 with ~211px empty).
+ * wordmark's 330×55 box at top 1280 (ink CONTAINED at the SVG's
+ * natural proportions since Task 40 — never stretched), the stats
+ * trio (29px/40px, 9px label→value, centers 220/540/857, top 1422),
+ * the 104px shoe slot at top 1605 — and the vertical rhythm those
+ * anchors imply (gaps 90 / 87 / ≈90, content ending at 1709 with
+ * ~211px empty).
  *
  * The artwork's ink constants are verified against the path data by
  * the same parser used to measure them (artwork.ts carries data; the
@@ -31,7 +34,7 @@ import {
   SHARE_CARD_COLORS,
   SHARE_CARD_HEIGHT,
   SHARE_CARD_ICON_SLOT,
-  SHARE_CARD_LOGO_INK_BOX,
+  SHARE_CARD_LOGO_BOX,
   SHARE_CARD_ROUTE_BOX,
   SHARE_CARD_ROUTE_STROKE,
   SHARE_CARD_SIMPLIFY_TOLERANCE_M,
@@ -62,17 +65,17 @@ describe("share card spec tokens (Task 23)", () => {
     });
   });
 
-  it("anchors the wordmark's ink box at 330×55, top 1280, centered", () => {
-    expect(SHARE_CARD_LOGO_INK_BOX).toEqual({
+  it("anchors the wordmark's box at 330×55, top 1280, centered", () => {
+    expect(SHARE_CARD_LOGO_BOX).toEqual({
       x: 375,
       y: 1280,
       width: 330,
       height: 55,
     });
     // Centered on the card's midline.
-    expect(
-      SHARE_CARD_LOGO_INK_BOX.x + SHARE_CARD_LOGO_INK_BOX.width / 2,
-    ).toBe(SHARE_CARD_WIDTH / 2);
+    expect(SHARE_CARD_LOGO_BOX.x + SHARE_CARD_LOGO_BOX.width / 2).toBe(
+      SHARE_CARD_WIDTH / 2,
+    );
   });
 
   it("anchors the stats trio: top 1422, centers 220/540/857, 9px gap", () => {
@@ -144,23 +147,31 @@ describe("computeShareCardLayout", () => {
     });
   });
 
-  it("maps the wordmark's ink exactly onto its 330×55 box (the stretch)", () => {
-    expect(LAYOUT.logoInkRect).toEqual({ ...SHARE_CARD_LOGO_INK_BOX });
-    // The painter rect is the affine scaffolding that places the ink:
-    // ink-in-viewBox maps onto the box on both axes, independently.
+  it("contains the wordmark's ink in its 330×55 box, centered (no stretch)", () => {
+    const ink = LAYOUT.logoInkRect;
+    const box = SHARE_CARD_LOGO_BOX;
+    // Contained: neither dimension exceeds the box.
+    expect(ink.width).toBeLessThanOrEqual(box.width + 1e-9);
+    expect(ink.height).toBeLessThanOrEqual(box.height + 1e-9);
+    // The binding dimension fills the box: the trace's ink is
+    // relatively TALLER than the box (4.45:1 vs 6:1), so height
+    // binds — the ink keeps every bit of the box's 55px height and
+    // gives up width instead (~245 wide).
+    expect(ink.height).toBeCloseTo(55, 6);
+    expect(ink.width).toBeCloseTo(55 * (551.8 / 123.9), 6);
+    // Centered on the box's center (540, 1307.5).
+    expect(ink.x + ink.width / 2).toBeCloseTo(540, 10);
+    expect(ink.y + ink.height / 2).toBeCloseTo(1280 + 27.5, 10);
+    // The painter rect places the ink there (affine scaffolding).
     const metrics = STRAVA_LOGO_METRICS;
-    const scaleX = LAYOUT.logoRect.width / metrics.viewBoxWidth;
-    const scaleY = LAYOUT.logoRect.height / metrics.viewBoxHeight;
-    expect(LAYOUT.logoRect.x + metrics.ink.x * scaleX).toBeCloseTo(375, 10);
-    expect(LAYOUT.logoRect.y + metrics.ink.y * scaleY).toBeCloseTo(1280, 10);
-    expect(LAYOUT.logoRect.x + (metrics.ink.x + metrics.ink.width) * scaleX)
-      .toBeCloseTo(375 + 330, 10);
-    expect(LAYOUT.logoRect.y + (metrics.ink.y + metrics.ink.height) * scaleY)
-      .toBeCloseTo(1280 + 55, 10);
-    // The stretch is real but honest: x and y scales differ (the
-    // reference wordmark is flatter than the trace).
-    expect(scaleX).toBeCloseTo(330 / 551.8, 6);
-    expect(scaleY).toBeCloseTo(55 / 123.9, 6);
+    const scale = LAYOUT.logoRect.width / metrics.viewBoxWidth;
+    expect(LAYOUT.logoRect.x + metrics.ink.x * scale).toBeCloseTo(ink.x, 6);
+    expect(LAYOUT.logoRect.y + metrics.ink.y * scale).toBeCloseTo(ink.y, 6);
+    // UNIFORM scale — the wordmark is never squeezed (Task 40: the
+    // SVG stands as it is; the Task-23 squash is gone).
+    expect(LAYOUT.logoRect.height / metrics.viewBoxHeight).toBeCloseTo(scale, 9);
+    // And the ink keeps the source SVG's natural proportions.
+    expect(ink.width / ink.height).toBeCloseTo(551.8 / 123.9, 6);
   });
 
   it("lays the stats row at the anchors with the 9px label→value gap", () => {
@@ -225,21 +236,19 @@ describe("computeShareCardLayout", () => {
   });
 
   it("derives the layout from passed metrics (artwork-agnostic)", () => {
-    // Synthetic square ink filling its viewBox: the logo ink box IS
-    // the rect; the icon ink fills the slot exactly.
+    // Synthetic square ink filling its viewBox: the logo ink is
+    // CONTAINED in the 330×55 box (55×55, centered) and the icon ink
+    // fills the slot exactly.
     const square = {
       viewBoxWidth: 100,
       viewBoxHeight: 100,
       ink: { x: 0, y: 0, width: 100, height: 100 },
     };
     const layout = computeShareCardLayout({ logo: square, icon: square });
-    expect(layout.logoRect.x).toBeCloseTo(SHARE_CARD_LOGO_INK_BOX.x, 10);
-    expect(layout.logoRect.y).toBeCloseTo(SHARE_CARD_LOGO_INK_BOX.y, 10);
-    expect(layout.logoRect.width).toBeCloseTo(SHARE_CARD_LOGO_INK_BOX.width, 10);
-    expect(layout.logoRect.height).toBeCloseTo(
-      SHARE_CARD_LOGO_INK_BOX.height,
-      10,
-    );
+    expect(layout.logoRect.x).toBeCloseTo(375 + (330 - 55) / 2, 10);
+    expect(layout.logoRect.y).toBeCloseTo(SHARE_CARD_LOGO_BOX.y, 10);
+    expect(layout.logoRect.width).toBeCloseTo(55, 10);
+    expect(layout.logoRect.height).toBeCloseTo(SHARE_CARD_LOGO_BOX.height, 10);
     expect(layout.iconInkRect.x).toBeCloseTo(488, 10);
     expect(layout.iconInkRect.y).toBeCloseTo(1605, 10);
     expect(layout.iconInkRect.width).toBeCloseTo(104, 10);

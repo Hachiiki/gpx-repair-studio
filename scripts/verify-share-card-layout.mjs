@@ -9,7 +9,9 @@ import sharp from "sharp";
  *
  *   - route: the visible drawing (geometry + 16px casing) stays inside
  *     x 64–1012, y 219–1190 (contain, centered, aspect preserved);
- *   - STRAVA wordmark: ink exactly 330×55, top 1280, centered;
+ *   - STRAVA wordmark: ink ~245×55 (contained at the SVG's natural
+ *     proportions in the 330×55 box — Task 40, no stretch), top 1280,
+ *     centered;
  *   - stats: row 1422–1515, columns at x 220 / 540 / 857;
  *   - shoe: 104px slot at 1605, ink contained and centered;
  *   - solid #000000 background — fully opaque, nothing transparent;
@@ -35,7 +37,10 @@ const H = 1920;
 // Mirrored from src/lib/share/layout.ts (assert-only — the module
 // stays the single source of truth, this cross-checks the pixels).
 const ROUTE_BOX = { x: 64, y: 219, width: 948, height: 971 }; // visible
-const LOGO_INK = { x: 375, y: 1280, width: 330, height: 55 };
+const LOGO_BOX = { x: 375, y: 1280, width: 330, height: 55 }; // slot
+// Contained ink: height binds (trace ~4.45:1 vs box 6:1) → 551.8 ×
+// (55/123.9) ≈ 244.95 wide, 55 tall.
+const LOGO_INK_WIDTH = 55 * (551.8 / 123.9);
 const STATS_TOP = 1422;
 const STATS_BOTTOM = 1422 + 29 * 1.25 + 9 + 40 * 1.2; // 1515.25
 const ICON_SLOT = { x: 488, y: 1605, size: 104 };
@@ -44,7 +49,7 @@ const CONTENT_BOTTOM = 1709;
 const BANDS = {
   route: [219, 1190], // the route's visible box
   gapRouteLogo: [1191, 1279], // the 90px gap: empty of white/orange
-  logo: [1280, 1336], // the wordmark's 330×55 ink
+  logo: [1280, 1336], // the wordmark's contained ink (≤330×55)
   gapLogoStats: [1337, 1421], // the 87px gap
   stats: [1422, 1516], // label + value lines
   gapStatsIcon: [1517, 1604], // the ~90px gap
@@ -208,7 +213,7 @@ function assertLayout(an, label) {
     `white ${bandStats.gapRouteLogo.white}px, orange ${bandStats.gapRouteLogo.orange}px in rows ${BANDS.gapRouteLogo}`,
   );
 
-  // --- Logo: the 330×55 ink box at top 1280. ---
+  // --- Logo: contained ink (~245×55) in the 330×55 box at top 1280. ---
   check(
     `${label}: STRAVA logo in its band`,
     bandStats.logo.white > 300,
@@ -219,11 +224,21 @@ function assertLayout(an, label) {
     const width = logo.maxX - logo.minX + 1;
     const height = logo.maxY - logo.minY + 1;
     check(
-      `${label}: logo ink is 330×55 at top 1280 (the reference box)`,
-      Math.abs(width - LOGO_INK.width) <= 14 &&
-        Math.abs(height - LOGO_INK.height) <= 10 &&
-        Math.abs(logo.minY - LOGO_INK.y) <= 8,
+      `${label}: logo ink is ~245×55 at top 1280 (contained, no stretch)`,
+      Math.abs(width - LOGO_INK_WIDTH) <= 14 &&
+        Math.abs(height - 55) <= 10 &&
+        Math.abs(logo.minY - LOGO_BOX.y) <= 8,
       `bbox ${width}×${height} at y ${logo.minY}`,
+    );
+    // The ink keeps the SVG's natural proportions (Task 40). The
+    // pixel bbox clips 1–2 antialiased rows top/bottom (53–57 tall
+    // for a geometric 55), so the tolerance is generous — what it
+    // must catch is the Task-23 stretch, which reads ~6.2 here.
+    // The exact geometric aspect is pinned by unit tests.
+    check(
+      `${label}: logo ink keeps the source aspect (~4.45:1)`,
+      Math.abs(width / height - 551.8 / 123.9) <= 0.5,
+      `aspect ${(width / height).toFixed(3)}`,
     );
     const cx = (logo.minX + logo.maxX) / 2;
     check(

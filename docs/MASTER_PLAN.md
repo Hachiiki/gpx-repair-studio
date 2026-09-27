@@ -890,14 +890,16 @@ time). Pinned by `tests/stats-panel-reimport.test.tsx`.
 
 The card's geometry was revised three times against the user's
 reference card; **Task 23 is the operative spec** (Tasks 21–22 are
-historical):
+historical), with one later revision: **Task 40 un-squashes the
+STRAVA wordmark** (the user's call — the SVG keeps its own
+proportions).
 
 - **Anchor-based, not derived.** Every position is a measured
   constant from the reference, pinned exactly (the lesson of the
   earlier revisions: pin the reference's numbers, don't re-derive
   them): route visible box x 64–1012 / y 219–1190 (contain, geometry
   inset by the casing half-width so the stroked ink cannot cross it);
-  wordmark ink 330×55 at top 1280, centered; stats top 1422, column
+  wordmark box 330×55 at top 1280, centered; stats top 1422, column
   centers 220 / 540 / 857, label 29px SemiBold over value 40px
   ExtraBold with a 9px gap; shoe slot 104×104 at top 1605; solid
   #000000 background (fully opaque export). The implied rhythm —
@@ -905,11 +907,15 @@ historical):
   asserted by tests rather than used as an input.
 - **Ink-based artwork placement.** The layout consumes each artwork's
   viewBox AND its measured ink bounds (`path-bounds.ts` verifies the
-  constants in artwork.ts against the path data). The wordmark's ink
-  is deliberately mapped non-uniformly onto its 330×55 box — the
-  trace is ~4.45:1 while the reference's wordmark is ~6:1, so the
-  squash moves the trace toward the real mark's flatness; the shoe's
-  ink is contained (uniform) and centered in its slot.
+  constants in artwork.ts against the path data). Every artwork is
+  CONTAINED (uniform scale, aspect preserved) and centered in its
+  box — the shoe in its 104px slot, and since Task 40 the wordmark
+  in its 330×55 box (~245×55, height binding). Task 23 had stretched
+  the wordmark non-uniformly onto the box (the trace is ~4.45:1
+  while the reference's wordmark is ~6:1) to chase the real mark's
+  flatness; the user rejected the squeeze — the SVG stands as it
+  is, and the height binding keeps the measured vertical rhythm
+  (90/87 gaps) exact.
 - **Casing on black.** The 16px #000000 casing pass stays under the
   10px #FC4C02 route (spec-mandated) but is invisible against the
   black background; pixel-level casing assertions were retired with

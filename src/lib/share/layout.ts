@@ -13,7 +13,8 @@
  *   │ │ x 64–1012, y 219–1190                 │ │   948×971
  *   │ └───────────────────────────────────────┘ │
  *   ├────────────── 90px ───────────────────────┤ ← 1190
- *   │           STRAVA ink 330×55               │ ← top 1280
+ *   │      STRAVA ink ~245×55 (contained        │ ← top 1280
+ *   │      in the 330×55 box, centered)         │
  *   ├────────────── 87px ───────────────────────┤ ← 1335
  *   │   Distance      Pace        Time          │ ← 1422–1515.25
  *   ├───────────── ≈90px (89.75) ───────────────┤
@@ -31,11 +32,15 @@
  *     aspect preserved, centered); the geometry is projected into the
  *     box inset by half the casing (8px) so the painted ink cannot
  *     cross it;
- *   - STRAVA wordmark: ink 330 wide × 55 tall, top 1280, centered
- *     (x 375–705). The traced artwork's ink is ~4.45:1 while the
- *     reference's wordmark is ~6:1, so the ink is mapped
- *     NON-UNIFORMLY onto the box — a deliberate squash that also
- *     moves the trace toward the real mark's flatness;
+ *   - STRAVA wordmark: the 330×55 box, top 1280, centered (x 375–705)
+ *     is the CONTAINMENT box: the ink is mapped at a UNIFORM scale
+ *     (the binding dimension wins) and centered in it, so the SVG's
+ *     own proportions stand — ~245×55 for the current trace. Task 23
+ *     stretched the ink non-uniformly onto the box to chase the
+ *     reference's flatter mark; Task 40 removed that squash at the
+ *     user's request ("keep the svg as it is"). The box's height is
+ *     exactly the ink's height, so the vertical rhythm below is
+ *     unchanged;
  *   - stats: label 29px SemiBold over value 40px ExtraBold, 9px
  *     between the lines, row top 1422, column centers pinned at
  *     x 220 / 540 / 857 (text centered per column);
@@ -69,11 +74,14 @@ export const SHARE_CARD_ROUTE_BOX = {
 } as const;
 
 /**
- * The STRAVA wordmark's ink box: 330 wide, 55 tall, top edge at 1280,
- * horizontally centered (x 375–705, centerX 540) — exactly as
- * measured on the reference card.
+ * The STRAVA wordmark's containment box: 330 wide, 55 tall, top edge
+ * at 1280, horizontally centered (x 375–705, centerX 540) — exactly
+ * as measured on the reference card. The ink is CONTAINED in this
+ * box at a uniform scale (Task 40: the SVG's proportions stand, no
+ * stretch), which for the current trace lands the ink at ~245×55 —
+ * the height binds, so the box's height IS the ink's height.
  */
-export const SHARE_CARD_LOGO_INK_BOX = {
+export const SHARE_CARD_LOGO_BOX = {
   x: 375,
   y: 1280,
   width: 330,
@@ -183,14 +191,14 @@ export interface ShareCardLayout {
     height: number;
   };
   /**
-   * The wordmark's painter rect — the artwork's viewBox mapped so its
-   * INK lands exactly on the spec's 330×55 box (x and y scales are
-   * independent by design: the reference wordmark is flatter than
-   * the trace). The rect itself is invisible scaffolding; only the
-   * ink it places is drawn.
+   * The wordmark's painter rect — the artwork's viewBox mapped at a
+   * UNIFORM scale so its INK is contained in the spec's 330×55 box
+   * and centered in it (aspect preserved — the SVG is never
+   * squeezed; Task 40). The rect itself is invisible scaffolding;
+   * only the ink it places is drawn.
    */
   logoRect: { x: number; y: number; width: number; height: number };
-  /** The spec's logo ink box (where the wordmark's ink lands). */
+  /** Where the wordmark's ink actually lands (contained in the box). */
   logoInkRect: { x: number; y: number; width: number; height: number };
   /** The three stats columns, in label order. */
   statsColumns: readonly StatsColumnLayout[];
@@ -237,19 +245,30 @@ export function computeShareCardLayout(options: {
     height: routeBox.height - 2 * inset,
   };
 
-  // --- Logo: the ink is STRETCHED onto the spec's box (independent
-  // x/y scales). The viewBox rect that achieves this is the box
-  // expanded by the ink's offset from the viewBox origin, scaled per
-  // axis — pure affine bookkeeping; the rect is never seen, only the
-  // ink it places.
-  const logoInkRect = { ...SHARE_CARD_LOGO_INK_BOX };
-  const logoScaleX = logoInkRect.width / logo.ink.width;
-  const logoScaleY = logoInkRect.height / logo.ink.height;
+  // --- Logo: the ink is CONTAINED in the spec's box (uniform scale,
+  // the binding dimension wins) and centered in it — the same
+  // contract as the shoe's slot. The viewBox rect that achieves
+  // this is the box expanded by the ink's offset from the viewBox
+  // origin at that one scale — pure affine bookkeeping; the rect is
+  // never seen, only the ink it places.
+  const logoBox = SHARE_CARD_LOGO_BOX;
+  const logoScale = Math.min(
+    logoBox.width / logo.ink.width,
+    logoBox.height / logo.ink.height,
+  );
+  const logoInkWidth = logo.ink.width * logoScale;
+  const logoInkHeight = logo.ink.height * logoScale;
+  const logoInkRect = {
+    x: logoBox.x + (logoBox.width - logoInkWidth) / 2,
+    y: logoBox.y + (logoBox.height - logoInkHeight) / 2,
+    width: logoInkWidth,
+    height: logoInkHeight,
+  };
   const logoRect = {
-    x: logoInkRect.x - logo.ink.x * logoScaleX,
-    y: logoInkRect.y - logo.ink.y * logoScaleY,
-    width: logo.viewBoxWidth * logoScaleX,
-    height: logo.viewBoxHeight * logoScaleY,
+    x: logoInkRect.x - logo.ink.x * logoScale,
+    y: logoInkRect.y - logo.ink.y * logoScale,
+    width: logo.viewBoxWidth * logoScale,
+    height: logo.viewBoxHeight * logoScale,
   };
 
   // --- Stats: the anchor's top, the pinned column centers, label
