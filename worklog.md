@@ -881,3 +881,30 @@ Stage Summary:
 - The fourth workflow is live end-to-end: statistics → draw the whole route on the map (roads/footpaths/straight, undo/redo, vertex editing) → reconcile (scale-to-recorded by default, keep-drawn one checkbox away) → export a Strava-importable GPX carrying exactly the recorded duration, the scaled distance, and gpxr markers.
 - The three existing workflows are untouched (62/62 e2e incl. all 57 pre-existing specs; the widened signatures are strictly additive).
 - Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
+
+---
+Task ID: 38
+Agent: Super Z (main agent)
+Task: User-approved behavior change for the Create workflow — the drawn route's distance becomes the file's default basis, with a finish-time warning dialog when it disagrees with the watch's distance; the watch's distance stays as the escape hatch; the recorded time always stands and the pace is recomputed from the whole route.
+
+Work Log:
+- Read the current implementation end-to-end first (track.ts reconciliation, create-store default, RouteReviewCard choice UI, use-create-export, e2e contract) — Task 37 shipped scale-to-recorded as the default with keep-drawn as the unchecked fallback; this task inverts that default per the user's proposal.
+- track.ts: needsScaling → needsNotice; RECONCILE_TOLERANCE_RATIO (1%) → RECONCILE_NOTICE_RATIO (2%, GPS watches misreport 1–5%); extreme now >20% relative difference (was ×1.5 factor) because its job is the km/miles-mixup / missed-loop hint; buildCreateTrack applies the scale transform ONLY on the explicit matchDistance choice AND beyond the notice ratio.
+- create-store: matchDistance default true → false (the drawn geometry is the file's distance).
+- New ReconcileDistanceDialog (components/create): AlertDialog firing on every draw → review transition past the notice ratio; states recorded vs drawn vs percent shorter/longer, says the file will use the drawn distance, keeps the recorded time verbatim, shows the pace recalculated from time ÷ drawn distance; primary "Use drawn distance", secondary "Use my watch's distance" (both carry their km value); extreme adds the mixup/loop check hint; Esc/any dismissal keeps the drawn default.
+- CreateStudio wiring: render-time transition detection (the "derive during render" pattern — ESLint's set-state-in-effect rule forbids the effect version), never re-fires mid-review, resets when leaving review.
+- RouteReviewCard: choice inverted to "Use my watch's distance instead" (unchecked by default, ×factor stated); extreme warning teaches mixup/loop; summary badges the distance as estimated whenever a choice existed; card description rewritten ("The route you drew decides the file's distance — your recorded time always stands").
+- RouteDrawPanel: live drawn-vs-recorded comparison uses the exported RECONCILE_NOTICE_RATIO (was an inline 1%) and its tail copy now says "the file will carry what you draw".
+- Facade: use-create-session re-exports Reconciliation, RECONCILE_NOTICE_RATIO, impliedPaceMsPerUnit so the dialog and panel stay off @/features internals (the components ESLint boundary caught my first attempt).
+- Bug found by VLM during live QA (pre-existing from Task 37): MapCanvas showed "No renderable route points — all recorded coordinates are damaged" over the create review map, because the create track view has lines: [] (the whole route is one committed-reconstruction line). Fixed: routeEmpty now also requires empty reconstructions; pinned by a new unit test (reconstruction-only route suppresses the note) and an e2e assertion in the create full path.
+- Tests: create-track ratios renamed/re-bucketed (2%/20% boundaries), create-store asserts the drawn-basis default, create-ui rewritten for the inverted choice + new ReconcileDistanceDialog describe (content/pace/intents/extreme hint); e2e create spec restructured with shared helpers (drawRoute/parseDownload/expectValidGpx): the full path now asserts the WARNING (14% shorter, 32:35 kept, 7:1x /km pace) → "Use drawn distance" → summary 4.51 km → downloaded file carries ~4.51 km with the exact 32:35 timestamp span; +1 escape-hatch spec (watch's distance → 5.23 km ±1%); +1 no-warning spec (a ~5.25 km draw inside the 2% ratio goes straight to review, quiet "matches" line, no toggle at all).
+- Validation: typecheck clean, eslint clean, 912/912 unit, e2e 64/64 (one draw-editor failure in the full run is the documented sandbox memory flake — passes on retry, unmodified code flakes 3/10 per Task 37's investigation).
+- Live QA (agent-browser, real road-follow ON): drew a 3-click route that Valhalla routed to 6.74 km vs 5.23 recorded — dialog states "29% longer", keeps 32:35, pace recalculated to 4:50 /km, extreme hint visible; "Use drawn distance" → review card with unchecked choice, 6.74 km summary, +1.51 km difference; toggling the choice live switches the summary to 5.23 km / 6:13 /km. VLM critiques (3): dialog PASS (centered, primary orange stands out, no clipping), review card PASS, clean review map PASS (no damaged-note overlay after the fix). Screenshots download/task38-01..04; critiques scripts/qa/task38-critique-1..3.json.
+- Committed a864d7a (21 files, +876/−216), pushed to main.
+
+Stage Summary:
+- The Create workflow's distance contract is now drawn-first: WYSIWYG geometry in the GPX, the watch's distance one explicit choice away (dialog button or review checkbox), the recorded duration immutable, pace always recomputed from the whole route.
+- A finish-time warning dialog teaches the rule whenever drawn ≠ recorded beyond 2%, with a mixup/loop hint past 20%.
+- Bonus fix: the create review map no longer falsely claims damaged coordinates (routeEmpty considers reconstruction lines).
+- Test contract: 912 unit + 64 e2e, all green; three existing workflows untouched.
+- Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
