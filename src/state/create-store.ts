@@ -17,8 +17,10 @@
  * every drawing edit, three independent stores), one pseudo-reconstruction
  * keyed by `CREATE_ROUTE_ID`, the road-follow side table, and the settings
  * that are never undoable (spacing, road-follow mode, the reconciliation
- * toggle). Time strategy machinery is deliberately absent — the duration
- * comes from the entered statistics, full stop.
+ * choice). Time strategy machinery is deliberately absent — the duration
+ * comes from the entered statistics, full stop. The distance basis is the
+ * DRAWN route by default (`matchDistance` off); the watch's distance is
+ * the explicit escape hatch.
  *
  * Zustand plain-object store, usable outside React (unit tests included).
  */
@@ -104,7 +106,11 @@ interface CreateState {
   roadFollow: RoadFollowMode;
   /** Densification spacing of the generated track. */
   spacingM: number | "off";
-  /** Scale the drawn route to the recorded distance (review toggle). */
+  /**
+   * Scale the drawn route to the recorded distance — the review's "use
+   * my watch's distance" choice. OFF by default: the drawn geometry (the
+   * line on the map, what Strava will measure) is the file's distance.
+   */
   matchDistance: boolean;
 
   setDrawMode: (on: boolean) => void;
@@ -137,7 +143,7 @@ const INITIAL = {
   drawMode: true,
   roadFollow: "car" as RoadFollowMode,
   spacingM: DEFAULT_CREATE_SPACING_M as number | "off",
-  matchDistance: true,
+  matchDistance: false,
 };
 
 export const useCreateStore = create<CreateState>()((set, get) => ({

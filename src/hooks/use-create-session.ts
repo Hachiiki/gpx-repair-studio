@@ -36,6 +36,11 @@ export type {
 } from "@/features/create/stats";
 export { validateStatsEntry, checkStatsConsistency } from "@/features/create/stats";
 export type { CreatePhase } from "@/state/create-store";
+export { impliedPaceMsPerUnit } from "@/features/create/stats";
+// The reconciliation vocabulary (track.ts) — surfaced here so the review
+// card, the draw panel, and the finish dialog stay off feature internals.
+export { RECONCILE_NOTICE_RATIO } from "@/features/create/track";
+export type { Reconciliation } from "@/features/create/track";
 
 /** Everything the shell, the landing form, and the studio need at the top. */
 export interface CreateSession {

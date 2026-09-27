@@ -31,6 +31,7 @@ import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
 import { Check, Crosshair, X } from "lucide-react";
 import type { CreateDrawBinding } from "@/hooks/use-create-draw";
 import type { ActivityStats } from "@/hooks/use-create-session";
+import { RECONCILE_NOTICE_RATIO } from "@/hooks/use-create-session";
 import type { DrawVertex } from "@/types/domain";
 import {
   formatDistanceForUnit,
@@ -114,7 +115,8 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
   if (!draw.active) return null;
 
   // The live drawn-vs-recorded comparison — the reconciliation's
-  // pre-announcement (the review phase formalizes it).
+  // pre-announcement (the review phase formalizes it). The same 2% ratio
+  // the reconciliation uses, so "matches" live means "matches" at review.
   const drawnM = draw.distanceM ?? 0;
   const differenceM = drawnM - stats.distanceM;
   const comparison =
@@ -122,12 +124,13 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
       ? "Click on the map to place your first point."
       : drawnM === 0
         ? "Keep going — one more point makes the first leg."
-        : Math.abs(differenceM) / Math.max(stats.distanceM, 1) <= 0.01
+        : Math.abs(differenceM) / Math.max(stats.distanceM, 1) <=
+            RECONCILE_NOTICE_RATIO
           ? "Matches your recorded distance."
           : `${differenceM > 0 ? "Longer" : "Shorter"} than your recorded ${formatDistanceForUnit(
               stats.distanceM,
               paceUnit,
-            )} by ${formatDistanceForUnit(Math.abs(differenceM), paceUnit)} — you can reconcile it after finishing.`;
+            )} by ${formatDistanceForUnit(Math.abs(differenceM), paceUnit)} — the file will carry what you draw.`;
 
   return (
     <Card className="border-[1.5px] border-ink" data-testid="route-draw-panel">

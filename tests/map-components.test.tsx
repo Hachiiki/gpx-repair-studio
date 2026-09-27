@@ -218,6 +218,35 @@ describe("MapCanvas", () => {
     expect(screen.getByTestId("map-empty-route")).toBeVisible();
   });
 
+  it("suppresses the empty-route note when reconstructions render (create review)", () => {
+    // The create workflow's review track: no recorded lines, the whole
+    // route is ONE committed-reconstruction line — geometry exists, so
+    // the "all recorded coordinates are damaged" note must stay away.
+    render(
+      <MapCanvas
+        map={makeBinding({
+          route: {
+            lines: [],
+            spans: [],
+            markers: [],
+            reconstructions: [
+              {
+                gapId: "create/route" as never,
+                coordinates: [
+                  [13.405, 52.52],
+                  [13.405, 52.53],
+                ],
+              },
+            ],
+            usablePointCount: 82,
+          },
+        })}
+        attachContainer={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId("map-empty-route")).toBeNull();
+  });
+
   it("renders legend and toolbar when ready, plus the selected-gap chip", () => {
     render(
       <MapCanvas

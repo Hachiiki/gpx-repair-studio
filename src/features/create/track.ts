@@ -8,10 +8,18 @@
  *
  *   vertices (+road legs, spacing)
  *     → resamplePath(null, …, null, …)   the drawn chain, densified
- *     → scalePathAboutCentroid(…)        reconcile with the recorded
- *                                        distance (shape preserved)
+ *     → scalePathAboutCentroid(…)        ONLY when the user chose the
+ *                                        watch's distance over the drawn
+ *                                        one (shape preserved)
  *     → distributeTimestamps(…)          the recorded duration spread
  *                                        by movement along the route
+ *
+ * The DRAWN GEOMETRY is the default source of truth for distance: the
+ * map preview, the GPX file, and what platforms such as Strava measure
+ * from the track are all the same line, and a hand-traced route along
+ * real streets is often closer to reality than the watch's GPS distance.
+ * The watch's distance remains available as an explicit choice (the
+ * scale transform); the recorded DURATION is always kept verbatim.
  *
  * Everything reuses the reconstruction machinery (§G derived data): the
  * drawn vertices are the only user data; the path, the scale, and the
@@ -20,7 +28,10 @@
  * Pure TypeScript: no React, no DOM, no stores.
  */
 
-import { resamplePath, type PathPoint } from "@/features/reconstruction/resample";
+import {
+  resamplePath,
+  type PathPoint,
+} from "@/features/reconstruction/resample";
 import {
   distributeTimestamps,
   wholeActivityTimePlan,
@@ -43,10 +54,18 @@ export const MIN_CREATE_VERTICES = 2;
 
 /**
  * Below this |relative difference| the drawn route counts as matching the
- * recorded distance — no scaling, no toggle (sub-1% is inside GPS and
- * drawing noise).
+ * recorded distance — no notice, no choice (GPS watches routinely
+ * misreport by 1–5%, and hand drawings are no sharper; 2% is inside
+ * that noise).
  */
-export const RECONCILE_TOLERANCE_RATIO = 0.01;
+export const RECONCILE_NOTICE_RATIO = 0.02;
+
+/**
+ * Beyond this |relative difference| the gap is probably not noise — a
+ * km/miles mixup (×1.609 apart) or a missed loop in the drawing. The
+ * dialog adds a check-your-entry hint; never a block.
+ */
+export const RECONCILE_EXTREME_RATIO = 0.2;
 
 // ---------------------------------------------------------------------------
 // Distance reconciliation
@@ -54,7 +73,7 @@ export const RECONCILE_TOLERANCE_RATIO = 0.01;
 
 /** The recorded-vs-drawn comparison the review card renders. */
 export interface Reconciliation {
-  /** The watch's distance (meters) — authoritative. */
+  /** The watch's distance (meters) — the reconciliation reference. */
   recordedM: number;
   /** The drawn chain's geodesic length (meters), road legs included. */
   drawnM: number;
@@ -62,13 +81,14 @@ export interface Reconciliation {
   differenceM: number;
   /** |difference| / recorded (0..1). */
   relativeDifference: number;
-  /** Scaling would move the route more than the tolerance allows. */
-  needsScaling: boolean;
+  /** The difference exceeds the notice ratio — ask which distance to use. */
+  needsNotice: boolean;
   /** recorded / drawn — the uniform scale factor (when drawable). */
   scaleFactor: number | null;
   /**
-   * The factor would distort the route heavily (a much shorter/longer
-   * drawing than the recording) — surfaced as a warning, never a block.
+   * The difference is large enough that it is probably not GPS noise
+   * (a km/miles mixup or a missed loop) — surfaced as a hint, never a
+   * block.
    */
   extreme: boolean;
 }
@@ -83,14 +103,13 @@ export function computeReconciliation(
     recordedM > 0 ? Math.abs(differenceM) / recordedM : 0;
   const drawable = drawnM > 0 && recordedM > 0;
   const scaleFactor = drawable ? recordedM / drawnM : null;
-  const extreme =
-    drawable && (scaleFactor! > 1.5 || scaleFactor! < 1 / 1.5);
+  const extreme = drawable && relativeDifference > RECONCILE_EXTREME_RATIO;
   return {
     recordedM,
     drawnM,
     differenceM,
     relativeDifference,
-    needsScaling: drawable && relativeDifference > RECONCILE_TOLERANCE_RATIO,
+    needsNotice: drawable && relativeDifference > RECONCILE_NOTICE_RATIO,
     scaleFactor,
     extreme,
   };
@@ -181,7 +200,11 @@ export interface CreateTrackInput {
   vertices: readonly DrawVertex[];
   roadLegs: readonly RoadLeg[];
   spacingM: number | "off";
-  /** Scale the drawn route to the recorded distance (the default). */
+  /**
+   * Scale the drawn route to the recorded distance — the explicit "use
+   * my watch's distance" choice. Off by default: the drawn geometry is
+   * the file's distance.
+   */
   matchDistance: boolean;
 }
 
@@ -191,11 +214,12 @@ export interface CreateTrackInput {
  * `null` until the route is drawable (≥ {@link MIN_CREATE_VERTICES}
  * vertices with a positive length) or the stats are missing.
  *
- * The user's statistics are authoritative by construction: the duration
- * enters `wholeActivityTimePlan` verbatim, and the distance enters as the
- * scaling target — the generated track therefore satisfies
- * distance ≈ recorded and duration = recorded exactly (to GPX coordinate
- * precision), and the pace falls out of their arithmetic.
+ * The DRAWN route is the default distance basis (WYSIWYG: the file is the
+ * line the map previewed); the scale transform applies only when the user
+ * explicitly chose the watch's distance AND the difference is beyond the
+ * notice ratio (below it the two agree within noise). The duration enters
+ * `wholeActivityTimePlan` verbatim either way, and the pace falls out of
+ * duration ÷ final distance.
  */
 export function buildCreateTrack(
   stats: { distanceM: number; durationMs: number; startMs: number },
@@ -217,7 +241,7 @@ export function buildCreateTrack(
   if (!(drawnDistanceM > 0)) return null;
 
   const reconciliation = computeReconciliation(stats.distanceM, drawnDistanceM);
-  const scaleApplied = input.matchDistance && reconciliation.needsScaling;
+  const scaleApplied = input.matchDistance && reconciliation.needsNotice;
   const path = scaleApplied
     ? scalePathAboutCentroid(drawnPath, reconciliation.scaleFactor!)
     : drawnPath;

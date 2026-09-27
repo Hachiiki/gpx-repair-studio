@@ -69,8 +69,15 @@ export interface MapCanvasProps {
 }
 
 export function MapCanvas({ map, attachContainer, draw = null, srNote }: MapCanvasProps) {
+  // "Nothing renderable at all" — recorded lines AND committed
+  // reconstructions are empty. Reconstruction-only views (the create
+  // workflow's review track, re-imported repairs on a fully damaged
+  // recording) have geometry to draw and must NOT show the damaged note.
   const routeEmpty =
-    map.status === "ready" && map.route !== null && map.route.lines.length === 0;
+    map.status === "ready" &&
+    map.route !== null &&
+    map.route.lines.length === 0 &&
+    map.route.reconstructions.length === 0;
   const editorActive = draw?.active === true;
 
   return (

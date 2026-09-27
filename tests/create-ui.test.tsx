@@ -11,8 +11,12 @@
  *     states, and the back-to-form intent.
  *   - RouteDrawPanel: Finish disabled below two points, the road-follow
  *     chips, the drawn-vs-recorded comparison, spacing.
- *   - RouteReviewCard: recorded/drawn/difference, the match toggle and
- *     its scale note, the final summary trio, export + edit intents.
+ *   - RouteReviewCard: recorded/drawn/difference, the drawn-distance
+ *     default with the watch's distance as the unchecked choice, the
+ *     final summary trio, export + edit intents.
+ *   - ReconcileDistanceDialog: the finish-time warning states the
+ *     difference, keeps the recorded time, recomputes the pace from the
+ *     whole route, and dispatches both distance-basis choices.
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -25,7 +29,14 @@ import { RouteReviewCard } from "@/components/create/route-review-card";
 import type { CreateDrawBinding } from "@/hooks/use-create-draw";
 import type { CreateReview } from "@/hooks/use-create-export";
 import type { ActivityStats } from "@/hooks/use-create-session";
-import { buildCreateTrack } from "@/features/create/track";
+import { ReconcileDistanceDialog } from "@/components/create/reconcile-distance-dialog";
+import {
+  buildCreateTrack,
+  computeReconciliation,
+  type Reconciliation,
+} from "@/features/create/track";
+import { impliedPaceMsPerUnit } from "@/features/create/stats";
+import { formatPaceMs } from "@/lib/utils/format";
 import { vertexId } from "@/types/ids";
 
 afterEach(() => cleanup());
@@ -41,7 +52,9 @@ const STATS: ActivityStats = {
 // ActivityStatsForm
 // ---------------------------------------------------------------------------
 
-function setupForm(overrides: Partial<Parameters<typeof ActivityStatsForm>[0]> = {}) {
+function setupForm(
+  overrides: Partial<Parameters<typeof ActivityStatsForm>[0]> = {},
+) {
   const onBegin = vi.fn();
   render(
     <ActivityStatsForm
@@ -83,9 +96,13 @@ describe("ActivityStatsForm", () => {
     const { onBegin } = setupForm();
     fireEvent.click(screen.getByTestId("begin-drawing-button"));
     expect(onBegin).not.toHaveBeenCalled();
-    expect(screen.getByText(/Enter the distance your watch recorded/)).toBeVisible();
+    expect(
+      screen.getByText(/Enter the distance your watch recorded/),
+    ).toBeVisible();
     expect(screen.getByText(/Enter your average pace/)).toBeVisible();
-    expect(screen.getByText(/Total time must be greater than zero/)).toBeVisible();
+    expect(
+      screen.getByText(/Total time must be greater than zero/),
+    ).toBeVisible();
     expect(screen.getByText(/Set when the activity started/)).toBeVisible();
   });
 
@@ -155,9 +172,7 @@ describe("CreateGuideCard", () => {
 
   it("shows the denial notice when geolocation was declined", () => {
     render(<CreateGuideCard {...props} locateStatus="denied" />);
-    expect(screen.getByTestId("locate-notice")).toHaveTextContent(
-      /declined/,
-    );
+    expect(screen.getByTestId("locate-notice")).toHaveTextContent(/declined/);
   });
 
   it("dispatches the back-to-statistics intent", () => {
@@ -290,7 +305,7 @@ function reviewBinding(overrides: Partial<CreateReview> = {}): CreateReview {
     ],
     roadLegs: [],
     spacingM: 25,
-    matchDistance: true,
+    matchDistance: false,
   })!;
   return {
     track,
@@ -301,8 +316,28 @@ function reviewBinding(overrides: Partial<CreateReview> = {}): CreateReview {
   };
 }
 
+/** A scaled track (the watch's-distance choice) for the switch-case tests. */
+function scaledReviewBinding(): CreateReview {
+  const track = buildCreateTrack(STATS, {
+    vertices: [
+      { id: vertexId(1), lat: 52.52, lon: 13.405 },
+      { id: vertexId(2), lat: 52.53, lon: 13.405 },
+      { id: vertexId(3), lat: 52.53, lon: 13.455 },
+    ],
+    roadLegs: [],
+    spacingM: 25,
+    matchDistance: true,
+  })!;
+  return {
+    track,
+    stats: STATS,
+    download: () => "activity-2026-09-20.gpx",
+    setMatchDistance: vi.fn(),
+  };
+}
+
 describe("RouteReviewCard", () => {
-  it("shows recorded vs drawn vs difference and the scale toggle (on by default)", () => {
+  it("defaults to the drawn distance — the watch's is an unchecked choice", () => {
     const review = reviewBinding();
     render(
       <RouteReviewCard
@@ -317,13 +352,62 @@ describe("RouteReviewCard", () => {
     expect(box).toHaveTextContent("5.23 km");
     expect(box).toHaveTextContent("4.51 km");
     expect(screen.getByTestId("distance-difference")).toHaveTextContent("−");
-    // 4.51 km drawn vs 5.23 km recorded: scaling is warranted (×1.16) but
-    // not extreme — no distortion warning, just the toggle.
+    // 4.51 km drawn vs 5.23 km recorded: a choice is offered, the drawn
+    // distance is the default (the toggle to the watch's is UNchecked),
+    // and the gap is not extreme — no distortion warning.
     expect(screen.queryByTestId("extreme-scale-warning")).toBeNull();
-    expect(screen.getByTestId("match-distance-toggle")).toBeChecked();
+    expect(screen.getByTestId("match-distance-toggle")).not.toBeChecked();
   });
 
-  it("toggles the reconciliation and dispatches export + edit intents", () => {
+  it("summarizes the DRAWN basis: drawn distance and its implied pace", () => {
+    const review = reviewBinding();
+    render(
+      <RouteReviewCard
+        review={review}
+        stats={STATS}
+        paceUnit="km"
+        consistency={null}
+        onEditRoute={() => {}}
+      />,
+    );
+    const summary = screen.getByTestId("activity-summary");
+    // Final distance = the drawn ~4.51 km; time = the recorded 32:35.
+    expect(summary).toHaveTextContent("4.51 km");
+    expect(summary).toHaveTextContent("32:35");
+    // The pace implied by 32:35 over the drawn route — the file's own
+    // arithmetic (time ÷ drawn distance), never the entered 6:14.
+    const expectedPace = formatPaceMs(
+      impliedPaceMsPerUnit(
+        STATS.durationMs,
+        review.track.drawnDistanceM,
+        "km",
+      )!,
+    );
+    expect(summary).toHaveTextContent(`${expectedPace} /km`);
+    expect(summary).toHaveTextContent(/Reconstructed manually/);
+  });
+
+  it("switches to the watch's distance through the choice (scaled summary)", () => {
+    const review = scaledReviewBinding();
+    render(
+      <RouteReviewCard
+        review={review}
+        stats={STATS}
+        paceUnit="km"
+        consistency={null}
+        onEditRoute={() => {}}
+      />,
+    );
+    const summary = screen.getByTestId("activity-summary");
+    expect(screen.getByTestId("match-distance-toggle")).toBeChecked();
+    // Final distance = the recorded 5.23 km (scaled); time = 32:35.
+    expect(summary).toHaveTextContent("5.23 km");
+    expect(summary).toHaveTextContent("32:35");
+    // The pace implied by 32:35 / 5.23 km = 6:13.8 → "6:13 /km".
+    expect(summary).toHaveTextContent("6:13 /km");
+  });
+
+  it("toggles the choice and dispatches export + edit intents", () => {
     const setMatchDistance = vi.fn();
     const download = vi.fn(() => "activity-2026-09-20.gpx");
     const onEditRoute = vi.fn();
@@ -339,7 +423,7 @@ describe("RouteReviewCard", () => {
     );
 
     fireEvent.click(screen.getByTestId("match-distance-toggle"));
-    expect(setMatchDistance).toHaveBeenCalledWith(false);
+    expect(setMatchDistance).toHaveBeenCalledWith(true);
 
     fireEvent.click(screen.getByTestId("export-gpx-button"));
     expect(download).toHaveBeenCalledTimes(1);
@@ -351,24 +435,119 @@ describe("RouteReviewCard", () => {
     expect(onEditRoute).toHaveBeenCalledTimes(1);
   });
 
-  it("summarizes what the file will carry (distance, time, implied pace)", () => {
-    const review = reviewBinding();
+  it("warns about extreme differences with the mixup/loop hint", () => {
+    // A much shorter drawing: ~1.1 km vs the recorded 5.23 km (79%).
+    const track = buildCreateTrack(STATS, {
+      vertices: [
+        { id: vertexId(1), lat: 52.52, lon: 13.405 },
+        { id: vertexId(2), lat: 52.53, lon: 13.405 },
+      ],
+      roadLegs: [],
+      spacingM: 25,
+      matchDistance: false,
+    })!;
+    expect(track.reconciliation.extreme).toBe(true);
     render(
       <RouteReviewCard
-        review={review}
+        review={{
+          track,
+          stats: STATS,
+          download: () => "activity-2026-09-20.gpx",
+          setMatchDistance: vi.fn(),
+        }}
         stats={STATS}
         paceUnit="km"
         consistency={null}
         onEditRoute={() => {}}
       />,
     );
-    const summary = screen.getByTestId("activity-summary");
-    // Final distance = the recorded 5.23 km (scaled); time = 32:35.
-    expect(summary).toHaveTextContent("5.23 km");
-    expect(summary).toHaveTextContent("32:35");
-    // The pace implied by 32:35 / 5.23 km = 6:13.8 → "6:13 /km" (the
-    // file's own arithmetic, floored to the second).
-    expect(summary).toHaveTextContent("6:13 /km");
-    expect(summary).toHaveTextContent(/Reconstructed manually/);
+    const warning = screen.getByTestId("extreme-scale-warning");
+    expect(warning).toHaveTextContent(/km\/miles mixup/);
+    expect(warning).toHaveTextContent(/missed loop/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ReconcileDistanceDialog
+// ---------------------------------------------------------------------------
+
+function dialogProps(
+  reconciliation: Reconciliation,
+  overrides: Partial<Parameters<typeof ReconcileDistanceDialog>[0]> = {},
+) {
+  return {
+    open: true,
+    onOpenChange: vi.fn(),
+    reconciliation,
+    durationMs: STATS.durationMs,
+    paceUnit: "km" as const,
+    onUseDrawn: vi.fn(),
+    onUseRecorded: vi.fn(),
+    ...overrides,
+  };
+}
+
+describe("ReconcileDistanceDialog", () => {
+  it("states the difference, keeps the time, and recomputes the pace", () => {
+    // The drawn L (~4.51 km) vs the recorded 5.23 km — 14% shorter.
+    const track = buildCreateTrack(STATS, {
+      vertices: [
+        { id: vertexId(1), lat: 52.52, lon: 13.405 },
+        { id: vertexId(2), lat: 52.53, lon: 13.405 },
+        { id: vertexId(3), lat: 52.53, lon: 13.455 },
+      ],
+      roadLegs: [],
+      spacingM: 25,
+      matchDistance: false,
+    })!;
+    const props = dialogProps(track.reconciliation);
+    render(<ReconcileDistanceDialog {...props} />);
+
+    const dialog = screen.getByTestId("reconcile-distance-dialog");
+    expect(dialog).toHaveTextContent("5.23 km");
+    expect(dialog).toHaveTextContent("4.51 km");
+    expect(dialog).toHaveTextContent(
+      `${Math.round(track.reconciliation.relativeDifference * 100)}% shorter`,
+    );
+    // The recorded time is kept verbatim and the pace is recomputed from
+    // the whole route (time ÷ drawn distance) — not the entered 6:14.
+    expect(dialog).toHaveTextContent("32:35");
+    const expectedPace = formatPaceMs(
+      impliedPaceMsPerUnit(
+        STATS.durationMs,
+        track.reconciliation.drawnM,
+        "km",
+      )!,
+    );
+    expect(dialog).toHaveTextContent(`${expectedPace} /km`);
+    // No extreme hint at 14%.
+    expect(screen.queryByTestId("reconcile-extreme-hint")).toBeNull();
+  });
+
+  it("dispatches both distance-basis choices", () => {
+    const onUseDrawn = vi.fn();
+    const onUseRecorded = vi.fn();
+    const props = dialogProps(computeReconciliation(5230, 4800), {
+      onUseDrawn,
+      onUseRecorded,
+    });
+    render(<ReconcileDistanceDialog {...props} />);
+
+    fireEvent.click(screen.getByTestId("use-drawn-distance-button"));
+    expect(onUseDrawn).toHaveBeenCalledTimes(1);
+    expect(onUseRecorded).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("use-recorded-distance-button"));
+    expect(onUseRecorded).toHaveBeenCalledTimes(1);
+    expect(onUseDrawn).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds the mixup/loop hint for extreme differences", () => {
+    // 5.23 km recorded vs 1.00 km drawn — 81% apart.
+    const props = dialogProps(computeReconciliation(5230, 1000));
+    render(<ReconcileDistanceDialog {...props} />);
+    const hint = screen.getByTestId("reconcile-extreme-hint");
+    expect(hint).toHaveTextContent(/km\/miles mixup/);
+    expect(hint).toHaveTextContent(/missed loop/);
   });
 });

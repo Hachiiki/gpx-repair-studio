@@ -12,10 +12,7 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  DEFAULT_CREATE_SPACING_M,
-  useCreateStore,
-} from "@/state/create-store";
+import { DEFAULT_CREATE_SPACING_M, useCreateStore } from "@/state/create-store";
 import { CREATE_ROUTE_ID } from "@/features/create/track";
 import { vertexId } from "@/types/ids";
 
@@ -31,11 +28,14 @@ beforeEach(() => {
 });
 
 describe("phase lifecycle", () => {
-  it("starts on the form with no statistics", () => {
+  it("starts on the form with no statistics and the drawn-distance basis", () => {
     const state = useCreateStore.getState();
     expect(state.phase).toBe("form");
     expect(state.stats).toBeNull();
     expect(state.reconstruction.vertices).toHaveLength(0);
+    // The drawn geometry is the file's distance by default — the watch's
+    // number is the explicit escape hatch, not the starting point.
+    expect(state.matchDistance).toBe(false);
   });
 
   it("beginDrawing confirms the statistics and enters the drawing phase in draw mode", () => {
@@ -105,7 +105,9 @@ describe("vertex commands (the shared drawModel machinery)", () => {
     expect(useCreateStore.getState().reconstruction.vertices).toHaveLength(3);
 
     const second = useCreateStore.getState().reconstruction.vertices[1];
-    useCreateStore.getState().moveVertex(second.id, { lat: 52.535, lon: 13.406 });
+    useCreateStore
+      .getState()
+      .moveVertex(second.id, { lat: 52.535, lon: 13.406 });
     expect(
       useCreateStore.getState().reconstruction.vertices[1].lat,
     ).toBeCloseTo(52.535, 9);
@@ -156,13 +158,13 @@ describe("settings (never undoable)", () => {
 
     useCreateStore.getState().setSpacing(50);
     useCreateStore.getState().setRoadFollow("foot");
-    useCreateStore.getState().setMatchDistance(false);
+    useCreateStore.getState().setMatchDistance(true);
 
     const state = useCreateStore.getState();
     expect(state.spacingM).toBe(50);
     expect(state.reconstruction.resampleSpacingM).toBe(50);
     expect(state.roadFollow).toBe("foot");
-    expect(state.matchDistance).toBe(false);
+    expect(state.matchDistance).toBe(true);
     expect(state.history.undo).toHaveLength(1); // only the addVertex
   });
 });

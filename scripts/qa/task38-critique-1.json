@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "1) **Centering & Proportions:** The dialog is perfectly centered on the screen with a well-balanced width and padding. The layout feels stable and appropriately sized for the amount of text.\n2) **Action Buttons:** Both buttons are clearly visible. The primary \"Use drawn distance\" button uses the orange accent (#FC4C02), making it stand out effectively against the secondary white button.\n3) **Overflow/Clipping:** No text overflow, clipping, or overlapping elements are present. All text wraps correctly within the container.\n4) **Readability:** The warning text and paragraphs have excellent contrast against the bone-white background. The font (Archivo) is legible, and the information is well-structured.\n5) **Visual Defects:** No visual defects, misalignments, or rendering errors are observed. The borders are crisp and the styling is consistent.\n\n**Verdict: PASS**",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790499501,
+  "id": "20260927165817b1d9b17974f948e6",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260927165817b1d9b17974f948e6",
+  "usage": {
+    "completion_tokens": 185,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1793,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1978
+  }
+}

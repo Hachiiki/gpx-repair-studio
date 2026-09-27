@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "**Verdict: PASS**\n\n1.  **Map Route:** The map displays a clear, continuous **orange route line**. There is **no** \"No renderable route points\" or \"damaged\" warning overlay on the map area.\n2.  **Review Card:** The right-side \"Review & export\" card is rendered cleanly. It includes the reconciliation numbers (Recorded vs. Drawn), the \"Use my watch's distance instead\" checkbox, a warning about the difference, a summary of file details (Distance, Time, Pace, etc.), and a prominent orange **Export GPX** button.\n3.  **Visual Defects:** No visual defects are present in the layout, typography, or UI components. (Note: The red \"1 Issue\" toast at the bottom left is a standard UI element indicating the distance discrepancy warning, not a rendering defect).",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790499690,
+  "id": "20260927170126de77dff1eb4f4bb5",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260927170126de77dff1eb4f4bb5",
+  "usage": {
+    "completion_tokens": 180,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1752,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1932
+  }
+}

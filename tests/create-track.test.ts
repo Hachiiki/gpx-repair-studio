@@ -3,13 +3,14 @@
  *
  * The "create from activity stats" Step 2/3 contract:
  *   - reconciliation compares the drawn chain with the recorded distance
- *     and only demands scaling beyond the 1% tolerance;
+ *     and only raises a notice beyond the 2% ratio (GPS/drawing noise);
  *   - scaling is a shape-preserving similarity transform about the
- *     centroid (distances scale by the factor, order/roles ride along);
+ *     centroid (distances scale by the factor, order/roles ride along)
+ *     and applies ONLY on the explicit match-distance choice;
  *   - buildCreateTrack produces the final population: the recorded
  *     duration spread by movement (first point = start, last point =
- *     start + duration), the final distance ≈ the recorded distance when
- *     scaling is on, and the drawn distance when it is off;
+ *     start + duration), the final distance = the drawn distance by
+ *     default and the recorded distance when matching is on;
  *   - the route view is one committed-reconstruction line.
  */
 
@@ -50,30 +51,32 @@ const L_CHAIN = vertices(
 );
 
 describe("computeReconciliation", () => {
-  it("flags nothing inside the 1% tolerance", () => {
-    const r = computeReconciliation(5000, 5030);
-    expect(r.needsScaling).toBe(false);
-    expect(r.relativeDifference).toBeCloseTo(0.006, 6);
-    expect(r.differenceM).toBe(30);
+  it("flags nothing inside the 2% notice ratio", () => {
+    const r = computeReconciliation(5000, 5090); // 1.8%
+    expect(r.needsNotice).toBe(false);
+    expect(r.relativeDifference).toBeCloseTo(0.018, 6);
+    expect(r.differenceM).toBe(90);
   });
 
-  it("demands scaling beyond the tolerance and reports the factor", () => {
-    const r = computeReconciliation(5230, 5410);
-    expect(r.needsScaling).toBe(true);
+  it("raises the notice beyond the ratio and reports the factor", () => {
+    const r = computeReconciliation(5230, 5410); // 3.4%
+    expect(r.needsNotice).toBe(true);
     expect(r.differenceM).toBe(180);
     expect(r.scaleFactor).toBeCloseTo(5230 / 5410, 9);
     expect(r.extreme).toBe(false);
   });
 
-  it("marks extreme factors (much shorter or longer than recorded)", () => {
-    expect(computeReconciliation(5230, 1000).extreme).toBe(true);
-    expect(computeReconciliation(5230, 20_000).extreme).toBe(true);
-    expect(computeReconciliation(5230, 5410).extreme).toBe(false);
+  it("marks extreme differences (km/mi mixup or missed loop territory)", () => {
+    expect(computeReconciliation(5230, 1000).extreme).toBe(true); // 81%
+    expect(computeReconciliation(5230, 20_000).extreme).toBe(true); // 282%
+    expect(computeReconciliation(5230, 6500).extreme).toBe(true); // 24%
+    expect(computeReconciliation(5230, 6000).extreme).toBe(false); // 15%
+    expect(computeReconciliation(5230, 5410).extreme).toBe(false); // 3.4%
   });
 
   it("degrades honestly on undrawable inputs", () => {
     const r = computeReconciliation(5230, 0);
-    expect(r.needsScaling).toBe(false);
+    expect(r.needsNotice).toBe(false);
     expect(r.scaleFactor).toBeNull();
   });
 });
@@ -117,7 +120,7 @@ describe("buildCreateTrack", () => {
     expect(MIN_CREATE_VERTICES).toBe(2);
   });
 
-  it("scales the drawn route to the recorded distance when matching", () => {
+  it("scales the drawn route to the recorded distance when matching is chosen", () => {
     const track = buildCreateTrack(STATS, {
       vertices: L_CHAIN,
       roadLegs: [],
@@ -126,8 +129,9 @@ describe("buildCreateTrack", () => {
     })!;
 
     // The drawn chain is ~3.55 km — far from the recorded 5.23 km, so the
-    // scale transform applies and the FINAL distance lands on the record.
-    expect(track.reconciliation.needsScaling).toBe(true);
+    // explicit match-distance choice scales and the FINAL distance lands
+    // on the record.
+    expect(track.reconciliation.needsNotice).toBe(true);
     expect(track.scaleApplied).toBe(true);
     expect(track.finalDistanceM).toBeCloseTo(STATS.distanceM, -1);
     expect(track.drawnDistanceM).toBeLessThan(STATS.distanceM);
@@ -151,7 +155,7 @@ describe("buildCreateTrack", () => {
     ).toBeCloseTo(midFraction, 1);
   });
 
-  it("keeps the drawn distance when matching is off (honest fallback)", () => {
+  it("keeps the drawn distance when matching is off (the default basis)", () => {
     const track = buildCreateTrack(STATS, {
       vertices: L_CHAIN,
       roadLegs: [],
@@ -165,7 +169,7 @@ describe("buildCreateTrack", () => {
     expect(times[times.length - 1] - times[0]).toBe(STATS.durationMs);
   });
 
-  it("does not scale inside the tolerance (drawing noise)", () => {
+  it("does not scale inside the notice ratio (drawing noise)", () => {
     // A chain drawn almost exactly 5.23 km: reuse the scaled chain of the
     // matching build (its length IS the recorded distance).
     const scaled = buildCreateTrack(STATS, {
@@ -183,7 +187,7 @@ describe("buildCreateTrack", () => {
       spacingM: 25,
       matchDistance: true,
     })!;
-    expect(again.reconciliation.needsScaling).toBe(false);
+    expect(again.reconciliation.needsNotice).toBe(false);
     expect(again.scaleApplied).toBe(false);
   });
 

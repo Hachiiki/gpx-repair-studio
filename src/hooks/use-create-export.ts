@@ -6,9 +6,10 @@
  * the map's review line derive from the SAME pure `buildCreateTrack` —
  * one basis, they can never disagree) and serializes + downloads it as a
  * standalone GPX 1.1 through the shared exporter (`exportGpxGenerated`):
- * the drawn route's shape, the recorded distance (via the scale
- * reconciliation), and the recorded duration distributed across the
- * points by movement along the route.
+ * the drawn route's geometry as drawn (the default distance basis), or
+ * the same shape scaled to the recorded distance when the user chose
+ * their watch's number, and the recorded duration distributed across
+ * the points by movement along the route.
  *
  * "Create from activity stats" section. Client-side hook.
  */
@@ -16,7 +17,11 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { buildCreateTrack, createTrackFileName, type CreateTrack } from "@/features/create/track";
+import {
+  buildCreateTrack,
+  createTrackFileName,
+  type CreateTrack,
+} from "@/features/create/track";
 import { exportGpxGenerated } from "@/features/gpx/exportGpx";
 import { createDomXmlIo } from "@/lib/utils/xml";
 import { downloadTextFile } from "@/lib/utils/download";
@@ -31,7 +36,10 @@ export interface CreateReview {
   stats: { distanceM: number; durationMs: number; startMs: number };
   /** Serialize + download; returns the file name handed to the browser. */
   download: () => string | null;
-  /** The reconciliation toggle (scale the route to the recorded distance). */
+  /**
+   * The distance-basis choice: false (default) keeps the drawn geometry,
+   * true scales the shape to the recorded distance.
+   */
   setMatchDistance: (on: boolean) => void;
 }
 

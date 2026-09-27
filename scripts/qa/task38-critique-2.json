@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "**Verdict: PASS**\n\n**Evaluation Details:**\n\n1.  **Reconciliation Box:** The \"Recorded distance\" (5.23 km), \"Drawn route\" (6.74 km), and \"Difference\" (+1.51 km) rows are displayed cleanly in a light gray container with clear label/value alignment.\n2.  **Checkbox Choice:** The row \"Use my watch's distance instead\" is highly readable, includes explanatory text, and the checkbox is clearly in an **unchecked** state.\n3.  **Orange Warning:** The \"That's a big difference\" warning box is prominently visible with a light orange background, orange border, and icon. It does not overlap with other elements.\n4.  **Summary Alignment:** The \"The file will carry\" section lists Distance, Time, Average pace, Start, and Route in a perfectly aligned two-column format (labels left, values right).\n5.  **Export Button:** The \"Export GPX\" button is large, bright orange, and positioned at the bottom of the sidebar for high prominence.\n\n**Defects/Notes:**\n*   There is a map overlay error message (\"No renderable route points...\") indicating a data issue with the current file, but this is a functional state of the app rather than a UI design defect of the review card itself.\n*   The \"Field Plot\" aesthetic (bone background, ink borders) is consistently applied across all containers.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790499511,
+  "id": "2026092716582741ea00f51b7a4fa8",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "2026092716582741ea00f51b7a4fa8",
+  "usage": {
+    "completion_tokens": 295,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1802,
+    "prompt_tokens_details": {
+      "cached_tokens": 2
+    },
+    "total_tokens": 2097
+  }
+}

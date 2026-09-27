@@ -3,12 +3,14 @@
  * workflow: reconcile the drawn route with the recorded distance, show
  * the final activity summary, and export the GPX.
  *
- * The recorded statistics are AUTHORITATIVE — the reconciliation
- * defaults to scaling the drawn shape to the recorded distance (the
- * spec's preference), with "keep the drawn distance" one checkbox away.
- * The summary always shows what the FILE will carry (the final distance
- * and the pace implied by time ÷ distance), never a re-statement of the
- * entered pace, and the honest notes say exactly what is estimated.
+ * The DRAWN ROUTE is the default distance basis — the map preview, the
+ * GPX geometry, and what platforms measure from the file are the same
+ * line (watches often misjudge distance; the trace is usually closer).
+ * The watch's distance stays one checkbox away (the shape scales to it,
+ * uniformly). The summary always shows what the FILE will carry (the
+ * final distance and the pace implied by time ÷ distance), never a
+ * re-statement of the entered pace, and the honest notes say exactly
+ * what is estimated.
  *
  * Pure presentation: the {@link CreateReview} binding in, intents out.
  */
@@ -29,7 +31,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
 import { ConsistencyNote } from "@/components/create/consistency-note";
 import type { CreateReview } from "@/hooks/use-create-export";
-import type { ActivityStats, ConsistencyNotice } from "@/hooks/use-create-session";
+import type {
+  ActivityStats,
+  ConsistencyNotice,
+} from "@/hooks/use-create-session";
 import {
   formatDateTime,
   formatDistanceForUnit,
@@ -82,8 +87,8 @@ export function RouteReviewCard({
           Review &amp; export
         </h3>
         <CardDescription>
-          The drawn route against your recorded statistics — your numbers
-          stay authoritative.
+          The route you drew decides the file&apos;s distance — your recorded
+          time always stands.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -110,7 +115,7 @@ export function RouteReviewCard({
           </p>
         </div>
 
-        {reconciliation.needsScaling ? (
+        {reconciliation.needsNotice ? (
           <div className="grid gap-1.5">
             <label
               className="flex items-start gap-2.5 rounded-md border border-signal/40 bg-signal/[0.06] px-3 py-2.5 text-xs leading-relaxed text-ink"
@@ -121,19 +126,19 @@ export function RouteReviewCard({
                 onCheckedChange={(checked) =>
                   review.setMatchDistance(checked === true)
                 }
-                aria-label="Scale the route to match the recorded distance"
+                aria-label="Use my watch's distance instead of the drawn route's"
                 data-testid="match-distance-toggle"
                 className="mt-0.5"
               />
               <span>
                 <span className="font-semibold">
-                  Scale the route to your recorded distance
+                  Use my watch&apos;s distance instead
                 </span>{" "}
-                — the drawn shape is preserved and every point moves by the
-                same proportion (×
-                {reconciliation.scaleFactor?.toFixed(3)}). Your recorded{" "}
-                {formatDistanceForUnit(reconciliation.recordedM, paceUnit)}{" "}
-                stays authoritative.
+                — the drawn shape is scaled uniformly to your recorded{" "}
+                {formatDistanceForUnit(reconciliation.recordedM, paceUnit)} (×
+                {reconciliation.scaleFactor?.toFixed(3)}). Leave it off and the
+                file carries the drawn route&apos;s{" "}
+                {formatDistanceForUnit(reconciliation.drawnM, paceUnit)} as is.
               </span>
             </label>
             {reconciliation.extreme && (
@@ -142,12 +147,12 @@ export function RouteReviewCard({
                 data-testid="extreme-scale-warning"
               >
                 <TriangleAlert className="size-4" aria-hidden="true" />
-                <AlertTitle>The drawn route differs a lot</AlertTitle>
+                <AlertTitle>That&apos;s a big difference</AlertTitle>
                 <AlertDescription>
-                  Scaling would stretch the route ×
-                  {reconciliation.scaleFactor?.toFixed(2)} — consider going
-                  back and drawing closer to your real distance, or keep the
-                  drawn distance below.
+                  {Math.round(reconciliation.relativeDifference * 100)}% apart —
+                  usually a km/miles mixup or a missed loop in the drawing.
+                  Consider going back and checking what you entered, or edit the
+                  route to match where you went.
                 </AlertDescription>
               </Alert>
             )}
@@ -171,7 +176,9 @@ export function RouteReviewCard({
             </dt>
             <dd className="flex flex-wrap items-baseline gap-2 font-semibold">
               {formatDistanceForUnit(finalDistanceM, paceUnit)}
-              {track.scaleApplied && <ProvenanceBadge kind="estimated" />}
+              {track.reconciliation.needsNotice && (
+                <ProvenanceBadge kind="estimated" />
+              )}
             </dd>
             <dt className="text-xs font-semibold text-muted-foreground">
               Time
@@ -190,9 +197,7 @@ export function RouteReviewCard({
             <dt className="text-xs font-semibold text-muted-foreground">
               Start
             </dt>
-            <dd className="font-semibold">
-              {formatDateTime(stats.startMs)}
-            </dd>
+            <dd className="font-semibold">{formatDateTime(stats.startMs)}</dd>
             <dt className="text-xs font-semibold text-muted-foreground">
               Route
             </dt>
@@ -203,9 +208,9 @@ export function RouteReviewCard({
         </div>
 
         <p className="text-[11px] leading-snug text-muted-foreground">
-          Timestamps are estimated — your recorded total time, spread
-          evenly by effort along the route. No elevation is included: the
-          watch recorded none, and none is invented.
+          Timestamps are estimated — your recorded total time, spread evenly by
+          effort along the route. No elevation is included: the watch recorded
+          none, and none is invented.
         </p>
 
         {consistency && consistency.level !== "consistent" && (
@@ -232,8 +237,8 @@ export function RouteReviewCard({
               data-testid="export-success"
             >
               <Check className="size-3.5 text-signal" aria-hidden="true" />
-              Downloaded {downloadedFile} — import it into Strava or any
-              GPX platform.
+              Downloaded {downloadedFile} — import it into Strava or any GPX
+              platform.
             </p>
           )}
           <Button
