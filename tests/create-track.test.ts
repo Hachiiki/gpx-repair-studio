@@ -273,3 +273,54 @@ describe("geodesic sanity of the scaled population", () => {
     expect(sum).toBeCloseTo(track.finalDistanceM, -1);
   });
 });
+
+describe("the world-scale point budget (MAX_CREATE_TRACK_POINTS)", () => {
+  // Three clicks at continent scale (Berlin → Istanbul → Cairo), the
+  // "user drew before framing" case: ~5,100 km of chain at the 25 m
+  // default spacing would be ~200,000 points without the budget.
+  const WORLD_CHAIN: DrawVertex[] = [
+    { id: vertexId(1), lat: 52.52, lon: 13.405 },
+    { id: vertexId(2), lat: 41.0, lon: 28.98 },
+    { id: vertexId(3), lat: 30.04, lon: 31.24 },
+  ];
+
+  it("decimates a world-scale chain to the budget with the distance intact", () => {
+    const uncapped = resamplePath(null, WORLD_CHAIN, null, 25, []);
+    expect(uncapped.length).toBeGreaterThan(100_000);
+
+    const track = buildCreateTrack(STATS, {
+      vertices: WORLD_CHAIN,
+      roadLegs: [],
+      spacingM: 25,
+      matchDistance: false,
+    })!;
+    expect(track.pointCount).toBeLessThanOrEqual(6000);
+    expect(track.pointCount).toBeGreaterThan(5000);
+    // The distance basis is the TRUE drawn length — decimation never
+    // shortens the numbers, only the fill density of the polyline.
+    expect(track.drawnDistanceM).toBeCloseTo(
+      uncapped[uncapped.length - 1].cumDistanceM,
+      6,
+    );
+    expect(track.finalDistanceM).toBe(track.drawnDistanceM);
+    // Every point still carries its timestamp; the span stays exact.
+    expect(track.times).toHaveLength(track.pointCount);
+    const stamped = track.times.filter((t) => t !== undefined);
+    expect(stamped).toHaveLength(track.pointCount);
+    expect(stamped[0]!.value).toBe(STATS.startMs);
+    expect(stamped[stamped.length - 1]!.value).toBe(
+      STATS.startMs + STATS.durationMs,
+    );
+  });
+
+  it("never touches normal city-scale routes", () => {
+    const track = buildCreateTrack(STATS, {
+      vertices: L_CHAIN,
+      roadLegs: [],
+      spacingM: 25,
+      matchDistance: false,
+    })!;
+    const direct = resamplePath(null, L_CHAIN, null, 25, []);
+    expect(track.pointCount).toBe(direct.length);
+  });
+});

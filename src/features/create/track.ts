@@ -53,6 +53,36 @@ export const CREATE_ROUTE_ID = "create/route" as GapId;
 export const MIN_CREATE_VERTICES = 2;
 
 /**
+ * The generated track's total point budget. The create map starts at
+ * WORLD view, so a user can draw continent-scale legs before framing —
+ * at the default 25 m spacing that is hundreds of thousands of points,
+ * which stalls the export serializer and the share-card painter. Beyond
+ * the budget the chain is decimated (every k-th point, first + last
+ * kept): the polyline stays visually identical at that scale, the
+ * DISTANCE basis is untouched (`cumDistanceM` still measures the
+ * original drawn chain), and every consumer — GPX, timestamps, painter,
+ * elevation fetch — stays fast. Normal routes never reach it (6,000
+ * points × 25 m = 150 km).
+ */
+export const MAX_CREATE_TRACK_POINTS = 6000;
+
+/** Decimate a path to the point budget (identity under it). */
+function capPathPoints(path: PathPoint[]): PathPoint[] {
+  if (path.length <= MAX_CREATE_TRACK_POINTS) return path;
+  const stride = Math.ceil(path.length / MAX_CREATE_TRACK_POINTS);
+  const kept: PathPoint[] = [];
+  for (let i = 0; i < path.length; i += stride) {
+    kept.push(path[i]);
+  }
+  // The stride may skip past the final point — the chain's end must
+  // survive (cumulative distance, timestamps, and the closing geometry).
+  if (kept[kept.length - 1] !== path[path.length - 1]) {
+    kept.push(path[path.length - 1]);
+  }
+  return kept;
+}
+
+/**
  * Below this |relative difference| the drawn route counts as matching the
  * recorded distance — no notice, no choice (GPS watches routinely
  * misreport by 1–5%, and hand drawings are no sharper; 2% is inside
@@ -228,13 +258,10 @@ export function buildCreateTrack(
   if (input.vertices.length < MIN_CREATE_VERTICES) return null;
 
   // The drawn chain — no anchors, spacing + road legs applied, exactly
-  // the geometry the map previewed (WYSIWYG).
-  const drawnPath = resamplePath(
-    null,
-    input.vertices,
-    null,
-    input.spacingM,
-    input.roadLegs,
+  // the geometry the map previewed (WYSIWYG); world-scale drawings are
+  // decimated to the point budget (distances ride along untouched).
+  const drawnPath = capPathPoints(
+    resamplePath(null, input.vertices, null, input.spacingM, input.roadLegs),
   );
   if (drawnPath.length === 0) return null;
   const drawnDistanceM = drawnPath[drawnPath.length - 1].cumDistanceM;
