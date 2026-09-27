@@ -815,3 +815,27 @@ Stage Summary:
 - The approved Field Plot design is now the app: same structure, same DOM contract, same copy, 877-test baseline intact, share card painter byte-identical.
 - One real defect found and fixed during QA (body font fallback from the <html>/<body> variable scope) — everything else passed first-round critique.
 - Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
+
+---
+Task ID: 35
+Agent: Super Z (main agent)
+Task: User pass 35 — seven refinements on the Field Plot redesign: (1) file-summary/statistics spacing, (2) statistics categorization (original vs edited vs outcome), (3) map legend auto-hide, (4) route-shaped logo (navbar + favicon), (5) share card auto-using the edited route, (6) loading skeletons everywhere, (7) not-too-white background.
+
+Work Log:
+- Spacing: AppShell's details section was missing the mt-4 between the summary-card grid and StatsPanel (recovery already had it) — added; measured 16 px in live QA.
+- Statistics restructure (stats-panel.tsx): new OUTCOME BANNER above the table when repairs exist — ORIGINAL / + REPAIRED (signal-tinted column, the app's work) / OUTCOME, each with Big Shoulders value + moving-time detail + provenance chip; banner only with repairs (the no-repair "not Estimated" contract stays). Table now grouped with quiet ruled label rows: DISTANCE / TIME / PACE / ELEVATION (pace label only when paceRows exist). All row labels, testids, notes, and tbody-tr finders unchanged.
+- Share card = the edited route: extracted the map hook's three ref memos into a pure exported buildEditorRouteRefs (use-map-controller), now shared by useMapController and useShareCard — one derivation, card cannot disagree with the map/export population (uncommitted drafts and skipped gaps excluded, exactly like the export). buildShareCardContent gained an optional repair join: outcome distance (file total + live repairs), overall pace (withheld with a reason while a repair lacks a duration — a partial sum would read as fast; no-timing files fall back to the entered manual total), recorded elapsed time unchanged ("the watch's clock is the clock"), honest notes ("Includes your committed repairs — N stretches, +X m"). No-repair behavior byte-identical. ShareView copy conditionals + AppShell wiring (draw.repairTimeStats, fileTiming total).
+- Map legend auto-hides (map-legend.tsx): collapsed to a "Legend" chip; panel unfolds on hover/focus (Tailwind's (hover:hover) guard kept — sticky-hover protection) and click-pins for touch; entries stay in the DOM via max-height collapse (the testable encoding contract); pointer-events now on (the chip is interactive).
+- Logo: public/logo.svg redrawn as a route — white line from a filled start dot to a hollow finish ring on the signal keycap (serves navbar + favicon via metadata.icons).
+- Skeletons: SessionLoadingView mirrors the workspace (ghost-route plate + parsing card, verbatim pinned copy, 3 skeleton tool cards at lg+); MapCanvas initializing overlay speaks the same language; ShareView's prep state is a 9:16 skeleton on the painter's own layout anchors (route box / wordmark / stats / shoe proportions from lib/share/layout).
+- Background: --background oklch(0.958 0.002 286) ≈ #F1F1F2 bone — white cards sit on the bench; graph-paper grid unchanged.
+- Tests: +7 unit (share repair join — outcome/withheld-pace/manual-total-fallback/inert-join; legend chip pin toggle; banner values + absence; group labels) and +1 e2e (committed repairs flow into the card: straight-leg draw → share view → trio ≠ recorded-only, new copy, consistency with the stats panel's "Total with repairs", outcome banner). 830/830 unit, 55/55 e2e, typecheck + eslint clean.
+- Found and fixed during QA: a stale Turbopack cache (previous session's server) served old CSS tokens — rm -rf .next + restart; agent-browser upload needs absolute paths (relative paths silently produce "Empty file"); the headless browser reports (hover:hover)=false so Tailwind's hover-guarded group-hover never applies there (click-pin verified instead — real desktops match the media query).
+- Visual QA (dev + production, agent-browser + VLM): landing bone field + route logo PASS; loading skeleton PASS; legend chip collapsed → click-pin expanded PASS; stats banner (48 m → +2.85 km → 2.90 km, live road-followed repair) + groups + 16 px spacing PASS; share view renders the edited route with the outcome trio and honest notes PASS; mobile 375 px no overflow (dev + prod).
+- Committed abfa297 (31 files, +1084/−236) + production artifacts 61596fb; pushed.
+- Production verification (https://gpx-repair-studio.vercel.app): bone token live in the served CSS (#f1f1f2); logo.svg serves the route mark (start dot + finish ring); workspace legend chip collapsed (visibility hidden, max-height 0) → click-pin expands (320 px); reimport upload (task28-prod-export.repaired.gpx) → outcome banner ORIGINAL 28 m / + REPAIRED 1.41 km / OUTCOME 1.44 km with grouped table; share view 1.44 km / 7:17 /km / 15s with the canvas card; mobile 375 no overflow; zero page errors. VLM critique: all PASS, no defects.
+
+Stage Summary:
+- The seven user asks are live end-to-end; the test contract grew to 830 unit + 55 e2e, all green on dev and verified on production.
+- The share card now "exports the edited route" automatically — one shared derivation (buildEditorRouteRefs) feeds the map, the card, and the export population.
+- Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
