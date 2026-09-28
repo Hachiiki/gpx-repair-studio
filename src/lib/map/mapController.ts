@@ -53,7 +53,13 @@ import {
   haversineDistanceMeters,
   interpolateLatLon,
 } from "@/lib/geo/geodesy";
-import type { LatLon, PointId, PointerMode, VertexId } from "@/types/domain";
+import type {
+  LatLon,
+  PenMode,
+  PointId,
+  PointerMode,
+  VertexId,
+} from "@/types/domain";
 import {
   draftClosingCollection,
   draftLineCollection,
@@ -125,6 +131,10 @@ export interface DrawSessionTestState {
   drawMode: boolean;
   /** The full three-way pointer mode (Task 45). */
   pointerMode: PointerMode;
+  /** The draw-mode pen (user pass 48): "default" clicks, "curve" strokes. */
+  penMode: PenMode;
+  /** A freehand stroke is being captured right now (Curve pen). */
+  strokeActive: boolean;
   vertexCount: number;
   /** Solid chain coordinates — before-anchor → vertices (WYSIWYG clicks). */
   chainCoordinates: [number, number][];
@@ -149,6 +159,7 @@ export const MAP_LAYER_IDS = [
   "gpxr-recon",
   "gpxr-recon-dashed",
   "gpxr-draft-line",
+  "gpxr-draft-stroke-line",
   "gpxr-draft-closing",
   "gpxr-draft-rubber",
   "gpxr-gap-span",
@@ -170,6 +181,7 @@ const SOURCE = {
   markers: "gpxr-gap-boundaries",
   recon: "gpxr-recon",
   draft: "gpxr-draft",
+  stroke: "gpxr-draft-stroke",
   closing: "gpxr-draft-closing",
   rubber: "gpxr-draft-rubber",
   handles: "gpxr-draft-handles",
@@ -189,6 +201,7 @@ const LAYER = {
   recon: "gpxr-recon",
   reconDashed: "gpxr-recon-dashed",
   draftLine: "gpxr-draft-line",
+  strokeLine: "gpxr-draft-stroke-line",
   draftClosing: "gpxr-draft-closing",
   draftRubber: "gpxr-draft-rubber",
   draftHandle: "gpxr-draft-handle",
@@ -277,6 +290,14 @@ const HANDLE_HIT_RADIUS_MOVE = 20;
 /** Minimum pointer travel (px) before a handle press counts as a drag. */
 const DRAG_THRESHOLD_PX = 3;
 
+/** Pointer travel (px) between captured stroke samples — keeps the raw
+ * trace small without visible gaps in the live preview. */
+const STROKE_MIN_STEP_PX = 2.5;
+
+/** Total pointer travel (px) below which a Curve-pen press is a TAP —
+ * the trailing click places a single point, no stroke is committed. */
+const STROKE_MIN_LENGTH_PX = 8;
+
 /** Gap-span colors by severity — a darkness ramp on the shade anchor
  * (dash pattern + markers + legend carry the meaning too). */
 const SEVERITY_COLORS: Record<string, string> = {
@@ -362,6 +383,13 @@ export interface DrawSessionOptions {
     onVertexMove: (vertexId: VertexId, position: DrawCommitPosition) => void;
     onVertexInsert: (index: number, position: DrawCommitPosition) => void;
     onVertexDelete: (vertexId: VertexId) => void;
+    /**
+     * A finished freehand stroke (Curve pen, user pass 48): the raw
+     * captured trace, oldest sample first. The hook simplifies it into
+     * nodes and commits them as ONE undoable command. Optional so
+     * sessions without curve support simply never fire it.
+     */
+    onStrokeCommit?: (points: readonly LatLon[]) => void;
   };
 }
 
@@ -463,6 +491,20 @@ export class MapController {
    * navigation. The classic boolean view (`drawMode`) derives from it.
    */
   #pointerMode: PointerMode = "pan";
+
+  /** The draw-mode pen (user pass 48): default clicks, curve strokes. */
+  #penMode: PenMode = "default";
+
+  /** The freehand stroke being captured (Curve pen, draw mode only). */
+  #stroke: {
+    points: LatLon[];
+    lastXY: { x: number; y: number };
+    totalPx: number;
+  } | null = null;
+
+  /** Where a draw-mode canvas press started (drag-vs-click disambiguation
+   * — a dragged release must never place a surprise point). */
+  #drawDownXY: { x: number; y: number } | null = null;
 
   get #drawMode(): boolean {
     return this.#pointerMode === "draw";
@@ -568,17 +610,16 @@ export class MapController {
 
     // -- draw session wiring (Phase 4) ------------------------------------
     // Layer-scoped handlers for the interactive draft affordances, plus
-    // map-level pointer tracking for add-clicks, the rubber band, and
-    // handle drags. Add-clicks, midpoints, and double-click delete are
-    // draw-mode-only; handle DRAGS are pointer-targeted and work in both
-    // modes (the explicit Draw/Pan toggle stays the anti-fat-finger
-    // contract for adding points; gesture hardening arrives in Phase 8).
+    // map-level pointer tracking for add-clicks, the rubber band, curve
+    // strokes, and handle drags. Add-clicks, midpoints, and double-click
+    // delete are draw-mode-only; handle DRAGS are Move-mode-only (user
+    // pass 48 — the pencil adds, Move is the explicit "adjust" gesture).
     this.#subscriptions.push(
       map.on("mousedown", LAYER.draftHandleHit, (e) => {
-        // Dragging a placed point is pointer-TARGETED input — it works in
-        // BOTH draw and pan mode ("I'm moving this point", not "I'm
-        // drawing"), so the mode gate is intentionally absent here.
-        if (!this.#drawSession) return;
+        // Dragging a placed point is the Move mode's job and ONLY its
+        // job (user pass 48): in Draw the pencil adds points, in Pan the
+        // map navigates — neither ever starts an edit drag.
+        if (!this.#drawSession || this.#pointerMode !== "move") return;
         e.preventDefault();
         const vertexId = e.features?.[0]?.properties?.vertexId;
         if (typeof vertexId !== "string") return;
@@ -590,9 +631,15 @@ export class MapController {
         };
       }),
       map.on("mouseenter", LAYER.draftHandleHit, (e) => {
-        // Cursor honesty (QoL): a grab cursor over a point says "this
-        // drags" in either mode; the hover feature-state grows the dot.
-        if (!this.#drawSession || this.#handleDrag) return;
+        // Cursor honesty (QoL): the grab cursor and the hover grow say
+        // "this drags" — only true in Move mode, so only shown there.
+        if (
+          !this.#drawSession ||
+          this.#handleDrag ||
+          this.#pointerMode !== "move"
+        ) {
+          return;
+        }
         map.getCanvas().style.cursor = "grab";
         const featureId = e.features?.[0]?.id;
         this.#hoveredHandleId =
@@ -652,6 +699,7 @@ export class MapController {
         this.#cursor = null;
         if (this.#ready) this.#applyRubberBand();
       }),
+      map.on("mousedown", (e) => this.#onCanvasMouseDown(e)),
       map.on("click", (e) => this.#onCanvasClick(e)),
       map.on("mouseup", (e) => this.#onMouseUp(e)),
     );
@@ -783,12 +831,17 @@ export class MapController {
   endDrawSession(): void {
     this.#drawSession = null;
     this.#handleDrag = null;
+    this.#stroke = null;
+    this.#drawDownXY = null;
     this.#cursor = null;
     if (this.#pointerMode !== "pan") this.#setPointerModeInternal("pan");
     if (!this.#ready) return;
     const map = this.#map;
     if (!map) return;
     (map.getSource(SOURCE.draft) as GeoJSONSource | undefined)?.setData(
+      draftLineCollection([]),
+    );
+    (map.getSource(SOURCE.stroke) as GeoJSONSource | undefined)?.setData(
       draftLineCollection([]),
     );
     (map.getSource(SOURCE.closing) as GeoJSONSource | undefined)?.setData(
@@ -824,6 +877,17 @@ export class MapController {
   /** Legacy boolean view (true = draw, false = pan). */
   setDrawMode(enabled: boolean): void {
     this.setPointerMode(enabled ? "draw" : "pan");
+  }
+
+  /**
+   * The draw-mode pen (user pass 48): "default" places points click by
+   * click; "curve" turns a press-drag into a freehand stroke (draw mode
+   * only — Move and Pan are unaffected). A pen switch mid-stroke lets
+   * the running stroke finish on release; nothing is lost.
+   */
+  setPenMode(pen: PenMode): void {
+    if (this.#penMode === pen) return;
+    this.#penMode = pen;
   }
 
   // -- span-pick session (manual repair spans) ----------------------------
@@ -1225,6 +1289,10 @@ export class MapController {
         type: "geojson",
         data: draftLineCollection([]),
       });
+      map.addSource(SOURCE.stroke, {
+        type: "geojson",
+        data: draftLineCollection([]),
+      });
       map.addSource(SOURCE.closing, {
         type: "geojson",
         data: draftClosingCollection(null),
@@ -1382,6 +1450,20 @@ export class MapController {
       id: LAYER.draftLine,
       type: "line",
       source: SOURCE.draft,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": RECON_COLOR_DRAFT,
+        "line-width": 4.5,
+      },
+    });
+
+    // The LIVE freehand stroke (Curve pen, user pass 48): identical paint
+    // to the draft chain — the trace under the pen IS the line-to-be
+    // (WYSIWYG); on release it is simplified + smoothed into the chain.
+    map.addLayer({
+      id: LAYER.strokeLine,
+      type: "line",
+      source: SOURCE.stroke,
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
         "line-color": RECON_COLOR_DRAFT,
@@ -1580,7 +1662,8 @@ export class MapController {
     }
     const session = this.#drawSession;
     if (!session || !this.#drawMode) return;
-    // The click that follows a committed handle drag is not an add.
+    // The click that follows a committed handle drag or curve stroke is
+    // not an add.
     if (this.#suppressNextClick) {
       this.#suppressNextClick = false;
       return;
@@ -1599,11 +1682,44 @@ export class MapController {
     session.callbacks.onVertexAdd(position);
   }
 
-  /** Pointer tracking: rubber band while idle, override while dragging. */
+  /** Canvas press in draw mode: remember where it started, and with the
+   * Curve pen (user pass 48) begin capturing a freehand stroke. */
+  #onCanvasMouseDown(e: MapMouseEvent): void {
+    const session = this.#drawSession;
+    if (!session || !this.#drawMode) return;
+    this.#drawDownXY = { x: e.point.x, y: e.point.y };
+    if (this.#penMode !== "curve") return;
+    this.#stroke = {
+      points: [{ lat: e.lngLat.lat, lon: e.lngLat.lng }],
+      lastXY: { x: e.point.x, y: e.point.y },
+      totalPx: 0,
+    };
+    // The rubber band would trail behind the stroke — hide it until the
+    // pen lifts (the next mousemove re-establishes it).
+    this.#cursor = null;
+    if (this.#ready) this.#applyRubberBand();
+  }
+
+  /** Pointer tracking: rubber band while idle, override while dragging,
+   * live capture while a curve stroke runs. */
   #onMouseMove(e: MapMouseEvent): void {
     const session = this.#drawSession;
-    // Handle drags are pointer-targeted edits — they run in BOTH modes,
-    // so drag processing precedes the draw-mode gate.
+    // A running freehand stroke owns the pointer (Curve pen).
+    const stroke = this.#stroke;
+    if (stroke) {
+      const step = Math.hypot(
+        e.point.x - stroke.lastXY.x,
+        e.point.y - stroke.lastXY.y,
+      );
+      if (step >= STROKE_MIN_STEP_PX) {
+        stroke.points.push({ lat: e.lngLat.lat, lon: e.lngLat.lng });
+        stroke.totalPx += step;
+        stroke.lastXY = { x: e.point.x, y: e.point.y };
+        this.#applyStroke();
+      }
+      return;
+    }
+    // Handle drags are Move-mode edits — they run while the mode holds.
     const drag = this.#handleDrag;
     if (session && drag) {
       const map = this.#map;
@@ -1627,12 +1743,52 @@ export class MapController {
     if (this.#ready) this.#applyRubberBand();
   }
 
-  /** End of a handle drag → commit the (snapped) move as one command. */
+  /** End of press: commit a finished curve stroke, end a handle drag, and
+   * swallow the trailing click of any dragged press (it is not a tap). */
   #onMouseUp(e: MapMouseEvent): void {
-    const drag = this.#handleDrag;
     const session = this.#drawSession;
-    this.#handleDrag = null;
     const map = this.#map;
+
+    // A finished freehand stroke (Curve pen): hand the raw trace to the
+    // hook. A press that barely moved is a TAP — no stroke is committed
+    // and the trailing click places the single point, exactly like the
+    // default pen.
+    const stroke = this.#stroke;
+    if (stroke) {
+      this.#stroke = null;
+      this.#clearStroke();
+      if (map) {
+        map.getCanvas().style.cursor =
+          session && this.#drawMode ? "crosshair" : "";
+      }
+      if (
+        session &&
+        stroke.totalPx >= STROKE_MIN_LENGTH_PX &&
+        session.callbacks.onStrokeCommit
+      ) {
+        this.#suppressNextClick = true;
+        session.callbacks.onStrokeCommit(stroke.points);
+      }
+      this.#drawDownXY = null;
+      return;
+    }
+
+    // A dragged press in draw mode (default pen) is not a click either —
+    // without this, releasing a stray drag would plant a surprise point
+    // at the release position.
+    const down = this.#drawDownXY;
+    this.#drawDownXY = null;
+    if (
+      down &&
+      session &&
+      this.#drawMode &&
+      Math.hypot(e.point.x - down.x, e.point.y - down.y) > DRAG_THRESHOLD_PX
+    ) {
+      this.#suppressNextClick = true;
+    }
+
+    const drag = this.#handleDrag;
+    this.#handleDrag = null;
     if (map && drag) {
       // Restore the resting cursor for the active mode (hover affordance
       // re-asserts itself on the next enter).
@@ -1693,6 +1849,29 @@ export class MapController {
       midpoints.push(interpolateLatLon(chain[j], chain[j + 1], 0.5));
     }
     return { points: chain, midpoints };
+  }
+
+  /** The live freehand stroke (Curve pen): rendered with the exact draft
+   * chain paint — what the pen drags is what the line will be (WYSIWYG). */
+  #applyStroke(): void {
+    const map = this.#map;
+    if (!map || !this.#ready) return;
+    const stroke = this.#stroke;
+    const coordinates: [number, number][] = stroke
+      ? stroke.points.map((p) => [p.lon, p.lat] as [number, number])
+      : [];
+    (map.getSource(SOURCE.stroke) as GeoJSONSource | undefined)?.setData(
+      draftLineCollection(coordinates),
+    );
+  }
+
+  /** Clear the live stroke layer (after commit or cancellation). */
+  #clearStroke(): void {
+    const map = this.#map;
+    if (!map || !this.#ready) return;
+    (map.getSource(SOURCE.stroke) as GeoJSONSource | undefined)?.setData(
+      draftLineCollection([]),
+    );
   }
 
   /** The closing-segment coordinates: injected join over the far anchor. */
@@ -1835,6 +2014,8 @@ export class MapController {
       gapId: session.gapId,
       drawMode: this.#drawMode,
       pointerMode: this.#pointerMode,
+      penMode: this.#penMode,
+      strokeActive: this.#stroke !== null,
       vertexCount: session.vertices.length,
       chainCoordinates,
       renderedChainCoordinates,

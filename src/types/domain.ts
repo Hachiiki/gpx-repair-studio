@@ -472,9 +472,14 @@ export type RoadFollowMode = "car" | "foot" | "off";
 /**
  * The path style of a drawn line (Tasks 46–47 — what the line does
  * between clicks, remembered PER LINE): the three road-follow modes
- * plus `"curve"` — a smooth local spline through the clicked points
+ * plus `"curve"` — a smooth local spline through the line's points
  * (no network, nothing leaves the browser). Values stay aligned with
  * `RoadFollowMode` so the router consumes the same strings.
+ *
+ * User pass 48: `"curve"` is no longer offered by the path-style chips
+ * — it is the Curve PEN's doing. A freehand stroke committed while the
+ * line is local (`"off"`) flips the line to `"curve"` so the spline
+ * smooths it; Roads/Footpaths keep the routed geometry instead.
  */
 export type PathStyle = RoadFollowMode | "curve";
 
@@ -483,14 +488,32 @@ export type PathStyle = RoadFollowMode | "curve";
  * (Task 45 — the explicit three-way pointer toggle):
  *
  *  - `"draw"` — clicks place points (the classic Draw; map panning is
- *    disabled so a drag never fights a click);
+ *    disabled so a drag never fights a click). With the Curve pen
+ *    (user pass 48) a press-drag captures a freehand stroke instead;
  *  - `"move"` — clicks place nothing; every placed point grows into an
  *    oversized grab target and drags freely (each release = one undo
- *    step). Empty-space drags still pan the map;
- *  - `"pan"` — normal map navigation (point drags still work — they are
- *    pointer-targeted, never a pan).
+ *    step). Empty-space drags still pan the map. This is the ONLY mode
+ *    where dragging a placed point works (user pass 48 — in Draw the
+ *    pencil adds, it never edits);
+ *  - `"pan"` — normal map navigation.
  */
 export type PointerMode = "draw" | "move" | "pan";
+
+/**
+ * The DRAW-mode pen (user pass 48 — curve is a pen, not a path style):
+ *
+ *  - `"default"` — the classic pencil: click to place points one by
+ *    one, straight/routed legs between them (what the app always did);
+ *  - `"curve"` — freehand: press and DRAG the pen across the map; the
+ *    captured trace is simplified into the line's next points and
+ *    smoothed locally when the line is straight (nothing leaves the
+ *    browser). A quick tap still places a single point.
+ *
+ * The pen decides HOW points are captured; the per-line path style
+ * (Roads / Footpaths / Straight) still decides what happens between
+ * them — any pen × any style combination is valid.
+ */
+export type PenMode = "default" | "curve";
 
 /**
  * One road-followed leg of a drawn chain: the road geometry the routing

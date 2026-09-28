@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { MAX_VERTICES } from "@/features/reconstruction/drawModel";
 import { joinCurveChain, joinDrawChain } from "@/features/reconstruction/roadFollow";
+import { simplifyStroke } from "@/features/reconstruction/stroke";
 import { polylineLengthMeters } from "@/lib/geo/geodesy";
 import type { MapController } from "@/lib/map/mapController";
 import { getRoadRouter } from "@/hooks/use-draw-editor";
@@ -30,6 +31,7 @@ import type {
   DrawVertex,
   LatLon,
   PathStyle,
+  PenMode,
   PointerMode,
   RoadFollowMode,
   RoadLeg,
@@ -44,11 +46,14 @@ export interface CreateDrawBinding {
   active: boolean;
   /** The three-way pointer mode: draw adds, move drags, pan navigates. */
   pointerMode: PointerMode;
+  /** The draw-mode pen (user pass 48): default clicks, curve strokes. */
+  pen: PenMode;
   distanceM: number | null;
   vertexCount: number;
   maxVertices: number;
   pickMode: null;
   setPointerMode: (mode: PointerMode) => void;
+  setPenMode: (pen: PenMode) => void;
 
   // -- panel -----------------------------------------------------------------
   vertices: readonly DrawVertex[];
@@ -79,6 +84,7 @@ export interface CreateDrawBinding {
 export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
   const phase = useCreateStore((s) => s.phase);
   const pointerMode = useCreateStore((s) => s.pointerMode);
+  const pen = useCreateStore((s) => s.pen);
   const pathStyle = useCreateStore((s) => s.pathStyle);
   const roadLegs = useCreateStore((s) => s.roadLegs);
   const roadRouting = useCreateStore((s) => s.roadRouting);
@@ -130,12 +136,23 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
           useCreateStore.getState().insertVertex(index, position),
         onVertexDelete: (vertexId) =>
           useCreateStore.getState().deleteVertex(vertexId),
+        // The Curve pen (user pass 48): simplify + commit as ONE undo step.
+        onStrokeCommit: (points) => {
+          const store = useCreateStore.getState();
+          const budget = MAX_VERTICES - store.reconstruction.vertices.length;
+          const nodes = simplifyStroke(points, {
+            routing: store.pathStyle === "car" || store.pathStyle === "foot",
+            budget,
+          });
+          if (nodes.length >= 2) store.commitStroke(nodes);
+        },
       },
     });
     // A session (re)start must never inherit a stale pointer mode —
     // endDrawSession resets the controller to pan, and the store may
     // still say draw (e.g. a path-style switch rebuilt the joins).
     controller.setPointerMode(useCreateStore.getState().pointerMode);
+    controller.setPenMode(useCreateStore.getState().pen);
     return () => {
       controller.endDrawSession();
     };
@@ -210,10 +227,15 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     }
   }, [active, vertices, pathStyle]);
 
-  // Pointer mode (Draw / Move / Pan — Task 45) → controller handlers.
+  // Pointer mode (Draw / Move / Pan — Task 45) and the pen (user pass
+  // 48) → controller handlers.
   useEffect(() => {
     map.getController()?.setPointerMode(pointerMode);
   }, [pointerMode, map.getController, mapReady]);
+
+  useEffect(() => {
+    map.getController()?.setPenMode(pen);
+  }, [pen, map.getController, mapReady]);
 
   // Keyboard accelerators (QoL): D = draw, M = move, P = pan — active only
   // while drawing, never while typing in a form control (the shared
@@ -242,6 +264,11 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
       } else if (key === "p") {
         event.preventDefault();
         useCreateStore.getState().setPointerMode("pan");
+      } else if (key === "c") {
+        // Pen toggle (user pass 48).
+        event.preventDefault();
+        const store = useCreateStore.getState();
+        store.setPenMode(store.pen === "curve" ? "default" : "curve");
       }
     };
     window.addEventListener("keydown", onKeydown);
@@ -266,6 +293,10 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
 
   const setPointerMode = useCallback((mode: PointerMode) => {
     useCreateStore.getState().setPointerMode(mode);
+  }, []);
+
+  const setPenMode = useCallback((pen: PenMode) => {
+    useCreateStore.getState().setPenMode(pen);
   }, []);
 
   const setPathStyle = useCallback((mode: PathStyle) => {
@@ -293,11 +324,13 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
   return {
     active,
     pointerMode,
+    pen,
     distanceM,
     vertexCount: vertices.length,
     maxVertices: MAX_VERTICES,
     pickMode: null,
     setPointerMode,
+    setPenMode,
     vertices,
     atVertexCap: vertices.length >= MAX_VERTICES,
     canUndo: history.undo.length > 0,

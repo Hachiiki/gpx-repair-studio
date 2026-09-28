@@ -12,10 +12,11 @@
  * map. Keyboard accelerators (D / M / P) mirror the pointer toggle.
  *
  * - Draw / Move / Pan: what the pointer does (the plan's anti-fat-finger
- *   contract, plus Task 45's dedicated point-dragging mode). Dragging
- *   drawn points works in ALL modes (the drag is pointer-targeted,
- *   never a pan) — Move mode just makes it the whole point, with
- *   oversized grab targets and no accidental adds.
+ *   contract, plus Task 45's dedicated point-dragging mode). User pass
+ *   48: dragging a drawn point is Move mode's job and ONLY its job —
+ *   the pencil adds, Move adjusts (oversized grab targets, no
+ *   accidental adds), Pan navigates. The Draw hint also teaches the
+ *   Curve pen (C) when it is the active pen.
  * - Basemap picker: OpenFreeMap (default) / OSM Standard raster, each
  *   with its usage-policy note (§E-1), built as a popover of plain
  *   buttons (RTL-friendly, matches the Phase-2 settings pattern).
@@ -85,7 +86,7 @@ export function MapToolbar({
           <HintTip
             side="left"
             title="Draw mode"
-            description="Click anywhere on the map to add points; drag a point to move it; double-click to delete. The map stops panning while you draw."
+            description="Click anywhere on the map to add points; double-click a point to delete it. With the Curve pen (C), press and drag to draw a curve freehand. The map stops panning while you draw."
             kbd="D"
           >
             <button
@@ -127,7 +128,7 @@ export function MapToolbar({
           <HintTip
             side="left"
             title="Pan mode"
-            description="Normal map navigation — drag to pan, double-click to zoom. Dragging a drawn point still works; you just can't add new ones."
+            description="Normal map navigation — drag to pan, double-click to zoom. Switch to Move (M) to drag a drawn point; drawing new ones needs Draw (D)."
             kbd="P"
           >
             <button

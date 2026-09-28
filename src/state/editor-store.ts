@@ -44,6 +44,7 @@ import {
   emptyReconstruction,
   insertVertexCommand,
   moveVertexCommand,
+  MAX_VERTICES,
   redoCommand,
   undoCommand,
   type DrawCommand,
@@ -54,6 +55,7 @@ import type { FileTimingContext } from "@/features/reconstruction/timestamps";
 import type {
   GapId,
   ManualSpan,
+  PenMode,
   PointId,
   PathStyle,
   PointerMode,
@@ -83,6 +85,8 @@ export type PickMode = "anchor" | "pair";
 interface EditorState {
   activeGapId: GapId | null;
   pointerMode: PointerMode;
+  /** The draw-mode pen (user pass 48): default clicks, curve strokes. */
+  pen: PenMode;
   snapEnabled: boolean;
   reconstructions: Readonly<Record<string, Reconstruction>>;
   skippedGapIds: readonly GapId[];
@@ -143,6 +147,8 @@ interface EditorState {
   removeManualSpan: (gapId: GapId) => void;
   setPointerMode: (mode: PointerMode) => void;
   setSnapEnabled: (on: boolean) => void;
+  /** The draw-mode pen (user pass 48; transient, never undoable). */
+  setPenMode: (pen: PenMode) => void;
   /** Road-follow mode for drawn legs (transient, never undoable). */
   setPathStyle: (mode: PathStyle) => void;
   /** Replace the resolved road legs of one gap (no-op when unchanged). */
@@ -155,6 +161,13 @@ interface EditorState {
   insertVertex: (index: number, position: VertexPosition) => void;
   moveVertex: (vertexId: VertexId, to: VertexPosition) => void;
   deleteVertex: (vertexId: VertexId) => void;
+  /**
+   * Commit one freehand stroke (Curve pen, user pass 48): append the
+   * processed nodes as ONE `set-vertices` command — a single undo step
+   * removes the whole stroke. A local ("off") line flips to "curve" so
+   * the Task-46 spline smooths it; routed lines keep their routing.
+   */
+  commitStroke: (points: readonly { lat: number; lon: number }[]) => void;
   clearVertices: () => void;
   undo: () => void;
   redo: () => void;
@@ -173,6 +186,7 @@ interface EditorState {
 const INITIAL = {
   activeGapId: null,
   pointerMode: "pan" as PointerMode,
+  pen: "default" as PenMode,
   snapEnabled: true,
   reconstructions: {} as Readonly<Record<string, Reconstruction>>,
   skippedGapIds: [] as readonly GapId[],
@@ -338,6 +352,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   setPointerMode: (pointerMode) => set({ pointerMode }),
   setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
+  setPenMode: (pen) => set({ pen }),
 
   setPathStyle: (pathStyle) =>
     set((state) => {
@@ -456,6 +471,48 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     if (!current) return;
     const command = deleteVertexCommand(current, vertexId);
     get().submitCommand(command);
+  },
+
+  commitStroke: (points) => {
+    const state = get();
+    const current = activeReconstruction(state);
+    if (!current || points.length === 0) return;
+    const budget = MAX_VERTICES - current.vertices.length;
+    if (budget < 2) return; // a stroke is a curve — it needs two nodes minimum
+    let seq = state.vertexSeq;
+    const added = points.slice(0, budget).map((point) => {
+      seq += 1;
+      return {
+        id: vertexId(seq),
+        lat: point.lat,
+        lon: point.lon,
+      };
+    });
+    const command: DrawCommand = {
+      kind: "set-vertices",
+      previous: current.vertices,
+      next: [...current.vertices, ...added],
+    };
+    const next = commitCommand(
+      { reconstruction: current, history: state.history },
+      command,
+    );
+    if (next.reconstruction === current) return;
+    set({
+      vertexSeq: seq,
+      reconstructions: {
+        ...state.reconstructions,
+        [current.gapId]: next.reconstruction,
+      },
+      history: next.history,
+    });
+    // The curve pen's signature: a local straight line becomes a smooth
+    // curve line (the spline). Routed styles keep the router's geometry —
+    // the stroke's nodes are its waypoints.
+    const style = next.reconstruction.pathStyle;
+    if (style === undefined || style === "off") {
+      get().setPathStyle("curve");
+    }
   },
 
   clearVertices: () => {

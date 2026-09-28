@@ -224,6 +224,53 @@ describe("vertex commands (the shared drawModel machinery)", () => {
   });
 });
 
+describe("commitStroke — the Curve pen's command (user pass 48)", () => {
+  const STROKE = [
+    { lat: 52.52, lon: 13.405 },
+    { lat: 52.5205, lon: 13.4058 },
+    { lat: 52.5212, lon: 13.4064 },
+  ];
+
+  it("appends one stroke as ONE undo step and smooths a local route", () => {
+    useCreateStore.getState().beginDrawing(STATS);
+    const store = useCreateStore.getState();
+    store.setPathStyle("off");
+    store.addVertex({ lat: 52.51, lon: 13.4 });
+
+    store.commitStroke(STROKE);
+    let state = useCreateStore.getState();
+    expect(state.reconstruction.vertices).toHaveLength(1 + STROKE.length);
+    expect(state.history.undo).toHaveLength(2); // the click + the stroke
+    expect(state.reconstruction.pathStyle).toBe("curve"); // smoothed locally
+
+    useCreateStore.getState().undo();
+    state = useCreateStore.getState();
+    expect(state.reconstruction.vertices).toHaveLength(1);
+    useCreateStore.getState().redo();
+    expect(
+      useCreateStore.getState().reconstruction.vertices,
+    ).toHaveLength(1 + STROKE.length);
+  });
+
+  it("keeps a routed route routed (the stroke is waypoints)", () => {
+    useCreateStore.getState().beginDrawing(STATS);
+    useCreateStore.getState().setPathStyle("car");
+    useCreateStore.getState().commitStroke(STROKE);
+
+    const state = useCreateStore.getState();
+    expect(state.reconstruction.pathStyle).toBe("car");
+    expect(state.reconstruction.vertices).toHaveLength(STROKE.length);
+  });
+
+  it("does nothing outside the drawing phase", () => {
+    useCreateStore.getState().reset();
+    useCreateStore.getState().commitStroke(STROKE);
+    const state = useCreateStore.getState();
+    expect(state.reconstruction.vertices).toHaveLength(0);
+    expect(state.history.undo).toHaveLength(0);
+  });
+});
+
 describe("settings (never undoable)", () => {
   it("changes spacing, road-follow, and the match toggle without history", () => {
     useCreateStore.getState().beginDrawing(STATS);

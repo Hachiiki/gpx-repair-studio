@@ -47,6 +47,7 @@ import {
   RoadFollowRouter,
 } from "@/features/reconstruction/roadFollow";
 import { isUsableStatsPoint } from "@/features/statistics/distance";
+import { simplifyStroke } from "@/features/reconstruction/stroke";
 import {
   geodesicDistanceMeters,
   polylineLengthMeters,
@@ -57,6 +58,7 @@ import type {
   PickTarget,
 } from "@/lib/map/mapController";
 import {
+  activeReconstruction,
   deriveGapStatus,
   useEditorStore,
   type GapStatus,
@@ -69,6 +71,7 @@ import type {
   LatLon,
   OriginalTrackPoint,
   PathStyle,
+  PenMode,
   PointId,
   PointerMode,
   RoadFollowMode,
@@ -151,6 +154,8 @@ export interface MapDrawChromeBinding {
   active: boolean;
   /** The three-way pointer mode: draw adds, move drags, pan navigates. */
   pointerMode: PointerMode;
+  /** The draw-mode pen (user pass 48): default clicks, curve strokes. */
+  pen: PenMode;
   /** Live geodesic path length (null when inactive). */
   distanceM: number | null;
   vertexCount: number;
@@ -168,6 +173,8 @@ export interface DrawEditorBinding {
   activeGap: RepairRow | null;
   /** The three-way pointer mode: draw adds, move drags, pan navigates. */
   pointerMode: PointerMode;
+  /** The draw-mode pen (user pass 48): default clicks, curve strokes. */
+  pen: PenMode;
   /** Snap-to-original-points magnet enabled. */
   snapEnabled: boolean;
   /** The active line's path style: road / footpath / curve / straight. */
@@ -230,6 +237,7 @@ export interface DrawEditorBinding {
   /** Remove a manual repair span and all of its repair state. */
   removeManualSpan: (gapId: GapId) => void;
   setPointerMode: (mode: PointerMode) => void;
+  setPenMode: (pen: PenMode) => void;
   setSnapEnabled: (on: boolean) => void;
   setPathStyle: (mode: PathStyle) => void;
   undo: () => void;
@@ -262,6 +270,7 @@ export function useDrawEditor(
 ): DrawEditorBinding {
   const activeGapId = useEditorStore((s) => s.activeGapId);
   const pointerMode = useEditorStore((s) => s.pointerMode);
+  const pen = useEditorStore((s) => s.pen);
   const snapEnabled = useEditorStore((s) => s.snapEnabled);
   const pathStyle = useEditorStore((s) => s.pathStyle);
   const roadLegs = useEditorStore((s) => s.roadLegs);
@@ -610,12 +619,26 @@ export function useDrawEditor(
           useEditorStore.getState().insertVertex(index, position),
         onVertexDelete: (vertexId) =>
           useEditorStore.getState().deleteVertex(vertexId),
+        // The Curve pen (user pass 48): simplify the raw trace into the
+        // line's next nodes — coarse waypoints when routing, dense nodes
+        // for the local spline — and commit them as ONE undo step.
+        onStrokeCommit: (points) => {
+          const store = useEditorStore.getState();
+          const current = activeReconstruction(store);
+          const budget = MAX_VERTICES - (current?.vertices.length ?? 0);
+          const nodes = simplifyStroke(points, {
+            routing: store.pathStyle === "car" || store.pathStyle === "foot",
+            budget,
+          });
+          if (nodes.length >= 2) store.commitStroke(nodes);
+        },
       },
     });
     // A session (re)start must never inherit a stale pointer mode —
     // endDrawSession resets the controller to pan, and the store may
     // still say draw (e.g. a path-style switch rebuilt the joins).
     controller.setPointerMode(useEditorStore.getState().pointerMode);
+    controller.setPenMode(useEditorStore.getState().pen);
     return () => {
       controller.endDrawSession();
     };
@@ -705,10 +728,15 @@ export function useDrawEditor(
     // exactly when the wanted leg set changes.
   }, [activeGap, nearAnchor, farAnchor, vertices, pathStyle]);
 
-  // Pointer mode (Draw / Move / Pan — Task 45) → controller handlers.
+  // Pointer mode (Draw / Move / Pan — Task 45) and the pen (user pass
+  // 48) → controller handlers.
   useEffect(() => {
     map.getController()?.setPointerMode(pointerMode);
   }, [pointerMode, map.getController, mapReady]);
+
+  useEffect(() => {
+    map.getController()?.setPenMode(pen);
+  }, [pen, map.getController, mapReady]);
 
   // Keyboard accelerators (QoL): D = draw, M = move, P = pan — active only
   // while an editor session is open, and never while the user is typing in
@@ -737,6 +765,12 @@ export function useDrawEditor(
       } else if (key === "p") {
         event.preventDefault();
         useEditorStore.getState().setPointerMode("pan");
+      } else if (key === "c") {
+        // Pen toggle (user pass 48) — a draw-mode concern; switching the
+        // pen elsewhere is a harmless no-op for the pointer.
+        event.preventDefault();
+        const store = useEditorStore.getState();
+        store.setPenMode(store.pen === "curve" ? "default" : "curve");
       }
     };
     window.addEventListener("keydown", onKeydown);
@@ -958,6 +992,10 @@ export function useDrawEditor(
     useEditorStore.getState().setPointerMode(mode);
   }, []);
 
+  const setPenMode = useCallback((pen: PenMode) => {
+    useEditorStore.getState().setPenMode(pen);
+  }, []);
+
   const setSnapEnabled = useCallback((on: boolean) => {
     useEditorStore.getState().setSnapEnabled(on);
   }, []);
@@ -1009,6 +1047,7 @@ export function useDrawEditor(
     active: activeGap !== null,
     activeGap,
     pointerMode,
+    pen,
     snapEnabled,
     pathStyle,
     routingPending: roadRouting.pending > 0,
@@ -1040,6 +1079,7 @@ export function useDrawEditor(
     cancelPickSpan,
     removeManualSpan,
     setPointerMode,
+    setPenMode,
     setSnapEnabled,
     setPathStyle,
     undo,

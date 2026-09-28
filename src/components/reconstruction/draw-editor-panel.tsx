@@ -52,19 +52,43 @@ const SPACING_CHOICES: readonly { value: string; label: string }[] = [
 ];
 
 /**
+ * Pen choices (user pass 48 — curve is a PEN, not a path style): how
+ * the Draw mode captures points. The test ids follow the pointer-mode
+ * family (`pen-mode-*`).
+ */
+const PEN_CHOICES: readonly {
+  value: DrawEditorBinding["pen"];
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "default",
+    label: "Default pen",
+    hint: "The classic pencil: click to place points one by one — click before and after a bend and the line follows.",
+  },
+  {
+    value: "curve",
+    label: "Curve pen",
+    hint: "Press and drag to draw a curve freehand — the app smooths your stroke into the line. Works with every path style; a quick tap still places a single point.",
+  },
+];
+
+/**
  * Path-style choices (Tasks 46–47 — what the line does between your
- * clicks, remembered per line). The test ids keep the historic
- * `road-follow-*` names for e2e compatibility.
+ * points, remembered per line). User pass 48: Curves left the group —
+ * it is the Curve pen's doing now, so the choices are Roads /
+ * Footpaths / Straight. The test ids keep the historic `road-follow-*`
+ * names for e2e compatibility.
  */
 const PATH_STYLE_CHOICES: readonly {
-  value: DrawEditorBinding["pathStyle"];
+  value: Exclude<DrawEditorBinding["pathStyle"], "curve">;
   label: string;
   hint: string;
 }[] = [
   {
     value: "car",
     label: "Roads",
-    hint: "The line follows drivable roads between your clicks — click before and after a curve and the bend draws itself.",
+    hint: "The line follows drivable roads between your points — click before and after a curve and the bend draws itself.",
   },
   {
     value: "foot",
@@ -72,14 +96,9 @@ const PATH_STYLE_CHOICES: readonly {
     hint: "Same idea, but for pedestrian ways — trails, footpaths, stairs. Better for runs through parks or along rivers.",
   },
   {
-    value: "curve",
-    label: "Curves",
-    hint: "A smooth spline bends through your points — no snapping, no network, nothing leaves the browser. The curve is baked into the exported file.",
-  },
-  {
     value: "off",
     label: "Straight lines",
-    hint: "No road snapping — the line connects your clicks directly. Nothing leaves the browser in this mode.",
+    hint: "No road snapping — the line connects your points directly. Nothing leaves the browser. Lines drawn with the Curve pen stay smooth until redrawn.",
   },
 ];
 
@@ -210,7 +229,58 @@ export function DrawEditorPanel({
           </p>
         )}
 
-        {/* Path style: what the line does between clicks (per line). */}
+        {/* Pen (user pass 48): HOW the Draw mode captures points — the
+            curve pen is freehand, the default pen is click-by-click. */}
+        <div
+          className="grid gap-2"
+          data-testid="pen-mode-group"
+          role="group"
+          aria-label="Pen"
+        >
+          <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
+            Pen
+            <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {PEN_CHOICES.map((choice) => (
+              <HintTip
+                key={choice.value}
+                side="left"
+                title={choice.label}
+                description={choice.hint}
+              >
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className={
+                    draw.pen === choice.value
+                      ? "h-auto rounded-full border-[1.25px] border-inkplus bg-inkplus px-3 py-[5px] text-[12.5px] font-semibold text-paper hover:bg-inkplus hover:text-paper"
+                      : "h-auto rounded-full border-[1.25px] border-ink/25 bg-card px-3 py-[5px] text-[12.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
+                  }
+                  aria-pressed={draw.pen === choice.value}
+                  data-testid={`pen-mode-${choice.value}`}
+                  onClick={() => draw.setPenMode(choice.value)}
+                >
+                  {choice.label}
+                </Button>
+              </HintTip>
+            ))}
+          </div>
+          {draw.pointerMode === "draw" && draw.pen === "curve" && (
+            <p
+              className="text-[11px] leading-snug text-muted-foreground"
+              data-testid="pen-curve-hint"
+              role="status"
+            >
+              Drag on the map to draw your curve — release to place it. A
+              quick tap still adds a single point. (C toggles pens, D/M/P
+              switch modes.)
+            </p>
+          )}
+        </div>
+
+        {/* Path style: what the line does between your points (per line). */}
         <div
           className="grid gap-2"
           data-testid="road-follow-group"
@@ -218,7 +288,7 @@ export function DrawEditorPanel({
           aria-label="Path style"
         >
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
-            Between clicks, follow
+            Between points, follow
             <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -234,11 +304,17 @@ export function DrawEditorPanel({
                   size="sm"
                   variant="ghost"
                   className={
-                    draw.pathStyle === choice.value
+                    draw.pathStyle === choice.value ||
+                    // A curve-pen line is local like straight — the chip
+                    // reads as its home; tapping it flattens the line.
+                    (choice.value === "off" && draw.pathStyle === "curve")
                       ? "h-auto rounded-full border-[1.25px] border-inkplus bg-inkplus px-3 py-[5px] text-[12.5px] font-semibold text-paper hover:bg-inkplus hover:text-paper"
                       : "h-auto rounded-full border-[1.25px] border-ink/25 bg-card px-3 py-[5px] text-[12.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
                   }
-                  aria-pressed={draw.pathStyle === choice.value}
+                  aria-pressed={
+                    draw.pathStyle === choice.value ||
+                    (choice.value === "off" && draw.pathStyle === "curve")
+                  }
                   data-testid={`road-follow-${choice.value}`}
                   onClick={() => draw.setPathStyle(choice.value)}
                 >
@@ -248,10 +324,11 @@ export function DrawEditorPanel({
             ))}
           </div>
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Click before and after a curve — the line snaps to the road
-            between your clicks. Roads/Footpaths send only the points you
-            click to a public routing service (OSRM / Valhalla); your GPX
-            file never leaves this browser.
+            Click or drag before and after a curve — the line snaps to the
+            road between your points. Roads/Footpaths send only the points
+            you place to a public routing service (OSRM / Valhalla); your
+            GPX file never leaves this browser. The Curve pen and Straight
+            lines are fully local.
           </p>
           {(draw.pathStyle === "car" || draw.pathStyle === "foot") && (
             <p
@@ -377,7 +454,8 @@ export function DrawEditorPanel({
           <div className="grid gap-1.5">
             <p className="text-xs font-medium text-muted-foreground">
               Drawn points — switch to Move (M) and drag any of them on the
-              map, double-click to remove
+              map, double-click to remove. Drawing (D) adds points only —
+              the pencil never drags.
             </p>
             <ScrollArea className="max-h-40 -mx-2">
               <ul className="grid gap-0.5 px-2">

@@ -229,11 +229,13 @@ function drawBinding(
   return {
     active: true,
     pointerMode: "draw",
+    pen: "default",
     distanceM: 3550,
     vertexCount: 3,
     maxVertices: 128,
     pickMode: null,
     setPointerMode: () => {},
+    setPenMode: () => {},
     vertices: [
       { id: vertexId(1), lat: 52.52, lon: 13.405 },
       { id: vertexId(2), lat: 52.53, lon: 13.405 },

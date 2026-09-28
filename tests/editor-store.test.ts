@@ -168,6 +168,83 @@ describe("vertex commands through the store", () => {
   });
 });
 
+describe("commitStroke — the Curve pen's command (user pass 48)", () => {
+  const STROKE = [
+    pos(52.52, 13.405),
+    pos(52.5205, 13.4058),
+    pos(52.5212, 13.4064),
+    pos(52.522, 13.407),
+  ];
+
+  it("appends the stroke as ONE undo step and flips a local line to curve", () => {
+    const store = useEditorStore.getState();
+    store.openEditor(gapA);
+    store.setPathStyle("off");
+    store.addVertex(pos(52.51, 13.4));
+
+    useEditorStore.getState().commitStroke(STROKE);
+    let state = useEditorStore.getState();
+    let vertices = state.reconstructions[gapA].vertices;
+    expect(vertices).toHaveLength(1 + STROKE.length);
+    // The stroke's nodes append in order, after the clicked point.
+    expect(vertices.slice(1).map((v) => v.lat)).toEqual(STROKE.map((p) => p.lat));
+    expect(vertices.slice(1).map((v) => v.lon)).toEqual(STROKE.map((p) => p.lon));
+    // One command on the stack.
+    expect(state.history.undo).toHaveLength(2); // the click + the stroke
+    // The local line became a smooth curve line (the Task-46 spline).
+    expect(state.reconstructions[gapA].pathStyle).toBe("curve");
+    expect(state.pathStyle).toBe("curve");
+
+    // ONE undo removes exactly the stroke — click and stroke are separate.
+    useEditorStore.getState().undo();
+    state = useEditorStore.getState();
+    vertices = state.reconstructions[gapA].vertices;
+    expect(vertices).toHaveLength(1);
+    expect(vertices[0].lat).toBe(52.51);
+    // Redo brings the stroke (and its curve style) back.
+    useEditorStore.getState().redo();
+    expect(
+      useEditorStore.getState().reconstructions[gapA].vertices,
+    ).toHaveLength(1 + STROKE.length);
+  });
+
+  it("keeps road/footpath lines routed — the stroke is waypoints, not smoothing", () => {
+    const store = useEditorStore.getState();
+    store.openEditor(gapA);
+    store.setPathStyle("foot");
+    store.commitStroke(STROKE);
+
+    const state = useEditorStore.getState();
+    expect(state.reconstructions[gapA].pathStyle).toBe("foot");
+    expect(state.reconstructions[gapA].vertices).toHaveLength(STROKE.length);
+  });
+
+  it("respects the vertex hard cap and stays silent at it", () => {
+    const store = useEditorStore.getState();
+    store.openEditor(gapA);
+    for (let i = 0; i < MAX_VERTICES - 1; i += 1) {
+      store.addVertex(pos(52 + i * 0.0001, 13));
+    }
+    // Budget of one: a stroke needs two nodes — refused whole.
+    store.commitStroke(STROKE);
+    expect(
+      useEditorStore.getState().reconstructions[gapA].vertices,
+    ).toHaveLength(MAX_VERTICES - 1);
+    expect(useEditorStore.getState().history.undo).toHaveLength(MAX_VERTICES - 1);
+  });
+
+  it("stroke vertices get unique, monotonic ids", () => {
+    const store = useEditorStore.getState();
+    store.openEditor(gapA);
+    store.commitStroke(STROKE);
+    store.commitStroke(STROKE);
+    const vertices = useEditorStore.getState().reconstructions[gapA].vertices;
+    expect(vertices).toHaveLength(STROKE.length * 2);
+    const ids = new Set(vertices.map((v) => v.id));
+    expect(ids.size).toBe(vertices.length);
+  });
+});
+
 describe("settings (not commands)", () => {
   it("setResampleSpacing updates the reconstruction without touching history", () => {
     const store = useEditorStore.getState();

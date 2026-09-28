@@ -34,9 +34,11 @@ import {
   EMPTY_HISTORY,
   emptyReconstruction,
   insertVertexCommand,
+  MAX_VERTICES,
   moveVertexCommand,
   redoCommand,
   undoCommand,
+  type DrawCommand,
   type DrawHistory,
   type VertexPosition,
 } from "@/features/reconstruction/drawModel";
@@ -48,6 +50,7 @@ import {
 import { CREATE_ROUTE_ID } from "@/features/create/track";
 import type {
   DrawVertex,
+  PenMode,
   PathStyle,
   PointerMode,
   RoadFollowMode,
@@ -130,6 +133,8 @@ interface CreateState {
   /** Road-routing status of the chain (pending count + failure). */
   roadRouting: { pending: number; failed: boolean };
   pointerMode: PointerMode;
+  /** The draw-mode pen (user pass 48): default clicks, curve strokes. */
+  pen: PenMode;
   /**
    * The route's path style (Tasks 46–47: road / footpath / curve /
    * straight). Mirrored onto the single reconstruction so the committed
@@ -146,6 +151,8 @@ interface CreateState {
   matchDistance: boolean;
 
   setPointerMode: (mode: PointerMode) => void;
+  /** The draw-mode pen (user pass 48; transient, never undoable). */
+  setPenMode: (pen: PenMode) => void;
   setPathStyle: (mode: PathStyle) => void;
   setSpacing: (spacing: number | "off") => void;
   setMatchDistance: (on: boolean) => void;
@@ -157,6 +164,13 @@ interface CreateState {
   insertVertex: (index: number, position: VertexPosition) => void;
   moveVertex: (vertexId: VertexId, to: VertexPosition) => void;
   deleteVertex: (vertexId: VertexId) => void;
+  /**
+   * Commit one freehand stroke (Curve pen, user pass 48): append the
+   * processed nodes as ONE `set-vertices` command — a single undo step
+   * removes the whole stroke. A local ("off") route flips to "curve" so
+   * the Task-46 spline smooths it; routed routes keep their routing.
+   */
+  commitStroke: (points: readonly { lat: number; lon: number }[]) => void;
   clearVertices: () => void;
   undo: () => void;
   redo: () => void;
@@ -176,6 +190,7 @@ const INITIAL = {
   roadLegs: [] as readonly RoadLeg[],
   roadRouting: { pending: 0, failed: false },
   pointerMode: "draw" as PointerMode,
+  pen: "default" as PenMode,
   pathStyle: "car" as PathStyle,
   spacingM: DEFAULT_CREATE_SPACING_M as number | "off",
   matchDistance: false,
@@ -237,6 +252,7 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
   closeShareDialog: () => set({ shareDialogOpen: false }),
 
   setPointerMode: (pointerMode) => set({ pointerMode }),
+  setPenMode: (pen) => set({ pen }),
   setPathStyle: (pathStyle) =>
     set((state) => {
       // The drawn route remembers its style (settings change — the
@@ -335,6 +351,44 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       command,
     );
     set({ reconstruction: next.reconstruction, history: next.history });
+  },
+
+  commitStroke: (points) => {
+    const state = get();
+    if (state.phase !== "draw" || points.length === 0) return;
+    const current = state.reconstruction;
+    const budget = MAX_VERTICES - current.vertices.length;
+    if (budget < 2) return; // a stroke is a curve — it needs two nodes minimum
+    let seq = state.vertexSeq;
+    const added = points.slice(0, budget).map((point) => {
+      seq += 1;
+      return {
+        id: vertexId(seq),
+        lat: point.lat,
+        lon: point.lon,
+      };
+    });
+    const command: DrawCommand = {
+      kind: "set-vertices",
+      previous: current.vertices,
+      next: [...current.vertices, ...added],
+    };
+    const next = commitCommand(
+      { reconstruction: current, history: state.history },
+      command,
+    );
+    if (next.reconstruction === current) return;
+    set({
+      vertexSeq: seq,
+      reconstruction: next.reconstruction,
+      history: next.history,
+    });
+    // The curve pen's signature: a local straight route becomes a smooth
+    // curve route (the spline). Routed styles keep the router's geometry.
+    const style = next.reconstruction.pathStyle;
+    if (style === undefined || style === "off") {
+      get().setPathStyle("curve");
+    }
   },
 
   clearVertices: () => {

@@ -24,6 +24,7 @@ import {
   MapIcon,
   Move,
   PenLine,
+  Spline,
   WifiOff,
 } from "lucide-react";
 import { DrawDistanceBadge } from "@/components/map/draw-distance-badge";
@@ -195,7 +196,8 @@ export function MapCanvas({ map, attachContainer, draw = null, srNote }: MapCanv
             {/* Current-pointer-mode chip (QoL): always answers "what
                 does the pointer do right now?" at a glance, and cycles
                 Draw → Move → Pan on click (Task 45). Dragging a placed
-                point works in every mode. */}
+                point is Move mode's job (user pass 48); the chip also
+                says which pen Draw is holding. */}
             {editorActive && draw && (
               <button
                 type="button"
@@ -219,10 +221,12 @@ export function MapCanvas({ map, attachContainer, draw = null, srNote }: MapCanv
                 }
                 title={
                   draw.pointerMode === "draw"
-                    ? "Draw mode — click to add points (D)"
+                    ? draw.pen === "curve"
+                      ? "Draw mode, Curve pen — drag to draw a curve (D, C switches pens)"
+                      : "Draw mode — click to add points (D)"
                     : draw.pointerMode === "move"
                       ? "Move mode — drag any point (M)"
-                      : "Pan mode — drag to navigate (P). Dragging a drawn point still works."
+                      : "Pan mode — drag to navigate (P)"
                 }
                 className={`absolute left-2 top-2 z-10 flex items-center gap-2 rounded-lg border-[1.5px] border-ink px-2.5 py-1.5 text-xs font-semibold shadow-float transition-colors focus-visible:outline-2 ${
                   draw.pointerMode === "draw"
@@ -231,14 +235,20 @@ export function MapCanvas({ map, attachContainer, draw = null, srNote }: MapCanv
                 }`}
               >
                 {draw.pointerMode === "draw" ? (
-                  <PenLine className="size-3.5 shrink-0 text-signal" aria-hidden="true" />
+                  draw.pen === "curve" ? (
+                    <Spline className="size-3.5 shrink-0 text-signal" aria-hidden="true" />
+                  ) : (
+                    <PenLine className="size-3.5 shrink-0 text-signal" aria-hidden="true" />
+                  )
                 ) : draw.pointerMode === "move" ? (
                   <Move className="size-3.5 shrink-0 text-signal" aria-hidden="true" />
                 ) : (
                   <Hand className="size-3.5 shrink-0" aria-hidden="true" />
                 )}
                 {draw.pointerMode === "draw"
-                  ? "Drawing"
+                  ? draw.pen === "curve"
+                    ? "Curve pen"
+                    : "Drawing"
                   : draw.pointerMode === "move"
                     ? "Moving"
                     : "Panning"}

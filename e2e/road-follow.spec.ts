@@ -49,6 +49,7 @@ function tailPoint(): { lat: number; lon: number } {
 interface DrawSessionState {
   gapId: string;
   drawMode: boolean;
+  pointerMode: "draw" | "move" | "pan";
   vertexCount: number;
   chainCoordinates: [number, number][];
   renderedChainCoordinates: [number, number][];
@@ -277,6 +278,11 @@ test.describe("road follow — clicks trace the road between them", () => {
       (s) => s.drawSession?.renderedChainCoordinates.length === 5,
     );
     const routesAfterDraw = log.count;
+
+    // User pass 48: point drags live in Move mode (the pencil adds,
+    // never edits) — switch before dragging the handle.
+    await page.getByTestId("draw-mode-move").click();
+    await pollBridge(page, (s) => s.drawSession?.pointerMode === "move");
 
     // Drag the FIRST clicked point south-east.
     const handle = beforeDrag.drawSession!.handleScreenPositions[0];

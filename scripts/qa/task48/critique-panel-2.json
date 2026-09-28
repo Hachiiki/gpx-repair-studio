@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "**QA Review: Draw-Editor Card**\n\n1.  **Chip Groups Visibility & State:**\n    *   **'Pen' Group:** Fully visible. Contains 'Default pen' (pressed/black) and 'Curve pen'. Exactly one chip is pressed.\n    *   **'Between points, follow' Group:** Fully visible. Contains exactly three choices: 'Roads', 'Footpaths', and 'Straight lines'. The 'Roads' chip is pressed. Both groups are left-aligned and unclipped.\n\n2.  **Text Clipping/Overflow:**\n    *   All text, including the lengthy privacy microcopy paragraph and the time/distance labels, is fully visible within the card boundaries. No text is truncated or overflowing.\n\n3.  **Layout Defects:**\n    *   The layout is clean and well-structured with clear visual hierarchy.\n    *   Spacing between sections (chip groups, microcopy, time controls) is consistent.\n    *   Input fields and buttons are properly sized and aligned.\n\n**Verdict: SHIP**\n**Reasons:** The UI matches all specified requirements: both chip groups are present with the correct options and states (exactly one pressed per group), all text is legible and unclipped, and the overall layout is free of defects or misalignments.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790567013,
+  "id": "20260928114328a7171ef668244df9",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260928114328a7171ef668244df9",
+  "usage": {
+    "completion_tokens": 270,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 571,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 841
+  }
+}

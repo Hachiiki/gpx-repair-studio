@@ -41,6 +41,8 @@ interface DrawSessionState {
   gapId: string;
   drawMode: boolean;
   pointerMode: "draw" | "move" | "pan";
+  penMode: "default" | "curve";
+  strokeActive: boolean;
   vertexCount: number;
   chainCoordinates: [number, number][];
   renderedChainCoordinates: [number, number][];
@@ -279,6 +281,26 @@ test.describe("draw editor — desktop", () => {
     await clickAt(page, DRAW_POINTS[1].lat, DRAW_POINTS[1].lon, box);
     const two = await pollBridge(page, (s) => s.drawSession?.vertexCount === 2);
 
+    // User pass 48: in DRAW mode the pencil adds, it never edits — a
+    // handle drag here must move NOTHING (and plant no surprise point).
+    const drawBox = await canvasBox(page);
+    const stillHandle = two.drawSession!.handleScreenPositions[0];
+    const before = two.drawSession!.chainCoordinates[1];
+    await page.mouse.move(drawBox.x + stillHandle.x, drawBox.y + stillHandle.y);
+    await page.mouse.down();
+    await page.mouse.move(drawBox.x + stillHandle.x + 40, drawBox.y + stillHandle.y - 24, {
+      steps: 6,
+    });
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    const unmoved = (await bridge(page))!.drawSession!;
+    expect(unmoved.vertexCount).toBe(2); // no add from the released drag
+    expect(unmoved.chainCoordinates[1][0]).toBe(before[0]); // no move either
+
+    // Switch to Move: NOW the handle drags (the explicit adjust gesture).
+    await page.getByTestId("draw-mode-move").click();
+    await pollBridge(page, (s) => s.drawSession?.pointerMode === "move");
+
     // Drag the first handle 40 px east / 24 px north. The canvas box is
     // re-read fresh: layout shifts (editor panel growing) can move the
     // canvas between steps, and a stale box would drag at stale pixels.
@@ -298,6 +320,10 @@ test.describe("draw editor — desktop", () => {
           two.drawSession!.pathCoordinates[1][0],
     );
     expect(moved.drawSession!.vertexCount).toBe(2); // a move, not an add
+
+    // Back to Draw for the midpoint insert (a draw-mode-only affordance).
+    await page.getByTestId("draw-mode-draw").click();
+    await pollBridge(page, (s) => s.drawSession?.pointerMode === "draw");
 
     // Insert at the second midpoint handle → 3 vertices.
     const midBox = await canvasBox(page);
@@ -478,7 +504,7 @@ test.describe("draw editor — desktop", () => {
     await pollBridge(page, (s) => s.drawSession?.pointerMode === "move");
   });
 
-  test("the Curves path style (Task 46): the rendered line is the spline, per line", async ({
+  test("the Curve pen (user pass 48): freehand drag becomes a smooth line, one undo removes the stroke", async ({
     page,
   }) => {
     await page.goto("/");
@@ -488,37 +514,61 @@ test.describe("draw editor — desktop", () => {
     await page.getByTestId("snap-toggle").click();
     const box = await canvasBox(page);
 
-    // Draw mode, three points (a corner to bend through).
-    await pollBridge(page, (s) => s.drawSession?.drawMode === true);
-    await clickAt(page, DRAW_POINTS[0].lat, DRAW_POINTS[0].lon, box);
-    await clickAt(page, DRAW_POINTS[1].lat, DRAW_POINTS[1].lon, box);
-    await clickAt(page, DRAW_POINTS[2].lat, DRAW_POINTS[2].lon, box);
-    await pollBridge(page, (s) => s.drawSession!.vertexCount === 3);
+    // Curve is a PEN now — the old Curves path chip is gone for good.
+    await expect(page.getByTestId("road-follow-curve")).toHaveCount(0);
 
-    // Straight (the road router is aborted in this suite): the rendered
-    // chain equals the clicked nodes.
-    const straight = (await bridge(page))!.drawSession!;
-    expect(straight.renderedChainCoordinates.length).toBe(
-      straight.chainCoordinates.length,
-    );
+    // A local (straight) line: the pen's smoothing will apply to it.
+    await page.getByTestId("road-follow-off").click();
+    await pollBridge(page, (s) => s.drawSession !== null);
 
-    // Switch the line to Curves: the rendered line gains the spline
-    // interior — the shape the export will bake.
-    await page.getByTestId("road-follow-curve").click();
-    const curved = await pollBridge(
+    // Switch to the Curve pen.
+    await page.getByTestId("pen-mode-curve").click();
+    await pollBridge(page, (s) => s.drawSession?.penMode === "curve");
+    await expect(page.getByTestId("map-mode-chip")).toHaveText(/Curve pen/);
+
+    // Drag a freehand S across the gap area (synthetic pointer stroke).
+    const strokeBox = await canvasBox(page);
+    const start = await project(page, DRAW_POINTS[0].lat, DRAW_POINTS[0].lon);
+    const mid1 = await project(page, DRAW_POINTS[2].lat, DRAW_POINTS[2].lon);
+    const mid2 = await project(page, DRAW_POINTS[3].lat, DRAW_POINTS[3].lon);
+    const end = await project(page, DRAW_POINTS[1].lat, DRAW_POINTS[1].lon);
+    await page.mouse.move(strokeBox.x + start.x, strokeBox.y + start.y);
+    await page.mouse.down();
+    await page.mouse.move(strokeBox.x + mid1.x, strokeBox.y + mid1.y, { steps: 8 });
+    await page.mouse.move(strokeBox.x + mid2.x, strokeBox.y + mid2.y, { steps: 8 });
+    await page.mouse.move(strokeBox.x + end.x, strokeBox.y + end.y, { steps: 8 });
+    await page.mouse.up();
+
+    // The stroke committed: many nodes, rendered as the spline (the
+    // straight line flipped to a smooth curve line) — the shape the
+    // export will bake.
+    const stroked = await pollBridge(
       page,
       (s) =>
-        s.drawSession!.renderedChainCoordinates.length >
-        s.drawSession!.chainCoordinates.length,
+        s.drawSession !== null &&
+        s.drawSession.vertexCount >= 3 &&
+        s.drawSession.renderedChainCoordinates.length >
+          s.drawSession.chainCoordinates.length,
     );
-    // The exact clicked nodes survive on the curved line (user data).
-    for (const node of curved.drawSession!.chainCoordinates) {
-      expect(
-        curved.drawSession!.renderedChainCoordinates.some(
-          (p) => p[0] === node[0] && p[1] === node[1],
-        ),
-      ).toBe(true);
-    }
+    // The stroke's exact endpoints survive as nodes (user data) — pixel
+    // roundtrip precision, so a loose-but-meaningful tolerance.
+    const chain = stroked.drawSession!.chainCoordinates;
+    expect(chain[1][0]).toBeCloseTo(DRAW_POINTS[0].lon, 4);
+    expect(chain[chain.length - 1][0]).toBeCloseTo(DRAW_POINTS[1].lon, 4);
+
+    // ONE undo removes the whole stroke.
+    await page.getByTestId("undo-button").click();
+    await pollBridge(page, (s) => s.drawSession?.vertexCount === 0);
+
+    // A quick TAP with the Curve pen still places a single point.
+    const tapBox = await canvasBox(page);
+    await clickAt(page, DRAW_POINTS[0].lat, DRAW_POINTS[0].lon, tapBox);
+    await pollBridge(page, (s) => s.drawSession?.vertexCount === 1);
+
+    // The C accelerator toggles back to the default pencil.
+    await page.keyboard.press("c");
+    await pollBridge(page, (s) => s.drawSession?.penMode === "default");
+    await expect(page.getByTestId("map-mode-chip")).toHaveText(/Drawing/);
   });
 });
 

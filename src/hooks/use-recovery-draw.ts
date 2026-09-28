@@ -49,6 +49,7 @@ import {
   joinCurveChain,
   joinDrawChain,
 } from "@/features/reconstruction/roadFollow";
+import { simplifyStroke } from "@/features/reconstruction/stroke";
 import {
   polylineLengthMeters,
 } from "@/lib/geo/geodesy";
@@ -62,11 +63,13 @@ import {
   type GapStatus,
 } from "@/state/editor-store";
 import { useRecoveryStore } from "@/state/recovery-store";
+import { activeRecoveryReconstruction } from "@/state/recovery-store";
 import type {
   GapId,
   LatLon,
   OriginalTrackPoint,
   PathStyle,
+  PenMode,
   PointId,
   PointerMode,
   RoadFollowMode,
@@ -91,6 +94,7 @@ export function useRecoveryDraw(
 ): DrawEditorBinding {
   const activeGapId = useRecoveryStore((s) => s.activeGapId);
   const pointerMode = useRecoveryStore((s) => s.pointerMode);
+  const pen = useRecoveryStore((s) => s.pen);
   const snapEnabled = useRecoveryStore((s) => s.snapEnabled);
   const pathStyle = useRecoveryStore((s) => s.pathStyle);
   const roadLegs = useRecoveryStore((s) => s.roadLegs);
@@ -437,12 +441,24 @@ export function useRecoveryDraw(
           useRecoveryStore.getState().insertVertex(index, position),
         onVertexDelete: (vertexId) =>
           useRecoveryStore.getState().deleteVertex(vertexId),
+        // The Curve pen (user pass 48): simplify + commit as ONE undo step.
+        onStrokeCommit: (points) => {
+          const store = useRecoveryStore.getState();
+          const current = activeRecoveryReconstruction(store);
+          const budget = MAX_VERTICES - (current?.vertices.length ?? 0);
+          const nodes = simplifyStroke(points, {
+            routing: store.pathStyle === "car" || store.pathStyle === "foot",
+            budget,
+          });
+          if (nodes.length >= 2) store.commitStroke(nodes);
+        },
       },
     });
     // A session (re)start must never inherit a stale pointer mode —
     // endDrawSession resets the controller to pan, and the store may
     // still say draw (e.g. a path-style switch rebuilt the joins).
     controller.setPointerMode(useRecoveryStore.getState().pointerMode);
+    controller.setPenMode(useRecoveryStore.getState().pen);
     return () => {
       controller.endDrawSession();
     };
@@ -519,10 +535,15 @@ export function useRecoveryDraw(
     }
   }, [activeGap, nearAnchor, farAnchor, vertices, pathStyle]);
 
-  // Pointer mode (Draw / Move / Pan — Task 45) → controller handlers.
+  // Pointer mode (Draw / Move / Pan — Task 45) and the pen (user pass
+  // 48) → controller handlers.
   useEffect(() => {
     map.getController()?.setPointerMode(pointerMode);
   }, [pointerMode, map.getController, mapReady]);
+
+  useEffect(() => {
+    map.getController()?.setPenMode(pen);
+  }, [pen, map.getController, mapReady]);
 
   // Keyboard accelerators (QoL): D = draw, M = move, P = pan — active only
   // while an editor session is open, never while typing in a form control.
@@ -550,6 +571,11 @@ export function useRecoveryDraw(
       } else if (key === "p") {
         event.preventDefault();
         useRecoveryStore.getState().setPointerMode("pan");
+      } else if (key === "c") {
+        // Pen toggle (user pass 48).
+        event.preventDefault();
+        const store = useRecoveryStore.getState();
+        store.setPenMode(store.pen === "curve" ? "default" : "curve");
       }
     };
     window.addEventListener("keydown", onKeydown);
@@ -819,10 +845,15 @@ export function useRecoveryDraw(
     useRecoveryStore.getState().deleteVertex(vertexId);
   }, []);
 
+  const setPenMode = useCallback((pen: PenMode) => {
+    useRecoveryStore.getState().setPenMode(pen);
+  }, []);
+
   return {
     active: activeGap !== null,
     activeGap,
     pointerMode,
+    pen,
     snapEnabled,
     pathStyle,
     routingPending: roadRouting.pending > 0,
@@ -854,6 +885,7 @@ export function useRecoveryDraw(
     cancelPickSpan,
     removeManualSpan,
     setPointerMode,
+    setPenMode,
     setSnapEnabled,
     setPathStyle,
     undo,

@@ -60,6 +60,7 @@ function makeBinding(
     active: true,
     activeGap: GAP_ROW,
     pointerMode: "draw",
+    pen: "default",
     snapEnabled: true,
     pathStyle: "car",
     routingPending: false,
@@ -98,6 +99,7 @@ function makeBinding(
     cancelPickSpan: () => {},
     removeManualSpan: () => {},
     setPointerMode: () => {},
+    setPenMode: () => {},
     setSnapEnabled: () => {},
     setPathStyle: () => {},
     undo: () => {},
@@ -387,10 +389,10 @@ describe("DrawEditorPanel — Phase 5 time strategy embedding", () => {
 });
 
 describe("DrawEditorPanel — road follow (snap to road)", () => {
-  it("renders the mode group with the active choice pressed", () => {
+  it("renders the mode group with the active choice pressed (user pass 48: no Curves chip)", () => {
     render(<DrawEditorPanel draw={makeBinding({ pathStyle: "car" })} />);
     const group = screen.getByTestId("road-follow-group");
-    expect(group).toHaveTextContent("Between clicks, follow");
+    expect(group).toHaveTextContent("Between points, follow");
     expect(screen.getByTestId("road-follow-car")).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -403,8 +405,33 @@ describe("DrawEditorPanel — road follow (snap to road)", () => {
       "aria-pressed",
       "false",
     );
+    // Curve is a PEN now (user pass 48) — it is not a path choice.
+    expect(screen.queryByTestId("road-follow-curve")).toBeNull();
     // The privacy disclosure is part of the affordance itself.
     expect(group).toHaveTextContent("never leaves this browser");
+  });
+
+  it("a curve-pen line reads as Straight (its local home); tapping flattens it", () => {
+    const setPathStyle = vi.fn();
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({ pathStyle: "curve", setPathStyle })}
+      />,
+    );
+    // "curve" never presses the Roads/Footpaths chips — Straight is its home.
+    expect(screen.getByTestId("road-follow-car")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByTestId("road-follow-off")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // No routing status for a local line.
+    expect(screen.queryByTestId("road-follow-status")).toBeNull();
+    // Tapping Straight explicitly flattens the smooth line.
+    fireEvent.click(screen.getByTestId("road-follow-off"));
+    expect(setPathStyle).toHaveBeenCalledWith("off");
   });
 
   it("switching modes dispatches setPathStyle", () => {
@@ -460,5 +487,53 @@ describe("DrawEditorPanel — road follow (snap to road)", () => {
       />,
     );
     expect(screen.getByText(/switch to Move \(M\) and drag/i)).toBeVisible();
+  });
+});
+
+describe("DrawEditorPanel — the pen group (user pass 48: curve is a pen)", () => {
+  it("renders Default and Curve pens, pressing the active one", () => {
+    render(<DrawEditorPanel draw={makeBinding({ pen: "default" })} />);
+    const group = screen.getByTestId("pen-mode-group");
+    expect(group).toHaveTextContent("Pen");
+    expect(screen.getByTestId("pen-mode-default")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByTestId("pen-mode-curve")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    // No freehand hint while the classic pencil holds the draw mode.
+    expect(screen.queryByTestId("pen-curve-hint")).toBeNull();
+  });
+
+  it("switching pens dispatches setPenMode", () => {
+    const setPenMode = vi.fn();
+    render(
+      <DrawEditorPanel draw={makeBinding({ pen: "default", setPenMode })} />,
+    );
+    fireEvent.click(screen.getByTestId("pen-mode-curve"));
+    expect(setPenMode).toHaveBeenCalledWith("curve");
+    fireEvent.click(screen.getByTestId("pen-mode-default"));
+    expect(setPenMode).toHaveBeenCalledWith("default");
+  });
+
+  it("teaches the freehand gesture while the Curve pen draws", () => {
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({ pointerMode: "draw", pen: "curve" })}
+      />,
+    );
+    expect(screen.getByTestId("pen-curve-hint")).toHaveTextContent(
+      /Drag on the map to draw your curve/,
+    );
+    // The pen is a Draw-mode concern — the hint is gone in Move mode.
+    cleanup();
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({ pointerMode: "move", pen: "curve" })}
+      />,
+    );
+    expect(screen.queryByTestId("pen-curve-hint")).toBeNull();
   });
 });

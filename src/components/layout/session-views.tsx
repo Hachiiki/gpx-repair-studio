@@ -151,7 +151,7 @@ const WORKFLOW_STEPS: Record<
       icon: Route,
       title: "Repair",
       description:
-        "Draw the missing route on the map — clicks follow real roads, every point drags, everything undoes.",
+        "Draw the missing route on the map — clicks follow real roads, drag a curve freehand with the Curve pen, every point adjusts in Move mode, everything undoes.",
     },
     {
       icon: ShieldCheck,
@@ -191,7 +191,7 @@ const WORKFLOW_STEPS: Record<
       icon: PenLine,
       title: "Draw the missing route",
       description:
-        "Trace where you actually went on the map — clicks follow real roads, every point drags, and everything undoes. The original recording is never modified.",
+        "Trace where you actually went on the map — clicks follow real roads, the Curve pen draws freehand curves, and everything undoes. The original recording is never modified.",
     },
     {
       icon: Download,
@@ -211,7 +211,7 @@ const WORKFLOW_STEPS: Record<
       icon: Route,
       title: "Draw the route",
       description:
-        "Trace where you went on the map — clicks follow real roads, every point drags, and everything undoes. This is the whole activity, drawn from scratch.",
+        "Trace where you went on the map — clicks follow real roads, the Curve pen draws freehand curves, and everything undoes. This is the whole activity, drawn from scratch.",
     },
     {
       icon: Ruler,
