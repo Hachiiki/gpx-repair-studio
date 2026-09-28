@@ -228,12 +228,12 @@ function drawBinding(
 ): CreateDrawBinding {
   return {
     active: true,
-    drawMode: true,
+    pointerMode: "draw",
     distanceM: 3550,
     vertexCount: 3,
     maxVertices: 128,
     pickMode: null,
-    setDrawMode: () => {},
+    setPointerMode: () => {},
     vertices: [
       { id: vertexId(1), lat: 52.52, lon: 13.405 },
       { id: vertexId(2), lat: 52.53, lon: 13.405 },
@@ -244,11 +244,11 @@ function drawBinding(
     canRedo: false,
     undoCount: 1,
     redoCount: 0,
-    roadFollow: "car",
+    pathStyle: "car",
     routingPending: false,
     routingFailed: false,
     resampleSpacing: 25,
-    setRoadFollow: () => {},
+    setPathStyle: () => {},
     setResampleSpacing: () => {},
     undo: () => {},
     redo: () => {},
@@ -288,11 +288,11 @@ describe("RouteDrawPanel", () => {
   });
 
   it("switches the road-follow mode through the shared chip language", () => {
-    const setRoadFollow = vi.fn();
-    const draw = drawBinding({ setRoadFollow });
+    const setPathStyle = vi.fn();
+    const draw = drawBinding({ setPathStyle });
     render(<RouteDrawPanel draw={draw} stats={STATS} paceUnit="km" />);
     fireEvent.click(screen.getByTestId("road-follow-foot"));
-    expect(setRoadFollow).toHaveBeenCalledWith("foot");
+    expect(setPathStyle).toHaveBeenCalledWith("foot");
   });
 });
 

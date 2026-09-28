@@ -40,13 +40,19 @@ import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { MergeFilesCard } from "@/components/merge/merge-files-card";
 import { MergeDetailsCard } from "@/components/merge/merge-details-card";
 import { MergeExportCard } from "@/components/merge/merge-export-card";
-import { useMergeSession } from "@/hooks/use-merge-session";
+import { MergeShareView } from "@/components/merge/merge-share-view";
+import { ShareMergeDialog } from "@/components/merge/share-merge-dialog";
+import { useMergeSession, mergedFileName } from "@/hooks/use-merge-session";
+import { useMergeShare } from "@/hooks/use-merge-share";
 import { useMergeMap } from "@/hooks/use-merge-map";
+import { useMergeStore } from "@/state/merge-store";
 import { useUiStore } from "@/state/ui-store";
 
 export function MergeStudio() {
   const session = useMergeSession();
   const map = useMergeMap(session);
+  const view = useMergeStore((s) => s.view);
+  const shareDialogOpen = useMergeStore((s) => s.shareDialogOpen);
   const paceUnit = useUiStore((s) => s.paceUnit);
   const setPaceUnit = useUiStore((s) => s.setPaceUnit);
 
@@ -55,88 +61,128 @@ export function MergeStudio() {
     (file) => file.status === "parsed" && file.summary?.hasTimingData,
   );
 
+  // The share binding over the CURRENT arrangement — the same derived
+  // merge the map and the statistics show, so the card can never
+  // disagree with the studio (and a reorder while away is impossible:
+  // the share view replaces the studio).
+  const share = useMergeShare(merged, session.combinedName, session.parsedCount);
+
+  // The share view (the header's Share after the warning confirms):
+  // the same merged route and numbers, as the card stage. Everything
+  // stays mounted behind it — coming back is just a view switch.
+  if (view === "share" && share) {
+    return (
+      <MergeShareView
+        share={share}
+        onBackToArrangement={() => useMergeStore.getState().setView("studio")}
+      />
+    );
+  }
+
   return (
-    <WorkspaceLayout
-      sectionId="merge"
-      sectionLabel="Merge map and arrangement"
-      toolsLabel="Merge tools"
-      detailsTitle="The merged recording"
-      detailsIntro="Everything the app knows about the combined file — every point carried over verbatim from its source, in the order you set."
-      scrollCueLabel="Statistics & file details"
-      map={
-        <MapCanvas
-          map={map}
-          attachContainer={map.setContainer}
-          srNote={`This is the merged route of ${session.parsedCount} recordings.`}
-        />
-      }
-      tools={
-        <>
-          <MergeFilesCard
-            files={session.files}
-            parsedCount={session.parsedCount}
-            anyTimed={anyTimed}
-            onMove={session.moveFile}
-            onFocusFile={map.focusFile}
-            onRemove={session.removeFile}
-            onAddFiles={(files) => void session.addFiles(files)}
-            onSortByStartTime={session.sortByStartTime}
+    <>
+      <WorkspaceLayout
+        sectionId="merge"
+        sectionLabel="Merge map and arrangement"
+        toolsLabel="Merge tools"
+        detailsTitle="The merged recording"
+        detailsIntro="Everything the app knows about the combined file — every point carried over verbatim from its source, in the order you set."
+        scrollCueLabel="Statistics & file details"
+        map={
+          <MapCanvas
+            map={map}
+            attachContainer={map.setContainer}
+            srNote={`This is the merged route of ${session.parsedCount} recordings.`}
           />
-          {merged && (
-            <MergeDetailsCard
-              combinedName={session.combinedName}
-              onNameChange={session.setCombinedName}
-              fileCount={session.parsedCount}
-              totalPoints={merged.totalPoints}
-              distanceM={merged.distanceStats.totalDistanceM}
-              waypointCount={merged.waypointCount}
+        }
+        tools={
+          <>
+            <MergeFilesCard
+              files={session.files}
+              parsedCount={session.parsedCount}
+              anyTimed={anyTimed}
+              onMove={session.moveFile}
+              onFocusFile={map.focusFile}
+              onRemove={session.removeFile}
+              onAddFiles={(files) => void session.addFiles(files)}
+              onSortByStartTime={session.sortByStartTime}
             />
-          )}
-          <MergeExportCard
-            canDownload={session.parsedCount >= 2}
-            fileCount={session.parsedCount}
-            pointCount={merged?.totalPoints ?? 0}
-            onDownload={session.download}
-          />
-        </>
-      }
-      details={
-        <RevealOnScroll>
-          {merged ? (
-            <>
-              <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 xl:grid-cols-[repeat(2,minmax(0,1fr))]">
-                <GpxSummaryCard
-                  fileName={
-                    session.combinedName.trim() || "Merged recording"
-                  }
-                  data={merged.model}
-                  timeStats={merged.timeStats}
-                />
-                <ValidationReport issues={merged.issues} />
+            {merged && (
+              <MergeDetailsCard
+                combinedName={session.combinedName}
+                onNameChange={session.setCombinedName}
+                fileCount={session.parsedCount}
+                totalPoints={merged.totalPoints}
+                distanceM={merged.distanceStats.totalDistanceM}
+                waypointCount={merged.waypointCount}
+              />
+            )}
+            <MergeExportCard
+              canDownload={session.parsedCount >= 2}
+              fileCount={session.parsedCount}
+              pointCount={merged?.totalPoints ?? 0}
+              onDownload={session.download}
+            />
+          </>
+        }
+        details={
+          <RevealOnScroll>
+            {merged ? (
+              <>
+                <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 xl:grid-cols-[repeat(2,minmax(0,1fr))]">
+                  <GpxSummaryCard
+                    fileName={
+                      session.combinedName.trim() || "Merged recording"
+                    }
+                    data={merged.model}
+                    timeStats={merged.timeStats}
+                  />
+                  <ValidationReport issues={merged.issues} />
+                </div>
+                <div className="mt-4">
+                  <StatsPanel
+                    distanceStats={merged.distanceStats}
+                    timeStats={merged.timeStats}
+                    reimport={merged.reimport}
+                    paceUnit={paceUnit}
+                    onPaceUnitChange={setPaceUnit}
+                  />
+                </div>
+              </>
+            ) : (
+              /*
+               * The degenerate state: every file removed while arranging.
+               * Recoverable in place — the files card's "Add files" is
+               * still right there.
+               */
+              <div className="rounded-[10px] border-[1.5px] border-ink bg-card p-[18px] text-sm text-muted-foreground">
+                Nothing to merge yet — add at least two files and the
+                combined route, its statistics, and its export appear here.
               </div>
-              <div className="mt-4">
-                <StatsPanel
-                  distanceStats={merged.distanceStats}
-                  timeStats={merged.timeStats}
-                  reimport={merged.reimport}
-                  paceUnit={paceUnit}
-                  onPaceUnitChange={setPaceUnit}
-                />
-              </div>
-            </>
-          ) : (
-            /*
-             * The degenerate state: every file removed while arranging.
-             * Recoverable in place — the files card's "Add files" is
-             * still right there.
-             */
-            <div className="rounded-[10px] border-[1.5px] border-ink bg-card p-[18px] text-sm text-muted-foreground">
-              Nothing to merge yet — add at least two files and the
-              combined route, its statistics, and its export appear here.
-            </div>
-          )}
-        </RevealOnScroll>
-      }
-    />
+            )}
+          </RevealOnScroll>
+        }
+      />
+
+      {/*
+       * The header's Share gate (studio view only — openShareDialog is
+       * a no-op elsewhere): confirm downloads the merged GPX (the same
+       * file the Download button produces, the CURRENT arrangement
+       * serialized at click time) and switches to the share card view.
+       */}
+      <ShareMergeDialog
+        open={shareDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) useMergeStore.getState().closeShareDialog();
+        }}
+        fileName={mergedFileName(session.combinedName)}
+        content={share?.content ?? null}
+        onConfirm={() => {
+          session.download();
+          useMergeStore.getState().closeShareDialog();
+          useMergeStore.getState().setView("share");
+        }}
+      />
+    </>
   );
 }

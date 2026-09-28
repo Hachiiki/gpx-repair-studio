@@ -34,6 +34,13 @@ import type { SessionError } from "@/state/session-store";
 /** The section's two screens. */
 export type MergePhase = "intake" | "studio";
 
+/**
+ * The in-section view: the studio (map + arrangement cards) or the share
+ * card (the arrangement's companion view — same merged route, same numbers,
+ * a Strava-style graphic). Mirrors the repair/create sections' `view` split.
+ */
+export type MergeView = "studio" | "share";
+
 /** One collected file: parse status + (on success) the frozen model. */
 export interface MergeFileEntry {
   /** Unique within this session: `f1`, `f2`, … (never reused). */
@@ -52,6 +59,10 @@ export interface MergeFileEntry {
 
 interface MergeState {
   phase: MergePhase;
+  /** The in-section view (studio or share); share is reachable from the studio. */
+  view: MergeView;
+  /** The header's Share warning dialog (open state only). */
+  shareDialogOpen: boolean;
   /** Collected files, in merge order (the array is the order). */
   files: readonly MergeFileEntry[];
   /** The merged activity's name ("" → no name in the export). */
@@ -87,6 +98,12 @@ interface MergeState {
   combine: () => boolean;
   /** Leave the studio back to the intake (files kept). */
   backToIntake: () => void;
+  /** Switch the in-section view (studio ⇄ share; share only from the studio). */
+  setView: (view: MergeView) => void;
+  /** The header's Share intent — opens the warning dialog (studio only). */
+  openShareDialog: () => void;
+  /** Close the warning dialog (no export, no view change). */
+  closeShareDialog: () => void;
   /** Clear everything (the header's reset / "Start over"). */
   reset: () => void;
 }
@@ -95,6 +112,8 @@ interface MergeState {
 function initialMergeState() {
   return {
     phase: "intake" as MergePhase,
+    view: "studio" as MergeView,
+    shareDialogOpen: false,
     files: [] as readonly MergeFileEntry[],
     combinedName: "",
     idSeq: 1,
@@ -183,11 +202,25 @@ export const useMergeStore = create<MergeState>()((set, get) => ({
   combine: () => {
     const parsed = get().files.filter((file) => file.status === "parsed");
     if (parsed.length < 2 || get().phase === "studio") return false;
-    set({ phase: "studio" });
+    // Entering the studio always lands on the arrangement view — a
+    // previous share visit can never leak into a new merge.
+    set({ phase: "studio", view: "studio", shareDialogOpen: false });
     return true;
   },
 
-  backToIntake: () => set({ phase: "intake" }),
+  backToIntake: () =>
+    set({ phase: "intake", view: "studio", shareDialogOpen: false }),
+
+  setView: (view) => set({ view }),
+
+  openShareDialog: () =>
+    set((state) =>
+      state.phase === "studio" && state.view === "studio"
+        ? { shareDialogOpen: true }
+        : state,
+    ),
+
+  closeShareDialog: () => set({ shareDialogOpen: false }),
 
   reset: () => set(initialMergeState()),
 }));

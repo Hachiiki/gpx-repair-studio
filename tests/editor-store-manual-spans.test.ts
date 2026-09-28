@@ -46,7 +46,7 @@ describe("editor-store — addManualSpan", () => {
       afterPointId: P2,
     });
     expect(state.activeGapId).toBe(gapId(P1, P2));
-    expect(state.drawMode).toBe(true);
+    expect(state.pointerMode).toBe("draw");
     expect(state.reconstructions[gapId(P1, P2)]).toBeDefined();
     expect(state.reconstructions[gapId(P1, P2)].vertices).toEqual([]);
   });
@@ -117,7 +117,7 @@ describe("editor-store — one-anchor spans (add missing route)", () => {
       { id, kind: "extend", anchorPointId: P3, side: "after" },
     ]);
     expect(state.activeGapId).toBe(id);
-    expect(state.drawMode).toBe(true);
+    expect(state.pointerMode).toBe("draw");
     expect(state.reconstructions[id]).toBeDefined();
   });
 
@@ -161,7 +161,7 @@ describe("editor-store — removeManualSpan", () => {
     expect(state.manualSpans).toEqual([]);
     expect(state.reconstructions[gapId(P1, P2)]).toBeUndefined();
     expect(state.activeGapId).toBeNull();
-    expect(state.drawMode).toBe(false);
+    expect(state.pointerMode).toBe("pan");
     // The unrelated skip mark survives.
     expect(state.skippedGapIds).toContainEqual(gapId(P3, P2));
   });
@@ -200,7 +200,7 @@ describe("editor-store — pick mode", () => {
     const state = useEditorStore.getState();
     expect(state.pickMode).toBe("pair");
     expect(state.activeGapId).toBeNull();
-    expect(state.drawMode).toBe(false);
+    expect(state.pointerMode).toBe("pan");
     expect(state.reconstructions[gapId(P1, P2)].vertices).toHaveLength(1);
   });
 
@@ -270,16 +270,16 @@ describe("road-follow state (mode + resolved-leg side table)", () => {
   };
 
   it("defaults to car mode with an empty side table", () => {
-    expect(useEditorStore.getState().roadFollow).toBe("car");
+    expect(useEditorStore.getState().pathStyle).toBe("car");
     expect(useEditorStore.getState().roadLegs).toEqual({});
   });
 
-  it("setRoadFollow switches the mode (a transient aid, never undoable)", () => {
-    useEditorStore.getState().setRoadFollow("foot");
-    expect(useEditorStore.getState().roadFollow).toBe("foot");
-    useEditorStore.getState().setRoadFollow("off");
-    expect(useEditorStore.getState().roadFollow).toBe("off");
-    useEditorStore.getState().setRoadFollow("car");
+  it("setPathStyle switches the mode (a transient aid, never undoable)", () => {
+    useEditorStore.getState().setPathStyle("foot");
+    expect(useEditorStore.getState().pathStyle).toBe("foot");
+    useEditorStore.getState().setPathStyle("off");
+    expect(useEditorStore.getState().pathStyle).toBe("off");
+    useEditorStore.getState().setPathStyle("car");
   });
 
   it("setRoadLegs replaces a gap's legs and no-ops on identical content", () => {
@@ -312,10 +312,10 @@ describe("road-follow state (mode + resolved-leg side table)", () => {
   });
 
   it("reset clears the side table and restores car mode", () => {
-    useEditorStore.getState().setRoadFollow("off");
+    useEditorStore.getState().setPathStyle("off");
     useEditorStore.getState().setRoadLegs(DETECTED, [LEG]);
     useEditorStore.getState().reset();
-    expect(useEditorStore.getState().roadFollow).toBe("car");
+    expect(useEditorStore.getState().pathStyle).toBe("car");
     expect(useEditorStore.getState().roadLegs).toEqual({});
   });
 });

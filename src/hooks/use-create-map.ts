@@ -75,7 +75,8 @@ export function useCreateMap(): CreateMapBinding {
   const vertices = useCreateStore((s) => s.reconstruction.vertices);
   const roadLegs = useCreateStore((s) => s.roadLegs);
   const spacingM = useCreateStore((s) => s.spacingM);
-  const matchDistance = useCreateStore((s) => s.matchDistance);
+  const matchDistance = useCreateStore((s) => s.matchDistance)
+  const pathStyle = useCreateStore((s) => s.pathStyle);
 
   const setContainer = useCallback((element: HTMLDivElement | null) => {
     containerRef.current = element;
@@ -126,9 +127,10 @@ export function useCreateMap(): CreateMapBinding {
       roadLegs,
       spacingM,
       matchDistance,
+      pathStyle,
     });
     return track ? createTrackRouteView(track) : null;
-  }, [phase, stats, vertices, roadLegs, spacingM, matchDistance]);
+  }, [phase, stats, vertices, roadLegs, spacingM, matchDistance, pathStyle]);
 
   useEffect(() => {
     controllerRef.current?.setRoute(route);

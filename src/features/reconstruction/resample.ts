@@ -35,8 +35,14 @@
  */
 
 import { geodesicDistanceMeters, interpolateLatLon } from "@/lib/geo/geodesy";
-import { findLeg } from "@/features/reconstruction/roadFollow";
-import type { DrawVertex, LatLon, RoadLeg, VertexId } from "@/types/domain";
+import { curveLegInterior, findLeg } from "@/features/reconstruction/roadFollow";
+import type {
+  DrawVertex,
+  LatLon,
+  PathStyle,
+  RoadLeg,
+  VertexId,
+} from "@/types/domain";
 
 /**
  * One point of the rendered/derived reconstruction path.
@@ -76,6 +82,13 @@ export type ResampleSpacing = (typeof RESAMPLE_SPACING_OPTIONS)[number] | "off";
  * workflow): the path is then a pure user-drawn chain `[v0…vN]` with no
  * anchor roles at all — every point is interior, which is exactly what a
  * whole-activity time distribution needs (see timestamps.ts).
+ *
+ * The curve path style (Task 46, `pathStyle: "curve"`): every leg of a
+ * 3+-node chain contributes its Catmull-Rom spline interior as
+ * interpolated points — the SAME sampler the map preview renders, so the
+ * committed/exported shape is exactly the line the user saw. Like road
+ * legs, spline legs are never re-densified by spacing; spacing keeps
+ * applying to straight legs only.
  */
 export function resamplePath(
   before: LatLon | null | undefined,
@@ -83,6 +96,7 @@ export function resamplePath(
   after: LatLon | null | undefined,
   spacingM: number | "off",
   roadLegs: readonly RoadLeg[] = [],
+  pathStyle: PathStyle = "off",
 ): PathPoint[] {
   const nodes: { point: LatLon; role: PathPoint["role"]; vertexId?: VertexId }[] =
     [
@@ -139,6 +153,24 @@ export function resamplePath(
           if (Number.isFinite(lat) && Number.isFinite(lon)) {
             push({ lat, lon }, "road", undefined);
           }
+        }
+      } else if (
+        pathStyle === "curve" &&
+        nodes.length >= 3 &&
+        // The closing leg into the far anchor stays straight — the same
+        // leg the draft preview renders as the dashed "closes on finish"
+        // segment, never as user-drawn curve (WYSIWYG).
+        node.role !== "after-anchor"
+      ) {
+        // Curve leg (Task 46): the spline interior IS the path. The basis
+        // mirrors the preview join exactly — p0 is the node BEFORE the
+        // leg's start (clamped), p3 the node after its end — so the
+        // baked shape and the drawn shape are one.
+        const index = nodes.indexOf(node);
+        const p0 = index >= 2 ? nodes[index - 2].point : previous;
+        const p3 = nodes[index + 1]?.point ?? node.point;
+        for (const sample of curveLegInterior(p0, previous, node.point, p3)) {
+          push(sample, "interpolated", undefined);
         }
       } else if (spacingM !== "off") {
         // Insert fill points strictly between the previous node and this one.

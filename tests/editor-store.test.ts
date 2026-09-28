@@ -34,7 +34,7 @@ describe("session lifecycle", () => {
 
     const state = useEditorStore.getState();
     expect(state.activeGapId).toBe(gapA);
-    expect(state.drawMode).toBe(true);
+    expect(state.pointerMode).toBe("draw");
     expect(state.skippedGapIds).not.toContain(gapA);
     expect(state.reconstructions[gapA]).toMatchObject({
       gapId: gapA,
@@ -53,7 +53,7 @@ describe("session lifecycle", () => {
     useEditorStore.getState().closeEditor();
     const state = useEditorStore.getState();
     expect(state.activeGapId).toBeNull();
-    expect(state.drawMode).toBe(false);
+    expect(state.pointerMode).toBe("pan");
     expect(state.history.undo).toHaveLength(0);
     expect(state.reconstructions[gapA].vertices).toHaveLength(1);
   });
@@ -182,9 +182,9 @@ describe("settings (not commands)", () => {
     expect(state.history.undo).toHaveLength(historyDepth);
   });
 
-  it("snapEnabled and drawMode are transient flags", () => {
-    useEditorStore.getState().setDrawMode(false);
-    expect(useEditorStore.getState().drawMode).toBe(false);
+  it("snapEnabled and pointerMode are transient flags", () => {
+    useEditorStore.getState().setPointerMode("move");
+    expect(useEditorStore.getState().pointerMode).toBe("move");
     useEditorStore.getState().setSnapEnabled(false);
     expect(useEditorStore.getState().snapEnabled).toBe(false);
   });

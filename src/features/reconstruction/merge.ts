@@ -51,6 +51,7 @@ import { isUsableStatsPoint } from "@/features/statistics/distance";
 import { geodesicDistanceMeters } from "@/lib/geo/geodesy";
 import type {
   DrawVertex,
+  PathStyle,
   GapId,
   MergedPointView,
   OriginalSegment,
@@ -84,6 +85,8 @@ export interface MergeRepairSite {
   extendSide?: "before" | "after";
   vertices: readonly DrawVertex[];
   resampleSpacingM: number | "off";
+  /** The line's path style (Tasks 46–47) — curve legs bake their spline. */
+  pathStyle?: PathStyle;
   timeStrategy: TimeStrategy;
   roadLegs: readonly RoadLeg[];
   /**
@@ -439,6 +442,7 @@ function resolveSite(
     far ? { lat: far.lat, lon: far.lon } : null,
     site.resampleSpacingM,
     site.roadLegs,
+    site.pathStyle ?? "off",
   );
   const pathLengthM = path.length > 0 ? path[path.length - 1].cumDistanceM : 0;
 

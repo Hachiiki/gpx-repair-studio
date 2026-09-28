@@ -43,7 +43,7 @@ describe("phase lifecycle", () => {
     const state = useCreateStore.getState();
     expect(state.phase).toBe("draw");
     expect(state.stats).toEqual(STATS);
-    expect(state.drawMode).toBe(true);
+    expect(state.pointerMode).toBe("draw");
   });
 
   it("finishRoute refuses below two vertices and advances past them", () => {
@@ -56,7 +56,7 @@ describe("phase lifecycle", () => {
     useCreateStore.getState().addVertex({ lat: 52.53, lon: 13.405 });
     useCreateStore.getState().finishRoute();
     expect(useCreateStore.getState().phase).toBe("review");
-    expect(useCreateStore.getState().drawMode).toBe(false);
+    expect(useCreateStore.getState().pointerMode).toBe("pan");
   });
 
   it("editRoute returns to the drawing phase and backToForm keeps everything", () => {
@@ -68,7 +68,7 @@ describe("phase lifecycle", () => {
 
     useCreateStore.getState().editRoute();
     expect(useCreateStore.getState().phase).toBe("draw");
-    expect(useCreateStore.getState().drawMode).toBe(true);
+    expect(useCreateStore.getState().pointerMode).toBe("draw");
 
     useCreateStore.getState().backToForm();
     const state = useCreateStore.getState();
@@ -81,14 +81,14 @@ describe("phase lifecycle", () => {
   it("reset returns to a pristine form", () => {
     useCreateStore.getState().beginDrawing(STATS);
     useCreateStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
-    useCreateStore.getState().setRoadFollow("foot");
+    useCreateStore.getState().setPathStyle("foot");
     useCreateStore.getState().reset();
 
     const state = useCreateStore.getState();
     expect(state.phase).toBe("form");
     expect(state.stats).toBeNull();
     expect(state.reconstruction.vertices).toHaveLength(0);
-    expect(state.roadFollow).toBe("car");
+    expect(state.pathStyle).toBe("car");
     expect(state.spacingM).toBe(DEFAULT_CREATE_SPACING_M);
     expect(state.history.undo).toHaveLength(0);
   });
@@ -230,13 +230,13 @@ describe("settings (never undoable)", () => {
     useCreateStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
 
     useCreateStore.getState().setSpacing(50);
-    useCreateStore.getState().setRoadFollow("foot");
+    useCreateStore.getState().setPathStyle("foot");
     useCreateStore.getState().setMatchDistance(true);
 
     const state = useCreateStore.getState();
     expect(state.spacingM).toBe(50);
     expect(state.reconstruction.resampleSpacingM).toBe(50);
-    expect(state.roadFollow).toBe("foot");
+    expect(state.pathStyle).toBe("foot");
     expect(state.matchDistance).toBe(true);
     expect(state.history.undo).toHaveLength(1); // only the addVertex
   });

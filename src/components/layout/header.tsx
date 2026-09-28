@@ -54,6 +54,14 @@ export interface AppHeaderProps {
   onShare?: () => void;
   /** Create section: leave the share view, back to the route review. */
   onLeaveShare?: () => void;
+  /**
+   * Merge section: open the share flow — the same warning-dialog
+   * pattern, over the merged route. Provided (and so rendered) only in
+   * the studio view with a merge present (Task 44).
+   */
+  onMergeShare?: () => void;
+  /** Merge section: leave the share view, back to the arrangement. */
+  onLeaveMergeShare?: () => void;
 }
 
 export function AppHeader({
@@ -66,6 +74,8 @@ export function AppHeader({
   resetLabel = "New file",
   onShare,
   onLeaveShare,
+  onMergeShare,
+  onLeaveMergeShare,
 }: AppHeaderProps) {
   const showSession = status === "parsed" && fileName !== null;
 
@@ -126,6 +136,30 @@ export function AppHeader({
             >
               <ArrowLeft className="size-3.5" aria-hidden="true" />
               Back to review
+            </Button>
+          )}
+          {section === "merge" && onMergeShare && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              data-testid="header-merge-share"
+              onClick={onMergeShare}
+            >
+              <ImageUp className="size-3.5" aria-hidden="true" />
+              Share card
+            </Button>
+          )}
+          {section === "merge" && onLeaveMergeShare && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              data-testid="header-merge-back"
+              onClick={onLeaveMergeShare}
+            >
+              <ArrowLeft className="size-3.5" aria-hidden="true" />
+              Back to arrangement
             </Button>
           )}
           {section === "repair" && showSession && view === "share" && onSwitchView && (

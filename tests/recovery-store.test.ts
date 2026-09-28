@@ -81,7 +81,7 @@ describe("editor slice over detected gaps", () => {
 
     const state = useRecoveryStore.getState();
     expect(state.activeGapId).toBe(gapA);
-    expect(state.drawMode).toBe(true);
+    expect(state.pointerMode).toBe("draw");
     expect(state.skippedGapIds).not.toContain(gapA);
     expect(state.reconstructions[gapA]).toMatchObject({
       gapId: gapA,
@@ -100,7 +100,7 @@ describe("editor slice over detected gaps", () => {
     useRecoveryStore.getState().closeEditor();
     const state = useRecoveryStore.getState();
     expect(state.activeGapId).toBeNull();
-    expect(state.drawMode).toBe(false);
+    expect(state.pointerMode).toBe("pan");
     expect(state.history.undo).toHaveLength(0);
     expect(state.reconstructions[gapA].vertices).toHaveLength(1);
   });
@@ -145,7 +145,7 @@ describe("editor slice over detected gaps", () => {
 
     const state = useRecoveryStore.getState();
     expect(state.activeGapId).toBeNull();
-    expect(state.drawMode).toBe(false);
+    expect(state.pointerMode).toBe("pan");
     expect(state.skippedGapIds).toContain(gapA);
     // The reconstruction is kept — unskipping brings it back.
     expect(state.reconstructions[gapA].vertices).toEqual([]);
@@ -242,7 +242,7 @@ describe("user-drawn unmeasured sections (Task 28)", () => {
     let state = useRecoveryStore.getState();
     expect(state.pickMode).toBe("anchor");
     expect(state.activeGapId).toBeNull();
-    expect(state.drawMode).toBe(false);
+    expect(state.pointerMode).toBe("pan");
     // The abandoned reconstruction is kept (closeEditor semantics).
     expect(state.reconstructions[gapA].vertices).toHaveLength(1);
 
@@ -258,7 +258,7 @@ describe("user-drawn unmeasured sections (Task 28)", () => {
     const state = useRecoveryStore.getState();
     expect(state.pickMode).toBeNull();
     expect(state.activeGapId).toBe(insertId);
-    expect(state.drawMode).toBe(true);
+    expect(state.pointerMode).toBe("draw");
     expect(state.manualSpans).toEqual([
       { id: insertId, kind: "insert", beforePointId: p1, afterPointId: p2 },
     ]);
@@ -330,7 +330,7 @@ describe("user-drawn unmeasured sections (Task 28)", () => {
     expect(state.manualSpans).toEqual([]);
     expect(state.reconstructions[insertId]).toBeUndefined();
     expect(state.activeGapId).toBeNull();
-    expect(state.drawMode).toBe(false);
+    expect(state.pointerMode).toBe("pan");
   });
 
   it("setParsed wipes drawn spans with the rest of the repair state", () => {

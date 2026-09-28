@@ -21,7 +21,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { MAX_VERTICES } from "@/features/reconstruction/drawModel";
-import { joinDrawChain } from "@/features/reconstruction/roadFollow";
+import { joinCurveChain, joinDrawChain } from "@/features/reconstruction/roadFollow";
 import { polylineLengthMeters } from "@/lib/geo/geodesy";
 import type { MapController } from "@/lib/map/mapController";
 import { getRoadRouter } from "@/hooks/use-draw-editor";
@@ -29,6 +29,8 @@ import { useCreateStore } from "@/state/create-store";
 import type {
   DrawVertex,
   LatLon,
+  PathStyle,
+  PointerMode,
   RoadFollowMode,
   RoadLeg,
   VertexId,
@@ -40,12 +42,13 @@ export interface CreateDrawBinding {
   // -- MapCanvas chrome (the MapDrawChromeBinding subset) --------------------
   /** The drawing phase is active (chrome + panel visible). */
   active: boolean;
-  drawMode: boolean;
+  /** The three-way pointer mode: draw adds, move drags, pan navigates. */
+  pointerMode: PointerMode;
   distanceM: number | null;
   vertexCount: number;
   maxVertices: number;
   pickMode: null;
-  setDrawMode: (on: boolean) => void;
+  setPointerMode: (mode: PointerMode) => void;
 
   // -- panel -----------------------------------------------------------------
   vertices: readonly DrawVertex[];
@@ -54,14 +57,14 @@ export interface CreateDrawBinding {
   canRedo: boolean;
   undoCount: number;
   redoCount: number;
-  roadFollow: RoadFollowMode;
+  pathStyle: PathStyle;
   /** A road leg request is in flight for the chain. */
   routingPending: boolean;
   /** The latest road request failed (straight lines until it recovers). */
   routingFailed: boolean;
   resampleSpacing: number | "off";
 
-  setRoadFollow: (mode: RoadFollowMode) => void;
+  setPathStyle: (mode: PathStyle) => void;
   setResampleSpacing: (spacing: number | "off") => void;
   undo: () => void;
   redo: () => void;
@@ -75,8 +78,8 @@ export interface CreateDrawBinding {
 
 export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
   const phase = useCreateStore((s) => s.phase);
-  const drawMode = useCreateStore((s) => s.drawMode);
-  const roadFollow = useCreateStore((s) => s.roadFollow);
+  const pointerMode = useCreateStore((s) => s.pointerMode);
+  const pathStyle = useCreateStore((s) => s.pathStyle);
   const roadLegs = useCreateStore((s) => s.roadLegs);
   const roadRouting = useCreateStore((s) => s.roadRouting);
   const vertices = useCreateStore((s) => s.reconstruction.vertices);
@@ -90,11 +93,15 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
 
   const makeJoins = useCallback(
     (legs: readonly RoadLeg[]) => ({
-      chainJoin: (nodes: readonly LatLon[]) => joinDrawChain(nodes, legs),
+      // Task 46: the curve style joins through the local spline.
+      chainJoin: (nodes: readonly LatLon[]) =>
+        pathStyle === "curve"
+          ? joinCurveChain(nodes)
+          : joinDrawChain(nodes, legs),
       // No far anchor ever exists — no closing segment to join.
       closingJoin: null,
     }),
-    [],
+    [pathStyle],
   );
 
   // Open/close the controller session with the phase (also fires once the
@@ -125,6 +132,10 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
           useCreateStore.getState().deleteVertex(vertexId),
       },
     });
+    // A session (re)start must never inherit a stale pointer mode —
+    // endDrawSession resets the controller to pan, and the store may
+    // still say draw (e.g. a path-style switch rebuilt the joins).
+    controller.setPointerMode(useCreateStore.getState().pointerMode);
     return () => {
       controller.endDrawSession();
     };
@@ -151,7 +162,7 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
       resetRouting();
       return;
     }
-    if (roadFollow === "off") {
+    if (pathStyle !== "car" && pathStyle !== "foot") {
       const legs = useCreateStore.getState().roadLegs;
       if (legs.length > 0) useCreateStore.getState().setRoadLegs([]);
       resetRouting();
@@ -169,7 +180,7 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     const resolved: RoadLeg[] = [];
     const missing: { a: LatLon; b: LatLon }[] = [];
     for (const pair of pairs) {
-      const leg = router.cached(roadFollow, pair.a, pair.b);
+      const leg = router.cached(pathStyle, pair.a, pair.b);
       if (leg) resolved.push(leg);
       else missing.push(pair);
     }
@@ -182,10 +193,10 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     const generation = (roadGeneration.current += 1);
     let pending = missing.length;
     for (const pair of missing) {
-      void router.segment(roadFollow, pair.a, pair.b).then((leg) => {
+      void router.segment(pathStyle, pair.a, pair.b).then((leg) => {
         if (roadGeneration.current !== generation) return; // stale
         const state = useCreateStore.getState();
-        if (state.phase !== "draw" || state.roadFollow !== roadFollow) {
+        if (state.phase !== "draw" || state.pathStyle !== pathStyle) {
           return;
         }
         pending -= 1;
@@ -197,15 +208,16 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
         }
       });
     }
-  }, [active, vertices, roadFollow]);
+  }, [active, vertices, pathStyle]);
 
-  // Draw/Pan toggle → controller interaction handlers.
+  // Pointer mode (Draw / Move / Pan — Task 45) → controller handlers.
   useEffect(() => {
-    map.getController()?.setDrawMode(drawMode);
-  }, [drawMode, map.getController, mapReady]);
+    map.getController()?.setPointerMode(pointerMode);
+  }, [pointerMode, map.getController, mapReady]);
 
-  // Keyboard accelerators (QoL): D = draw, P = pan — active only while
-  // drawing, never while typing in a form control (the shared contract).
+  // Keyboard accelerators (QoL): D = draw, M = move, P = pan — active only
+  // while drawing, never while typing in a form control (the shared
+  // contract).
   useEffect(() => {
     if (!active) return;
     const onKeydown = (event: KeyboardEvent) => {
@@ -223,10 +235,13 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
       const key = event.key.toLowerCase();
       if (key === "d") {
         event.preventDefault();
-        useCreateStore.getState().setDrawMode(true);
+        useCreateStore.getState().setPointerMode("draw");
+      } else if (key === "m") {
+        event.preventDefault();
+        useCreateStore.getState().setPointerMode("move");
       } else if (key === "p") {
         event.preventDefault();
-        useCreateStore.getState().setDrawMode(false);
+        useCreateStore.getState().setPointerMode("pan");
       }
     };
     window.addEventListener("keydown", onKeydown);
@@ -244,17 +259,17 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
       lat: vertex.lat,
       lon: vertex.lon,
     }));
-    return polylineLengthMeters(joinDrawChain(nodes, roadLegs).points);
-  }, [vertices, roadLegs]);
+    return polylineLengthMeters(makeJoins(roadLegs).chainJoin(nodes).points);
+  }, [vertices, roadLegs, makeJoins]);
 
   // -- intents -------------------------------------------------------------------
 
-  const setDrawMode = useCallback((on: boolean) => {
-    useCreateStore.getState().setDrawMode(on);
+  const setPointerMode = useCallback((mode: PointerMode) => {
+    useCreateStore.getState().setPointerMode(mode);
   }, []);
 
-  const setRoadFollow = useCallback((mode: RoadFollowMode) => {
-    useCreateStore.getState().setRoadFollow(mode);
+  const setPathStyle = useCallback((mode: PathStyle) => {
+    useCreateStore.getState().setPathStyle(mode);
   }, []);
 
   const setResampleSpacing = useCallback((spacing: number | "off") => {
@@ -277,23 +292,23 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
 
   return {
     active,
-    drawMode,
+    pointerMode,
     distanceM,
     vertexCount: vertices.length,
     maxVertices: MAX_VERTICES,
     pickMode: null,
-    setDrawMode,
+    setPointerMode,
     vertices,
     atVertexCap: vertices.length >= MAX_VERTICES,
     canUndo: history.undo.length > 0,
     canRedo: history.redo.length > 0,
     undoCount: history.undo.length,
     redoCount: history.redo.length,
-    roadFollow,
+    pathStyle,
     routingPending: roadRouting.pending > 0,
-    routingFailed: roadRouting.failed && roadFollow !== "off",
+    routingFailed: roadRouting.failed && pathStyle !== "off" && pathStyle !== "curve",
     resampleSpacing: spacingM,
-    setRoadFollow,
+    setPathStyle,
     setResampleSpacing,
     undo,
     redo,

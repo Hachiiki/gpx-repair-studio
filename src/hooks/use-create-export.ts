@@ -61,6 +61,7 @@ export function useCreateExport(): CreateReview | null {
   const roadLegs = useCreateStore((s) => s.roadLegs);
   const spacingM = useCreateStore((s) => s.spacingM);
   const matchDistance = useCreateStore((s) => s.matchDistance);
+  const pathStyle = useCreateStore((s) => s.pathStyle);
   const setMatchDistance = useCreateStore((s) => s.setMatchDistance);
   const prettyPrint = useUiStore((s) => s.exportPrettyPrint);
 
@@ -72,9 +73,10 @@ export function useCreateExport(): CreateReview | null {
             roadLegs,
             spacingM,
             matchDistance,
+            pathStyle,
           })
         : null,
-    [stats, vertices, roadLegs, spacingM, matchDistance],
+    [stats, vertices, roadLegs, spacingM, matchDistance, pathStyle],
   );
 
   const download = useCallback((): string | null => {

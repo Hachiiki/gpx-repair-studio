@@ -48,6 +48,8 @@ import {
 import { CREATE_ROUTE_ID } from "@/features/create/track";
 import type {
   DrawVertex,
+  PathStyle,
+  PointerMode,
   RoadFollowMode,
   RoadLeg,
   VertexId,
@@ -127,9 +129,13 @@ interface CreateState {
   roadLegs: readonly RoadLeg[];
   /** Road-routing status of the chain (pending count + failure). */
   roadRouting: { pending: number; failed: boolean };
-  drawMode: boolean;
-  /** Road-follow mode for drawn legs (transient editing aid). */
-  roadFollow: RoadFollowMode;
+  pointerMode: PointerMode;
+  /**
+   * The route's path style (Tasks 46–47: road / footpath / curve /
+   * straight). Mirrored onto the single reconstruction so the committed
+   * route remembers it (the export bakes it).
+   */
+  pathStyle: PathStyle;
   /** Densification spacing of the generated track. */
   spacingM: number | "off";
   /**
@@ -139,8 +145,8 @@ interface CreateState {
    */
   matchDistance: boolean;
 
-  setDrawMode: (on: boolean) => void;
-  setRoadFollow: (mode: RoadFollowMode) => void;
+  setPointerMode: (mode: PointerMode) => void;
+  setPathStyle: (mode: PathStyle) => void;
   setSpacing: (spacing: number | "off") => void;
   setMatchDistance: (on: boolean) => void;
   /** Replace the resolved road legs (no-op when unchanged). */
@@ -169,8 +175,8 @@ const INITIAL = {
   sessionSeq: 0,
   roadLegs: [] as readonly RoadLeg[],
   roadRouting: { pending: 0, failed: false },
-  drawMode: true,
-  roadFollow: "car" as RoadFollowMode,
+  pointerMode: "draw" as PointerMode,
+  pathStyle: "car" as PathStyle,
   spacingM: DEFAULT_CREATE_SPACING_M as number | "off",
   matchDistance: false,
 };
@@ -186,7 +192,7 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       // A fresh entry starts on the map ready to click (the same contract
       // as opening a repair editor) — and in the studio view (a previous
       // share visit can never leak into a new activity).
-      drawMode: true,
+      pointerMode: "draw",
       view: "studio",
       shareDialogOpen: false,
     }),
@@ -194,20 +200,20 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
   backToForm: () =>
     set({
       phase: "form",
-      drawMode: false,
+      pointerMode: "pan" as PointerMode,
       view: "studio",
       shareDialogOpen: false,
     }),
 
   finishRoute: () => {
     if (get().reconstruction.vertices.length < 2) return;
-    set({ phase: "review", drawMode: false });
+    set({ phase: "review", pointerMode: "pan" as PointerMode });
   },
 
   editRoute: () =>
     set({
       phase: "draw",
-      drawMode: true,
+      pointerMode: "draw",
       view: "studio",
       shareDialogOpen: false,
     }),
@@ -230,8 +236,20 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
 
   closeShareDialog: () => set({ shareDialogOpen: false }),
 
-  setDrawMode: (drawMode) => set({ drawMode }),
-  setRoadFollow: (roadFollow) => set({ roadFollow }),
+  setPointerMode: (pointerMode) => set({ pointerMode }),
+  setPathStyle: (pathStyle) =>
+    set((state) => {
+      // The drawn route remembers its style (settings change — the
+      // geometryRevision and so the elevation signature stay valid).
+      const recon = state.reconstruction;
+      if (recon.pathStyle === pathStyle) {
+        return state.pathStyle === pathStyle ? state : { pathStyle };
+      }
+      return {
+        pathStyle,
+        reconstruction: { ...recon, pathStyle },
+      };
+    }),
 
   setSpacing: (spacingM) =>
     set((state) => {

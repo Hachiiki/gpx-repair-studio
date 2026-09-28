@@ -56,6 +56,13 @@ const ENTRIES = (
     </li>
     <li className="flex items-center gap-2">
       <span
+        className={`${SAMPLE_LINE_CLASS} bg-[repeating-linear-gradient(90deg,#FC4C02_0_5px,transparent_5px_9px)]`}
+        aria-hidden="true"
+      />
+      Footpath repair (dashed — drawn with Footpaths)
+    </li>
+    <li className="flex items-center gap-2">
+      <span
         className={`${SAMPLE_LINE_CLASS} bg-[repeating-linear-gradient(90deg,#FC4C02_0_5px,transparent_5px_9px)] opacity-60`}
         aria-hidden="true"
       />

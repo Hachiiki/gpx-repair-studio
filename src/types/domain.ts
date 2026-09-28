@@ -427,6 +427,12 @@ export interface Reconstruction {
   vertices: DrawVertex[];
   /** Densification spacing in meters, or `'off'` to keep vertices only. */
   resampleSpacingM: number | "off";
+  /**
+   * The line's path style (Tasks 46–47): road / footpath / curve /
+   * straight, remembered per line and adopted by the editor when it
+   * reopens. A setting, never undoable (§D-3.5). Absent = "off".
+   */
+  pathStyle?: PathStyle;
   /** Bumped on every vertex change → derived data recomputes lazily. */
   geometryRevision: number;
   /** Settings, NOT undoable commands (§D-3.5). */
@@ -462,6 +468,29 @@ export interface ReconstructedPoint {
  * and pedestrian ways (public Valhalla), `"off"` draws straight geodesics.
  */
 export type RoadFollowMode = "car" | "foot" | "off";
+
+/**
+ * The path style of a drawn line (Tasks 46–47 — what the line does
+ * between clicks, remembered PER LINE): the three road-follow modes
+ * plus `"curve"` — a smooth local spline through the clicked points
+ * (no network, nothing leaves the browser). Values stay aligned with
+ * `RoadFollowMode` so the router consumes the same strings.
+ */
+export type PathStyle = RoadFollowMode | "curve";
+
+/**
+ * What the pointer does over the map while a draw session is open
+ * (Task 45 — the explicit three-way pointer toggle):
+ *
+ *  - `"draw"` — clicks place points (the classic Draw; map panning is
+ *    disabled so a drag never fights a click);
+ *  - `"move"` — clicks place nothing; every placed point grows into an
+ *    oversized grab target and drags freely (each release = one undo
+ *    step). Empty-space drags still pan the map;
+ *  - `"pan"` — normal map navigation (point drags still work — they are
+ *    pointer-targeted, never a pan).
+ */
+export type PointerMode = "draw" | "move" | "pan";
 
 /**
  * One road-followed leg of a drawn chain: the road geometry the routing

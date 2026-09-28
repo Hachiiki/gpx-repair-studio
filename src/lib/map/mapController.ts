@@ -53,7 +53,7 @@ import {
   haversineDistanceMeters,
   interpolateLatLon,
 } from "@/lib/geo/geodesy";
-import type { LatLon, PointId, VertexId } from "@/types/domain";
+import type { LatLon, PointId, PointerMode, VertexId } from "@/types/domain";
 import {
   draftClosingCollection,
   draftLineCollection,
@@ -120,7 +120,11 @@ export interface MapTestState {
 /** Draw-session snapshot for E2E synthetic-pointer drawing assertions. */
 export interface DrawSessionTestState {
   gapId: string;
+  /** Legacy boolean view of `pointerMode` (true = "draw") — kept for the
+   * e2e bridge's existing assertions. */
   drawMode: boolean;
+  /** The full three-way pointer mode (Task 45). */
+  pointerMode: PointerMode;
   vertexCount: number;
   /** Solid chain coordinates — before-anchor → vertices (WYSIWYG clicks). */
   chainCoordinates: [number, number][];
@@ -143,6 +147,7 @@ export const MAP_LAYER_IDS = [
   "gpxr-route",
   "gpxr-gap-span-selected",
   "gpxr-recon",
+  "gpxr-recon-dashed",
   "gpxr-draft-line",
   "gpxr-draft-closing",
   "gpxr-draft-rubber",
@@ -182,6 +187,7 @@ const LAYER = {
   spanHit: "gpxr-gap-span-hit",
   markerHit: "gpxr-gap-boundary-hit",
   recon: "gpxr-recon",
+  reconDashed: "gpxr-recon-dashed",
   draftLine: "gpxr-draft-line",
   draftClosing: "gpxr-draft-closing",
   draftRubber: "gpxr-draft-rubber",
@@ -223,6 +229,50 @@ const ENDPOINT_TIE_PX = 2;
  * camera to frame click + anchor — the tool's chosen attachment must be
  * visible, or a far click looks like nothing happened (user pass 36). */
 const ANCHOR_REFIT_PX = 120;
+
+/** Vertex handle paint — base sizes, hover-grown (feature-state driven).
+ * Extracted so Move mode (Task 45) can swap in its emphasized variant
+ * and restore the exact original expression afterwards. */
+const HANDLE_RADIUS_PAINT = [
+  "interpolate",
+  ["linear"],
+  ["feature-state", "hover"],
+  0,
+  5.5,
+  1,
+  8,
+];
+const HANDLE_STROKE_PAINT = [
+  "interpolate",
+  ["linear"],
+  ["feature-state", "hover"],
+  0,
+  2.5,
+  1,
+  3.5,
+];
+/** Move mode: bigger base radius/stroke — the point visibly says "grab me". */
+const HANDLE_RADIUS_PAINT_MOVE = [
+  "interpolate",
+  ["linear"],
+  ["feature-state", "hover"],
+  0,
+  8,
+  1,
+  10.5,
+];
+const HANDLE_STROKE_PAINT_MOVE = [
+  "interpolate",
+  ["linear"],
+  ["feature-state", "hover"],
+  0,
+  3.5,
+  1,
+  4.5,
+];
+/** Handle hit-target radius — normal vs Move mode (bigger = easier grab). */
+const HANDLE_HIT_RADIUS = 12;
+const HANDLE_HIT_RADIUS_MOVE = 20;
 
 /** Minimum pointer travel (px) before a handle press counts as a drag. */
 const DRAG_THRESHOLD_PX = 3;
@@ -406,7 +456,18 @@ export class MapController {
 
   // Draw session (Phase 4)
   #drawSession: DrawSession | null = null;
-  #drawMode = false;
+  /**
+   * The three-way pointer mode (Task 45): "draw" adds points with the
+   * pointer (panning disabled), "move" grows every placed point into
+   * an oversized grab target (clicks add nothing), "pan" is normal
+   * navigation. The classic boolean view (`drawMode`) derives from it.
+   */
+  #pointerMode: PointerMode = "pan";
+
+  get #drawMode(): boolean {
+    return this.#pointerMode === "draw";
+  }
+
   #handleDrag: HandleDrag | null = null;
   #cursor: LatLon | null = null;
   /** Set when a committed handle drag must swallow its trailing click. */
@@ -723,7 +784,7 @@ export class MapController {
     this.#drawSession = null;
     this.#handleDrag = null;
     this.#cursor = null;
-    if (this.#drawMode) this.#setDrawModeInternal(false);
+    if (this.#pointerMode !== "pan") this.#setPointerModeInternal("pan");
     if (!this.#ready) return;
     const map = this.#map;
     if (!map) return;
@@ -745,13 +806,24 @@ export class MapController {
   }
 
   /**
-   * The explicit Draw/Pan toggle (plan risk #1: touch drawing must never
-   * conflict with map navigation). Draw mode: pointer = draw, drag-pan and
-   * box-zoom disabled (wheel zoom stays available). Pan mode: normal map.
+   * The explicit pointer-mode toggle (plan risk #1: touch drawing must
+   * never conflict with map navigation; Task 45 adds the third way).
+   *
+   *   - "draw": pointer = draw; drag-pan and box-zoom disabled (wheel
+   *     zoom stays available).
+   *   - "move": clicks place nothing; every placed point becomes an
+   *     oversized grab target that drags freely (one undo step per
+   *     release). Empty-space drags keep panning the map.
+   *   - "pan": normal map navigation.
    */
+  setPointerMode(mode: PointerMode): void {
+    if (this.#pointerMode === mode) return;
+    this.#setPointerModeInternal(mode);
+  }
+
+  /** Legacy boolean view (true = draw, false = pan). */
   setDrawMode(enabled: boolean): void {
-    if (this.#drawMode === enabled) return;
-    this.#setDrawModeInternal(enabled);
+    this.setPointerMode(enabled ? "draw" : "pan");
   }
 
   // -- span-pick session (manual repair spans) ----------------------------
@@ -938,21 +1010,44 @@ export class MapController {
     }
   }
 
-  #setDrawModeInternal(enabled: boolean): void {
-    this.#drawMode = enabled;
+  #setPointerModeInternal(mode: PointerMode): void {
+    this.#pointerMode = mode;
     const map = this.#map;
     if (!map) return;
     const handlers = [map.dragPan, map.doubleClickZoom, map.boxZoom];
     for (const handler of handlers) {
       if (!handler) continue;
-      if (enabled) {
+      if (this.#drawMode) {
         handler.disable();
       } else {
         handler.enable();
       }
     }
-    map.getCanvas().style.cursor = enabled ? "crosshair" : "";
+    map.getCanvas().style.cursor = this.#drawMode ? "crosshair" : "";
+    this.#applyHandleEmphasis();
     if (this.#ready) this.#applyRubberBand();
+  }
+
+  /**
+   * Move mode's visible affordance (Task 45): the vertex handles grow
+   * (bigger dot, thicker ring, larger hit target) so "drag any point"
+   * is legible at a glance; every other mode restores the classic sizes.
+   * Best-effort — a transient style swap simply skips the update.
+   */
+  #applyHandleEmphasis(): void {
+    const map = this.#map;
+    if (!map || !this.#ready) return;
+    const emphasized = this.#pointerMode === "move";
+    const radius = (emphasized ? HANDLE_RADIUS_PAINT_MOVE : HANDLE_RADIUS_PAINT) as never;
+    const stroke = (emphasized ? HANDLE_STROKE_PAINT_MOVE : HANDLE_STROKE_PAINT) as never;
+    const hitRadius = emphasized ? HANDLE_HIT_RADIUS_MOVE : HANDLE_HIT_RADIUS;
+    try {
+      map.setPaintProperty(LAYER.draftHandle, "circle-radius", radius);
+      map.setPaintProperty(LAYER.draftHandle, "circle-stroke-width", stroke);
+      map.setPaintProperty(LAYER.draftHandleHit, "circle-radius", hitRadius);
+    } catch {
+      // The style can be mid-swap — the next mode change re-applies.
+    }
   }
 
   // -- test bridge ----------------------------------------------------------
@@ -1072,7 +1167,9 @@ export class MapController {
       map.getCanvas().style.cursor = "crosshair";
       this.#applyPickAnchor();
     }
-    if (this.#drawMode) this.#setDrawModeInternal(true);
+    if (this.#pointerMode !== "pan") {
+      this.#setPointerModeInternal(this.#pointerMode);
+    }
     if (!this.#ready) {
       this.#ready = true;
       this.#setStatus("ready");
@@ -1257,6 +1354,26 @@ export class MapController {
         "line-width": 3.5,
         "line-opacity": 0.95,
       },
+      // Task 47: footpath-styled lines render on the dashed twin below —
+      // roads stay solid, footpaths read as trails at a glance.
+      filter: ["!=", ["get", "pathStyle"], "foot"],
+    });
+
+    // Footpath-styled committed lines — the same signal color, dashed
+    // (the classic map convention for pedestrian ways). Same source,
+    // complementary filter: exactly one layer draws each line.
+    map.addLayer({
+      id: LAYER.reconDashed,
+      type: "line",
+      source: SOURCE.recon,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": RECON_COLOR,
+        "line-width": 3,
+        "line-opacity": 0.95,
+        "line-dasharray": [2.5, 2],
+      },
+      filter: ["==", ["get", "pathStyle"], "foot"],
     });
 
     // Active draft chain — SOLID, brighter, wider, with a white casing:
@@ -1319,32 +1436,17 @@ export class MapController {
 
     // Vertex handles — white fill, signal stroke. Radius/stroke grow on
     // hover (feature-state driven): the point visibly "picks itself up",
-    // teaching draggability without a single word.
+    // teaching draggability without a single word. (The extracted paint
+    // expressions let Move mode swap in its emphasized variant — Task 45.)
     map.addLayer({
       id: LAYER.draftHandle,
       type: "circle",
       source: SOURCE.handles,
       paint: {
-        "circle-radius": [
-          "interpolate",
-          ["linear"],
-          ["feature-state", "hover"],
-          0,
-          5.5,
-          1,
-          8,
-        ],
+        "circle-radius": HANDLE_RADIUS_PAINT as never,
         "circle-color": "#ffffff",
         "circle-stroke-color": RECON_COLOR,
-        "circle-stroke-width": [
-          "interpolate",
-          ["linear"],
-          ["feature-state", "hover"],
-          0,
-          2.5,
-          1,
-          3.5,
-        ],
+        "circle-stroke-width": HANDLE_STROKE_PAINT as never,
       },
     });
 
@@ -1359,7 +1461,7 @@ export class MapController {
       id: LAYER.draftHandleHit,
       type: "circle",
       source: SOURCE.handles,
-      paint: { "circle-opacity": 0, "circle-radius": 12 },
+      paint: { "circle-opacity": 0, "circle-radius": HANDLE_HIT_RADIUS },
     });
 
     // Span-pick first anchor — white fill, signal ring (draw-anywhere).
@@ -1732,6 +1834,7 @@ export class MapController {
     return {
       gapId: session.gapId,
       drawMode: this.#drawMode,
+      pointerMode: this.#pointerMode,
       vertexCount: session.vertices.length,
       chainCoordinates,
       renderedChainCoordinates,

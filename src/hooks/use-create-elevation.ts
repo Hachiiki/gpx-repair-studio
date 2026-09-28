@@ -110,6 +110,7 @@ export function readFreshCreateElevation(): CreateElevationAttachment | null {
     roadLegs: create.roadLegs,
     spacingM: create.spacingM,
     matchDistance: create.matchDistance,
+    pathStyle: create.pathStyle,
   });
   if (!track) return null;
   if (record.fetchedAtRevision !== create.reconstruction.geometryRevision) {
@@ -213,6 +214,7 @@ export function useCreateElevation(track: CreateTrack | null): {
       roadLegs: store.roadLegs,
       spacingM: store.spacingM,
       matchDistance: store.matchDistance,
+      pathStyle: store.pathStyle,
     });
     if (!freshTrack || freshTrack.path.length === 0) return;
 

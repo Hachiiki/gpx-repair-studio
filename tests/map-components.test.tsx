@@ -83,9 +83,9 @@ function makeDrawBinding(
   return {
     active: true,
     activeGap: GAP_ROW,
-    drawMode: true,
+    pointerMode: "draw",
     snapEnabled: true,
-    roadFollow: "car",
+    pathStyle: "car",
     routingPending: false,
     routingFailed: false,
     vertices: [],
@@ -121,9 +121,9 @@ function makeDrawBinding(
     beginPickPair: () => {},
     cancelPickSpan: () => {},
     removeManualSpan: () => {},
-    setDrawMode: () => {},
+    setPointerMode: () => {},
     setSnapEnabled: () => {},
-    setRoadFollow: () => {},
+    setPathStyle: () => {},
     undo: () => {},
     redo: () => {},
     clearVertices: () => {},
@@ -315,16 +315,16 @@ describe("MapToolbar", () => {
     expect(screen.queryByTestId("draw-mode-toggle")).toBeNull();
   });
 
-  it("renders the Draw/Pan toggle and fires mode intents", () => {
-    const onToggle = vi.fn();
+  it("renders the Draw/Move/Pan group and fires mode intents", () => {
+    const onSetMode = vi.fn();
     render(
       <MapToolbar
         provider="openfreemap"
         providers={USER_TILE_PROVIDER_OPTIONS}
         onProviderChange={() => {}}
         onFitActivity={() => {}}
-        drawMode={true}
-        onToggleDrawMode={onToggle}
+        pointerMode="draw"
+        onSetPointerMode={onSetMode}
       />,
     );
     const toggle = screen.getByTestId("draw-mode-toggle");
@@ -333,15 +333,22 @@ describe("MapToolbar", () => {
       "aria-pressed",
       "true",
     );
+    expect(screen.getByTestId("draw-mode-move")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     expect(screen.getByTestId("draw-mode-pan")).toHaveAttribute(
       "aria-pressed",
       "false",
     );
 
+    // Task 45: the third way is right there in the rail.
+    fireEvent.click(screen.getByTestId("draw-mode-move"));
+    expect(onSetMode).toHaveBeenCalledWith("move");
     fireEvent.click(screen.getByTestId("draw-mode-pan"));
-    expect(onToggle).toHaveBeenCalledWith(false);
+    expect(onSetMode).toHaveBeenCalledWith("pan");
     fireEvent.click(screen.getByTestId("draw-mode-draw"));
-    expect(onToggle).toHaveBeenCalledWith(true);
+    expect(onSetMode).toHaveBeenCalledWith("draw");
   });
 });
 
@@ -495,20 +502,33 @@ describe("GapList selection sync", () => {
 });
 
 describe("MapCanvas mode chip (QoL pass)", () => {
-  it("shows the current pointer mode and toggles on click", () => {
-    const setDrawMode = vi.fn();
+  it("shows the current pointer mode and cycles Draw → Move → Pan on click", () => {
+    const setPointerMode = vi.fn();
     render(
       <MapCanvas
         map={makeBinding()}
         attachContainer={() => {}}
-        draw={makeDrawBinding({ drawMode: true, setDrawMode })}
+        draw={makeDrawBinding({ pointerMode: "draw", setPointerMode })}
       />,
     );
     const chip = screen.getByTestId("map-mode-chip");
     expect(chip).toHaveTextContent("Drawing");
-    expect(chip).toHaveAttribute("aria-pressed", "true");
+    expect(chip).toHaveAttribute("data-mode", "draw");
     fireEvent.click(chip);
-    expect(setDrawMode).toHaveBeenCalledWith(false);
+    expect(setPointerMode).toHaveBeenCalledWith("move");
+  });
+
+  it("reads Moving when the pointer mode is move (Task 45)", () => {
+    render(
+      <MapCanvas
+        map={makeBinding()}
+        attachContainer={() => {}}
+        draw={makeDrawBinding({ pointerMode: "move" })}
+      />,
+    );
+    const chip = screen.getByTestId("map-mode-chip");
+    expect(chip).toHaveTextContent("Moving");
+    expect(chip).toHaveAttribute("data-mode", "move");
   });
 
   it("reads Panning when the pointer mode is pan", () => {
@@ -516,12 +536,12 @@ describe("MapCanvas mode chip (QoL pass)", () => {
       <MapCanvas
         map={makeBinding()}
         attachContainer={() => {}}
-        draw={makeDrawBinding({ drawMode: false })}
+        draw={makeDrawBinding({ pointerMode: "pan" })}
       />,
     );
     const chip = screen.getByTestId("map-mode-chip");
     expect(chip).toHaveTextContent("Panning");
-    expect(chip).toHaveAttribute("aria-pressed", "false");
+    expect(chip).toHaveAttribute("data-mode", "pan");
   });
 
   it("is absent without an editor session", () => {

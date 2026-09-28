@@ -1027,3 +1027,66 @@ Stage Summary:
 - The merge is honest by construction: one track, every recorded point verbatim (raw captures reused, ids re-keyed to fresh-parse positions), waypoints/routes/extras/repair-markers carried, single-file metadata dropped with the reason stated in the UI, and the export is the identity exporter over the derived merge — reorder or rename and everything downstream (map, stats, validation, export) follows immediately.
 - Test contract: 988 unit + 71 e2e, all green (no draw-editor flake this run); static export + live QA + 4/4 VLM critiques SHIP.
 - Remaining phases unchanged: 8 (mobile & a11y), 9 (performance/large files), 10 (gated), 11 (polish/docs/release).
+
+---
+Task ID: 44
+Agent: Super Z (main agent)
+Task: The Combine Recordings studio's header lacked the Share button the other tools have — add it with the same behavior: warn first, export the merged GPX, then open the share card built from the merged result.
+
+Work Log:
+- State: state/merge-store.ts gained the in-section view (studio | share, mirroring the repair/create sections' view split) + shareDialogOpen; combine()/backToIntake()/reset() always land on the studio view with the dialog shut (a previous share visit can never leak into a new arrangement); openShareDialog is a studio-view-only no-op elsewhere.
+- Hook: hooks/use-merge-share.ts — the merge counterpart of useShareCard/useCreateShare. The route is the SAME buildRouteView join the merge map renders (damage-split lines + re-imported reconstruction runs); the trio comes from buildShareCardContent over the MERGED model's own statistics (§L-2 honesty: "—" with reasons); the notes lead with "Combined from N recordings — every point carried over verbatim, in the order you set."; downloadPng awaits fonts then paints the same spec the preview canvas shows (one painter, WYSIWYG).
+- Components: components/merge/share-merge-dialog.tsx (the consent gate — says the file downloads now with its name, the card opens with the trio, cancel is a full no-op) + components/merge/merge-share-view.tsx (the create section's share view transposed: dark ink stage, ShareCardCanvas, pace-unit toggle, 1×/2× PNG resolution, back-to-arrangement bridge).
+- Wiring: MergeStudio renders the share view above the arrangement (view === "share" && share) and the dialog beside WorkspaceLayout (confirm = session.download() + closeShareDialog + setView("share")); AppHeader gained onMergeShare/onLeaveMergeShare ("Share card" / "Back to arrangement", data-testids header-merge-share/header-merge-back); AppShell derives both from the merge store's view exactly like the create section's pattern.
+- Tests: tests/merge-share.test.tsx (16) — the store's view/dialog state machine (5), useMergeShare over REAL merged fixtures incl. the no-timing honesty case (4), the dialog's copy + confirm/cancel intents (3), the view's stage/trio/scale/back (4). E2E merge-tool.spec.ts +1: the full flow — cancel no-ops, confirm downloads "Combo run.gpx" (content-checked: "merged 2 files", single <trk>), the card view opens with the trio + canvas, the PNG downloads as "Combo run.share-card.png", back returns to the arrangement with the map intact.
+
+Stage Summary:
+- The merge studio now has the same Share story as every other tool: warning → merged GPX download → share card, with the card's numbers being the merged model's own arithmetic (can never disagree with the statistics panel).
+
+---
+Task ID: 45
+Agent: Super Z (main agent)
+Task: Draw mode was draw-only in practice — add an explicit Move mode so the user can drag any placed point, with oversized grab targets and one undo step per drag; Draw stays add-only.
+
+Work Log:
+- Domain: types/domain.ts gained PointerMode = "draw" | "move" | "pan" (what the pointer does over the map while a session is open).
+- Controller (lib/map/mapController.ts): #drawMode boolean → #pointerMode tri-state with a derived get #drawMode() (the e2e bridge's existing drawMode assertions keep working); setPointerMode(mode) + legacy setDrawMode(bool) wrapper; #setPointerModeInternal disables pan handlers only for "draw" (move-mode empty-space drags still pan the map); #applyHandleEmphasis() swaps the vertex-handle paint + hit radius for Move mode's bigger "grab me" sizes (extracted HANDLE_*_PAINT constants; best-effort across style swaps); the test bridge reports pointerMode alongside drawMode; endDrawSession resets to pan.
+- Stores: editor/recovery/create — drawMode: boolean → pointerMode: PointerMode, setDrawMode → setPointerMode; every editor opener sets "draw".
+- Hooks: use-draw-editor/use-recovery-draw/use-create-draw drive controller.setPointerMode; the M/D/P keyboard accelerators (M joins the existing pair); after every startDrawSession the hook RE-ASSERTS the store's pointer mode — endDrawSession resets the controller to pan, and a session restart (any dependency change) must never inherit the stale pan (the desync the road-follow e2e caught).
+- Chrome: MapToolbar's toggle grew into the three-way Draw/Move/Pan group (data-testid draw-mode-move alongside the existing pair, aria-pressed per mode, HintTip copy teaching "clicks add nothing here"); MapCanvas's mode chip cycles Draw → Move → Pan on click (data-mode attribute, "Moving" label); both draw panels' vertex-list copy now teaches "switch to Move (M) and drag any of them".
+- Tests: map-components (three-way group + chip cycling incl. "Moving"), store tests re-pinned to pointerMode. E2E draw-editor.spec.ts +1: Move mode — click on empty canvas adds nothing (vertexCount stays 2), a handle drag moves the vertex (chain coordinate changes, count unchanged), ONE undo restores it exactly, the chip cycles Move → Pan, and M re-enters Move.
+
+Stage Summary:
+- Three-way pointer contract everywhere: Draw adds, Move drags (big targets, no accidental adds, map still pans on empty space), Pan navigates — point drags work in all three (pointer-targeted, as before).
+
+---
+Task ID: 46-47
+Agent: Super Z (main agent)
+Task: Two drawing upgrades serving one goal — freely customizable points that look good: (46) a Curves line style (smooth spline, baked into real points on export), and (47) the path style picked PER LINE (Roads / Footpaths / Straight), remembered per line and visibly distinct on the map.
+
+Work Log:
+- Domain: PathStyle = RoadFollowMode | "curve" on types/domain.ts; Reconstruction.pathStyle? (a setting, never undoable — §D-3.5; absent = "off").
+- Pure curve (features/reconstruction/roadFollow.ts): Catmull-Rom spline — curveLegInterior(p0..p3) is the ONE sampler (preview join, distance, and export all call it, so WYSIWYG holds by construction); curveSplinePoints + joinCurveChain (the draft join with ON-CURVE "+" midpoints at each leg's distance-mid); CURVE_SAMPLE_M = 10 with a 48-step cap per leg; planar lat/lon math at map scale, cumulative distances stay geodesic-honest; fully local — nothing leaves the browser.
+- Baking (features/reconstruction/resample.ts): resamplePath gained the pathStyle parameter — curve legs contribute their spline interior as interpolated points (spacing never re-densifies them, like road legs); the closing leg into the far anchor stays STRAIGHT (the same leg the preview renders as the dashed "closes on finish" segment — the WYSIWYG rule that kept export = preview); a unit test pins baked-curve === preview-join byte-for-byte. Also fixed the p0-basis bug the WYSIWYG test caught (p0 is the node before the leg's start, clamped).
+- Per-line memory: all three stores' roadFollow → pathStyle; setPathStyle writes the ACTIVE reconstruction's own pathStyle (settings change, geometryRevision untouched); EVERY editor opener (gap rows, manual spans, recovery openers) re-adopts the line's remembered style — reopening a line shows ITS mode, never the last one used; the create route mirrors the style onto its single reconstruction.
+- Hooks: makeJoins now closes over pathStyle — "curve" joins through joinCurveChain, car/foot through the road table (straight fallback unchanged); the routing effect resolves legs only for car/foot; routingFailed excludes curve; distance + straight-line-honesty run over the style-aware join (makeJoins added to the memo deps — the react-compiler lint caught the missing ones); all resamplePath callers (map-controller route view, draw stats, elevation fetch candidates, export merge, create track) pass the recon's style so curve legs bake everywhere.
+- Rendering: geojson ReconstructionPart.pathStyle rides the feature properties; the map gained gpxr-recon-dashed (same signal color, dashed — the classic footpath convention) complementary-filtered against the solid gpxr-recon layer (exactly one layer draws each line); the legend teaches "Footpath repair (dashed)"; the two draw panels' chip group became FOUR choices (Roads / Footpaths / Curves / Straight — data-testids keep the historic road-follow-* names; the status line renders for car/foot only).
+- Tests: tests/path-styles.test.ts (13) — the spline passes EXACTLY through every clicked node and bends at corners; the join's midpoints sit on the curve; baking is WYSIWYG (baked === preview join), the closing leg stays straight, short chains and other styles fall back honestly, spacing never re-densifies spline legs; the stores' per-line memory (set while active, re-adopted on reopen, create route remembers). E2E draw-editor.spec.ts +1: three clicked points → straight rendered == clicked nodes → switch to Curves → the rendered line gains spline interior while every exact clicked node survives.
+
+Stage Summary:
+- One path-style system across all three sections: pick Roads/Footpaths/Curves/Straight before or while drawing, each line remembers its own, the map shows which is which (dashed footpaths), curves bake into ordinary points on export, and routing stays the honest external-service behavior with straight fallback.
+
+---
+Task ID: 44-47 (validation)
+Agent: Super Z (main agent)
+Task: Full QA of the four features + docs + ship.
+
+Work Log:
+- typecheck PASS; eslint clean (0 problems — six react-compiler memoization gaps found and fixed during integration).
+- vitest 1018/1018 (70 files; +30 over the 988 baseline).
+- Playwright 74/74 (73 + the known draw-editor sandbox-memory flake green on isolated re-run; +3: merge Share flow, Move mode, Curves).
+- Static export PASS (next build: all routes prerendered).
+- Docs: MASTER_PLAN.md §U (Pointer Modes & Path Styles — Tasks 44-47).
+
+Stage Summary:
+- Baseline moves to 1018 unit + 74 e2e. Four user-requested features live: merge Share, Move mode, Curves, per-line Road/Footpath/Straight.

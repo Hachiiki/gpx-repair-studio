@@ -161,6 +161,118 @@ export function roadChainPoints(
   return joinDrawChain(nodes, legs).points;
 }
 
+// ---------------------------------------------------------------------------
+// The curve path style (Task 46 — "Curves": a smooth local spline)
+// ---------------------------------------------------------------------------
+
+/**
+ * Curve sampling step (meters of leg length between spline samples).
+ * Dense enough to read as a smooth arc on the map and to import into
+ * any platform as ordinary points; coarse enough to keep files small.
+ */
+export const CURVE_SAMPLE_M = 10;
+
+/**
+ * Catmull-Rom spline through the nodes (Task 46): the classic
+ * interpolating spline — the line passes EXACTLY through every clicked
+ * point and bends smoothly through the corners between them. End
+ * tangents use duplicated endpoints (the natural "free" ends).
+ *
+ * Planar lat/lon arithmetic at map scale (sub-centimeter vs geodesic at
+ * city-scale legs); the cumulative distances everywhere else stay
+ * geodesic-honest. Pure and local — nothing leaves the browser.
+ *
+ * Returns the full polyline INCLUDING the exact nodes (t=0/t=1 hits
+ * them), so callers can render or bake it verbatim (WYSIWYG).
+ */
+export function curveSplinePoints(
+  nodes: readonly LatLon[],
+  sampleStepM: number = CURVE_SAMPLE_M,
+): LatLon[] {
+  if (nodes.length <= 2) return [...nodes];
+  const points: LatLon[] = [nodes[0]];
+  for (let i = 0; i + 1 < nodes.length; i += 1) {
+    points.push(
+      ...curveLegInterior(
+        nodes[i - 1] ?? nodes[i],
+        nodes[i],
+        nodes[i + 1],
+        nodes[i + 2] ?? nodes[i + 1],
+        sampleStepM,
+      ),
+      nodes[i + 1],
+    );
+  }
+  return points;
+}
+
+/**
+ * One leg's spline interior (t ∈ (0,1), endpoints excluded) — the shared
+ * sampler so the map's preview, the distance badge, and the committed/
+ * exported points are the SAME curve (WYSIWYG, one implementation).
+ */
+export function curveLegInterior(
+  p0: LatLon,
+  p1: LatLon,
+  p2: LatLon,
+  p3: LatLon,
+  sampleStepM: number = CURVE_SAMPLE_M,
+): LatLon[] {
+  const legM = geodesicDistanceMeters(p1, p2);
+  const steps = Math.min(
+    48,
+    Math.max(2, Number.isFinite(legM) && legM > 0 ? Math.ceil(legM / sampleStepM) : 2),
+  );
+  const interior: LatLon[] = [];
+  for (let s = 1; s < steps; s += 1) {
+    const t = s / steps;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    interior.push({
+      lat:
+        0.5 *
+        (2 * p1.lat +
+          (-p0.lat + p2.lat) * t +
+          (2 * p0.lat - 5 * p1.lat + 4 * p2.lat - p3.lat) * t2 +
+          (-p0.lat + 3 * p1.lat - 3 * p2.lat + p3.lat) * t3),
+      lon:
+        0.5 *
+        (2 * p1.lon +
+          (-p0.lon + p2.lon) * t +
+          (2 * p0.lon - 5 * p1.lon + 4 * p2.lon - p3.lon) * t2 +
+          (-p0.lon + 3 * p1.lon - 3 * p2.lon + p3.lon) * t3),
+    });
+  }
+  return interior;
+}
+
+/**
+ * The curve-style chain join (the `"curve"` path style): the rendered
+ * line is the spline through the nodes, and each leg's insertion
+ * midpoint sits at the spline's distance-mid — so "+" handles land ON
+ * the curve the user sees, never on a straight chord beneath it.
+ */
+export function joinCurveChain(
+  nodes: readonly LatLon[],
+): DrawChainGeometry {
+  if (nodes.length < 2) {
+    return { points: [...nodes], midpoints: [] };
+  }
+  const points: LatLon[] = [nodes[0]];
+  const midpoints: LatLon[] = [];
+  for (let i = 0; i + 1 < nodes.length; i += 1) {
+    const interior = curveLegInterior(
+      nodes[i - 1] ?? nodes[i],
+      nodes[i],
+      nodes[i + 1],
+      nodes[i + 2] ?? nodes[i + 1],
+    );
+    points.push(...interior, nodes[i + 1]);
+    midpoints.push(legMidpoint(nodes[i], nodes[i + 1], interior));
+  }
+  return { points, midpoints };
+}
+
 /**
  * The closing-segment geometry (last chain node → far anchor): the road
  * path when a leg resolved, the straight chord otherwise. The dashed

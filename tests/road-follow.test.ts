@@ -1,5 +1,5 @@
 /**
- * Unit tests — road-follow (features/reconstruction/roadFollow.ts).
+ * Unit tests — road-follow (features/reconstruction/pathStyle.ts).
  *
  * The snap-to-road contract of the draw editor:
  *   - keying: directed leg keys, 6-decimal rounding, exact-pair lookup;

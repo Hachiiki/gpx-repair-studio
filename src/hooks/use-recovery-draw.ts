@@ -46,6 +46,7 @@ import {
 import {
   closingLegCoordinates,
   isStraightLinePath,
+  joinCurveChain,
   joinDrawChain,
 } from "@/features/reconstruction/roadFollow";
 import {
@@ -65,7 +66,9 @@ import type {
   GapId,
   LatLon,
   OriginalTrackPoint,
+  PathStyle,
   PointId,
+  PointerMode,
   RoadFollowMode,
   RoadLeg,
   SegmentId,
@@ -87,9 +90,9 @@ export function useRecoveryDraw(
   map: MapBinding,
 ): DrawEditorBinding {
   const activeGapId = useRecoveryStore((s) => s.activeGapId);
-  const drawMode = useRecoveryStore((s) => s.drawMode);
+  const pointerMode = useRecoveryStore((s) => s.pointerMode);
   const snapEnabled = useRecoveryStore((s) => s.snapEnabled);
-  const roadFollow = useRecoveryStore((s) => s.roadFollow);
+  const pathStyle = useRecoveryStore((s) => s.pathStyle);
   const roadLegs = useRecoveryStore((s) => s.roadLegs);
   const roadRouting = useRecoveryStore((s) => s.roadRouting);
   const reconstructions = useRecoveryStore((s) => s.reconstructions);
@@ -388,11 +391,15 @@ export function useRecoveryDraw(
 
   const makeJoins = useCallback(
     (legs: readonly RoadLeg[]) => ({
-      chainJoin: (nodes: readonly LatLon[]) => joinDrawChain(nodes, legs),
+      // Task 46: the curve style joins through the local spline.
+      chainJoin: (nodes: readonly LatLon[]) =>
+        pathStyle === "curve"
+          ? joinCurveChain(nodes)
+          : joinDrawChain(nodes, legs),
       closingJoin: (from: LatLon, to: LatLon) =>
         closingLegCoordinates(from, to, legs),
     }),
-    [],
+    [pathStyle],
   );
 
   // Open/switch/close the controller session when the active section
@@ -432,6 +439,10 @@ export function useRecoveryDraw(
           useRecoveryStore.getState().deleteVertex(vertexId),
       },
     });
+    // A session (re)start must never inherit a stale pointer mode —
+    // endDrawSession resets the controller to pan, and the store may
+    // still say draw (e.g. a path-style switch rebuilt the joins).
+    controller.setPointerMode(useRecoveryStore.getState().pointerMode);
     return () => {
       controller.endDrawSession();
     };
@@ -459,7 +470,7 @@ export function useRecoveryDraw(
       return;
     }
     const gapId = activeGap.id;
-    if (roadFollow === "off") {
+    if (pathStyle !== "car" && pathStyle !== "foot") {
       const legs = useRecoveryStore.getState().roadLegs[gapId] ?? [];
       if (legs.length > 0) useRecoveryStore.getState().setRoadLegs(gapId, []);
       resetRouting();
@@ -478,7 +489,7 @@ export function useRecoveryDraw(
     const resolved: RoadLeg[] = [];
     const missing: { a: LatLon; b: LatLon }[] = [];
     for (const pair of pairs) {
-      const leg = router.cached(roadFollow, pair.a, pair.b);
+      const leg = router.cached(pathStyle, pair.a, pair.b);
       if (leg) resolved.push(leg);
       else missing.push(pair);
     }
@@ -491,10 +502,10 @@ export function useRecoveryDraw(
     const generation = (roadGeneration.current += 1);
     let pending = missing.length;
     for (const pair of missing) {
-      void router.segment(roadFollow, pair.a, pair.b).then((leg) => {
+      void router.segment(pathStyle, pair.a, pair.b).then((leg) => {
         if (roadGeneration.current !== generation) return; // stale
         const state = useRecoveryStore.getState();
-        if (state.activeGapId !== gapId || state.roadFollow !== roadFollow) {
+        if (state.activeGapId !== gapId || state.pathStyle !== pathStyle) {
           return;
         }
         pending -= 1;
@@ -506,15 +517,15 @@ export function useRecoveryDraw(
         }
       });
     }
-  }, [activeGap, nearAnchor, farAnchor, vertices, roadFollow]);
+  }, [activeGap, nearAnchor, farAnchor, vertices, pathStyle]);
 
-  // Draw/Pan toggle → controller interaction handlers.
+  // Pointer mode (Draw / Move / Pan — Task 45) → controller handlers.
   useEffect(() => {
-    map.getController()?.setDrawMode(drawMode);
-  }, [drawMode, map.getController, mapReady]);
+    map.getController()?.setPointerMode(pointerMode);
+  }, [pointerMode, map.getController, mapReady]);
 
-  // Keyboard accelerators (QoL): D = draw, P = pan — active only while an
-  // editor session is open, never while typing in a form control.
+  // Keyboard accelerators (QoL): D = draw, M = move, P = pan — active only
+  // while an editor session is open, never while typing in a form control.
   useEffect(() => {
     if (activeGapId === null) return;
     const onKeydown = (event: KeyboardEvent) => {
@@ -532,10 +543,13 @@ export function useRecoveryDraw(
       const key = event.key.toLowerCase();
       if (key === "d") {
         event.preventDefault();
-        useRecoveryStore.getState().setDrawMode(true);
+        useRecoveryStore.getState().setPointerMode("draw");
+      } else if (key === "m") {
+        event.preventDefault();
+        useRecoveryStore.getState().setPointerMode("move");
       } else if (key === "p") {
         event.preventDefault();
-        useRecoveryStore.getState().setDrawMode(false);
+        useRecoveryStore.getState().setPointerMode("pan");
       }
     };
     window.addEventListener("keydown", onKeydown);
@@ -555,8 +569,8 @@ export function useRecoveryDraw(
       ...vertices,
       ...(farAnchor ? [{ lat: farAnchor.lat, lon: farAnchor.lon }] : []),
     ];
-    return polylineLengthMeters(joinDrawChain(nodes, activeRoadLegs).points);
-  }, [nearAnchor, farAnchor, vertices, activeRoadLegs]);
+    return polylineLengthMeters(makeJoins(activeRoadLegs).chainJoin(nodes).points);
+  }, [nearAnchor, farAnchor, vertices, activeRoadLegs, makeJoins]);
 
   // Straight-line honesty over the RENDERED path. Open extensions have
   // no straight line to hug — always false.
@@ -568,11 +582,11 @@ export function useRecoveryDraw(
       { lat: farAnchor.lat, lon: farAnchor.lon },
     ];
     return isStraightLinePath(
-      joinDrawChain(nodes, activeRoadLegs).points,
+      makeJoins(activeRoadLegs).chainJoin(nodes).points,
       { lat: nearAnchor.lat, lon: nearAnchor.lon },
       { lat: farAnchor.lat, lon: farAnchor.lon },
     );
-  }, [nearAnchor, farAnchor, vertices, activeRoadLegs]);
+  }, [nearAnchor, farAnchor, vertices, activeRoadLegs, makeJoins]);
 
   const statusById = useMemo(() => {
     const byId: Record<string, GapStatus> = {};
@@ -653,6 +667,7 @@ export function useRecoveryDraw(
         far ? { lat: far.lat, lon: far.lon } : null,
         recon.resampleSpacingM,
         roadLegs[row.id] ?? [],
+        recon.pathStyle ?? "off",
       );
       const pathLengthM =
         path.length > 0 ? path[path.length - 1].cumDistanceM : 0;
@@ -753,16 +768,16 @@ export function useRecoveryDraw(
     useRecoveryStore.getState().removeManualSpan(gapId);
   }, []);
 
-  const setDrawMode = useCallback((on: boolean) => {
-    useRecoveryStore.getState().setDrawMode(on);
+  const setPointerMode = useCallback((mode: PointerMode) => {
+    useRecoveryStore.getState().setPointerMode(mode);
   }, []);
 
   const setSnapEnabled = useCallback((on: boolean) => {
     useRecoveryStore.getState().setSnapEnabled(on);
   }, []);
 
-  const setRoadFollow = useCallback((mode: RoadFollowMode) => {
-    useRecoveryStore.getState().setRoadFollow(mode);
+  const setPathStyle = useCallback((mode: PathStyle) => {
+    useRecoveryStore.getState().setPathStyle(mode);
   }, []);
 
   const undo = useCallback(() => useRecoveryStore.getState().undo(), []);
@@ -807,11 +822,11 @@ export function useRecoveryDraw(
   return {
     active: activeGap !== null,
     activeGap,
-    drawMode,
+    pointerMode,
     snapEnabled,
-    roadFollow,
+    pathStyle,
     routingPending: roadRouting.pending > 0,
-    routingFailed: roadRouting.failed && roadFollow !== "off",
+    routingFailed: roadRouting.failed && pathStyle !== "off" && pathStyle !== "curve",
     vertices,
     vertexCount: vertices.length,
     maxVertices: MAX_VERTICES,
@@ -838,9 +853,9 @@ export function useRecoveryDraw(
     beginPickPair,
     cancelPickSpan,
     removeManualSpan,
-    setDrawMode,
+    setPointerMode,
     setSnapEnabled,
-    setRoadFollow,
+    setPathStyle,
     undo,
     redo,
     clearVertices,

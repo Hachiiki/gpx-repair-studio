@@ -55,6 +55,8 @@ import type {
   GapId,
   ManualSpan,
   PointId,
+  PathStyle,
+  PointerMode,
   Reconstruction,
   RoadFollowMode,
   RoadLeg,
@@ -80,7 +82,7 @@ export type PickMode = "anchor" | "pair";
 
 interface EditorState {
   activeGapId: GapId | null;
-  drawMode: boolean;
+  pointerMode: PointerMode;
   snapEnabled: boolean;
   reconstructions: Readonly<Record<string, Reconstruction>>;
   skippedGapIds: readonly GapId[];
@@ -91,8 +93,12 @@ interface EditorState {
   manualSpans: readonly ManualSpan[];
   /** Span-pick mode: which repair tool is collecting map clicks (null = off). */
   pickMode: PickMode | null;
-  /** Road-follow mode for drawn legs (transient editing aid). */
-  roadFollow: RoadFollowMode;
+  /**
+   * The path style of the ACTIVE line (Tasks 46–47: road / footpath /
+   * curve / straight) — written through to the reconstruction so every
+   * committed line remembers what it was drawn with.
+   */
+  pathStyle: PathStyle;
   /** Resolved road legs per gap (derived side table; hook-written). */
   roadLegs: Readonly<Record<string, readonly RoadLeg[]>>;
   /** Road-routing status of the active chain (pending count + last failure). */
@@ -135,10 +141,10 @@ interface EditorState {
   addExtendSpan: (anchorPointId: PointId, side: "after" | "before") => void;
   /** Remove a manual span and all of its repair state. */
   removeManualSpan: (gapId: GapId) => void;
-  setDrawMode: (on: boolean) => void;
+  setPointerMode: (mode: PointerMode) => void;
   setSnapEnabled: (on: boolean) => void;
   /** Road-follow mode for drawn legs (transient, never undoable). */
-  setRoadFollow: (mode: RoadFollowMode) => void;
+  setPathStyle: (mode: PathStyle) => void;
   /** Replace the resolved road legs of one gap (no-op when unchanged). */
   setRoadLegs: (gapId: GapId, legs: readonly RoadLeg[]) => void;
   /** Update the road-routing status of the active chain. */
@@ -166,7 +172,7 @@ interface EditorState {
 
 const INITIAL = {
   activeGapId: null,
-  drawMode: false,
+  pointerMode: "pan" as PointerMode,
   snapEnabled: true,
   reconstructions: {} as Readonly<Record<string, Reconstruction>>,
   skippedGapIds: [] as readonly GapId[],
@@ -174,7 +180,7 @@ const INITIAL = {
   vertexSeq: 0,
   manualSpans: [] as readonly ManualSpan[],
   pickMode: null as PickMode | null,
-  roadFollow: "car" as RoadFollowMode,
+  pathStyle: "car" as PathStyle,
   roadLegs: {} as Readonly<Record<string, readonly RoadLeg[]>>,
   roadRouting: { pending: 0, failed: false },
   fileTiming: { startMs: null, totalDurationMs: null } as FileTimingContext,
@@ -197,8 +203,11 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       const existing = state.reconstructions[gapId];
       return {
         activeGapId: gapId,
-        drawMode: true,
+        pointerMode: "draw",
         history: EMPTY_HISTORY,
+        // Task 47: reopening a line re-adopts the style it was drawn
+        // with — the chips show THIS line's mode, never a stale one.
+        pathStyle: existing?.pathStyle ?? state.pathStyle,
         reconstructions: existing
           ? state.reconstructions
           : {
@@ -215,7 +224,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set({
       activeGapId: null,
       history: EMPTY_HISTORY,
-      drawMode: false,
+      pointerMode: "pan" as PointerMode,
     }),
 
   startPickMode: (mode) =>
@@ -225,7 +234,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       // abandoned reconstruction is kept, as with closeEditor).
       activeGapId: null,
       history: EMPTY_HISTORY,
-      drawMode: false,
+      pointerMode: "pan" as PointerMode,
     }),
 
   cancelPickMode: () => set({ pickMode: null }),
@@ -239,8 +248,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       // repairing, an empty reconstruction is created on first touch, and
       // a stale skip mark is withdrawn.
       activeGapId: id,
-      drawMode: true,
+      pointerMode: "draw",
       history: EMPTY_HISTORY,
+      // Task 47: reopening a line re-adopts the style it was drawn with.
+      pathStyle: state.reconstructions[id]?.pathStyle ?? state.pathStyle,
       manualSpans: state.manualSpans.some((span) => span.id === id)
         ? state.manualSpans
         : [
@@ -260,8 +271,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set((state) => ({
       pickMode: null,
       activeGapId: id,
-      drawMode: true,
+      pointerMode: "draw",
       history: EMPTY_HISTORY,
+      // Task 47: reopening a line re-adopts the style it was drawn with.
+      pathStyle: state.reconstructions[id]?.pathStyle ?? state.pathStyle,
       manualSpans: state.manualSpans.some((span) => span.id === id)
         ? state.manualSpans
         : [
@@ -285,8 +298,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set((state) => ({
       pickMode: null,
       activeGapId: id,
-      drawMode: true,
+      pointerMode: "draw",
       history: EMPTY_HISTORY,
+      // Task 47: reopening a line re-adopts the style it was drawn with.
+      pathStyle: state.reconstructions[id]?.pathStyle ?? state.pathStyle,
       manualSpans: state.manualSpans.some((span) => span.id === id)
         ? state.manualSpans
         : [...state.manualSpans, { id, kind: "extend", anchorPointId, side }],
@@ -316,15 +331,35 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           (skipped) => skipped !== gapIdToRemove,
         ),
         ...(state.activeGapId === gapIdToRemove
-          ? { activeGapId: null, history: EMPTY_HISTORY, drawMode: false }
+          ? { activeGapId: null, history: EMPTY_HISTORY, pointerMode: "pan" as PointerMode }
           : {}),
       };
     }),
 
-  setDrawMode: (drawMode) => set({ drawMode }),
+  setPointerMode: (pointerMode) => set({ pointerMode }),
   setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
 
-  setRoadFollow: (roadFollow) => set({ roadFollow }),
+  setPathStyle: (pathStyle) =>
+    set((state) => {
+      // The setting always moves; when an editor is open the ACTIVE
+      // line remembers it too (a settings change — geometryRevision
+      // stays untouched, §D-3.5).
+      const gapId = state.activeGapId;
+      if (gapId === null || state.pathStyle === pathStyle) {
+        return state.pathStyle === pathStyle ? state : { pathStyle };
+      }
+      const current = state.reconstructions[gapId];
+      if (!current || current.pathStyle === pathStyle) {
+        return { pathStyle };
+      }
+      return {
+        pathStyle,
+        reconstructions: {
+          ...state.reconstructions,
+          [gapId]: { ...current, pathStyle },
+        },
+      };
+    }),
 
   setRoadLegs: (gapId, legs) =>
     set((state) => {
@@ -510,7 +545,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         // Skipping the gap being edited abandons the session (the
         // reconstruction itself is kept — unskipping brings it back).
         ...(state.activeGapId === gapId && !skipped
-          ? { activeGapId: null, history: EMPTY_HISTORY, drawMode: false }
+          ? { activeGapId: null, history: EMPTY_HISTORY, pointerMode: "pan" as PointerMode }
           : {}),
       };
     }),
@@ -543,7 +578,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         roadLegs,
         skippedGapIds,
         ...(activeGone
-          ? { activeGapId: null, history: EMPTY_HISTORY, drawMode: false }
+          ? { activeGapId: null, history: EMPTY_HISTORY, pointerMode: "pan" as PointerMode }
           : {}),
       };
     }),

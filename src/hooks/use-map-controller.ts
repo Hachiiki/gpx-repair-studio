@@ -52,6 +52,7 @@ import type {
   ManualSpan,
   OriginalTrackData,
   OriginalTrackPoint,
+  PathStyle,
   PointId,
   Reconstruction,
   RoadLeg,
@@ -89,6 +90,9 @@ export interface ReconstructionRenderRef {
   active?: boolean;
   /** Resolved road-follow legs (the committed line follows the road). */
   roadLegs?: readonly RoadLeg[];
+  /** The line's path style (Tasks 46–47) — curve lines render curved,
+   * footpath lines render dashed. Absent = straight. */
+  pathStyle?: PathStyle;
 }
 
 /**
@@ -294,9 +298,11 @@ export function buildRouteView(
           afterPoint,
           recon.spacingM,
           recon.roadLegs,
+          recon.pathStyle ?? "off",
         );
         reconParts.push({
           gapId: gap.id,
+          pathStyle: recon.pathStyle ?? "off",
           coordinates: path.map((p) => [p.lon, p.lat] as [number, number]),
         });
       }
@@ -339,9 +345,11 @@ export function buildRouteView(
         afterPoint,
         recon.spacingM,
         recon.roadLegs,
+        recon.pathStyle ?? "off",
       );
       reconParts.push({
         gapId: span.id,
+        pathStyle: recon.pathStyle ?? "off",
         coordinates: path.map((p) => [p.lon, p.lat] as [number, number]),
       });
     }
@@ -363,9 +371,11 @@ export function buildRouteView(
         null,
         recon.spacingM,
         recon.roadLegs,
+        recon.pathStyle ?? "off",
       );
       reconParts.push({
         gapId: span.id,
+        pathStyle: recon.pathStyle ?? "off",
         coordinates: path.map((p) => [p.lon, p.lat] as [number, number]),
       });
     }
@@ -483,6 +493,7 @@ export function buildEditorRouteRefs(
       gapId: row.id,
       vertices: recon.vertices,
       spacingM: recon.resampleSpacingM,
+      pathStyle: recon.pathStyle ?? "off",
       // The gap being edited renders through the controller's draw
       // session (draft styling) — the ref only suppresses its span.
       ...(row.id === activeGapId ? { active: true } : {}),

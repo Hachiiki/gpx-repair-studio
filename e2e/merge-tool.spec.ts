@@ -226,4 +226,86 @@ test.describe("merge tool", () => {
     ).toHaveCount(0);
     await expect(page.getByTestId("merge-combine")).toBeDisabled();
   });
+
+  test("the header's Share: warning first, then the merged GPX download + the share card", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await enterMergeTool(page);
+
+    await dropFiles(page, [
+      join(FIXTURES, "valid-1.1.gpx"),
+      join(FIXTURES, "multi-segment.gpx"),
+    ]);
+    await page.getByTestId("merge-combine").click();
+    await expect(page.getByTestId("merge-files-card")).toBeVisible();
+
+    // Name the combined activity first — the dialog shows the file name
+    // the confirm will download.
+    const nameField = page.getByTestId("merge-activity-name");
+    await nameField.fill("Combo run");
+    await nameField.blur();
+
+    // The Share button lives in the header exactly when the studio does.
+    const shareButton = page.getByTestId("header-merge-share");
+    await expect(shareButton).toBeVisible();
+    await expect(shareButton).toContainText("Share card");
+
+    // Click → the warning dialog says exactly what will happen (the
+    // file name, the trio the card will show) — and nothing downloaded.
+    await shareButton.click();
+    const dialog = page.getByTestId("merge-share-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Combo run.gpx");
+    await expect(dialog).toContainText("same file the Download button produces");
+    // The trio the card will show is the merged model's own arithmetic.
+    await expect(dialog).toContainText(/\d/);
+
+    // Cancel is a full no-op: still in the arrangement, nothing downloaded.
+    await page.getByTestId("merge-share-cancel").click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByTestId("merge-files-card")).toBeVisible();
+
+    // Confirm → the merged GPX downloads (the same contract as the
+    // Download button) and the share card view opens.
+    await shareButton.click();
+    await expect(dialog).toBeVisible();
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("merge-share-confirm").click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("Combo run.gpx");
+    const xml = readFileSync(await download.path(), "utf8");
+    expect(xml).toContain("merged 2 files");
+    expect((xml.match(/<trk>/g) ?? []).length).toBe(1);
+
+    await expect(page.getByTestId("merge-share-section")).toBeVisible();
+    await expect(page.getByTestId("merge-files-card")).toHaveCount(0);
+    // The header now offers the way back.
+    await expect(page.getByTestId("header-merge-back")).toBeVisible();
+    await expect(page.getByTestId("header-merge-share")).toHaveCount(0);
+
+    // The trio is the merged model's own arithmetic (never a dash for
+    // these timed fixtures); the notes are honest.
+    await expect(
+      page.getByTestId("merge-share-summary-distance"),
+    ).toContainText(/\d/);
+    await expect(page.getByTestId("share-card-canvas")).toBeVisible();
+    await expect(page.getByTestId("merge-share-tools")).toContainText(
+      "Combined from 2 recordings",
+    );
+
+    // The PNG downloads from the share view.
+    const [png] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("merge-share-download").click(),
+    ]);
+    expect(png.suggestedFilename()).toBe("Combo run.share-card.png");
+
+    // Back to the arrangement — same merge, the map returns.
+    await page.getByTestId("merge-share-back").click();
+    await expect(page.getByTestId("merge-files-card")).toBeVisible();
+    await expect(page.getByTestId("merge-share-section")).toHaveCount(0);
+    await expect(page.getByTestId("header-merge-share")).toBeVisible();
+  });
 });

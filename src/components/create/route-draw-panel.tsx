@@ -47,9 +47,13 @@ const SPACING_CHOICES: readonly { value: string; label: string }[] = [
   { value: "50", label: "Every 50 m" },
 ];
 
-/** Road-follow mode choices (what the line does between your clicks). */
-const ROAD_FOLLOW_CHOICES: readonly {
-  value: CreateDrawBinding["roadFollow"];
+/**
+ * Path-style choices (Tasks 46–47 — what the line does between your
+ * clicks, remembered per line). The test ids keep the historic
+ * `road-follow-*` names for e2e compatibility.
+ */
+const PATH_STYLE_CHOICES: readonly {
+  value: CreateDrawBinding["pathStyle"];
   label: string;
   hint: string;
 }[] = [
@@ -62,6 +66,11 @@ const ROAD_FOLLOW_CHOICES: readonly {
     value: "foot",
     label: "Footpaths",
     hint: "Same idea, but for pedestrian ways — trails, footpaths, stairs. Better for runs through parks or along rivers.",
+  },
+  {
+    value: "curve",
+    label: "Curves",
+    hint: "A smooth spline bends through your points — no snapping, no network, nothing leaves the browser. The curve is baked into the exported file.",
   },
   {
     value: "off",
@@ -144,19 +153,19 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        {/* Road follow: what the line does between clicks. */}
+        {/* Path style: what the line does between clicks (per line). */}
         <div
           className="grid gap-2"
           data-testid="road-follow-group"
           role="group"
-          aria-label="Road follow"
+          aria-label="Path style"
         >
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
             Between clicks, follow
             <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {ROAD_FOLLOW_CHOICES.map((choice) => (
+            {PATH_STYLE_CHOICES.map((choice) => (
               <HintTip
                 key={choice.value}
                 side="left"
@@ -168,20 +177,20 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
                   size="sm"
                   variant="ghost"
                   className={
-                    draw.roadFollow === choice.value
+                    draw.pathStyle === choice.value
                       ? "h-auto rounded-full border-[1.25px] border-inkplus bg-inkplus px-3 py-[5px] text-[12.5px] font-semibold text-paper hover:bg-inkplus hover:text-paper"
                       : "h-auto rounded-full border-[1.25px] border-ink/25 bg-card px-3 py-[5px] text-[12.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
                   }
-                  aria-pressed={draw.roadFollow === choice.value}
+                  aria-pressed={draw.pathStyle === choice.value}
                   data-testid={`road-follow-${choice.value}`}
-                  onClick={() => draw.setRoadFollow(choice.value)}
+                  onClick={() => draw.setPathStyle(choice.value)}
                 >
                   {choice.label}
                 </Button>
               </HintTip>
             ))}
           </div>
-          {draw.roadFollow !== "off" && (
+          {(draw.pathStyle === "car" || draw.pathStyle === "foot") && (
             <p
               className="text-[11px] text-muted-foreground"
               data-testid="road-follow-status"
@@ -260,7 +269,8 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
         {draw.vertexCount > 0 && (
           <div className="grid gap-1.5">
             <p className="text-xs font-medium text-muted-foreground">
-              Drawn points — drag on the map to adjust, double-click to remove
+              Drawn points — switch to Move (M) and drag any of them on the
+              map, double-click to remove
             </p>
             <ScrollArea className="max-h-40 -mx-2">
               <ul className="grid gap-0.5 px-2">

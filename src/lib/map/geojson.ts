@@ -22,6 +22,7 @@ import type {
   GapId,
   GapKind,
   GapSeverity,
+  PathStyle,
   PointId,
   SegmentId,
   VertexId,
@@ -86,6 +87,8 @@ export interface GapBoundaryMarker {
  */
 export interface ReconstructionPart {
   gapId: GapId;
+  /** The line's path style (Tasks 46–47) — footpath lines render dashed. */
+  pathStyle?: PathStyle;
   /** `[lon, lat]` pairs: before-anchor → path → after-anchor. */
   coordinates: [number, number][];
 }
@@ -187,12 +190,17 @@ export function gapMarkerCollection(
 /** Committed reconstruction lines — dashed emerald, one feature per gap. */
 export function reconstructionLineCollection(
   parts: readonly ReconstructionPart[],
-): GeoJsonFeatureCollection<GeoJsonLineFeature<{ gapId: GapId }>> {
+): GeoJsonFeatureCollection<
+  GeoJsonLineFeature<{ gapId: GapId; pathStyle?: PathStyle }>
+> {
   return {
     type: "FeatureCollection",
     features: parts.map((part) => ({
       type: "Feature" as const,
-      properties: { gapId: part.gapId },
+      properties: {
+        gapId: part.gapId,
+        ...(part.pathStyle ? { pathStyle: part.pathStyle } : {}),
+      },
       geometry: {
         type: "LineString" as const,
         coordinates: part.coordinates,

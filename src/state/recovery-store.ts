@@ -59,6 +59,8 @@ import type {
   ManualSpan,
   OriginalTrackData,
   PointId,
+  PathStyle,
+  PointerMode,
   Reconstruction,
   RoadFollowMode,
   RoadLeg,
@@ -109,10 +111,10 @@ interface RecoveryState {
 
   // -- editor slice -----------------------------------------------------------
   activeGapId: GapId | null;
-  drawMode: boolean;
+  pointerMode: PointerMode;
   snapEnabled: boolean;
   /** Road-follow mode for drawn legs (transient editing aid). */
-  roadFollow: RoadFollowMode;
+  pathStyle: PathStyle;
   reconstructions: Readonly<Record<string, Reconstruction>>;
   skippedGapIds: readonly GapId[];
   history: DrawHistory;
@@ -155,9 +157,9 @@ interface RecoveryState {
   addExtendSpan: (anchorPointId: PointId, side: "after" | "before") => void;
   /** Remove a user-drawn span and all of its repair state. */
   removeManualSpan: (gapId: GapId) => void;
-  setDrawMode: (on: boolean) => void;
+  setPointerMode: (mode: PointerMode) => void;
   setSnapEnabled: (on: boolean) => void;
-  setRoadFollow: (mode: RoadFollowMode) => void;
+  setPathStyle: (mode: PathStyle) => void;
   /** Replace the resolved road legs of one gap (no-op when unchanged). */
   setRoadLegs: (gapId: GapId, legs: readonly RoadLeg[]) => void;
   setRoadRouting: (status: { pending: number; failed: boolean }) => void;
@@ -191,9 +193,9 @@ const INITIAL = {
   error: null,
 
   activeGapId: null,
-  drawMode: false,
+  pointerMode: "pan" as PointerMode,
   snapEnabled: true,
-  roadFollow: "car" as RoadFollowMode,
+  pathStyle: "car" as PathStyle,
   reconstructions: {} as Readonly<Record<string, Reconstruction>>,
   skippedGapIds: [] as readonly GapId[],
   history: EMPTY_HISTORY,
@@ -234,7 +236,7 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       // A new file wipes all repair state — repairs belong to the file
       // they were drawn on, never to the next one.
       activeGapId: null,
-      drawMode: false,
+      pointerMode: "pan" as PointerMode,
       reconstructions: {},
       skippedGapIds: [],
       history: EMPTY_HISTORY,
@@ -255,8 +257,10 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       const existing = state.reconstructions[gapId];
       return {
         activeGapId: gapId,
-        drawMode: true,
+        pointerMode: "draw",
         history: EMPTY_HISTORY,
+        // Task 47: reopening a line re-adopts the style it was drawn with.
+        pathStyle: existing?.pathStyle ?? state.pathStyle,
         reconstructions: existing
           ? state.reconstructions
           : {
@@ -273,7 +277,7 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
     set({
       activeGapId: null,
       history: EMPTY_HISTORY,
-      drawMode: false,
+      pointerMode: "pan" as PointerMode,
     }),
 
   startPickMode: (mode) =>
@@ -283,7 +287,7 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       // abandoned reconstruction is kept, as with closeEditor).
       activeGapId: null,
       history: EMPTY_HISTORY,
-      drawMode: false,
+      pointerMode: "pan" as PointerMode,
     }),
 
   cancelPickMode: () => set({ pickMode: null }),
@@ -296,8 +300,10 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       // A replace span keeps the window-derived default: two picked
       // points bound a stretch whose recorded time is the honest source.
       activeGapId: id,
-      drawMode: true,
+      pointerMode: "draw",
       history: EMPTY_HISTORY,
+      // Task 47: reopening a line re-adopts the style it was drawn with.
+      pathStyle: state.reconstructions[id]?.pathStyle ?? state.pathStyle,
       manualSpans: state.manualSpans.some((span) => span.id === id)
         ? state.manualSpans
         : [
@@ -322,8 +328,10 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       // Adjacent boundaries → the ~1 s window is meaningless; the
       // unmeasured section's time is pace-estimated from the file.
       activeGapId: id,
-      drawMode: true,
+      pointerMode: "draw",
       history: EMPTY_HISTORY,
+      // Task 47: reopening a line re-adopts the style it was drawn with.
+      pathStyle: state.reconstructions[id]?.pathStyle ?? state.pathStyle,
       manualSpans: state.manualSpans.some((span) => span.id === id)
         ? state.manualSpans
         : [
@@ -351,8 +359,10 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       pickMode: null,
       // Open extension → no far boundary at all; pace-estimated time.
       activeGapId: id,
-      drawMode: true,
+      pointerMode: "draw",
       history: EMPTY_HISTORY,
+      // Task 47: reopening a line re-adopts the style it was drawn with.
+      pathStyle: state.reconstructions[id]?.pathStyle ?? state.pathStyle,
       manualSpans: state.manualSpans.some((span) => span.id === id)
         ? state.manualSpans
         : [...state.manualSpans, { id, kind: "extend", anchorPointId, side }],
@@ -385,15 +395,35 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
           (skipped) => skipped !== gapIdToRemove,
         ),
         ...(state.activeGapId === gapIdToRemove
-          ? { activeGapId: null, history: EMPTY_HISTORY, drawMode: false }
+          ? { activeGapId: null, history: EMPTY_HISTORY, pointerMode: "pan" as PointerMode }
           : {}),
       };
     }),
 
-  setDrawMode: (drawMode) => set({ drawMode }),
+  setPointerMode: (pointerMode) => set({ pointerMode }),
   setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
 
-  setRoadFollow: (roadFollow) => set({ roadFollow }),
+  setPathStyle: (pathStyle) =>
+    set((state) => {
+      // The setting always moves; when an editor is open the ACTIVE
+      // line remembers it too (a settings change — geometryRevision
+      // stays untouched, §D-3.5).
+      const gapId = state.activeGapId;
+      if (gapId === null || state.pathStyle === pathStyle) {
+        return state.pathStyle === pathStyle ? state : { pathStyle };
+      }
+      const current = state.reconstructions[gapId];
+      if (!current || current.pathStyle === pathStyle) {
+        return { pathStyle };
+      }
+      return {
+        pathStyle,
+        reconstructions: {
+          ...state.reconstructions,
+          [gapId]: { ...current, pathStyle },
+        },
+      };
+    }),
 
   setRoadLegs: (gapId, legs) =>
     set((state) => {
@@ -590,7 +620,7 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
           ? state.skippedGapIds.filter((id) => id !== gapId)
           : [...state.skippedGapIds, gapId],
         ...(state.activeGapId === gapId && !skipped
-          ? { activeGapId: null, history: EMPTY_HISTORY, drawMode: false }
+          ? { activeGapId: null, history: EMPTY_HISTORY, pointerMode: "pan" as PointerMode }
           : {}),
       };
     }),
@@ -623,7 +653,7 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
         roadLegs,
         skippedGapIds,
         ...(activeGone
-          ? { activeGapId: null, history: EMPTY_HISTORY, drawMode: false }
+          ? { activeGapId: null, history: EMPTY_HISTORY, pointerMode: "pan" as PointerMode }
           : {}),
       };
     }),

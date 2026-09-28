@@ -163,6 +163,7 @@ export function useRecoveryElevation(
       farAnchor ? { lat: farAnchor.lat, lon: farAnchor.lon } : null,
       activeRecon.resampleSpacingM,
       activeLegs,
+      activeRecon.pathStyle ?? "off",
     );
     return path.filter(
       (point) => point.role !== "before-anchor" && point.role !== "after-anchor",
@@ -224,6 +225,7 @@ export function useRecoveryElevation(
       far ? { lat: far.lat, lon: far.lon } : null,
       recon.resampleSpacingM,
       legs,
+      recon.pathStyle ?? "off",
     );
     const interior = path.filter(
       (point) => point.role !== "before-anchor" && point.role !== "after-anchor",

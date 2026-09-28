@@ -39,7 +39,7 @@ import {
 } from "@/features/reconstruction/timestamps";
 import { geodesicDistanceMeters } from "@/lib/geo/geodesy";
 import type { RouteViewData } from "@/lib/map/geojson";
-import type { DrawVertex, GapId, RoadLeg } from "@/types/domain";
+import type { DrawVertex, GapId, PathStyle, RoadLeg } from "@/types/domain";
 
 /**
  * The single pseudo-gap id of the create workflow's route. The `create/`
@@ -230,6 +230,8 @@ export interface CreateTrackInput {
   vertices: readonly DrawVertex[];
   roadLegs: readonly RoadLeg[];
   spacingM: number | "off";
+  /** The route's path style (Tasks 46–47) — curve legs bake their spline. */
+  pathStyle?: PathStyle;
   /**
    * Scale the drawn route to the recorded distance — the explicit "use
    * my watch's distance" choice. Off by default: the drawn geometry is
@@ -261,7 +263,14 @@ export function buildCreateTrack(
   // the geometry the map previewed (WYSIWYG); world-scale drawings are
   // decimated to the point budget (distances ride along untouched).
   const drawnPath = capPathPoints(
-    resamplePath(null, input.vertices, null, input.spacingM, input.roadLegs),
+    resamplePath(
+      null,
+      input.vertices,
+      null,
+      input.spacingM,
+      input.roadLegs,
+      input.pathStyle ?? "off",
+    ),
   );
   if (drawnPath.length === 0) return null;
   const drawnDistanceM = drawnPath[drawnPath.length - 1].cumDistanceM;

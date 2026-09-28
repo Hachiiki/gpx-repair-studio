@@ -33,13 +33,17 @@ const AFTER = { lat: 52.520186, lon: 13.405234 };
 const DRAW_POINTS = [
   { lat: 52.5206, lon: 13.4055 },
   { lat: 52.5202, lon: 13.4058 },
+  { lat: 52.5199, lon: 13.4062 },
+  { lat: 52.5204, lon: 13.4066 },
 ];
 
 interface DrawSessionState {
   gapId: string;
   drawMode: boolean;
+  pointerMode: "draw" | "move" | "pan";
   vertexCount: number;
   chainCoordinates: [number, number][];
+  renderedChainCoordinates: [number, number][];
   closingCoordinates: [number, number][];
   pathCoordinates: [number, number][];
   handleScreenPositions: { vertexId: string; x: number; y: number }[];
@@ -400,7 +404,7 @@ test.describe("draw editor — desktop", () => {
     await expect(chip).toHaveText(/Drawing/);
     await chip.click();
     await pollBridge(page, (s) => s.drawSession?.drawMode === false);
-    await expect(chip).toHaveText(/Panning/);
+    await expect(chip).toHaveText(/Moving/);
 
     // Keyboard accelerators mirror the toggle (no form control focused).
     await page.keyboard.press("d");
@@ -409,6 +413,112 @@ test.describe("draw editor — desktop", () => {
     await page.keyboard.press("p");
     await pollBridge(page, (s) => s.drawSession?.drawMode === false);
     await expect(chip).toHaveText(/Panning/);
+  });
+
+  test("Move mode (Task 45): clicks add nothing, any point drags, one undo restores", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await upload(page);
+    await pollBridge(page, (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);
+    await openEditor(page);
+    await page.getByTestId("snap-toggle").click();
+    const box = await canvasBox(page);
+
+    // Two points in Draw mode.
+    await pollBridge(page, (s) => s.drawSession?.drawMode === true);
+    await clickAt(page, DRAW_POINTS[0].lat, DRAW_POINTS[0].lon, box);
+    await clickAt(page, DRAW_POINTS[1].lat, DRAW_POINTS[1].lon, box);
+    const two = await pollBridge(
+      page,
+      (s) => s.drawSession?.vertexCount === 2,
+    );
+
+    // Switch to Move: the bridge reports the three-way mode.
+    await page.getByTestId("draw-mode-move").click();
+    await pollBridge(page, (s) => s.drawSession?.pointerMode === "move");
+    await expect(page.getByTestId("map-mode-chip")).toHaveText(/Moving/);
+
+    // A click on empty canvas adds NOTHING in Move mode.
+    await clickAt(page, DRAW_POINTS[2].lat, DRAW_POINTS[2].lon, box);
+    await page.waitForTimeout(300);
+    expect((await bridge(page))!.drawSession!.vertexCount).toBe(2);
+
+    // Drag the first handle — the vertex moves (the chain re-renders),
+    // exactly like the classic edit-drag but with the big targets.
+    const dragBox = await canvasBox(page);
+    const handle = two.drawSession!.handleScreenPositions[0];
+    const before = two.drawSession!.chainCoordinates[1]; // v0 (chain[0] is the anchor)
+    await page.mouse.move(dragBox.x + handle.x, dragBox.y + handle.y);
+    await page.mouse.down();
+    await page.mouse.move(dragBox.x + handle.x + 48, dragBox.y + handle.y + 30, {
+      steps: 6,
+    });
+    await page.mouse.up();
+    await pollBridge(page, (s) => {
+      const moved = s.drawSession!.chainCoordinates[1];
+      return (
+        moved[0] !== before[0] &&
+        moved[1] !== before[1] &&
+        s.drawSession!.vertexCount === 2
+      );
+    });
+
+    // The move is exactly ONE undo step (the panel's undo restores it).
+    await page.getByTestId("undo-button").click();
+    await pollBridge(page, (s) => {
+      const restored = s.drawSession!.chainCoordinates[1];
+      return restored[0] === before[0] && restored[1] === before[1];
+    });
+
+    // The chip cycles Move → Pan, and the M accelerator re-enters Move.
+    await page.getByTestId("map-mode-chip").click();
+    await pollBridge(page, (s) => s.drawSession?.pointerMode === "pan");
+    await page.keyboard.press("m");
+    await pollBridge(page, (s) => s.drawSession?.pointerMode === "move");
+  });
+
+  test("the Curves path style (Task 46): the rendered line is the spline, per line", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await upload(page);
+    await pollBridge(page, (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);
+    await openEditor(page);
+    await page.getByTestId("snap-toggle").click();
+    const box = await canvasBox(page);
+
+    // Draw mode, three points (a corner to bend through).
+    await pollBridge(page, (s) => s.drawSession?.drawMode === true);
+    await clickAt(page, DRAW_POINTS[0].lat, DRAW_POINTS[0].lon, box);
+    await clickAt(page, DRAW_POINTS[1].lat, DRAW_POINTS[1].lon, box);
+    await clickAt(page, DRAW_POINTS[2].lat, DRAW_POINTS[2].lon, box);
+    await pollBridge(page, (s) => s.drawSession!.vertexCount === 3);
+
+    // Straight (the road router is aborted in this suite): the rendered
+    // chain equals the clicked nodes.
+    const straight = (await bridge(page))!.drawSession!;
+    expect(straight.renderedChainCoordinates.length).toBe(
+      straight.chainCoordinates.length,
+    );
+
+    // Switch the line to Curves: the rendered line gains the spline
+    // interior — the shape the export will bake.
+    await page.getByTestId("road-follow-curve").click();
+    const curved = await pollBridge(
+      page,
+      (s) =>
+        s.drawSession!.renderedChainCoordinates.length >
+        s.drawSession!.chainCoordinates.length,
+    );
+    // The exact clicked nodes survive on the curved line (user data).
+    for (const node of curved.drawSession!.chainCoordinates) {
+      expect(
+        curved.drawSession!.renderedChainCoordinates.some(
+          (p) => p[0] === node[0] && p[1] === node[1],
+        ),
+      ).toBe(true);
+    }
   });
 });
 

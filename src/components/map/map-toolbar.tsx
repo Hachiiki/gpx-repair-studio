@@ -1,19 +1,21 @@
 /**
  * MapToolbar — the map's tool rail (Phase 3: "tile provider config …
  * attribution, legend"; Phase 4: the Draw/Pan toggle; QoL pass: a
- * vertical icon rail with delayed use-case hints).
+ * vertical icon rail with delayed use-case hints; Task 45: the toggle
+ * grows into the three-way Draw / Move / Pan pointer-mode group).
  *
  * The rail lives on the map's right edge, vertically centered — away
  * from the distance badge (top-center), the pick chip (top-center),
  * the legend (bottom-left), and the gap chip (top-left). Every tool is
  * an icon button whose use case is one deliberate hover away (HintTip,
  * ~450 ms dwell): the toolbar teaches itself without cluttering the
- * map. Keyboard accelerators (D / P) mirror the pointer toggle.
+ * map. Keyboard accelerators (D / M / P) mirror the pointer toggle.
  *
- * - Draw/Pan toggle: the plan's anti-fat-finger contract — drawing and
- *   map navigation must never fight over the pointer. Dragging drawn
- *   points works in BOTH modes (the drag is pointer-targeted, never a
- *   pan).
+ * - Draw / Move / Pan: what the pointer does (the plan's anti-fat-finger
+ *   contract, plus Task 45's dedicated point-dragging mode). Dragging
+ *   drawn points works in ALL modes (the drag is pointer-targeted,
+ *   never a pan) — Move mode just makes it the whole point, with
+ *   oversized grab targets and no accidental adds.
  * - Basemap picker: OpenFreeMap (default) / OSM Standard raster, each
  *   with its usage-policy note (§E-1), built as a popover of plain
  *   buttons (RTL-friendly, matches the Phase-2 settings pattern).
@@ -35,9 +37,11 @@ import {
   Hand,
   Layers,
   Maximize,
+  Move,
   PenLine,
 } from "lucide-react";
 import type { TileProviderId, TileProviderOption } from "@/hooks/use-map-controller";
+import type { PointerMode } from "@/types/domain";
 
 /** Shared rail button look: 36px square, quiet until hovered. */
 const RAIL_BUTTON =
@@ -48,9 +52,9 @@ export interface MapToolbarProps {
   providers: readonly TileProviderOption[];
   onProviderChange: (provider: TileProviderId) => void;
   onFitActivity: () => void;
-  /** Phase 4: null = no editor session (toggle hidden). */
-  drawMode?: boolean | null;
-  onToggleDrawMode?: (on: boolean) => void;
+  /** Task 45: null = no editor session (pointer-mode group hidden). */
+  pointerMode?: PointerMode | null;
+  onSetPointerMode?: (mode: PointerMode) => void;
 }
 
 export function MapToolbar({
@@ -58,8 +62,8 @@ export function MapToolbar({
   providers,
   onProviderChange,
   onFitActivity,
-  drawMode = null,
-  onToggleDrawMode,
+  pointerMode = null,
+  onSetPointerMode,
 }: MapToolbarProps) {
   const current =
     providers.find((option) => option.id === provider) ?? null;
@@ -71,7 +75,7 @@ export function MapToolbar({
       role="toolbar"
       aria-label="Map tools"
     >
-      {drawMode !== null && onToggleDrawMode && (
+      {pointerMode !== null && onSetPointerMode && (
         <div
           className="flex flex-col"
           role="group"
@@ -86,17 +90,38 @@ export function MapToolbar({
           >
             <button
               type="button"
-              aria-pressed={drawMode === true}
+              aria-pressed={pointerMode === "draw"}
               data-testid="draw-mode-draw"
               className={`flex h-9 w-9 items-center justify-center rounded-[7px] transition-colors focus-visible:outline-2 ${
-                drawMode
+                pointerMode === "draw"
                   ? "bg-signal text-white shadow-[inset_0_0_0_1px_#222222]"
                   : "text-foreground hover:bg-ink/[0.06]"
               }`}
-              onClick={() => onToggleDrawMode(true)}
+              onClick={() => onSetPointerMode("draw")}
             >
               <PenLine className="size-4" aria-hidden="true" />
               <span className="sr-only">Draw mode</span>
+            </button>
+          </HintTip>
+          <HintTip
+            side="left"
+            title="Move mode"
+            description="Rearrange what you drew — every point grows into a big grab target you can drag anywhere. Clicks add nothing here, and empty-space drags still pan the map."
+            kbd="M"
+          >
+            <button
+              type="button"
+              aria-pressed={pointerMode === "move"}
+              data-testid="draw-mode-move"
+              className={`flex h-9 w-9 items-center justify-center rounded-[7px] transition-colors focus-visible:outline-2 ${
+                pointerMode === "move"
+                  ? "bg-signal text-white shadow-[inset_0_0_0_1px_#222222]"
+                  : "text-foreground hover:bg-ink/[0.06]"
+              }`}
+              onClick={() => onSetPointerMode("move")}
+            >
+              <Move className="size-4" aria-hidden="true" />
+              <span className="sr-only">Move mode</span>
             </button>
           </HintTip>
           <HintTip
@@ -107,14 +132,14 @@ export function MapToolbar({
           >
             <button
               type="button"
-              aria-pressed={drawMode === false}
+              aria-pressed={pointerMode === "pan"}
               data-testid="draw-mode-pan"
               className={`flex h-9 w-9 items-center justify-center rounded-[7px] transition-colors focus-visible:outline-2 ${
-                !drawMode
+                pointerMode === "pan"
                   ? "bg-signal text-white shadow-[inset_0_0_0_1px_#222222]"
                   : "text-foreground hover:bg-ink/[0.06]"
               }`}
-              onClick={() => onToggleDrawMode(false)}
+              onClick={() => onSetPointerMode("pan")}
             >
               <Hand className="size-4" aria-hidden="true" />
               <span className="sr-only">Pan mode</span>

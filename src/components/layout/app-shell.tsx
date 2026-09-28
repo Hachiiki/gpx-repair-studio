@@ -107,6 +107,7 @@ export function AppShell() {
   const createStats = useCreateStore((s) => s.stats);
   const createView = useCreateStore((s) => s.view);
   const mergePhase = useMergeStore((s) => s.phase);
+  const mergeView = useMergeStore((s) => s.view);
   const mergeCombinedName = useMergeStore((s) => s.combinedName);
   const mergeParsedCount = useMergeStore((s) =>
     s.files.filter((file) => file.status === "parsed").length,
@@ -187,6 +188,22 @@ export function AppShell() {
         onLeaveShare={
           section === "create" && createView === "share"
             ? () => useCreateStore.getState().setView("studio")
+            : undefined
+        }
+        /*
+         * The merge section's Share flow: the same pattern as the
+         * create section's — the header button appears in the studio
+         * view (a merge exists) and opens the warning dialog; from the
+         * share view it becomes the way back (Task 44).
+         */
+        onMergeShare={
+          section === "merge" && mergeView === "studio"
+            ? () => useMergeStore.getState().openShareDialog()
+            : undefined
+        }
+        onLeaveMergeShare={
+          section === "merge" && mergeView === "share"
+            ? () => useMergeStore.getState().setView("studio")
             : undefined
         }
       />

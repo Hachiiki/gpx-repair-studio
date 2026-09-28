@@ -42,6 +42,7 @@ import {
 import {
   closingLegCoordinates,
   isStraightLinePath,
+  joinCurveChain,
   joinDrawChain,
   RoadFollowRouter,
 } from "@/features/reconstruction/roadFollow";
@@ -67,7 +68,9 @@ import type {
   GapId,
   LatLon,
   OriginalTrackPoint,
+  PathStyle,
   PointId,
+  PointerMode,
   RoadFollowMode,
   RoadLeg,
   SegmentId,
@@ -146,15 +149,15 @@ export interface RepairTimeStats {
 export interface MapDrawChromeBinding {
   /** A draw editor session is open (the chrome is visible). */
   active: boolean;
-  /** Draw mode on = pointer draws; off = normal map navigation. */
-  drawMode: boolean;
+  /** The three-way pointer mode: draw adds, move drags, pan navigates. */
+  pointerMode: PointerMode;
   /** Live geodesic path length (null when inactive). */
   distanceM: number | null;
   vertexCount: number;
   maxVertices: number;
   /** Span-pick mode banner (null = off; always null in the create section). */
   pickMode: PickMode | null;
-  setDrawMode: (on: boolean) => void;
+  setPointerMode: (mode: PointerMode) => void;
 }
 
 /** App-layer facade: the draw-editor view consumed by components. */
@@ -163,12 +166,12 @@ export interface DrawEditorBinding {
   active: boolean;
   /** The joined row of the gap being edited (null when inactive). */
   activeGap: RepairRow | null;
-  /** Draw mode on = pointer draws; off = normal map navigation. */
-  drawMode: boolean;
+  /** The three-way pointer mode: draw adds, move drags, pan navigates. */
+  pointerMode: PointerMode;
   /** Snap-to-original-points magnet enabled. */
   snapEnabled: boolean;
-  /** Road-follow mode for drawn legs (car roads / footpaths / straight). */
-  roadFollow: RoadFollowMode;
+  /** The active line's path style: road / footpath / curve / straight. */
+  pathStyle: PathStyle;
   /** A road leg request is in flight for the active chain. */
   routingPending: boolean;
   /** The latest road request failed (straight lines until it recovers). */
@@ -226,9 +229,9 @@ export interface DrawEditorBinding {
   cancelPickSpan: () => void;
   /** Remove a manual repair span and all of its repair state. */
   removeManualSpan: (gapId: GapId) => void;
-  setDrawMode: (on: boolean) => void;
+  setPointerMode: (mode: PointerMode) => void;
   setSnapEnabled: (on: boolean) => void;
-  setRoadFollow: (mode: RoadFollowMode) => void;
+  setPathStyle: (mode: PathStyle) => void;
   undo: () => void;
   redo: () => void;
   clearVertices: () => void;
@@ -258,9 +261,9 @@ export function useDrawEditor(
   map: MapBinding,
 ): DrawEditorBinding {
   const activeGapId = useEditorStore((s) => s.activeGapId);
-  const drawMode = useEditorStore((s) => s.drawMode);
+  const pointerMode = useEditorStore((s) => s.pointerMode);
   const snapEnabled = useEditorStore((s) => s.snapEnabled);
-  const roadFollow = useEditorStore((s) => s.roadFollow);
+  const pathStyle = useEditorStore((s) => s.pathStyle);
   const roadLegs = useEditorStore((s) => s.roadLegs);
   const roadRouting = useEditorStore((s) => s.roadRouting);
   const reconstructions = useEditorStore((s) => s.reconstructions);
@@ -559,11 +562,17 @@ export function useDrawEditor(
   // the resolved legs change; straight legs while a resolution is pending.
   const makeJoins = useCallback(
     (legs: readonly RoadLeg[]) => ({
-      chainJoin: (nodes: readonly LatLon[]) => joinDrawChain(nodes, legs),
+      // Task 46: the curve style joins through the local spline (no
+      // legs, no network); every other style joins through the road
+      // table (straight legs when nothing resolved).
+      chainJoin: (nodes: readonly LatLon[]) =>
+        pathStyle === "curve"
+          ? joinCurveChain(nodes)
+          : joinDrawChain(nodes, legs),
       closingJoin: (from: LatLon, to: LatLon) =>
         closingLegCoordinates(from, to, legs),
     }),
-    [],
+    [pathStyle],
   );
 
   // Open/switch/close the controller session when the active gap changes
@@ -603,6 +612,10 @@ export function useDrawEditor(
           useEditorStore.getState().deleteVertex(vertexId),
       },
     });
+    // A session (re)start must never inherit a stale pointer mode —
+    // endDrawSession resets the controller to pan, and the store may
+    // still say draw (e.g. a path-style switch rebuilt the joins).
+    controller.setPointerMode(useEditorStore.getState().pointerMode);
     return () => {
       controller.endDrawSession();
     };
@@ -640,7 +653,7 @@ export function useDrawEditor(
       return;
     }
     const gapId = activeGap.id;
-    if (roadFollow === "off") {
+    if (pathStyle !== "car" && pathStyle !== "foot") {
       const legs = useEditorStore.getState().roadLegs[gapId] ?? [];
       if (legs.length > 0) useEditorStore.getState().setRoadLegs(gapId, []);
       resetRouting();
@@ -659,7 +672,7 @@ export function useDrawEditor(
     const resolved: RoadLeg[] = [];
     const missing: { a: LatLon; b: LatLon }[] = [];
     for (const pair of pairs) {
-      const leg = router.cached(roadFollow, pair.a, pair.b);
+      const leg = router.cached(pathStyle, pair.a, pair.b);
       if (leg) resolved.push(leg);
       else missing.push(pair);
     }
@@ -672,10 +685,10 @@ export function useDrawEditor(
     const generation = (roadGeneration.current += 1);
     let pending = missing.length;
     for (const pair of missing) {
-      void router.segment(roadFollow, pair.a, pair.b).then((leg) => {
+      void router.segment(pathStyle, pair.a, pair.b).then((leg) => {
         if (roadGeneration.current !== generation) return; // stale
         const state = useEditorStore.getState();
-        if (state.activeGapId !== gapId || state.roadFollow !== roadFollow) {
+        if (state.activeGapId !== gapId || state.pathStyle !== pathStyle) {
           return;
         }
         pending -= 1;
@@ -690,16 +703,16 @@ export function useDrawEditor(
     // vertices identity changes per command; activeGap/nearAnchor/farAnchor
     // are stable per session — the effect re-runs on every edit, which is
     // exactly when the wanted leg set changes.
-  }, [activeGap, nearAnchor, farAnchor, vertices, roadFollow]);
+  }, [activeGap, nearAnchor, farAnchor, vertices, pathStyle]);
 
-  // Draw/Pan toggle → controller interaction handlers.
+  // Pointer mode (Draw / Move / Pan — Task 45) → controller handlers.
   useEffect(() => {
-    map.getController()?.setDrawMode(drawMode);
-  }, [drawMode, map.getController, mapReady]);
+    map.getController()?.setPointerMode(pointerMode);
+  }, [pointerMode, map.getController, mapReady]);
 
-  // Keyboard accelerators (QoL): D = draw, P = pan — active only while an
-  // editor session is open, and never while the user is typing in a form
-  // control. Mirrors the toolbar toggle and the on-map mode chip.
+  // Keyboard accelerators (QoL): D = draw, M = move, P = pan — active only
+  // while an editor session is open, and never while the user is typing in
+  // a form control. Mirrors the toolbar toggle and the on-map mode chip.
   useEffect(() => {
     if (activeGapId === null) return;
     const onKeydown = (event: KeyboardEvent) => {
@@ -717,10 +730,13 @@ export function useDrawEditor(
       const key = event.key.toLowerCase();
       if (key === "d") {
         event.preventDefault();
-        useEditorStore.getState().setDrawMode(true);
+        useEditorStore.getState().setPointerMode("draw");
+      } else if (key === "m") {
+        event.preventDefault();
+        useEditorStore.getState().setPointerMode("move");
       } else if (key === "p") {
         event.preventDefault();
-        useEditorStore.getState().setDrawMode(false);
+        useEditorStore.getState().setPointerMode("pan");
       }
     };
     window.addEventListener("keydown", onKeydown);
@@ -740,8 +756,8 @@ export function useDrawEditor(
       ...vertices,
       ...(farAnchor ? [{ lat: farAnchor.lat, lon: farAnchor.lon }] : []),
     ];
-    return polylineLengthMeters(joinDrawChain(nodes, activeRoadLegs).points);
-  }, [nearAnchor, farAnchor, vertices, activeRoadLegs]);
+    return polylineLengthMeters(makeJoins(activeRoadLegs).chainJoin(nodes).points);
+  }, [nearAnchor, farAnchor, vertices, activeRoadLegs, makeJoins]);
 
   // Straight-line honesty over the RENDERED path (road interiors count): a
   // chain whose clicks hug the chord but whose ROAD curves is fine, and a
@@ -755,11 +771,11 @@ export function useDrawEditor(
       { lat: farAnchor.lat, lon: farAnchor.lon },
     ];
     return isStraightLinePath(
-      joinDrawChain(nodes, activeRoadLegs).points,
+      makeJoins(activeRoadLegs).chainJoin(nodes).points,
       { lat: nearAnchor.lat, lon: nearAnchor.lon },
       { lat: farAnchor.lat, lon: farAnchor.lon },
     );
-  }, [nearAnchor, farAnchor, vertices, activeRoadLegs]);
+  }, [nearAnchor, farAnchor, vertices, activeRoadLegs, makeJoins]);
 
   const statusById = useMemo(() => {
     const byId: Record<string, GapStatus> = {};
@@ -841,6 +857,7 @@ export function useDrawEditor(
         far ? { lat: far.lat, lon: far.lon } : null,
         recon.resampleSpacingM,
         roadLegs[row.id] ?? [],
+        recon.pathStyle ?? "off",
       );
       const pathLengthM =
         path.length > 0 ? path[path.length - 1].cumDistanceM : 0;
@@ -937,16 +954,16 @@ export function useDrawEditor(
     useEditorStore.getState().removeManualSpan(gapId);
   }, []);
 
-  const setDrawMode = useCallback((on: boolean) => {
-    useEditorStore.getState().setDrawMode(on);
+  const setPointerMode = useCallback((mode: PointerMode) => {
+    useEditorStore.getState().setPointerMode(mode);
   }, []);
 
   const setSnapEnabled = useCallback((on: boolean) => {
     useEditorStore.getState().setSnapEnabled(on);
   }, []);
 
-  const setRoadFollow = useCallback((mode: RoadFollowMode) => {
-    useEditorStore.getState().setRoadFollow(mode);
+  const setPathStyle = useCallback((mode: PathStyle) => {
+    useEditorStore.getState().setPathStyle(mode);
   }, []);
 
   const undo = useCallback(() => useEditorStore.getState().undo(), []);
@@ -991,11 +1008,11 @@ export function useDrawEditor(
   return {
     active: activeGap !== null,
     activeGap,
-    drawMode,
+    pointerMode,
     snapEnabled,
-    roadFollow,
+    pathStyle,
     routingPending: roadRouting.pending > 0,
-    routingFailed: roadRouting.failed && roadFollow !== "off",
+    routingFailed: roadRouting.failed && pathStyle !== "off" && pathStyle !== "curve",
     vertices,
     vertexCount: vertices.length,
     maxVertices: MAX_VERTICES,
@@ -1022,9 +1039,9 @@ export function useDrawEditor(
     beginPickPair,
     cancelPickSpan,
     removeManualSpan,
-    setDrawMode,
+    setPointerMode,
     setSnapEnabled,
-    setRoadFollow,
+    setPathStyle,
     undo,
     redo,
     clearVertices,

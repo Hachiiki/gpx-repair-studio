@@ -59,9 +59,9 @@ function makeBinding(
   return {
     active: true,
     activeGap: GAP_ROW,
-    drawMode: true,
+    pointerMode: "draw",
     snapEnabled: true,
-    roadFollow: "car",
+    pathStyle: "car",
     routingPending: false,
     routingFailed: false,
     vertices: [],
@@ -97,9 +97,9 @@ function makeBinding(
     beginPickPair: () => {},
     cancelPickSpan: () => {},
     removeManualSpan: () => {},
-    setDrawMode: () => {},
+    setPointerMode: () => {},
     setSnapEnabled: () => {},
-    setRoadFollow: () => {},
+    setPathStyle: () => {},
     undo: () => {},
     redo: () => {},
     clearVertices: () => {},
@@ -388,7 +388,7 @@ describe("DrawEditorPanel — Phase 5 time strategy embedding", () => {
 
 describe("DrawEditorPanel — road follow (snap to road)", () => {
   it("renders the mode group with the active choice pressed", () => {
-    render(<DrawEditorPanel draw={makeBinding({ roadFollow: "car" })} />);
+    render(<DrawEditorPanel draw={makeBinding({ pathStyle: "car" })} />);
     const group = screen.getByTestId("road-follow-group");
     expect(group).toHaveTextContent("Between clicks, follow");
     expect(screen.getByTestId("road-follow-car")).toHaveAttribute(
@@ -407,20 +407,20 @@ describe("DrawEditorPanel — road follow (snap to road)", () => {
     expect(group).toHaveTextContent("never leaves this browser");
   });
 
-  it("switching modes dispatches setRoadFollow", () => {
-    const setRoadFollow = vi.fn();
+  it("switching modes dispatches setPathStyle", () => {
+    const setPathStyle = vi.fn();
     render(
-      <DrawEditorPanel draw={makeBinding({ roadFollow: "car", setRoadFollow })} />,
+      <DrawEditorPanel draw={makeBinding({ pathStyle: "car", setPathStyle })} />,
     );
     fireEvent.click(screen.getByTestId("road-follow-foot"));
-    expect(setRoadFollow).toHaveBeenCalledWith("foot");
+    expect(setPathStyle).toHaveBeenCalledWith("foot");
     fireEvent.click(screen.getByTestId("road-follow-off"));
-    expect(setRoadFollow).toHaveBeenCalledWith("off");
+    expect(setPathStyle).toHaveBeenCalledWith("off");
   });
 
   it("surfaces routing status: finding, failure, and the drag hint", () => {
     const { rerender } = render(
-      <DrawEditorPanel draw={makeBinding({ roadFollow: "car", routingPending: true })} />,
+      <DrawEditorPanel draw={makeBinding({ pathStyle: "car", routingPending: true })} />,
     );
     expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
       "Finding the road",
@@ -428,7 +428,7 @@ describe("DrawEditorPanel — road follow (snap to road)", () => {
 
     rerender(
       <DrawEditorPanel
-        draw={makeBinding({ roadFollow: "car", routingPending: false, routingFailed: true })}
+        draw={makeBinding({ pathStyle: "car", routingPending: false, routingFailed: true })}
       />,
     );
     expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
@@ -437,7 +437,7 @@ describe("DrawEditorPanel — road follow (snap to road)", () => {
 
     rerender(
       <DrawEditorPanel
-        draw={makeBinding({ roadFollow: "car", routingPending: false, routingFailed: false })}
+        draw={makeBinding({ pathStyle: "car", routingPending: false, routingFailed: false })}
       />,
     );
     expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
@@ -446,11 +446,11 @@ describe("DrawEditorPanel — road follow (snap to road)", () => {
   });
 
   it("hides the status line when road follow is off", () => {
-    render(<DrawEditorPanel draw={makeBinding({ roadFollow: "off" })} />);
+    render(<DrawEditorPanel draw={makeBinding({ pathStyle: "off" })} />);
     expect(screen.queryByTestId("road-follow-status")).toBeNull();
   });
 
-  it("the drawn-points header teaches drag and double-click editing", () => {
+  it("the drawn-points header teaches Move-mode dragging and double-click editing", () => {
     render(
       <DrawEditorPanel
         draw={makeBinding({
@@ -459,6 +459,6 @@ describe("DrawEditorPanel — road follow (snap to road)", () => {
         })}
       />,
     );
-    expect(screen.getByText(/drag on the map to adjust/i)).toBeVisible();
+    expect(screen.getByText(/switch to Move \(M\) and drag/i)).toBeVisible();
   });
 });

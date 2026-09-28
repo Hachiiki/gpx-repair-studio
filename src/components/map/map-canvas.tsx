@@ -22,6 +22,7 @@ import {
   Crosshair,
   Hand,
   MapIcon,
+  Move,
   PenLine,
   WifiOff,
 } from "lucide-react";
@@ -191,37 +192,65 @@ export function MapCanvas({ map, attachContainer, draw = null, srNote }: MapCanv
                 maxVertices={draw.maxVertices}
               />
             )}
-            {/* Current-pointer-mode chip (QoL): always answers "am I
-                drawing or navigating?" at a glance, and toggles on click.
-                Dragging a placed point works in BOTH modes. */}
+            {/* Current-pointer-mode chip (QoL): always answers "what
+                does the pointer do right now?" at a glance, and cycles
+                Draw → Move → Pan on click (Task 45). Dragging a placed
+                point works in every mode. */}
             {editorActive && draw && (
               <button
                 type="button"
                 data-testid="map-mode-chip"
-                aria-pressed={draw.drawMode}
-                onClick={() => draw.setDrawMode(!draw.drawMode)}
+                data-mode={draw.pointerMode}
+                aria-label={`Pointer mode: ${
+                  draw.pointerMode === "draw"
+                    ? "drawing — click to switch to move"
+                    : draw.pointerMode === "move"
+                      ? "moving points — click to switch to pan"
+                      : "panning — click to switch to draw"
+                }`}
+                onClick={() =>
+                  draw.setPointerMode(
+                    draw.pointerMode === "draw"
+                      ? "move"
+                      : draw.pointerMode === "move"
+                        ? "pan"
+                        : "draw",
+                  )
+                }
                 title={
-                  draw.drawMode
+                  draw.pointerMode === "draw"
                     ? "Draw mode — click to add points (D)"
-                    : "Pan mode — drag to navigate (P). Dragging a drawn point still works."
+                    : draw.pointerMode === "move"
+                      ? "Move mode — drag any point (M)"
+                      : "Pan mode — drag to navigate (P). Dragging a drawn point still works."
                 }
                 className={`absolute left-2 top-2 z-10 flex items-center gap-2 rounded-lg border-[1.5px] border-ink px-2.5 py-1.5 text-xs font-semibold shadow-float transition-colors focus-visible:outline-2 ${
-                  draw.drawMode
+                  draw.pointerMode === "draw"
                     ? "bg-signal/[0.08] text-ink"
                     : "bg-card text-foreground hover:bg-ink/[0.06]"
                 }`}
               >
-                {draw.drawMode ? (
+                {draw.pointerMode === "draw" ? (
                   <PenLine className="size-3.5 shrink-0 text-signal" aria-hidden="true" />
+                ) : draw.pointerMode === "move" ? (
+                  <Move className="size-3.5 shrink-0 text-signal" aria-hidden="true" />
                 ) : (
                   <Hand className="size-3.5 shrink-0" aria-hidden="true" />
                 )}
-                {draw.drawMode ? "Drawing" : "Panning"}
+                {draw.pointerMode === "draw"
+                  ? "Drawing"
+                  : draw.pointerMode === "move"
+                    ? "Moving"
+                    : "Panning"}
                 <span
                   className="grid h-4 min-w-4 place-items-center rounded-[3px] border border-ink/25 border-b-2 bg-card px-0.5 text-[10px] font-bold text-shade"
                   aria-hidden="true"
                 >
-                  {draw.drawMode ? "D" : "P"}
+                  {draw.pointerMode === "draw"
+                    ? "D"
+                    : draw.pointerMode === "move"
+                      ? "M"
+                      : "P"}
                 </span>
               </button>
             )}
@@ -247,8 +276,10 @@ export function MapCanvas({ map, attachContainer, draw = null, srNote }: MapCanv
               providers={map.providers}
               onProviderChange={map.setProvider}
               onFitActivity={map.fitToActivity}
-              drawMode={editorActive && draw ? draw.drawMode : null}
-              onToggleDrawMode={editorActive && draw ? draw.setDrawMode : undefined}
+              pointerMode={editorActive && draw ? draw.pointerMode : null}
+              onSetPointerMode={
+                editorActive && draw ? draw.setPointerMode : undefined
+              }
             />
             <MapLegend />
             {map.selectedGap && !editorActive && (
