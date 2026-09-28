@@ -23,6 +23,7 @@ import {
   SessionLoadingView,
 } from "@/components/layout/session-views";
 import type { SessionError } from "@/state/session-store";
+import { useMergeStore } from "@/state/merge-store";
 import type { LandingMode } from "@/state/ui-store";
 
 afterEach(() => cleanup());
@@ -192,12 +193,39 @@ describe("SessionIdleView — tool pages (Task 20 + 26 + 42)", () => {
     expect(screen.queryByTestId("upload-zone")).toBeNull();
     expect(screen.getByTestId("activity-stats-form")).toBeVisible();
   });
+
+  it("teaches the merge workflow on the merge tool page (Task 43)", () => {
+    // The intake self-wires to the merge store — start it clean.
+    useMergeStore.getState().reset();
+    renderIdle({ mode: "merge" });
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Combine GPX files into one route",
+      }),
+    ).toBeVisible();
+    const steps = screen.getByTestId("workflow-steps");
+    expect(steps).toHaveTextContent("Add your files");
+    expect(steps).toHaveTextContent("Arrange the merge");
+    expect(steps).toHaveTextContent("Download one GPX");
+    expect(steps.querySelectorAll("li")).toHaveLength(3);
+    // The multi-file intake replaces the single-file upload zone, and
+    // its contract gate starts closed (nothing collected yet).
+    expect(screen.queryByTestId("upload-zone")).toBeNull();
+    expect(screen.getByTestId("merge-intake")).toBeVisible();
+    expect(screen.getByTestId("merge-combine")).toBeDisabled();
+    // The fact strip promises the single-track merge.
+    expect(screen.getByTestId("tool-facts")).toHaveTextContent(
+      "single track",
+    );
+    useMergeStore.getState().reset();
+  });
 });
 
 describe("SessionIdleView — the tool cards home (Task 42)", () => {
-  const CARD_MODES = ["repair", "share", "recovery", "create"] as const;
+  const CARD_MODES = ["repair", "share", "recovery", "create", "merge"] as const;
 
-  it("asks the opening question and offers all four tools as cards", () => {
+  it("asks the opening question and offers all five tools as cards", () => {
     renderIdle({ view: "home" });
 
     expect(
@@ -206,7 +234,7 @@ describe("SessionIdleView — the tool cards home (Task 42)", () => {
 
     const grid = screen.getByTestId("landing-mode-toggle");
     const cards = grid.querySelectorAll("button");
-    expect(cards).toHaveLength(4);
+    expect(cards).toHaveLength(5);
     for (const mode of CARD_MODES) {
       expect(screen.getByTestId(`landing-mode-${mode}`)).toBeVisible();
     }
@@ -222,7 +250,7 @@ describe("SessionIdleView — the tool cards home (Task 42)", () => {
 
     const grid = screen.getByTestId("landing-mode-toggle");
     const images = grid.querySelectorAll("img");
-    expect(images).toHaveLength(4);
+    expect(images).toHaveLength(5);
     for (const image of Array.from(images)) {
       expect(image.getAttribute("alt")).toBeTruthy();
       expect(image.getAttribute("src")).toMatch(/^\/cards\/\w+\.webp$/);

@@ -31,6 +31,8 @@ import {
   Clock,
   Download,
   Eye,
+  Layers,
+  ListOrdered,
   PenLine,
   Route,
   Ruler,
@@ -42,6 +44,7 @@ import {
 import { SessionErrorAlert } from "@/components/gpx/session-error-alert";
 import { UploadZone } from "@/components/gpx/upload-zone";
 import { ActivityStatsForm } from "@/components/create/activity-stats-form";
+import { MergeIntake } from "@/components/merge/merge-intake";
 import { LandingCardsView } from "@/components/layout/landing-cards";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -217,6 +220,26 @@ const WORKFLOW_STEPS: Record<
         "The route is scaled to your recorded distance, your recorded time is spread along it as timestamps, and the file imports into Strava and other GPX platforms.",
     },
   ],
+  merge: [
+    {
+      icon: Layers,
+      title: "Add your files",
+      description:
+        "Drop two or more GPX files — each is read locally in this tab and inspected before it joins the merge. One bad file never blocks the rest.",
+    },
+    {
+      icon: ListOrdered,
+      title: "Arrange the merge",
+      description:
+        "Set the order the routes join in — or sort by start time — remove any file, and name the combined activity. The map and the statistics follow every change.",
+    },
+    {
+      icon: Download,
+      title: "Download one GPX",
+      description:
+        "One track with every recorded point from every file — elevation, timestamps, and waypoints carried over verbatim, nothing rewritten.",
+    },
+  ],
 };
 
 const HERO_COPY: Record<
@@ -242,6 +265,11 @@ const HERO_COPY: Record<
     heading: "Create an activity from its stats",
     description:
       "Your watch recorded the distance, pace, and time — but no map. Enter those statistics, draw the route you took, and download a GPX ready for Strava and every other platform.",
+  },
+  merge: {
+    heading: "Combine GPX files into one route",
+    description:
+      "Upload two or more activities — or several takes of the same one — and merge them into a single GPX. Everything recorded comes along: points, elevation, timestamps, and waypoints. Then arrange the order, name the result, and download one file.",
   },
 };
 
@@ -284,6 +312,14 @@ const TOOL_FACTS: Record<
       "A .gpx scaled to your recorded distance, your time spread along the route as timestamps — imports into Strava and every GPX platform.",
     bestFor:
       "Treadmill runs and GPS-less days: the numbers exist, the map does not — until you draw it.",
+  },
+  merge: {
+    input:
+      "Two or more GPX 1.0 or 1.1 activity files — mixed sources welcome (watch, phone, platform exports).",
+    output:
+      "One .gpx with a single track — every point, waypoint, and route from every file, in your chosen order, under your chosen name.",
+    bestFor:
+      "Multi-take recordings, activities a platform split into pieces, or building one route from several days' rides and runs.",
   },
 };
 
@@ -371,7 +407,10 @@ export function ToolDetailView({
         {/*
          * The intake: the upload zone for the three file workflows, the
          * statistics form for the create workflow (there is no file to
-         * upload — the watch recorded no GPS at all).
+         * upload — the watch recorded no GPS at all), and the
+         * multi-file intake for the merge workflow (it needs two or
+         * more files before it can open its studio — the intake owns
+         * the collected list and the contract gate).
          */}
         {mode === "create" ? (
           <ActivityStatsForm
@@ -380,6 +419,8 @@ export function ToolDetailView({
             onPaceUnitChange={onPaceUnitChange}
             onBegin={onCreateBegin}
           />
+        ) : mode === "merge" ? (
+          <MergeIntake />
         ) : (
           <UploadZone onFile={onFile} />
         )}

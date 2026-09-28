@@ -192,6 +192,26 @@ export function AppHeader({
               </a>
             </nav>
           )}
+          {section === "merge" && showSession && (
+            <nav
+              className="hidden items-center gap-1 text-sm md:flex"
+              aria-label="Merge sections"
+              data-testid="merge-section-nav"
+            >
+              <a
+                href="#merge"
+                className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
+              >
+                Map &amp; order
+              </a>
+              <a
+                href="#details"
+                className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
+              >
+                Statistics
+              </a>
+            </nav>
+          )}
           {showSession && (
             <Button
               variant="outline"

@@ -83,10 +83,10 @@ describe("Gap Recovery section", () => {
   it("offers the recovery destination as a tool card — no header switcher", () => {
     render(<AppShell />);
 
-    // The card grid carries four mutually exclusive destinations (the
-    // create-from-stats card joined in the create-section pass).
+    // The card grid carries five mutually exclusive destinations (the
+    // merge card joined in Task 43).
     const toggle = screen.getByTestId("landing-mode-toggle");
-    expect(toggle.querySelectorAll("button")).toHaveLength(4);
+    expect(toggle.querySelectorAll("button")).toHaveLength(5);
 
     // The Task-26 header section switcher is gone: the cards are the
     // only door.

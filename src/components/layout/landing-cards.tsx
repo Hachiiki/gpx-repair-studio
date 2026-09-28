@@ -5,11 +5,16 @@
  * illustration of what the tool does. Clicking a card opens that tool's
  * detail page (SessionIdleView's "tool" branch) — the explanation, the
  * "How it works" trio, and the intake live there, so this page stays a
- * quiet front door: a headline, a promise, and four doors.
+ * quiet front door: a headline, a promise, and five doors.
  *
  * Speaks the Field Plot language of the workflow cards it sits beside:
  * 1.5 px ink borders, card fill, the lift-on-hover shadow, and the
  * signal orange spent on exactly one thing per card (the "Open" row).
+ *
+ * The 2×2 grid became a 2×N grid with the fifth tool (Task 43): rows
+ * pair up the same way, and an odd count's lone last card centers on
+ * its own row (span both columns, half width, auto margins) so the
+ * gallery ends balanced instead of trailing off left-aligned.
  *
  * Pure presentation: intents out (`onOpenTool`), no stores. Focus
  * management is the one behavior it owns — coming BACK from a tool
@@ -23,6 +28,7 @@
 import { useEffect, useRef } from "react";
 import {
   ArrowRight,
+  Combine,
   History,
   ImageUp,
   Watch,
@@ -46,8 +52,9 @@ export interface LandingTool {
 }
 
 /**
- * The four destinations, in the tab order users already know (repair
- * first — the app's core flow and the default remembered intent).
+ * The five destinations, in the tab order users already know (repair
+ * first — the app's core flow and the default remembered intent;
+ * merge last — the newest tool, Task 43).
  */
 export const LANDING_TOOLS: readonly LandingTool[] = [
   {
@@ -90,6 +97,16 @@ export const LANDING_TOOLS: readonly LandingTool[] = [
       "Illustration of a sports watch beside a pencil drawing a brand-new route",
     icon: Watch,
   },
+  {
+    mode: "merge",
+    kicker: "Merge",
+    title: "Combine recordings",
+    blurb:
+      "Two or more GPX files become one route — every point, elevation, and waypoint preserved. Set the order, name the result, download one file.",
+    imageAlt:
+      "Illustration of two separate map routes converging into one continuous line",
+    icon: Combine,
+  },
 ];
 
 export interface LandingCardsViewProps {
@@ -124,7 +141,7 @@ export function LandingCardsView({
           What would you like to do?
         </h2>
         <p className="mx-auto max-w-[56ch] text-balance text-[15.5px] leading-relaxed text-muted-foreground">
-          Four tools, one workbench — pick one to see how it works and
+          Five tools, one workbench — pick one to see how it works and
           start. Everything runs in this browser, and your files never
           leave this device.
         </p>
@@ -141,62 +158,76 @@ export function LandingCardsView({
         data-testid="landing-mode-toggle"
         className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))]"
       >
-        {LANDING_TOOLS.map((tool) => (
-          <li key={tool.mode}>
-            <button
-              type="button"
-              ref={(node) => {
-                cardRefs.current[tool.mode] = node;
-              }}
-              data-testid={`landing-mode-${tool.mode}`}
-              aria-label={`${tool.title} — open this tool`}
-              onClick={() => onOpenTool(tool.mode)}
-              className="group flex h-full w-full flex-col overflow-hidden rounded-[10px] border-[1.5px] border-ink bg-card text-left transition-[translate,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lift focus-visible:outline-2"
+        {LANDING_TOOLS.map((tool, index) => {
+          // An odd count's lone last card centers on its own row (see
+          // header) — the gallery ends balanced, not trailing off.
+          const loneLast =
+            LANDING_TOOLS.length % 2 === 1 &&
+            index === LANDING_TOOLS.length - 1;
+          return (
+            <li
+              key={tool.mode}
+              className={
+                loneLast
+                  ? "sm:col-span-2 sm:mx-auto sm:w-[calc(50%-0.5rem)]"
+                  : undefined
+              }
             >
-              {/* The illustration plate: the image the card is about,
-                  full-bleed to the card's top, framed below by the same
-                  1.5 px ink rule that frames the card. */}
-              <span className="block aspect-[16/9] w-full overflow-hidden border-b-[1.5px] border-ink bg-muted">
-                <img
-                  src={`/cards/${tool.mode}.webp`}
-                  alt={tool.imageAlt}
-                  width={896}
-                  height={512}
-                  decoding="async"
-                  className="size-full object-cover"
-                />
-              </span>
-              <span className="flex flex-1 flex-col p-[18px]">
-                <span className="flex items-center gap-2.5">
-                  <span className="inline-flex shrink-0 rounded-[10px] border-[1.5px] border-signal bg-signal/10 p-2">
-                    <tool.icon
-                      className="size-[18px] text-signal"
+              <button
+                type="button"
+                ref={(node) => {
+                  cardRefs.current[tool.mode] = node;
+                }}
+                data-testid={`landing-mode-${tool.mode}`}
+                aria-label={`${tool.title} — open this tool`}
+                onClick={() => onOpenTool(tool.mode)}
+                className="group flex h-full w-full flex-col overflow-hidden rounded-[10px] border-[1.5px] border-ink bg-card text-left transition-[translate,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lift focus-visible:outline-2"
+              >
+                {/* The illustration plate: the image the card is about,
+                    full-bleed to the card's top, framed below by the same
+                    1.5 px ink rule that frames the card. */}
+                <span className="block aspect-[16/9] w-full overflow-hidden border-b-[1.5px] border-ink bg-muted">
+                  <img
+                    src={`/cards/${tool.mode}.webp`}
+                    alt={tool.imageAlt}
+                    width={896}
+                    height={512}
+                    decoding="async"
+                    className="size-full object-cover"
+                  />
+                </span>
+                <span className="flex flex-1 flex-col p-[18px]">
+                  <span className="flex items-center gap-2.5">
+                    <span className="inline-flex shrink-0 rounded-[10px] border-[1.5px] border-signal bg-signal/10 p-2">
+                      <tool.icon
+                        className="size-[18px] text-signal"
+                        aria-hidden="true"
+                      />
+                    </span>
+                    <span className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
+                      {tool.kicker}
+                    </span>
+                  </span>
+                  <span className="mt-2.5 text-[17px] font-bold tracking-tight">
+                    {tool.title}
+                  </span>
+                  <span className="mt-1.5 text-pretty text-[13px] leading-relaxed text-muted-foreground">
+                    {tool.blurb}
+                  </span>
+                  {/* The affordance row — pinned to the card's floor so
+                      all the cards align, the orange spent once. */}
+                  <span className="mt-auto inline-flex items-center gap-1.5 pt-3 text-[13.5px] font-semibold text-signal">
+                    Open
+                    <ArrowRight
+                      className="size-4 transition-transform duration-150 group-hover:translate-x-0.5"
                       aria-hidden="true"
                     />
                   </span>
-                  <span className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
-                    {tool.kicker}
-                  </span>
                 </span>
-                <span className="mt-2.5 text-[17px] font-bold tracking-tight">
-                  {tool.title}
-                </span>
-                <span className="mt-1.5 text-pretty text-[13px] leading-relaxed text-muted-foreground">
-                  {tool.blurb}
-                </span>
-                {/* The affordance row — pinned to the card's floor so
-                    all four cards align, the orange spent once. */}
-                <span className="mt-auto inline-flex items-center gap-1.5 pt-3 text-[13.5px] font-semibold text-signal">
-                  Open
-                  <ArrowRight
-                    className="size-4 transition-transform duration-150 group-hover:translate-x-0.5"
-                    aria-hidden="true"
-                  />
-                </span>
-              </span>
-            </button>
-          </li>
-        ))}
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

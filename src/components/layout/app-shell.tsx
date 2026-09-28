@@ -44,6 +44,7 @@ import { SegmentList } from "@/components/gpx/segment-list";
 import { ValidationReport } from "@/components/gpx/validation-report";
 import { RecoveryStudio } from "@/components/recovery/recovery-studio";
 import { CreateStudio } from "@/components/create/create-studio";
+import { MergeStudio } from "@/components/merge/merge-studio";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import { FileTimingCard } from "@/components/reconstruction/file-timing-card";
 import { GapList } from "@/components/reconstruction/gap-list";
@@ -60,6 +61,7 @@ import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { useUiStore, type AppSection } from "@/state/ui-store";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { useCreateStore } from "@/state/create-store";
+import { useMergeStore } from "@/state/merge-store";
 import { loadRecoveryFile } from "@/hooks/use-recovery-session";
 import { cn } from "@/lib/utils";
 
@@ -104,12 +106,19 @@ export function AppShell() {
   const createPhase = useCreateStore((s) => s.phase);
   const createStats = useCreateStore((s) => s.stats);
   const createView = useCreateStore((s) => s.view);
+  const mergePhase = useMergeStore((s) => s.phase);
+  const mergeCombinedName = useMergeStore((s) => s.combinedName);
+  const mergeParsedCount = useMergeStore((s) =>
+    s.files.filter((file) => file.status === "parsed").length,
+  );
   const section: AppSection =
-    createPhase !== "form"
-      ? "create"
-      : recoveryStatus === "loading" || recoveryStatus === "parsed"
-        ? "recovery"
-        : "repair";
+    mergePhase === "studio"
+      ? "merge"
+      : createPhase !== "form"
+        ? "create"
+        : recoveryStatus === "loading" || recoveryStatus === "parsed"
+          ? "recovery"
+          : "repair";
 
   // Rehydrate persisted settings after mount — the prerendered HTML and
   // the first client render both use defaults, so there is no hydration
@@ -134,12 +143,15 @@ export function AppShell() {
             ? recoveryFileName
             : section === "create"
               ? "Activity from stats"
-              : session.fileName
+              : section === "merge"
+                ? mergeCombinedName.trim() ||
+                  `${mergeParsedCount} recordings merged`
+                : session.fileName
         }
         status={
           section === "recovery"
             ? recoveryStatus
-            : section === "create"
+            : section === "create" || section === "merge"
               ? "parsed"
               : session.status
         }
@@ -148,12 +160,18 @@ export function AppShell() {
             ? () => useRecoveryStore.getState().reset()
             : section === "create"
               ? () => useCreateStore.getState().reset()
-              : session.reset
+              : section === "merge"
+                ? () => useMergeStore.getState().reset()
+                : session.reset
         }
         view={session.view}
         onSwitchView={session.setView}
         section={section}
-        resetLabel={section === "create" ? "Start over" : undefined}
+        resetLabel={
+          section === "create" || section === "merge"
+            ? "Start over"
+            : undefined
+        }
         /*
          * The create section's Share flow: the header button appears
          * in the review phase (a finishable route exists) and opens the
@@ -186,6 +204,15 @@ export function AppShell() {
            * studio below keeps whatever file and repairs it already had.
            */
           <CreateStudio />
+        ) : section === "merge" ? (
+          /*
+           * Task 43 — the Merge section: two or more files combined
+           * into one route, arranged in the studio. Own store, own map;
+           * the other sections keep whatever state they already had.
+           * Its uploads happen on the landing's merge tool page (the
+           * multi-file intake); the header's reset clears back there.
+           */
+          <MergeStudio />
         ) : section === "recovery" ? (
           /*
            * Task 26 — the Gap Recovery section: a separate workflow for
@@ -320,7 +347,16 @@ export function AppShell() {
              error along with the destination, so a stale failure never
              guards the wrong intake. */
           <SessionIdleView
-            error={landingMode === "recovery" ? recoveryError : session.error}
+            /* Merge load failures are per-file INSIDE the intake (one
+             * bad file never blocks the rest) — never a session-level
+             * alert above the hero. */
+            error={
+              landingMode === "recovery"
+                ? recoveryError
+                : landingMode === "merge"
+                  ? null
+                  : session.error
+            }
             onFile={
               landingMode === "recovery" ? loadRecoveryFile : session.loadFile
             }

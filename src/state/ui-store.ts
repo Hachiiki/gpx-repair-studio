@@ -63,13 +63,14 @@ export const UI_SETTINGS_STORAGE_KEY = "gpx-repair-studio.settings.v1";
  * section — a separate, self-contained workflow for recovering a missing
  * GPS section from an activity whose elapsed time continued while
  * coordinates were missing; "create" is the Create-from-stats section —
- * a watch that recorded the statistics but no GPS at all. Derived, never
- * stored: each section is "active" exactly while its own session holds
- * the stage, so the sections keep fully independent sessions (there is
- * no switcher — the landing-page cards are the only front door, Task
- * 26/42 revisions).
+ * a watch that recorded the statistics but no GPS at all; "merge" is
+ * the Merge section (Task 43) — two or more GPX files combined into one
+ * route, arranged and exported. Derived, never stored: each section is
+ * "active" exactly while its own session holds the stage, so the
+ * sections keep fully independent sessions (there is no switcher — the
+ * landing-page cards are the only front door, Task 26/42 revisions).
  */
-export type AppSection = "repair" | "recovery" | "create";
+export type AppSection = "repair" | "recovery" | "create" | "merge";
 
 /**
  * The landing's page (Task 42): "home" shows the tool cards; "tool"
@@ -81,13 +82,14 @@ export type LandingView = "home" | "tool";
 /**
  * The landing page's selected tool (Task 20 + Task 26 revision): what
  * the next upload opens into — the repair workspace, the share-card
- * view, or the Gap Recovery section. Persisted as the remembered
- * intent; "recovery" and "create" values written by newer builds read
- * back fine, and older persisted "repair"/"share" values remain
- * valid. Task 42: opening a tool card writes this mode, so the
- * remembered intent and the open tool page can never drift apart.
+ * view, the Gap Recovery section, or the Create-from-stats section.
+ * Persisted as the remembered intent; "recovery", "create", and
+ * "merge" values written by newer builds read back fine, and older
+ * persisted "repair"/"share" values remain valid. Task 42: opening a
+ * tool card writes this mode, so the remembered intent and the open
+ * tool page can never drift apart.
  */
-export type LandingMode = SessionView | "recovery" | "create";
+export type LandingMode = SessionView | "recovery" | "create" | "merge";
 
 interface UiState {
   gapThresholds: GapThresholds;
