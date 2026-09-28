@@ -537,3 +537,142 @@ describe("DrawEditorPanel — the pen group (user pass 48: curve is a pen)", () 
     expect(screen.queryByTestId("pen-curve-hint")).toBeNull();
   });
 });
+
+describe("DrawEditorPanel — the editor reveal scroll (user pass 49)", () => {
+  // The reveal scroll runs inside a rAF (it must land after the gap-row
+  // selection scroll of the same effect flush); run frames synchronously
+  // so the assertions see the final state without real timers.
+  beforeEach(() => {
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      (cb: FrameRequestCallback) => {
+        cb(performance.now());
+        return 0;
+      },
+    );
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** A second detected gap — switching editors re-reveals the panel. */
+  const OTHER_GAP: GapRow = {
+    ...GAP_ROW,
+    id: "gap/t0s0:5/t0s0:6" as GapId,
+  };
+
+  function makeColumn(overrides: Partial<Record<string, unknown>> = {}) {
+    return {
+      scrollHeight: 2000,
+      clientHeight: 800,
+      scrollTop: 1200,
+      getBoundingClientRect: () => ({ top: 100 }),
+      scrollTo: vi.fn(),
+      ...overrides,
+    } as unknown as HTMLElement;
+  }
+
+  it("scrolls the tools column to the panel when the editor opens on another gap", () => {
+    const column = makeColumn();
+    const { rerender } = render(
+      <DrawEditorPanel draw={makeBinding()} />,
+    );
+    const card = screen.getByTestId("draw-editor-panel");
+    // The panel sits 600 px above the column's visible top (the repair
+    // studio's case: it inserts above the user's scroll position).
+    vi.spyOn(card, "closest").mockReturnValue(column);
+    vi.spyOn(card, "getBoundingClientRect").mockReturnValue({
+      top: -500,
+    } as DOMRect);
+
+    rerender(
+      <DrawEditorPanel draw={makeBinding({ activeGap: OTHER_GAP })} />,
+    );
+    // delta = -500 - 100 → top = 1200 - 600 = 600.
+    expect(column.scrollTo).toHaveBeenCalledWith({
+      top: 600,
+      behavior: "smooth",
+    });
+  });
+
+  it("brings a below-the-fold panel up the same way (the recovery case)", () => {
+    const column = makeColumn();
+    const { rerender } = render(
+      <DrawEditorPanel draw={makeBinding()} />,
+    );
+    const card = screen.getByTestId("draw-editor-panel");
+    vi.spyOn(card, "closest").mockReturnValue(column);
+    vi.spyOn(card, "getBoundingClientRect").mockReturnValue({
+      top: 1500,
+    } as DOMRect);
+
+    rerender(
+      <DrawEditorPanel draw={makeBinding({ activeGap: OTHER_GAP })} />,
+    );
+    // delta = 1500 - 100 → top = 1200 + 1400 = 2600.
+    expect(column.scrollTo).toHaveBeenCalledWith({
+      top: 2600,
+      behavior: "smooth",
+    });
+  });
+
+  it("never scrolls when the column fits its content (mobile / short columns)", () => {
+    const column = makeColumn({ scrollHeight: 800, clientHeight: 800 });
+    const { rerender } = render(
+      <DrawEditorPanel draw={makeBinding()} />,
+    );
+    const card = screen.getByTestId("draw-editor-panel");
+    vi.spyOn(card, "closest").mockReturnValue(column);
+    vi.spyOn(card, "getBoundingClientRect").mockReturnValue({
+      top: 100,
+    } as DOMRect);
+
+    rerender(
+      <DrawEditorPanel draw={makeBinding({ activeGap: OTHER_GAP })} />,
+    );
+    expect(column.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("does not re-scroll while drawing on the same gap (vertex churn)", () => {
+    const column = makeColumn();
+    const { rerender } = render(
+      <DrawEditorPanel draw={makeBinding()} />,
+    );
+    const card = screen.getByTestId("draw-editor-panel");
+    vi.spyOn(card, "closest").mockReturnValue(column);
+    vi.spyOn(card, "getBoundingClientRect").mockReturnValue({
+      top: -500,
+    } as DOMRect);
+    rerender(
+      <DrawEditorPanel draw={makeBinding({ activeGap: OTHER_GAP })} />,
+    );
+    expect(column.scrollTo).toHaveBeenCalledTimes(1);
+
+    // Same gap, more vertices — the reveal scroll must stay silent.
+    rerender(
+      <DrawEditorPanel
+        draw={makeBinding({
+          activeGap: OTHER_GAP,
+          vertexCount: 4,
+          vertices: [
+            { id: vertexId(1), lat: 52.5205, lon: 13.4055 },
+            { id: vertexId(2), lat: 52.521, lon: 13.406 },
+            { id: vertexId(3), lat: 52.5215, lon: 13.4065 },
+            { id: vertexId(4), lat: 52.522, lon: 13.407 },
+          ],
+        })}
+      />,
+    );
+    expect(column.scrollTo).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a no-op outside a tools column (bare mounts never page-scroll)", () => {
+    const { rerender } = render(
+      <DrawEditorPanel draw={makeBinding()} />,
+    );
+    // No closest() mock: the bare RTL tree has no tools-panel ancestor.
+    rerender(
+      <DrawEditorPanel draw={makeBinding({ activeGap: OTHER_GAP })} />,
+    );
+    expect(screen.getByTestId("draw-editor-panel")).toBeInTheDocument();
+  });
+});

@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "SHIP\n\n**Reasons:**\n1.  **Visibility:** The \"Reconstruct route\" editor card is clearly visible in the right column.\n2.  **Component Presence:** The 'Pen' chip group (containing \"Default pen\" and \"Curve pen\") is fully in view near the top of the card.\n3.  **Component Presence:** The 'Between points, follow' chip group (containing \"Roads\", \"Footpaths\", and \"Straight lines\") is also fully in view immediately below the Pen group.\n4.  **State:** The UI correctly reflects the \"Drawing\" state initiated by clicking 'Draw route', with all relevant editing tools accessible and unobstructed.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790594041,
+  "id": "202609281913577ff742597d834ec8",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "202609281913577ff742597d834ec8",
+  "usage": {
+    "completion_tokens": 143,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1780,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1923
+  }
+}

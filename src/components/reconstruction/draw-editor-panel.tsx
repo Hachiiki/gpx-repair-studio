@@ -15,6 +15,7 @@
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useEffect, useRef } from "react";
 import {
   Card,
   CardAction,
@@ -153,6 +154,55 @@ export function DrawEditorPanel({
   /** Phase 6: the active gap's elevation controls (null → hidden). */
   elevation?: ElevationControlsBinding | null;
 }) {
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const gapId = draw.activeGap?.id ?? null;
+
+  /*
+   * User pass 49 — the editor must be SEEN when it opens. In the repair
+   * studio the panel inserts at the TOP of the tools column (above the
+   * gap list the "Reconstruct" click lives in), which left the Pen and
+   * path chips off-screen above the column's scroll position; in the
+   * recovery studio it opened below the fold. When the editor opens or
+   * switches to another gap, scroll the tools column to the panel's top
+   * so the Pen group leads the view.
+   *
+   * The scroll targets the COLUMN only — at lg+ it is its own scroll
+   * container (the sticky aside), so the map never moves out from under
+   * the user's pointer. On smaller viewports the column doesn't scroll
+   * (scrollHeight ≈ clientHeight) and nothing happens. Keyed on the gap
+   * identity alone: drawing (vertex churn) never re-scrolls — the same
+   * discipline the GapList row selection follows.
+   *
+   * The scroll is deferred one rAF: opening an editor also SELECTS the
+   * gap, and the GapList row's selection effect scrolls itself into
+   * view ("nearest") in this same effect flush. Both want the column,
+   * and the editor is the destination the user asked for — so this
+   * scroll goes last (still before the next paint: no visible flicker).
+   */
+  useEffect(() => {
+    if (!gapId) return;
+    let cancelled = false;
+    const frame = requestAnimationFrame(() => {
+      if (cancelled) return;
+      const el = cardRef.current;
+      if (!el) return;
+      const column = el.closest<HTMLElement>('[data-testid$="tools-panel"]');
+      if (!column) return;
+      if (column.scrollHeight <= column.clientHeight + 1) return;
+      if (typeof column.scrollTo !== "function") return;
+      const delta =
+        el.getBoundingClientRect().top - column.getBoundingClientRect().top;
+      column.scrollTo({
+        top: Math.max(0, column.scrollTop + delta),
+        behavior: "smooth",
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
+  }, [gapId]);
+
   if (!draw.active || !draw.activeGap) return null;
   const gap = draw.activeGap;
   const isManual = gap.kind === "manual" || gap.kind === "manual-insert";
@@ -161,6 +211,7 @@ export function DrawEditorPanel({
 
   return (
     <Card
+      ref={cardRef}
       className="border-[1.5px] border-ink"
       data-testid="draw-editor-panel"
     >

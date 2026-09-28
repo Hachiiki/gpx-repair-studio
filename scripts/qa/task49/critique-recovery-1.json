@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "SHIP\n\n**Reasons:**\n1.  **Full Visibility:** The 'Reconstruct route' editor card is fully visible in the right column. \n2.  **UI Elements Present:** Both the **'Pen'** chip group (containing \"Default pen\" and \"Curve pen\") and the **'Between points, follow'** chip group (containing \"Roads\", \"Footpaths\", and \"Straight lines\") are completely in view.\n3.  **No Cut-off:** None of the requested elements are cut off by the bottom fold of the viewport; the card continues below these groups with additional settings like \"Timestamps for this repair\" and \"Elevation\".",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790594052,
+  "id": "20260928191409486ed2c52416484c",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260928191409486ed2c52416484c",
+  "usage": {
+    "completion_tokens": 140,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1781,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1921
+  }
+}

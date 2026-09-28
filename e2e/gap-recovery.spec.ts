@@ -158,6 +158,12 @@ test.describe("Gap Recovery section", () => {
     // -- draw the missing route -----------------------------------------------
     await page.getByTestId("open-editor-button").first().click();
     await pollBridge(page, (s) => s.drawSession !== null && s.drawSession.drawMode);
+    // User pass 49 — the editor reveals itself: the tools column scrolls
+    // to the panel (the Pen group leads the view) instead of leaving the
+    // chips below the fold under the guide/manual/gap cards.
+    await expect(page.getByTestId("pen-mode-group")).toBeInViewport({
+      ratio: 1,
+    });
     await page.getByTestId("snap-toggle").click();
     const box = await canvasBox(page);
     await clickAt(page, DRAW_POINTS[0].lat, DRAW_POINTS[0].lon, box);
@@ -236,6 +242,10 @@ test.describe("Gap Recovery section", () => {
     // Recover the section, then export.
     await page.getByTestId("open-editor-button").first().click();
     await pollBridge(page, (s) => s.drawSession !== null && s.drawSession.drawMode);
+    // User pass 49 — same reveal contract as the first pass.
+    await expect(page.getByTestId("pen-mode-group")).toBeInViewport({
+      ratio: 1,
+    });
     await page.getByTestId("snap-toggle").click();
     const box = await canvasBox(page);
     await clickAt(page, DRAW_POINTS[0].lat, DRAW_POINTS[0].lon, box);

@@ -117,10 +117,22 @@ async function project(page: Page, lat: number, lon: number) {
 /** Open the draw editor for the (single) detected gap and settle. */
 async function openEditor(page: Page): Promise<BridgeState> {
   await page.getByTestId("open-editor-button").first().click();
-  return pollBridge(
+  const state = await pollBridge(
     page,
     (s) => s.drawSession !== null && s.drawSession.drawMode === true,
   );
+  // User pass 49 — the editor must be SEEN when it opens: the panel
+  // scrolls the tools column to its top (the Pen group leading the
+  // view), winning the same-flush gap-row selection scroll. The
+  // desktop-column contract only (lg+); on mobile the panel simply
+  // renders below the map in the single column. The smooth scroll
+  // settles inside the matcher's polling window.
+  if ((page.viewportSize()?.width ?? 0) >= 1024) {
+    await expect(page.getByTestId("pen-mode-group")).toBeInViewport({
+      ratio: 1,
+    });
+  }
+  return state;
 }
 
 /** Click a geographic position on the canvas (synthetic pointer drawing). */
