@@ -16,6 +16,7 @@
 
 import type { ReactNode } from "react";
 import { ArrowUp, ChevronDown } from "lucide-react";
+import { WorkspaceToolsColumn } from "@/components/layout/workspace-tools-column";
 
 export interface RecoveryWorkspaceProps {
   /** The map area (MapCanvas) — owns its own tall sizing. */
@@ -38,13 +39,13 @@ export function RecoveryWorkspace({ map, tools, details }: RecoveryWorkspaceProp
       >
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="min-w-0 [&>*]:min-w-0">{map}</div>
-          <aside
-            className="grid min-w-0 content-start gap-4 [&>*]:min-w-0 lg:sticky lg:top-[4.75rem] lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1"
-            data-testid="recovery-tools-panel"
-            aria-label="Recovery tools"
+          {/* Phase 8 — sticky column at lg+, bottom sheet on touch. */}
+          <WorkspaceToolsColumn
+            testid="recovery-tools-panel"
+            label="Recovery tools"
           >
             {tools}
-          </aside>
+          </WorkspaceToolsColumn>
         </div>
 
         {/* Scroll cue — hands the user the second section. */}

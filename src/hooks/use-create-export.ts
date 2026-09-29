@@ -36,6 +36,7 @@ import {
 } from "@/hooks/use-create-elevation";
 import { createDomXmlIo } from "@/lib/utils/xml";
 import { downloadTextFile } from "@/lib/utils/download";
+import { announce } from "@/lib/announcements";
 import { useCreateStore } from "@/state/create-store";
 import { useUiStore } from "@/state/ui-store";
 
@@ -114,6 +115,9 @@ export function useCreateExport(): CreateReview | null {
     );
     const fileName = createTrackFileName(stats.startMs);
     downloadTextFile(fileName, xml);
+    // Phase 8: no visual focus moves on a blob download — the
+    // aria-live region speaks it.
+    announce(`Export ready — ${fileName} downloaded.`);
     return fileName;
   }, [stats, track, prettyPrint]);
 

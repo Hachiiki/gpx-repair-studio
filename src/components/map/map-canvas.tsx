@@ -89,7 +89,10 @@ export function MapCanvas({ map, attachContainer, draw = null, srNote }: MapCanv
     >
       <div
         ref={attachContainer}
-        className="relative h-[65dvh] min-h-[420px] w-full bg-muted/40 lg:h-[calc(100dvh-11.875rem)] lg:min-h-[540px]"
+        /* Phase 8 — the mobile map and the collapsed tools sheet tile
+         * the viewport at top scroll (header + map + sheet peek); the
+         * sheet floats over whatever the scroll position brings. */
+        className="relative h-[calc(100dvh-19.5rem)] min-h-[380px] w-full bg-muted/40 lg:h-[calc(100dvh-11.875rem)] lg:min-h-[540px]"
         role="application"
         aria-label="Interactive map of the recorded route and its gaps"
       >

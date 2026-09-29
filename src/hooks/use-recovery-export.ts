@@ -33,6 +33,7 @@ import {
 } from "@/features/gpx/exportGpx";
 import { createDomXmlIo } from "@/lib/utils/xml";
 import { downloadTextFile, repairedFileName } from "@/lib/utils/download";
+import { announce } from "@/lib/announcements";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { useUiStore } from "@/state/ui-store";
 import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
@@ -192,6 +193,9 @@ export function useRecoveryExport(
     );
     const fileName = repairedFileName(session.fileName ?? "activity.gpx");
     downloadTextFile(fileName, xml);
+    // Phase 8: the download handed the browser a blob — no visual
+    // focus moves, so the aria-live region speaks it.
+    announce(`Export ready — ${fileName} downloaded.`);
     return fileName;
   }, [data, merge, exportMode, prettyPrint, session.fileName]);
 

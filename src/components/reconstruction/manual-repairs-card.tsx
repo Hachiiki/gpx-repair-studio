@@ -106,7 +106,7 @@ function ManualSpanRow({
         <button
           type="button"
           data-testid="open-editor-button-manual"
-          className="flex w-fit items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12.5px] font-bold text-signal hover:bg-signal/10 hover:underline hover:underline-offset-[3px] focus-visible:outline-2"
+          className="flex w-fit items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12.5px] font-bold text-signal-ink hover:bg-signal/10 hover:underline hover:underline-offset-[3px] focus-visible:outline-2"
           onClick={() => onOpenEditor(row.id)}
         >
           <PenLine className="size-3.5" aria-hidden="true" />

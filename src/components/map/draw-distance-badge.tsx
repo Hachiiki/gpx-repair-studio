@@ -48,7 +48,7 @@ export function DrawDistanceBadge({
       >
         {vertexCount}/{maxVertices} pts
       </p>
-      <p className="text-center text-[10px] leading-snug text-ink/55">
+      <p className="text-center text-[10px] leading-snug text-ink/70">
         road length, not straight line
       </p>
     </div>

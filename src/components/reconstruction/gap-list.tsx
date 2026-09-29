@@ -49,7 +49,7 @@ function BoundaryLine({
       <span className="font-semibold text-ink">{role}</span>{" "}
       {point.time !== undefined ? formatDateTime(point.time) : "no time"} ·{" "}
       <span className="font-mono text-[10.5px]">{formatLatLon(point.lat, point.lon)}</span>{" "}
-      <span className="font-mono text-[10.5px] text-ink/55">({point.pointId})</span>
+      <span className="font-mono text-[10.5px] text-ink/70">({point.pointId})</span>
     </p>
   );
 }
@@ -137,7 +137,7 @@ function GapRowItem({
         <button
           type="button"
           data-testid="open-editor-button"
-          className="flex w-fit items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12.5px] font-bold text-signal hover:bg-signal/10 hover:underline hover:underline-offset-[3px] focus-visible:outline-2"
+          className="flex w-fit items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12.5px] font-bold text-signal-ink hover:bg-signal/10 hover:underline hover:underline-offset-[3px] focus-visible:outline-2"
           onClick={() => onOpenEditor(row.id)}
         >
           <PenLine className="size-3.5" aria-hidden="true" />
@@ -220,7 +220,7 @@ export function GapList({
               <button
                 type="button"
                 data-testid="empty-list-begin-pick"
-                className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-signal hover:bg-signal/10 focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-50"
+                className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-signal-ink hover:bg-signal/10 focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-50"
                 disabled={editorActive}
                 title={
                   editorActive

@@ -18,6 +18,7 @@
 
 import type { ReactNode } from "react";
 import { ArrowUp, ChevronDown } from "lucide-react";
+import { WorkspaceToolsColumn } from "@/components/layout/workspace-tools-column";
 
 export interface WorkspaceLayoutProps {
   /** The map area (MapCanvas) — owns its own tall sizing. */
@@ -64,20 +65,18 @@ export function WorkspaceLayout({
       >
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="min-w-0 [&>*]:min-w-0">{map}</div>
-          {/*
-           * Sticky tools column: same visual height as the tall map,
-           * scrolling internally only when its cards outgrow it. The
-           * min-w-0 chain keeps wide intrinsic content (tables, long
-           * coordinates) from blowing the column sideways — the same
-           * rule the old PanelGrid enforced.
+          {/**
+           * Phase 8: one component, two tools layouts — the sticky
+           * column at lg+ (the same classes as before), a
+           * viewport-pinned bottom sheet on touch-width viewports
+           * (map and tools on one screen). The min-w-0 chain keeps
+           * wide intrinsic content (tables, long coordinates) from
+           * blowing the column sideways — the same rule the old
+           * PanelGrid enforced.
            */}
-          <aside
-            className="grid min-w-0 content-start gap-4 [&>*]:min-w-0 lg:sticky lg:top-[4.75rem] lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1"
-            data-testid="tools-panel"
-            aria-label={toolsLabel}
-          >
+          <WorkspaceToolsColumn testid="tools-panel" label={toolsLabel}>
             {tools}
-          </aside>
+          </WorkspaceToolsColumn>
         </div>
 
         {/* Scroll cue — hands the user the second section (the Field

@@ -53,12 +53,14 @@ import { ManualRepairsCard } from "@/components/reconstruction/manual-repairs-ca
 import { ElevationProfileChart } from "@/components/statistics/elevation-profile-chart";
 import { StatsPanel } from "@/components/statistics/stats-panel";
 import { useDrawEditor } from "@/hooks/use-draw-editor";
+import { useRepairAnnouncements } from "@/hooks/use-repair-announcements";
 import { useElevation, useElevationStats } from "@/hooks/use-elevation";
 import { useGpxExport } from "@/hooks/use-gpx-export";
 import { useGpxSession } from "@/hooks/use-gpx-session";
 import { useMapController } from "@/hooks/use-map-controller";
 import { useShareCard } from "@/hooks/use-share-card";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
+import { Announcer } from "@/components/layout/announcer";
 import { useUiStore, type AppSection } from "@/state/ui-store";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { useCreateStore } from "@/state/create-store";
@@ -89,6 +91,20 @@ export function AppShell() {
   const setPaceUnit = useUiStore((s) => s.setPaceUnit);
   const landingMode = useUiStore((s) => s.landingMode);
   const landingView = useUiStore((s) => s.landingView);
+
+  /*
+   * Phase 8 — the repair flow's non-visual moments (gaps detected,
+   * reconstruction finished) spoken through the shell's single
+   * aria-live region. The export-ready twin lives inside the export
+   * hooks themselves (each download function announces its own file).
+   */
+  useRepairAnnouncements({
+    status: session.status,
+    fileName: session.fileName,
+    data: session.data,
+    gapCount: session.gapRows.length,
+    statusById: draw.statusById,
+  });
 
   // Task 26 revision — the active section is DERIVED, not switched: the
   // Gap Recovery section is mounted exactly while its own session is
@@ -142,6 +158,9 @@ export function AppShell() {
       >
         Skip to content
       </a>
+
+      {/* Phase 8 — the single polite aria-live region (app-wide). */}
+      <Announcer />
 
       <AppHeader
         fileName={

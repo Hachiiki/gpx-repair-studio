@@ -227,7 +227,7 @@ export function LandingCardsView({
                   </span>
                   {/* The affordance row — pinned to the card's floor so
                       all the cards align, the orange spent once. */}
-                  <span className="mt-auto inline-flex items-center gap-1.5 pt-3 text-[13.5px] font-semibold text-signal">
+                  <span className="mt-auto inline-flex items-center gap-1.5 pt-3 text-[13.5px] font-semibold text-signal-ink">
                     Open
                     <ArrowRight
                       className="size-4 transition-transform duration-150 group-hover:translate-x-0.5"

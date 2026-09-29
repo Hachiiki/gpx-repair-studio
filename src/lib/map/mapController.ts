@@ -53,6 +53,7 @@ import {
   haversineDistanceMeters,
   interpolateLatLon,
 } from "@/lib/geo/geodesy";
+import { announce } from "@/lib/announcements";
 import type {
   LatLon,
   PenMode,
@@ -121,6 +122,15 @@ export interface MapTestState {
   drawSession: DrawSessionTestState | null;
   /** The active span-pick session (null when not picking). */
   pickSession: { active: boolean; mode: "anchor" | "pair"; hasAnchor: boolean } | null;
+  /** Phase 8 touch-gesture snapshot (null state on desktop/mouse). */
+  touch: {
+    /** Coarse-pointer device detected — hit targets are enlarged. */
+    touchInput: boolean;
+    /** The single-finger gesture the controller currently owns. */
+    gesture: "stroke" | "handle" | "press" | null;
+    /** A two-finger navigation gesture is in charge (pan/zoom). */
+    navActive: boolean;
+  };
 }
 
 /** Draw-session snapshot for E2E synthetic-pointer drawing assertions. */
@@ -286,6 +296,71 @@ const HANDLE_STROKE_PAINT_MOVE = [
 /** Handle hit-target radius — normal vs Move mode (bigger = easier grab). */
 const HANDLE_HIT_RADIUS = 12;
 const HANDLE_HIT_RADIUS_MOVE = 20;
+
+/*
+ * Phase 8 — touch targets. MapLibre GL v6 routes touch through its
+ * own touchstart/touchmove/touchend handlers and never fires the
+ * mousedown/mousemove/mouseup the draw session listens to, so on a
+ * real phone the Curve pen, Move-mode handle drags, and the
+ * two-finger pan needed dedicated handling (see #bindTouchLayer).
+ * Coarse pointers also get the plan's ≥44 px hit targets: handles,
+ * midpoints, boundary markers, gap spans, picks, and the snap magnet
+ * all grow (visual handles grow a touch too, so the grab area is
+ * honest — an invisible 44 px target around a 5 px dot is a trap).
+ */
+const TOUCH_HANDLE_HIT_RADIUS = 22;
+const TOUCH_HANDLE_HIT_RADIUS_MOVE = 24;
+const TOUCH_MIDPOINT_HIT_RADIUS = 22;
+const TOUCH_MARKER_HIT_RADIUS = 22;
+const TOUCH_SPAN_HIT_WIDTH = 24;
+const TOUCH_PICK_RADIUS_PX = 22;
+const TOUCH_SNAP_RADIUS_PX = 20;
+
+/** Touch handle paint — visibly bigger dots, hover-grown like the
+ * mouse variant (same expression shape as HANDLE_RADIUS_PAINT). */
+const TOUCH_HANDLE_RADIUS_PAINT = [
+  "interpolate",
+  ["linear"],
+  ["feature-state", "hover"],
+  0,
+  7,
+  1,
+  10,
+];
+const TOUCH_HANDLE_STROKE_PAINT = [
+  "interpolate",
+  ["linear"],
+  ["feature-state", "hover"],
+  0,
+  3,
+  1,
+  4,
+];
+/** Move mode on touch: the grab-me emphasis, scaled up. */
+const TOUCH_HANDLE_RADIUS_PAINT_MOVE = [
+  "interpolate",
+  ["linear"],
+  ["feature-state", "hover"],
+  0,
+  10,
+  1,
+  13,
+];
+const TOUCH_HANDLE_STROKE_PAINT_MOVE = [
+  "interpolate",
+  ["linear"],
+  ["feature-state", "hover"],
+  0,
+  4,
+  1,
+  5,
+];
+
+/** How long a stationary press holds before the long-press action
+ * (touch's contextual delete — the dblclick twin) fires. */
+const LONG_PRESS_MS = 480;
+/** Pointer travel (px) that cancels a long-press (it became a drag). */
+const LONG_PRESS_CANCEL_PX = 8;
 
 /** Minimum pointer travel (px) before a handle press counts as a drag. */
 const DRAG_THRESHOLD_PX = 3;
@@ -454,6 +529,35 @@ interface HandleDrag {
   moved: boolean;
 }
 
+/**
+ * A single-finger touch gesture the controller owns (Phase 8).
+ *
+ *   - "stroke"  — Curve pen freehand draw (the touch twin of the
+ *                 mouse mousedown→mousemove→mouseup capture);
+ *   - "handle"  — Move-mode vertex drag (the touch twin of the
+ *                 draft-handle mouse drag);
+ *   - "press"   — a Default-pen press we don't intercept (the
+ *                 browser's synthesized click places the point),
+ *                 tracked only for its long-press candidate.
+ *
+ * The gesture carries the long-press timer whenever the press
+ * started on a vertex handle in draw mode — long-press is touch's
+ * contextual delete, the twin of dblclick.
+ */
+interface TouchGesture {
+  kind: "stroke" | "handle" | "press";
+  identifier: number;
+  startXY: { x: number; y: number };
+  /** The finger's latest position (the tap commits here). */
+  lastXY: { x: number; y: number };
+  /** Total travel from startXY — cancels the long-press past 8 px. */
+  movedPx: number;
+  longPressTimer: number | null;
+  longPressVertex: VertexId | null;
+  /** The dragged vertex (kind "handle" only). */
+  handleVertex: VertexId | null;
+}
+
 declare global {
   interface Window {
     /** Test bridge — attached outside production builds only. */
@@ -521,6 +625,34 @@ export class MapController {
   // Span-pick session (manual repair spans)
   #pickSession: PickSession | null = null;
 
+  /*
+   * Phase 8 — the touch gesture layer. MapLibre GL v6 keeps touch
+   * strictly separate from mouse (its handler manager routes
+   * touchstart/touchmove/touchend through TouchPan/TwoFingersZoom
+   * handlers and only ever fires the map's mousedown/mousemove/
+   * mouseup for real MouseEvent instances), so the draw session's
+   * mouse wiring is invisible to a finger. The layer below owns the
+   * single-finger drawing gestures, hands two-finger gestures to
+   * MapLibre's navigation handlers, and enlarges hit targets on
+   * coarse-pointer devices.
+   */
+  #touchInput = false;
+  #touchGesture: TouchGesture | null = null;
+  /** True while a two-finger gesture navigates (pan/pinch owns the map). */
+  #touchNavActive = false;
+  /** Capture-phase DOM listeners (bound once per controller). */
+  #touchDetachers: (() => void)[] = [];
+  /**
+   * Every touch identifier currently on the canvas, maintained from
+   * changedTouches/touches across events — the multi-touch decision
+   * cannot read `e.touches.length` alone: some pipelines (CDP's
+   * dispatchTouchEvent among them) report only the CHANGED touch in
+   * `touches` when a finger joins an ongoing gesture, while the DOM
+   * contract promises all active ones. Counting identifiers is the
+   * environment-proof view of "how many fingers are down".
+   */
+  #activeTouchIds = new Set<number>();
+
   constructor(options: {
     container: HTMLElement;
     provider: TileProviderId;
@@ -582,6 +714,8 @@ export class MapController {
     this.#pendingStyle = true;
     this.#observeResize();
     this.#attachTestBridge();
+    this.#detectTouchInput();
+    this.#bindTouchLayer();
 
     this.#subscriptions.push(
       map.on("style.load", () => this.#onStyleLoad()),
@@ -710,6 +844,10 @@ export class MapController {
     this.#destroyed = true;
     this.#detachPickEscListener(this.#pickSession);
     this.#pickSession = null;
+    this.#cancelTouchGesture();
+    this.#touchNavActive = false;
+    for (const detach of this.#touchDetachers) detach();
+    this.#touchDetachers = [];
     for (const subscription of this.#subscriptions) {
       try {
         subscription.unsubscribe();
@@ -834,6 +972,7 @@ export class MapController {
     this.#stroke = null;
     this.#drawDownXY = null;
     this.#cursor = null;
+    this.#cancelTouchGesture();
     if (this.#pointerMode !== "pan") this.#setPointerModeInternal("pan");
     if (!this.#ready) return;
     const map = this.#map;
@@ -1031,16 +1170,17 @@ export class MapController {
     const session = this.#pickSession;
     if (!map || !session) return null;
     let best: PickTarget | null = null;
-    let bestDistance = PICK_RADIUS_PX;
+    const pickRadius = this.#touchInput ? TOUCH_PICK_RADIUS_PX : PICK_RADIUS_PX;
+    let bestDistance = pickRadius;
     let bestEnd: PickTarget | null = null;
-    let bestEndDistance = PICK_RADIUS_PX;
+    let bestEndDistance = pickRadius;
     for (const target of session.options.targets) {
       const projected = map.project([target.lon, target.lat]);
       const distance = Math.hypot(
         projected.x - point.x,
         projected.y - point.y,
       );
-      if (distance > PICK_RADIUS_PX) continue;
+      if (distance > pickRadius) continue;
       if (target.isSegmentEnd) {
         if (distance < bestEndDistance) {
           bestEnd = target;
@@ -1102,9 +1242,29 @@ export class MapController {
     const map = this.#map;
     if (!map || !this.#ready) return;
     const emphasized = this.#pointerMode === "move";
-    const radius = (emphasized ? HANDLE_RADIUS_PAINT_MOVE : HANDLE_RADIUS_PAINT) as never;
-    const stroke = (emphasized ? HANDLE_STROKE_PAINT_MOVE : HANDLE_STROKE_PAINT) as never;
-    const hitRadius = emphasized ? HANDLE_HIT_RADIUS_MOVE : HANDLE_HIT_RADIUS;
+    // Phase 8: coarse pointers draw bigger handles and carry the
+    // ≥44 px hit targets (the grab area stays honest).
+    const radius = (this.#touchInput
+      ? emphasized
+        ? TOUCH_HANDLE_RADIUS_PAINT_MOVE
+        : TOUCH_HANDLE_RADIUS_PAINT
+      : emphasized
+        ? HANDLE_RADIUS_PAINT_MOVE
+        : HANDLE_RADIUS_PAINT) as never;
+    const stroke = (this.#touchInput
+      ? emphasized
+        ? TOUCH_HANDLE_STROKE_PAINT_MOVE
+        : TOUCH_HANDLE_STROKE_PAINT
+      : emphasized
+        ? HANDLE_STROKE_PAINT_MOVE
+        : HANDLE_STROKE_PAINT) as never;
+    const hitRadius = this.#touchInput
+      ? emphasized
+        ? TOUCH_HANDLE_HIT_RADIUS_MOVE
+        : TOUCH_HANDLE_HIT_RADIUS
+      : emphasized
+        ? HANDLE_HIT_RADIUS_MOVE
+        : HANDLE_HIT_RADIUS;
     try {
       map.setPaintProperty(LAYER.draftHandle, "circle-radius", radius);
       map.setPaintProperty(LAYER.draftHandle, "circle-stroke-width", stroke);
@@ -1170,6 +1330,11 @@ export class MapController {
             hasAnchor: this.#pickSession.anchor !== null,
           }
         : null,
+      touch: {
+        touchInput: this.#touchInput,
+        gesture: this.#touchGesture?.kind ?? null,
+        navActive: this.#touchNavActive,
+      },
     };
   }
 
@@ -1391,19 +1556,28 @@ export class MapController {
       },
     });
 
-    // Transparent hit targets (wider geometry for clicks and hover).
+    // Transparent hit targets (wider geometry for clicks and hover;
+    // Phase 8: coarse pointers get ≥44 px targets).
     map.addLayer({
       id: LAYER.spanHit,
       type: "line",
       source: SOURCE.spans,
       layout: { "line-join": "round", "line-cap": "round" },
-      paint: { "line-opacity": 0, "line-width": 18 },
+      paint: {
+        "line-opacity": 0,
+        "line-width": this.#touchInput ? TOUCH_SPAN_HIT_WIDTH : 18,
+      },
     });
     map.addLayer({
       id: LAYER.markerHit,
       type: "circle",
       source: SOURCE.markers,
-      paint: { "circle-opacity": 0, "circle-radius": 16 },
+      paint: {
+        "circle-opacity": 0,
+        "circle-radius": this.#touchInput
+          ? TOUCH_MARKER_HIT_RADIUS
+          : 16,
+      },
     });
 
     // -- Phase 4: reconstruction + draw-session layers ---------------------
@@ -1519,16 +1693,21 @@ export class MapController {
     // Vertex handles — white fill, signal stroke. Radius/stroke grow on
     // hover (feature-state driven): the point visibly "picks itself up",
     // teaching draggability without a single word. (The extracted paint
-    // expressions let Move mode swap in its emphasized variant — Task 45.)
+    // expressions let Move mode swap in its emphasized variant — Task 45;
+    // Phase 8 swaps in the touch variant on coarse pointers.)
     map.addLayer({
       id: LAYER.draftHandle,
       type: "circle",
       source: SOURCE.handles,
       paint: {
-        "circle-radius": HANDLE_RADIUS_PAINT as never,
+        "circle-radius": (this.#touchInput
+          ? TOUCH_HANDLE_RADIUS_PAINT
+          : HANDLE_RADIUS_PAINT) as never,
         "circle-color": "#ffffff",
         "circle-stroke-color": RECON_COLOR,
-        "circle-stroke-width": HANDLE_STROKE_PAINT as never,
+        "circle-stroke-width": (this.#touchInput
+          ? TOUCH_HANDLE_STROKE_PAINT
+          : HANDLE_STROKE_PAINT) as never,
       },
     });
 
@@ -1537,13 +1716,23 @@ export class MapController {
       id: LAYER.draftMidpointHit,
       type: "circle",
       source: SOURCE.midpoints,
-      paint: { "circle-opacity": 0, "circle-radius": 12 },
+      paint: {
+        "circle-opacity": 0,
+        "circle-radius": this.#touchInput
+          ? TOUCH_MIDPOINT_HIT_RADIUS
+          : 12,
+      },
     });
     map.addLayer({
       id: LAYER.draftHandleHit,
       type: "circle",
       source: SOURCE.handles,
-      paint: { "circle-opacity": 0, "circle-radius": HANDLE_HIT_RADIUS },
+      paint: {
+        "circle-opacity": 0,
+        "circle-radius": this.#touchInput
+          ? TOUCH_HANDLE_HIT_RADIUS
+          : HANDLE_HIT_RADIUS,
+      },
     });
 
     // Span-pick first anchor — white fill, signal ring (draw-anywhere).
@@ -1647,7 +1836,8 @@ export class MapController {
     const session = this.#drawSession;
     const snap = session?.snap;
     if (!session || !snap) return { ...target };
-    const maxMeters = this.#metersPerPixelAt(point) * SNAP_RADIUS_PX;
+    const radiusPx = this.#touchInput ? TOUCH_SNAP_RADIUS_PX : SNAP_RADIUS_PX;
+    const maxMeters = this.#metersPerPixelAt(point) * radiusPx;
     if (!Number.isFinite(maxMeters)) return { ...target };
     return snap(target, maxMeters) ?? { ...target };
   }
@@ -1805,6 +1995,444 @@ export class MapController {
     session.callbacks.onVertexMove(drag.vertexId, position);
     this.#applyDrawSession();
   }
+
+  // -- touch gesture layer (Phase 8) ----------------------------------------
+  //
+  // MapLibre GL v6 never turns touch into mouse events (its handler
+  // manager checks `instanceof MouseEvent`), so this layer speaks the
+  // DOM touch events directly. The listeners live on the CONTROLLER's
+  // container in the CAPTURE phase: capture on an ancestor runs
+  // before MapLibre's canvas-container listeners, which is exactly
+  // what the two-finger handoff needs — the second finger's
+  // touchstart re-enables the navigation handlers BEFORE MapLibre
+  // processes that same event, so pan/pinch take over seamlessly
+  // mid-gesture (MapLibre's TouchPanHandler only activates on a
+  // touchstart it sees while enabled; re-enabling later in the same
+  // event leaves it inert until the next gesture).
+
+  /** Coarse-pointer detection → the enlarged hit targets. */
+  #detectTouchInput(): void {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return;
+    }
+    try {
+      this.#touchInput = window.matchMedia("(pointer: coarse)").matches;
+    } catch {
+      // ancient engines — mouse-sized targets are the safe default
+    }
+  }
+
+  #bindTouchLayer(): void {
+    const container = this.#container;
+    const options: AddEventListenerOptions = {
+      capture: true,
+      passive: false,
+    };
+    const bind = (
+      type: "touchstart" | "touchmove" | "touchend" | "touchcancel",
+      handler: (e: TouchEvent) => void,
+    ) => {
+      container.addEventListener(type, handler, options);
+      return () =>
+        container.removeEventListener(type, handler, options);
+    };
+    this.#touchDetachers = [
+      bind("touchstart", (e) => this.#onTouchStart(e)),
+      bind("touchmove", (e) => this.#onTouchMove(e)),
+      bind("touchend", (e) => this.#onTouchEnd(e)),
+      bind("touchcancel", (e) => this.#onTouchCancel(e)),
+    ];
+  }
+
+  /** Canvas-relative point of a touch (MapLibre's own coordinate basis). */
+  #touchPoint(touch: Touch): { x: number; y: number } | null {
+    const map = this.#map;
+    if (!map) return null;
+    const rect = map.getCanvas().getBoundingClientRect();
+    return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+  }
+
+  /** The vertex handle under a screen point (hit layer, touch-sized). */
+  #handleAt(point: { x: number; y: number }): VertexId | null {
+    const map = this.#map;
+    if (!map) return null;
+    const hits = map.queryRenderedFeatures([point.x, point.y], {
+      layers: [LAYER.draftHandleHit],
+    });
+    const vertexId = hits[0]?.properties?.vertexId;
+    return typeof vertexId === "string" ? (vertexId as VertexId) : null;
+  }
+
+  #onTouchStart(e: TouchEvent): void {
+    const map = this.#map;
+    if (!map) return;
+    for (const touch of Array.from(e.changedTouches)) {
+      this.#activeTouchIds.add(touch.identifier);
+    }
+    for (const touch of Array.from(e.touches)) {
+      this.#activeTouchIds.add(touch.identifier);
+    }
+
+    // Two fingers = navigation, always (the plan's draw/pan contract:
+    // one finger draws, two fingers travel). Cancel anything a single
+    // finger was doing and hand the gesture to MapLibre's handlers.
+    if (this.#activeTouchIds.size >= 2) {
+      this.#cancelTouchGesture();
+      this.#beginTouchNavigation();
+      return;
+    }
+    if (this.#activeTouchIds.size !== 1 || this.#touchNavActive) return;
+    // Span picking and non-draw contexts keep the classic behavior:
+    // taps synthesize clicks, drags navigate. Nothing to own.
+    const session = this.#drawSession;
+    if (!session || this.#pickSession || this.#pointerMode === "pan") {
+      return;
+    }
+    const touch = e.touches[0] ?? e.changedTouches[0];
+    if (!touch) return;
+    const point = this.#touchPoint(touch);
+    if (!point) return;
+    const handleHit =
+      this.#pointerMode === "move" || this.#drawMode
+        ? this.#handleAt(point)
+        : null;
+
+    // Long-press candidate: a draw-mode press on a handle (touch's
+    // contextual delete — the dblclick twin).
+    let longPressTimer: number | null = null;
+    let longPressVertex: VertexId | null = null;
+    if (this.#drawMode && handleHit) {
+      longPressVertex = handleHit;
+      const vertex = handleHit;
+      longPressTimer = window.setTimeout(() => {
+        this.#fireLongPress(vertex);
+      }, LONG_PRESS_MS);
+    }
+
+    const gesture: TouchGesture = {
+      kind: "press",
+      identifier: touch.identifier,
+      startXY: point,
+      lastXY: point,
+      movedPx: 0,
+      longPressTimer,
+      longPressVertex,
+      handleVertex: null,
+    };
+
+    if (this.#pointerMode === "move" && handleHit) {
+      // Move mode: the finger grabbed a point — drag it (panning is
+      // suspended for the gesture; empty-space drags still pan).
+      e.preventDefault();
+      map.dragPan.disable();
+      gesture.kind = "handle";
+      gesture.handleVertex = handleHit;
+      this.#handleDrag = {
+        vertexId: handleHit,
+        originXY: point,
+        override: null,
+        moved: false,
+      };
+      this.#touchGesture = gesture;
+      return;
+    }
+
+    if (this.#drawMode && this.#penMode === "curve") {
+      // Curve pen: the finger is the pen. preventDefault keeps the
+      // browser from synthesizing click/mouseup after the gesture —
+      // this layer commits (taps included, see #onTouchEnd).
+      e.preventDefault();
+      const lngLat = map.unproject([point.x, point.y]);
+      gesture.kind = "stroke";
+      this.#stroke = {
+        points: [{ lat: lngLat.lat, lon: lngLat.lng }],
+        lastXY: point,
+        totalPx: 0,
+      };
+      // The rubber band would trail behind the stroke — hide it
+      // until the pen lifts (the mouse path's same discipline).
+      this.#cursor = null;
+      if (this.#ready) this.#applyRubberBand();
+      this.#touchGesture = gesture;
+      return;
+    }
+
+    if (this.#drawMode) {
+      // Default pen: the tap is OURS too — browser click synthesis
+      // after touch is not a contract (it depends on preventDefault,
+      // tap disambiguation, and double-tap zoom suppression), so the
+      // layer commits taps itself (see #onTouchEnd). Drags add
+      // nothing, exactly like the mouse path's stray-drag swallow.
+      e.preventDefault();
+      this.#touchGesture = gesture;
+      return;
+    }
+
+    // Move mode on empty space: not ours — the map pans. No gesture.
+  }
+
+  #onTouchMove(e: TouchEvent): void {
+    const gesture = this.#touchGesture;
+    if (!gesture) return;
+    if (this.#touchNavActive) return;
+    const touch = this.#changedTouch(e, gesture.identifier);
+    if (!touch) return;
+    const point = this.#touchPoint(touch);
+    if (!point) return;
+    const map = this.#map;
+    if (!map) return;
+
+    gesture.lastXY = point;
+    const travel = Math.hypot(
+      point.x - gesture.startXY.x,
+      point.y - gesture.startXY.y,
+    );
+    gesture.movedPx = Math.max(gesture.movedPx, travel);
+    // Movement cancels the long-press — it became a drag.
+    if (gesture.movedPx > LONG_PRESS_CANCEL_PX) {
+      this.#clearLongPress(gesture);
+    }
+
+    if (gesture.kind === "stroke") {
+      const stroke = this.#stroke;
+      if (!stroke) return;
+      const step = Math.hypot(
+        point.x - stroke.lastXY.x,
+        point.y - stroke.lastXY.y,
+      );
+      if (step >= STROKE_MIN_STEP_PX) {
+        const lngLat = map.unproject([point.x, point.y]);
+        stroke.points.push({ lat: lngLat.lat, lon: lngLat.lng });
+        stroke.totalPx += step;
+        stroke.lastXY = point;
+        this.#applyStroke();
+      }
+      return;
+    }
+
+    if (gesture.kind === "handle") {
+      const drag = this.#handleDrag;
+      if (!drag) return;
+      const dx = point.x - drag.originXY.x;
+      const dy = point.y - drag.originXY.y;
+      if (drag.moved || Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
+        const lngLat = map.unproject([point.x, point.y]);
+        drag.moved = true;
+        drag.override = { lat: lngLat.lat, lon: lngLat.lng };
+        this.#applyDrawSession();
+      }
+    }
+  }
+
+  #onTouchEnd(e: TouchEvent): void {
+    for (const touch of Array.from(e.changedTouches)) {
+      this.#activeTouchIds.delete(touch.identifier);
+    }
+    const gesture = this.#touchGesture;
+    if (gesture && this.#changedTouch(e, gesture.identifier)) {
+      this.#touchGesture = null;
+      this.#clearLongPress(gesture);
+      const map = this.#map;
+      const session = this.#drawSession;
+
+      if (gesture.kind === "stroke") {
+        const stroke = this.#stroke;
+        this.#stroke = null;
+        this.#clearStroke();
+        if (map) {
+          map.getCanvas().style.cursor =
+            session && this.#drawMode ? "crosshair" : "";
+        }
+        if (stroke && session && this.#drawMode) {
+          if (
+            stroke.totalPx >= STROKE_MIN_LENGTH_PX &&
+            session.callbacks.onStrokeCommit
+          ) {
+            session.callbacks.onStrokeCommit(stroke.points);
+          } else {
+            // A tap (preventDefault suppressed the synthesized
+            // click): place the single point, exactly like the
+            // default pen's tap — including the handle/midpoint
+            // hit checks the click path performs.
+            const end = stroke.points[stroke.points.length - 1];
+            this.#handleTouchTap(end);
+          }
+        }
+      } else if (gesture.kind === "handle") {
+        const drag = this.#handleDrag;
+        this.#handleDrag = null;
+        if (map) {
+          map.getCanvas().style.cursor =
+            session && this.#drawMode ? "crosshair" : "";
+        }
+        // Restore Move mode's navigation contract (empty-space drags
+        // pan again — re-asserting the mode's handler state).
+        this.#setPointerModeInternal(this.#pointerMode);
+        if (drag && session && drag.moved && drag.override) {
+          const touch = this.#changedTouch(e, gesture.identifier);
+          const point = touch ? this.#touchPoint(touch) : null;
+          const position = point
+            ? this.#snapPosition(
+                { lat: drag.override.lat, lon: drag.override.lon },
+                point,
+              )
+            : { ...drag.override };
+          session.callbacks.onVertexMove(drag.vertexId, position);
+          this.#applyDrawSession();
+        }
+      }
+      // kind "press": a stationary release in draw mode is a TAP —
+      // place the point through the same rules the click path
+      // follows (affordance hits, snap). A dragged release is not
+      // (the stray-drag swallow, the mouse path's discipline).
+      if (
+        gesture.kind === "press" &&
+        session &&
+        this.#drawMode &&
+        gesture.movedPx <= LONG_PRESS_CANCEL_PX
+      ) {
+        const end = this.#changedTouch(e, gesture.identifier);
+        const endPoint = end ? this.#touchPoint(end) : null;
+        if (endPoint && map) {
+          const lngLat = map.unproject([endPoint.x, endPoint.y]);
+          this.#handleTouchTap({ lat: lngLat.lat, lon: lngLat.lng });
+        }
+      }
+    }
+
+    // All fingers lifted: end the navigation override (draw mode
+    // re-disables pan; a fresh gesture starts clean).
+    if (this.#activeTouchIds.size === 0) {
+      this.#endTouchNavigation();
+    }
+  }
+
+  #onTouchCancel(e: TouchEvent): void {
+    for (const touch of Array.from(e.changedTouches)) {
+      this.#activeTouchIds.delete(touch.identifier);
+    }
+    this.#cancelTouchGesture();
+    if (this.#activeTouchIds.size === 0) {
+      this.#endTouchNavigation();
+    }
+  }
+
+  /** The gesture's touch within a change event, if it is in there. */
+  #changedTouch(
+    e: TouchEvent,
+    identifier: number,
+  ): Touch | null {
+    for (const touch of Array.from(e.changedTouches)) {
+      if (touch.identifier === identifier) return touch;
+    }
+    return null;
+  }
+
+  #clearLongPress(gesture: TouchGesture): void {
+    if (gesture.longPressTimer !== null) {
+      clearTimeout(gesture.longPressTimer);
+      gesture.longPressTimer = null;
+    }
+    gesture.longPressVertex = null;
+  }
+
+  /** Long-press fired: the touch twin of dblclick-delete. */
+  #fireLongPress(vertex: VertexId): void {
+    const gesture = this.#touchGesture;
+    if (!gesture || gesture.longPressVertex !== vertex) return;
+    this.#touchGesture = null;
+    this.#clearLongPress(gesture);
+    // Whatever the press was becoming (a stroke), it ends here —
+    // the delete is the gesture's outcome, nothing follows it.
+    this.#stroke = null;
+    this.#clearStroke();
+    this.#drawDownXY = null;
+    const session = this.#drawSession;
+    if (!session || !this.#drawMode) return;
+    session.callbacks.onVertexDelete(vertex);
+    announce("Point deleted.");
+  }
+
+  /** Abort the owned gesture without committing anything. */
+  #cancelTouchGesture(): void {
+    const gesture = this.#touchGesture;
+    this.#touchGesture = null;
+    if (!gesture) return;
+    this.#clearLongPress(gesture);
+    if (gesture.kind === "stroke") {
+      this.#stroke = null;
+      this.#clearStroke();
+      this.#drawDownXY = null;
+    } else if (gesture.kind === "handle") {
+      // Discard the drag override — the user chose to navigate
+      // instead; the vertex stays where it was.
+      this.#handleDrag = null;
+      this.#applyDrawSession();
+      this.#setPointerModeInternal(this.#pointerMode);
+    }
+  }
+
+  /** Two fingers landed: navigation takes the map for this gesture. */
+  #beginTouchNavigation(): void {
+    this.#touchNavActive = true;
+    const map = this.#map;
+    if (!map) return;
+    // Draw mode disabled these on entry; the capture phase lets us
+    // re-enable them BEFORE MapLibre's handlers see this touchstart,
+    // so the pan/pinch activates with the fingers already down.
+    for (const handler of [map.dragPan, map.doubleClickZoom, map.boxZoom]) {
+      if (!handler) continue;
+      try {
+        handler.enable();
+      } catch {
+        // transient style state — the mode re-asserts on gesture end
+      }
+    }
+  }
+
+  /** The last finger lifted: restore the mode's handler contract. */
+  #endTouchNavigation(): void {
+    if (!this.#touchNavActive) return;
+    this.#touchNavActive = false;
+    this.#setPointerModeInternal(this.#pointerMode);
+  }
+
+  /**
+   * A Curve-pen tap (no stroke): place one point through the same
+   * rules the synthesized click follows — affordance hit checks
+   * (handle = no add, midpoint = insert) and the snap magnet.
+   */
+  #handleTouchTap(position: LatLon): void {
+    const map = this.#map;
+    const session = this.#drawSession;
+    if (!map || !session || !this.#drawMode) return;
+    // Rebuild the screen point from the position (the tap's own
+    // coordinates were the stroke's last sample — the same spot).
+    const projected = map.project([position.lon, position.lat]);
+    const point = { x: projected.x, y: projected.y };
+    const hits = map.queryRenderedFeatures([point.x, point.y], {
+      layers: [LAYER.draftHandleHit, LAYER.draftMidpointHit],
+    });
+    if (hits.length > 0) {
+      const hit = hits[0];
+      if (hit.layer?.id === LAYER.draftMidpointHit) {
+        const insertIndex = hit.properties?.insertIndex;
+        if (typeof insertIndex === "number") {
+          session.callbacks.onVertexInsert(insertIndex, {
+            ...this.#snapPosition(position, point),
+          });
+        }
+      }
+      // A handle hit: nothing to add (the press was on an
+      // affordance — long-press is its contextual action).
+      return;
+    }
+    session.callbacks.onVertexAdd(this.#snapPosition(position, point));
+  }
+
 
   /** The user-placed chain (drag override applied): before-anchor → vertices
    *  (the anchor is absent for anchor-less sessions — vertices only). */

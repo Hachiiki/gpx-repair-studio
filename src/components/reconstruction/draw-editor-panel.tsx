@@ -27,6 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { HintTip } from "@/components/shared/hint-tip";
 import { Crosshair, Trash2, TriangleAlert, X } from "lucide-react";
+import { TOOLS_REVEAL_EVENT } from "@/components/layout/workspace-tools-column";
 import {
   GAP_KIND_LABELS,
   GapSeverityBadge,
@@ -197,6 +198,14 @@ export function DrawEditorPanel({
         behavior: "smooth",
       });
     });
+    /*
+     * Phase 8 — on touch-width viewports the "column" is the mobile
+     * tools sheet's scroll container, and scrolling a COLLAPSED sheet
+     * still hides the panel below its peek. The same reveal therefore
+     * also asks the sheet to expand (the mobile twin of this scroll):
+     * the Pen group must reach the user's thumb when an editor opens.
+     */
+    window.dispatchEvent(new CustomEvent(TOOLS_REVEAL_EVENT));
     return () => {
       cancelled = true;
       cancelAnimationFrame(frame);

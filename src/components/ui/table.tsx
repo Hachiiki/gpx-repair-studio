@@ -8,7 +8,13 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      /* Phase 8 (WCAG 2.1 AA): a scrollable region must be reachable
+       * by keyboard — the container takes focus (arrow keys scroll it
+       * once it overflows; the tab stop is inert when it doesn't). */
+      tabIndex={0}
+      role="region"
+      aria-label="Data table"
+      className="relative w-full overflow-x-auto focus-visible:outline-2"
     >
       <table
         data-slot="table"

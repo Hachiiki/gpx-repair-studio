@@ -68,7 +68,7 @@ export function SegmentList({ rows }: { rows: readonly SegmentRow[] }) {
                         {row.pointCount.toLocaleString()} points ·{" "}
                         {formatDistanceMeters(row.distanceM)}
                         {row.excludedLegs > 0 && (
-                          <span className="text-signal">
+                          <span className="text-signal-ink">
                             {" "}
                             (+{row.excludedLegs} leg
                             {row.excludedLegs === 1 ? "" : "s"} excluded)
