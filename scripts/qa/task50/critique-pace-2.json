@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Verdict: SHIP\n\n1.  **Completeness & Data Accuracy**: The 'Estimates' card contains all required components. The 'Route facts' correctly display the crow-flies comparison (3.57 km vs 4.51 km). The 'Elevation' section shows the 'Not estimated' state with a clear 'Estimate elevation' button.\n2.  **Pace Calculation & UI**: The 'Pace from a time you enter' block is fully functional, showing the correct input of 45 minutes (0h:45m:0s) and the resulting calculated pace of **9:59 /km** and speed of **6.0 km/h**. The 'Planned' badge is present and correctly styled.\n3.  **Even Splits List**: The list is complete and mathematically accurate for a 9:59/km pace over 4.51 km. It includes all four full kilometer rows (1km-4km) and the final tail row ('last 505m'), ending exactly at the goal time of 45:00.\n4.  **Readability & Alignment**: Text is legible with appropriate font weights. Elements are well-aligned; the 'Hours', 'Minutes', 'Seconds' labels match their inputs, and the 'Clear' button is properly positioned. No text or UI elements appear to be clipped or overflowing their containers.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790646201,
+  "id": "20260929094313a0e70e8fc59b4b89",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260929094313a0e70e8fc59b4b89",
+  "usage": {
+    "completion_tokens": 289,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1839,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2128
+  }
+}

@@ -29,8 +29,8 @@ test.describe("app shell", () => {
     ).toBeVisible();
     const cards = page.getByTestId("landing-mode-toggle");
     await expect(cards).toBeVisible();
-    await expect(cards.locator("button")).toHaveCount(5);
-    await expect(cards.locator("img")).toHaveCount(5);
+    await expect(cards.locator("button")).toHaveCount(6);
+    await expect(cards.locator("img")).toHaveCount(6);
 
     // Opening the repair card enters its page: hero, intake, and the
     // three-step workflow (Inspect, Repair, and the honesty promise).

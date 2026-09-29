@@ -40,6 +40,7 @@ const IDLE_PROPS = {
   onOpenTool: (_mode: LandingMode) => {},
   onBackToCards: () => {},
   onCreateBegin: (_stats: { distanceM: number }) => {},
+  onPlanBegin: () => {},
   createStats: null,
   paceUnit: "km" as const,
   onPaceUnitChange: (_unit: "km" | "mi") => {},
@@ -223,9 +224,9 @@ describe("SessionIdleView — tool pages (Task 20 + 26 + 42)", () => {
 });
 
 describe("SessionIdleView — the tool cards home (Task 42)", () => {
-  const CARD_MODES = ["repair", "share", "recovery", "create", "merge"] as const;
+  const CARD_MODES = ["repair", "share", "recovery", "create", "merge", "plan"] as const;
 
-  it("asks the opening question and offers all five tools as cards", () => {
+  it("asks the opening question and offers all six tools as cards", () => {
     renderIdle({ view: "home" });
 
     expect(
@@ -234,7 +235,7 @@ describe("SessionIdleView — the tool cards home (Task 42)", () => {
 
     const grid = screen.getByTestId("landing-mode-toggle");
     const cards = grid.querySelectorAll("button");
-    expect(cards).toHaveLength(5);
+    expect(cards).toHaveLength(6);
     for (const mode of CARD_MODES) {
       expect(screen.getByTestId(`landing-mode-${mode}`)).toBeVisible();
     }
@@ -250,7 +251,7 @@ describe("SessionIdleView — the tool cards home (Task 42)", () => {
 
     const grid = screen.getByTestId("landing-mode-toggle");
     const images = grid.querySelectorAll("img");
-    expect(images).toHaveLength(5);
+    expect(images).toHaveLength(6);
     for (const image of Array.from(images)) {
       expect(image.getAttribute("alt")).toBeTruthy();
       expect(image.getAttribute("src")).toMatch(/^\/cards\/\w+\.webp$/);

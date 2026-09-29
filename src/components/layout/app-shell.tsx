@@ -45,6 +45,7 @@ import { ValidationReport } from "@/components/gpx/validation-report";
 import { RecoveryStudio } from "@/components/recovery/recovery-studio";
 import { CreateStudio } from "@/components/create/create-studio";
 import { MergeStudio } from "@/components/merge/merge-studio";
+import { PlanStudio } from "@/components/plan/plan-studio";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import { FileTimingCard } from "@/components/reconstruction/file-timing-card";
 import { GapList } from "@/components/reconstruction/gap-list";
@@ -62,6 +63,7 @@ import { useUiStore, type AppSection } from "@/state/ui-store";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { useCreateStore } from "@/state/create-store";
 import { useMergeStore } from "@/state/merge-store";
+import { usePlanStore } from "@/state/plan-store";
 import { loadRecoveryFile } from "@/hooks/use-recovery-session";
 import { cn } from "@/lib/utils";
 
@@ -112,14 +114,17 @@ export function AppShell() {
   const mergeParsedCount = useMergeStore((s) =>
     s.files.filter((file) => file.status === "parsed").length,
   );
+  const planPhase = usePlanStore((s) => s.phase);
   const section: AppSection =
     mergePhase === "studio"
       ? "merge"
-      : createPhase !== "form"
-        ? "create"
-        : recoveryStatus === "loading" || recoveryStatus === "parsed"
-          ? "recovery"
-          : "repair";
+      : planPhase === "studio"
+        ? "plan"
+        : createPhase !== "form"
+          ? "create"
+          : recoveryStatus === "loading" || recoveryStatus === "parsed"
+            ? "recovery"
+            : "repair";
 
   // Rehydrate persisted settings after mount — the prerendered HTML and
   // the first client render both use defaults, so there is no hydration
@@ -147,12 +152,14 @@ export function AppShell() {
               : section === "merge"
                 ? mergeCombinedName.trim() ||
                   `${mergeParsedCount} recordings merged`
-                : session.fileName
+                : section === "plan"
+                  ? "Route plan"
+                  : session.fileName
         }
         status={
           section === "recovery"
             ? recoveryStatus
-            : section === "create" || section === "merge"
+            : section === "create" || section === "merge" || section === "plan"
               ? "parsed"
               : session.status
         }
@@ -163,13 +170,15 @@ export function AppShell() {
               ? () => useCreateStore.getState().reset()
               : section === "merge"
                 ? () => useMergeStore.getState().reset()
-                : session.reset
+                : section === "plan"
+                  ? () => usePlanStore.getState().reset()
+                  : session.reset
         }
         view={session.view}
         onSwitchView={session.setView}
         section={section}
         resetLabel={
-          section === "create" || section === "merge"
+          section === "create" || section === "merge" || section === "plan"
             ? "Start over"
             : undefined
         }
@@ -230,6 +239,15 @@ export function AppShell() {
            * multi-file intake); the header's reset clears back there.
            */
           <MergeStudio />
+        ) : section === "plan" ? (
+          /*
+           * Task 50 — the Plan-a-route section: a draw-and-measure
+           * scratchpad. Own store, own map; the entry is the landing's
+           * plan tool page (the "Start planning" card), and the
+           * section's whole contract lives in what it never renders:
+           * no export card, no share dialog, no share view.
+           */
+          <PlanStudio />
         ) : section === "recovery" ? (
           /*
            * Task 26 — the Gap Recovery section: a separate workflow for
@@ -384,6 +402,7 @@ export function AppShell() {
             onCreateBegin={(stats) =>
               useCreateStore.getState().beginDrawing(stats)
             }
+            onPlanBegin={() => usePlanStore.getState().beginPlanning()}
             createStats={createStats}
             paceUnit={paceUnit}
             onPaceUnitChange={setPaceUnit}

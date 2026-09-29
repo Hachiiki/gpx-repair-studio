@@ -34,10 +34,12 @@ import {
   Layers,
   ListOrdered,
   PenLine,
+  PencilRuler,
   Route,
   Ruler,
   ScanSearch,
   ShieldCheck,
+  TimerReset,
   Upload,
   Watch,
 } from "lucide-react";
@@ -46,6 +48,7 @@ import { UploadZone } from "@/components/gpx/upload-zone";
 import { ActivityStatsForm } from "@/components/create/activity-stats-form";
 import { MergeIntake } from "@/components/merge/merge-intake";
 import { LandingCardsView } from "@/components/layout/landing-cards";
+import { PlanStartCard } from "@/components/plan/plan-start-card";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ActivityStats } from "@/hooks/use-create-session";
@@ -72,6 +75,11 @@ export interface SessionIdleViewProps {
    * stats form instead of the upload zone.
    */
   onCreateBegin: (stats: ActivityStats) => void;
+  /**
+   * Plan-tool intake (Task 50): enter the planning studio — no file,
+   * no statistics, just the map and the user's curiosity.
+   */
+  onPlanBegin: () => void;
   /** Previously confirmed statistics (prefill when returning to the form). */
   createStats: ActivityStats | null;
   /** The app-wide distance/pace unit (the create form's entry unit). */
@@ -87,6 +95,7 @@ export function SessionIdleView({
   onOpenTool,
   onBackToCards,
   onCreateBegin,
+  onPlanBegin,
   createStats,
   paceUnit,
   onPaceUnitChange,
@@ -118,6 +127,7 @@ export function SessionIdleView({
       mode={mode}
       onBack={onBackToCards}
       onCreateBegin={onCreateBegin}
+      onPlanBegin={onPlanBegin}
       createStats={createStats}
       paceUnit={paceUnit}
       onPaceUnitChange={onPaceUnitChange}
@@ -240,6 +250,26 @@ const WORKFLOW_STEPS: Record<
         "One track with every recorded point from every file — elevation, timestamps, and waypoints carried over verbatim, nothing rewritten.",
     },
   ],
+  plan: [
+    {
+      icon: PencilRuler,
+      title: "Draw your route",
+      description:
+        "Sketch where you might go — clicks follow real roads, the Curve pen draws freehand curves, Move mode adjusts any point, everything undoes. No file needed.",
+    },
+    {
+      icon: Ruler,
+      title: "Read the estimates",
+      description:
+        "The distance updates live as the line takes shape, terrain elevation is one opt-in lookup away, and the straight-line comparison shows how winding your plan is.",
+    },
+    {
+      icon: TimerReset,
+      title: "Pace from your time",
+      description:
+        "Enter a goal time and see the pace and speed it implies, with even splits along the route. This is a scratchpad — nothing is exported and nothing is shared.",
+    },
+  ],
 };
 
 const HERO_COPY: Record<
@@ -270,6 +300,11 @@ const HERO_COPY: Record<
     heading: "Combine GPX files into one route",
     description:
       "Upload two or more activities — or several takes of the same one — and merge them into a single GPX. Everything recorded comes along: points, elevation, timestamps, and waypoints. Then arrange the order, name the result, and download one file.",
+  },
+  plan: {
+    heading: "Plan a route, read its numbers",
+    description:
+      "Sketch a route on the map — along real roads, footpaths, or freehand — and watch the distance, the terrain, and the pace take shape. Enter a time and see what it demands. This is a planning scratchpad: nothing is exported, nothing is shared.",
   },
 };
 
@@ -321,6 +356,13 @@ const TOOL_FACTS: Record<
     bestFor:
       "Multi-take recordings, activities a platform split into pieces, or building one route from several days' rides and runs.",
   },
+  plan: {
+    input: "No file at all — just the map. Draw the route you are considering, with the same pens every editor has.",
+    output:
+      "On-screen estimates only — distance, elevation, the straight-line comparison, and a pace from a time you enter. No export, no share: the plan stays on this page.",
+    bestFor:
+      "Planning tomorrow's run or ride, measuring a commute, comparing route options before recording one for real.",
+  },
 };
 
 export interface ToolDetailViewProps {
@@ -334,6 +376,8 @@ export interface ToolDetailViewProps {
   onBack: () => void;
   /** Create-tool intake (no file exists): confirm the statistics and draw. */
   onCreateBegin: (stats: ActivityStats) => void;
+  /** Plan-tool intake (Task 50): enter the planning studio. */
+  onPlanBegin: () => void;
   /** Previously confirmed statistics (prefill when returning to the form). */
   createStats: ActivityStats | null;
   /** The app-wide distance/pace unit (the create form's entry unit). */
@@ -354,6 +398,7 @@ export function ToolDetailView({
   mode,
   onBack,
   onCreateBegin,
+  onPlanBegin,
   createStats,
   paceUnit,
   onPaceUnitChange,
@@ -407,10 +452,12 @@ export function ToolDetailView({
         {/*
          * The intake: the upload zone for the three file workflows, the
          * statistics form for the create workflow (there is no file to
-         * upload — the watch recorded no GPS at all), and the
-         * multi-file intake for the merge workflow (it needs two or
-         * more files before it can open its studio — the intake owns
-         * the collected list and the contract gate).
+         * upload — the watch recorded no GPS at all), the multi-file
+         * intake for the merge workflow (it needs two or more files
+         * before it can open its studio — the intake owns the collected
+         * list and the contract gate), and the start card for the plan
+         * workflow (Task 50 — the map is the input, so the intake is
+         * just the honest contract and the enter intent).
          */}
         {mode === "create" ? (
           <ActivityStatsForm
@@ -421,6 +468,8 @@ export function ToolDetailView({
           />
         ) : mode === "merge" ? (
           <MergeIntake />
+        ) : mode === "plan" ? (
+          <PlanStartCard onBegin={onPlanBegin} />
         ) : (
           <UploadZone onFile={onFile} />
         )}

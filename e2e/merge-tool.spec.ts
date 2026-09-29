@@ -68,7 +68,7 @@ test.describe("merge tool", () => {
     await page.goto("/");
 
     const cards = page.getByTestId("landing-mode-toggle");
-    await expect(cards.locator("button")).toHaveCount(5);
+    await expect(cards.locator("button")).toHaveCount(6);
 
     await page.getByTestId("landing-mode-merge").click();
     await expect(

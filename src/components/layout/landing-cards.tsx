@@ -31,6 +31,7 @@ import {
   Combine,
   History,
   ImageUp,
+  PencilRuler,
   Watch,
   Wrench,
   type LucideIcon,
@@ -52,9 +53,9 @@ export interface LandingTool {
 }
 
 /**
- * The five destinations, in the tab order users already know (repair
- * first — the app's core flow and the default remembered intent;
- * merge last — the newest tool, Task 43).
+ * The six destinations, in the order users already know (repair first —
+ * the app's core flow and the default remembered intent; plan last —
+ * the newest tool, Task 50). Six cards fill the 2-column grid evenly.
  */
 export const LANDING_TOOLS: readonly LandingTool[] = [
   {
@@ -107,6 +108,16 @@ export const LANDING_TOOLS: readonly LandingTool[] = [
       "Illustration of two separate map routes converging into one continuous line",
     icon: Combine,
   },
+  {
+    mode: "plan",
+    kicker: "Plan",
+    title: "Plan a route",
+    blurb:
+      "Sketch a route on the map and read its numbers — distance, elevation, and the pace a time you enter implies. A scratchpad: nothing is exported or shared.",
+    imageAlt:
+      "Illustration of a winding route being measured with ruler ticks and a drafting compass",
+    icon: PencilRuler,
+  },
 ];
 
 export interface LandingCardsViewProps {
@@ -141,7 +152,7 @@ export function LandingCardsView({
           What would you like to do?
         </h2>
         <p className="mx-auto max-w-[56ch] text-balance text-[15.5px] leading-relaxed text-muted-foreground">
-          Five tools, one workbench — pick one to see how it works and
+          Six tools, one workbench — pick one to see how it works and
           start. Everything runs in this browser, and your files never
           leave this device.
         </p>

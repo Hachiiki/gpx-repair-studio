@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Verdict: **SHIP**\n\n1.  **Tools Column Readability & Layout:** All three cards (\"Plan a route\", \"Your route\", \"Estimates\") are fully visible, well-aligned, and unclipped. Text is legible, and the UI elements (chips for Pen/Path style, Undo/Redo/Clear buttons, and the point list) are properly contained within their respective sections.\n2.  **Map Visualization:** The map correctly displays the drawn route as a solid orange line with distinct white point handles at the vertices. A clear distance badge (4.51 km) is positioned near the path, providing immediate feedback on the route's length.\n3.  **Visual Consistency & Clarity:** The \"field manual\" aesthetic is consistent. There are no instances of text overflow or missing labels. The \"Estimated\" tag is clearly associated with both the map badge and the main distance readout in the \"Your route\" panel. The point list accurately reflects the 3-point geometry shown on the map.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790645681,
+  "id": "2026092909343535993fd0c2b74a87",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "2026092909343535993fd0c2b74a87",
+  "usage": {
+    "completion_tokens": 211,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1876,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2087
+  }
+}

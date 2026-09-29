@@ -1,0 +1,307 @@
+/**
+ * PlanDrawPanel — the "plan a route" section's editor card.
+ *
+ * The planner's counterpart of the create section's RouteDrawPanel:
+ * the same pen chips, the same per-line path-style chips, the live
+ * distance + vertex cap, the undo/redo bar, and the accessible vertex
+ * list — minus the drawn-vs-recorded comparison (there is no recorded
+ * distance), the spacing setting (no track is generated), and the
+ * "Finish route" intent (there is no review phase — the estimates are
+ * live and the route is never finished, only abandoned or kept
+ * sketching). Pure presentation: the {@link PlanDrawBinding} in,
+ * intents out.
+ */
+
+"use client";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+} from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { HintTip } from "@/components/shared/hint-tip";
+import { UndoRedoBar } from "@/components/reconstruction/undo-redo-bar";
+import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
+import { Crosshair, X } from "lucide-react";
+import type { PlanDrawBinding } from "@/hooks/use-plan-draw";
+import type { DrawVertex } from "@/types/domain";
+import {
+  formatDistanceForUnit,
+  formatLatLon,
+  type PaceUnit,
+} from "@/lib/utils/format";
+
+/**
+ * Pen choices (user pass 48 — curve is a PEN, not a path style): how
+ * the Draw mode captures points.
+ */
+const PEN_CHOICES: readonly {
+  value: PlanDrawBinding["pen"];
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "default",
+    label: "Default pen",
+    hint: "The classic pencil: click to place points one by one — click before and after a bend and the line follows.",
+  },
+  {
+    value: "curve",
+    label: "Curve pen",
+    hint: "Press and drag to draw a curve freehand — the app smooths your stroke into the route. Works with every path style; a quick tap still places a single point.",
+  },
+];
+
+/**
+ * Path-style choices (Tasks 46–47 — what the line does between your
+ * points, remembered per line). The planner offers exactly the three
+ * per-line styles. The test ids keep the historic `road-follow-*`
+ * names for e2e compatibility.
+ */
+const PATH_STYLE_CHOICES: readonly {
+  value: Exclude<PlanDrawBinding["pathStyle"], "curve">;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "car",
+    label: "Roads",
+    hint: "The line follows drivable roads between your points — click before and after a curve and the bend draws itself.",
+  },
+  {
+    value: "foot",
+    label: "Footpaths",
+    hint: "Same idea, but for pedestrian ways — trails, footpaths, stairs. Better for runs through parks or along rivers.",
+  },
+  {
+    value: "off",
+    label: "Straight lines",
+    hint: "No road snapping — the line connects your points directly. Nothing leaves the browser. Routes drawn with the Curve pen stay smooth until redrawn.",
+  },
+];
+
+function VertexRow({
+  vertex,
+  index,
+  onDelete,
+}: {
+  vertex: DrawVertex;
+  index: number;
+  onDelete: (vertexId: DrawVertex["id"]) => void;
+}) {
+  return (
+    <li
+      className="flex items-center gap-2 rounded-[6px] border border-ink/10 bg-card px-2 py-1.5 text-xs transition-colors hover:bg-ink/[0.04]"
+      data-testid="plan-vertex-row"
+    >
+      <span className="grid size-[18px] shrink-0 place-items-center rounded-[4px] bg-ink/[0.06] text-[10px] font-bold text-shade">
+        {index + 1}
+      </span>
+      <span className="font-mono text-[11px] text-ink/70">
+        {formatLatLon(vertex.lat, vertex.lon)}
+      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="ml-auto size-5 shrink-0 rounded-[4px] p-0 text-shade hover:bg-inkplus hover:text-paper"
+        aria-label={`Delete point ${index + 1}`}
+        data-testid="plan-delete-vertex-button"
+        onClick={() => onDelete(vertex.id)}
+      >
+        <X className="size-3.5" aria-hidden="true" />
+      </Button>
+    </li>
+  );
+}
+
+export interface PlanDrawPanelProps {
+  draw: PlanDrawBinding;
+  paceUnit: PaceUnit;
+}
+
+export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
+  if (!draw.active) return null;
+
+  const drawnM = draw.distanceM ?? 0;
+
+  return (
+    <Card className="border-[1.5px] border-ink" data-testid="plan-draw-panel">
+      <CardHeader>
+        <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
+          <Crosshair className="size-4 text-signal" aria-hidden="true" />
+          Your route
+        </h3>
+        <CardDescription>
+          Click to add points — switch to Move (M) to drag any of them,
+          everything undoes.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {/* Pen (user pass 48): HOW the Draw mode captures points. */}
+        <div
+          className="grid gap-2"
+          data-testid="pen-mode-group"
+          role="group"
+          aria-label="Pen"
+        >
+          <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
+            Pen
+            <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {PEN_CHOICES.map((choice) => (
+              <HintTip
+                key={choice.value}
+                side="left"
+                title={choice.label}
+                description={choice.hint}
+              >
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className={
+                    draw.pen === choice.value
+                      ? "h-auto rounded-full border-[1.25px] border-inkplus bg-inkplus px-3 py-[5px] text-[12.5px] font-semibold text-paper hover:bg-inkplus hover:text-paper"
+                      : "h-auto rounded-full border-[1.25px] border-ink/25 bg-card px-3 py-[5px] text-[12.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
+                  }
+                  aria-pressed={draw.pen === choice.value}
+                  data-testid={`pen-mode-${choice.value}`}
+                  onClick={() => draw.setPenMode(choice.value)}
+                >
+                  {choice.label}
+                </Button>
+              </HintTip>
+            ))}
+          </div>
+          {draw.pointerMode === "draw" && draw.pen === "curve" && (
+            <p
+              className="text-[11px] leading-snug text-muted-foreground"
+              data-testid="pen-curve-hint"
+              role="status"
+            >
+              Drag on the map to draw your curve — release to place it. A
+              quick tap still adds a single point. (C toggles pens, D/M/P
+              switch modes.)
+            </p>
+          )}
+        </div>
+
+        {/* Path style: what the line does between your points (per line). */}
+        <div
+          className="grid gap-2"
+          data-testid="road-follow-group"
+          role="group"
+          aria-label="Path style"
+        >
+          <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
+            Between points, follow
+            <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {PATH_STYLE_CHOICES.map((choice) => (
+              <HintTip
+                key={choice.value}
+                side="left"
+                title={choice.label}
+                description={choice.hint}
+              >
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className={
+                    draw.pathStyle === choice.value ||
+                    // A curve-pen route is local like straight — the chip
+                    // reads as its home; tapping it flattens the route.
+                    (choice.value === "off" && draw.pathStyle === "curve")
+                      ? "h-auto rounded-full border-[1.25px] border-inkplus bg-inkplus px-3 py-[5px] text-[12.5px] font-semibold text-paper hover:bg-inkplus hover:text-paper"
+                      : "h-auto rounded-full border-[1.25px] border-ink/25 bg-card px-3 py-[5px] text-[12.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
+                  }
+                  aria-pressed={
+                    draw.pathStyle === choice.value ||
+                    (choice.value === "off" && draw.pathStyle === "curve")
+                  }
+                  data-testid={`road-follow-${choice.value}`}
+                  onClick={() => draw.setPathStyle(choice.value)}
+                >
+                  {choice.label}
+                </Button>
+              </HintTip>
+            ))}
+          </div>
+          {(draw.pathStyle === "car" || draw.pathStyle === "foot") && (
+            <p
+              className="text-[11px] text-muted-foreground"
+              data-testid="road-follow-status"
+              role="status"
+            >
+              {draw.routingPending
+                ? "Finding the road…"
+                : draw.routingFailed
+                  ? "Road follow unavailable right now — straight lines until it recovers."
+                  : "Drag any point to adjust it — the road re-finds itself."}
+            </p>
+          )}
+        </div>
+
+        {/* Live stats: the planned distance. */}
+        <div className="grid gap-1">
+          <p className="flex flex-wrap items-baseline gap-2.5" data-testid="draw-distance">
+            <span className="font-display text-[40px] font-bold leading-none tabular-nums">
+              {draw.distanceM === null
+                ? "—"
+                : formatDistanceForUnit(drawnM, paceUnit)}
+            </span>
+            <ProvenanceBadge kind="estimated" />
+          </p>
+          <p
+            className="text-[11.5px] tabular-nums text-muted-foreground"
+            data-testid="vertex-count"
+          >
+            {draw.vertexCount} / {draw.maxVertices} points
+            {draw.atVertexCap ? " — limit reached" : ""}
+          </p>
+        </div>
+
+        <UndoRedoBar
+          canUndo={draw.canUndo}
+          canRedo={draw.canRedo}
+          undoCount={draw.undoCount}
+          redoCount={draw.redoCount}
+          canClear={draw.vertexCount > 0}
+          onUndo={draw.undo}
+          onRedo={draw.redo}
+          onClear={draw.clearVertices}
+        />
+
+        {/* Vertex list: the accessible delete path. */}
+        {draw.vertexCount > 0 && (
+          <div className="grid gap-1.5">
+            <p className="text-xs font-medium text-muted-foreground">
+              Drawn points — switch to Move (M) and drag any of them on the
+              map, double-click to remove. Drawing (D) adds points only —
+              the pencil never drags.
+            </p>
+            <ScrollArea className="max-h-40 -mx-2">
+              <ul className="grid gap-0.5 px-2">
+                {draw.vertices.map((vertex, index) => (
+                  <VertexRow
+                    key={vertex.id}
+                    vertex={vertex}
+                    index={index}
+                    onDelete={draw.deleteVertex}
+                  />
+                ))}
+              </ul>
+            </ScrollArea>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
