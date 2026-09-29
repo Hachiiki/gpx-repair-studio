@@ -252,7 +252,9 @@ test.describe("keyboard — the repair flow without a mouse", () => {
     await expect
       .poll(() =>
         page.evaluate(
-          () => document.activeElement?.dataset.testid ?? "",
+          // HTMLElement#dataset is not on the base Element type; the
+          // attribute read is the type-safe equivalent.
+          () => document.activeElement?.getAttribute("data-testid") ?? "",
         ),
       )
       .toBe("open-export-button");

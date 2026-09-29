@@ -36,6 +36,25 @@ export function pointId(seg: SegmentId, index: number): PointId {
   return `${seg}:${index}` as PointId;
 }
 
+/**
+ * Parse a point id back to its segment + index — the inverse of
+ * `pointId`. Returns null for ids that do not follow the scheme
+ * (hand-crafted ids must never crash a lookup; callers guard without
+ * inventing data).
+ *
+ * Phase 9: boundary lookups (gap rows) resolve ids directly instead of
+ * indexing every point of a 100k-point file — O(gaps), not O(points).
+ */
+export function parsePointIdRef(
+  id: PointId,
+): { segmentId: SegmentId; index: number } | null {
+  const colon = id.lastIndexOf(":");
+  if (colon <= 0) return null;
+  const index = Number(id.slice(colon + 1));
+  if (!Number.isInteger(index) || index < 0) return null;
+  return { segmentId: id.slice(0, colon) as SegmentId, index };
+}
+
 /** `gap/{beforePointId}/{afterPointId}` — one id per trackpoint boundary. */
 export function gapId(beforePoint: PointId, afterPoint: PointId): GapId {
   return `gap/${beforePoint}/${afterPoint}` as GapId;

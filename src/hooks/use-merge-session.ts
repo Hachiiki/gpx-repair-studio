@@ -27,14 +27,14 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
+import { DEFAULT_GAP_THRESHOLDS } from "@/features/gpx/detectGaps";
 import { exportGpxIdentity } from "@/features/gpx/exportGpx";
+import { validateGpx } from "@/features/gpx/validate";
 import {
   fileSummary,
   mergeGpxFiles,
   type FileSummary,
 } from "@/features/gpx/mergeFiles";
-import { parseGpx } from "@/features/gpx/parse";
-import { validateGpx } from "@/features/gpx/validate";
 import {
   isUsableStatsPoint,
   originalDistanceStats,
@@ -43,6 +43,7 @@ import {
 import { originalTimeStats, type TimeStats } from "@/features/statistics/time";
 import { reimportStats, type ReimportStats } from "@/features/statistics/reimport";
 import { bboxOf, type BBox } from "@/lib/geo/bbox";
+import { runParsePipeline } from "@/lib/gpx/parse-client";
 import { downloadTextFile } from "@/lib/utils/download";
 import { createDomXmlIo } from "@/lib/utils/xml";
 import { describeParseError } from "@/hooks/use-gpx-session";
@@ -90,20 +91,26 @@ export async function addMergeFiles(files: readonly File[]): Promise<void> {
 
     try {
       const text = await file.text();
-      // Yield once so the parsing state paints before the synchronous
-      // parse of large files (same contract as the other intakes).
+      // Yield once so the parsing state paints before the parse of large
+      // files (same contract as the other intakes; the Phase 9 worker
+      // then runs the pipeline off-thread — merge needs no gap
+      // detection, so the worker skips it).
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      const outcome = parseGpx(text, createDomXmlIo());
-      if (!outcome.ok) {
-        live.setFileError(id, describeParseError(outcome.error, file.name));
+      const result = await runParsePipeline(text, {
+        // Thresholds are unused here (merge never detects gaps) — the
+        // canonical defaults keep the request contract complete.
+        gapThresholds: DEFAULT_GAP_THRESHOLDS,
+        detectGaps: false,
+      });
+      if (!result.ok) {
+        live.setFileError(id, describeParseError(result.error, file.name));
         continue;
       }
-      const validated = validateGpx(outcome.data);
       live.setParsed(id, {
-        model: validated.data,
-        summary: fileSummary(file.name, validated.data),
-        distanceM: originalDistanceStats(validated.data).totalDistanceM,
+        model: result.data,
+        summary: fileSummary(file.name, result.data),
+        distanceM: originalDistanceStats(result.data).totalDistanceM,
       });
     } catch (err) {
       live.setFileError(id, {

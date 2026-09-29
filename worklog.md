@@ -1153,3 +1153,19 @@ Work Log:
 Stage Summary:
 - The sixth tool is live: draw a route with every pen and path style the editors have, read its numbers live (distance, crow-flies comparison, opt-in elevation), and enter a time to see the pace, speed, and even splits it implies — with no export and no share anywhere in the section, as requested.
 - Baseline moves to 1083 unit + 80 e2e, typecheck + eslint clean, static export PASS.
+---
+Task ID: 51 (planning record)
+Agent: Super Z (main agent)
+Task: Phase 9 — Performance & Large Files (user: "do phase 9"). Baseline + design before implementation.
+
+Work Log:
+- Baseline profiled on the dev server (scripts/task51-baseline-profile.mjs, 100k synthetic fixture): upload→summary 3.6 s with ONE 2,550 ms synchronous parse long-task (DOMParser + extraction + validate + gaps + dev deepFreeze, all main-thread); post-parse tail ~1.9 s of 51–437 ms tasks (React commit + view-model joins + un-decimated 100k-coord maplibre setData); export 100k = 688 ms (already under the 1 s budget — export stays on the main thread); heap after render 98–150 MB; DOM nodes 415 (no per-point DOM).
+- Decision — worker strategy: workers have no DOMParser. Instead of vendoring a pure-JS DOM (slow, heavy), implement a compact namespace-aware XML tokenizer + minimal tree at the existing XmlIo seam (src/lib/gpx/worker-xml.ts) covering exactly the DOM surface parseGpx touches (documentElement, getElementsByTagNameNS, localName, tagName, getAttribute, children, textContent, serialize). Malformed input THROWS (parseGpx already handles a throwing io → typed malformed-xml error, incl. the undeclared-prefix recovery retry). Correctness gate: corpus-equivalence unit test — every committed fixture parsed with BOTH ios must produce structurally equal outcomes AND byte-equal identity exports.
+- Decision — transfer: the parsed model (100k+ point objects) is streamed back from the worker in ≤8k-point chunks (each clone ~20–40 ms) so no single main-thread block approaches the 200 ms budget; progress messages drive the loading UI.
+- Decision — threshold: 1 MB of text (≈10k+ points) routes to the worker; below it the inline path is byte-identical to today (all committed fixtures ≤8 KB — existing specs untouched).
+- Decision — decimation: pixel-derived stride (maplibre 512-px tiles; stride keeps ≥2 px on-screen spacing at the CURRENT zoom, quantized to powers of two so rebuilds happen only on band crossings), endpoints pinned, identity (same array refs) below 30k total coords or stride 1; wired inside mapController#applyRoute + a zoomend re-apply. Reconstructions/drafts/gap geometry are never decimated.
+- Files planned: src/lib/gpx/worker-xml.ts, src/workers/parseWorker.ts, src/lib/gpx/parse-client.ts, src/lib/map/decimate.ts, progress plumbing in session/recovery stores + the loading bench, e2e/performance.spec.ts, tests x4, scripts/task51-mem-profile.mjs.
+
+Stage Summary:
+- Phase 8 was found committed as ba997c6 (announcer, touch helpers, bottom-sheet tools column, a11y/keyboard/mobile suites) but with NO worklog/MASTER_PLAN entry — noted, not fabricated.
+- Phase 9 design locked: worker-offloaded parse+validate+gaps behind the XmlIo seam with chunked streaming; pixel-derived zoom decimation; export measured in-budget on main thread.

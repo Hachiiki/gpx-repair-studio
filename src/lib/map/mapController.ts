@@ -76,6 +76,7 @@ import {
   type DrawMidpointData,
   type RouteViewData,
 } from "./geojson";
+import { decimateForZoom, decimationStride } from "./decimate";
 import {
   BLANK_STYLE,
   MAP_TILE_PROVIDERS,
@@ -106,6 +107,10 @@ export interface MapTestState {
   provider: TileProviderId;
   layerIds: string[];
   routeFeatureCount: number;
+  /** Phase 9 — rendered coordinate count of the recorded lines (the decimation layer's observable). */
+  routeRenderedCoords: number;
+  /** Phase 9 — the stride currently applied to SOURCE.route (1 = full). */
+  routeStride: number;
   gapSpanCount: number;
   boundaryMarkerCount: number;
   /** Committed reconstruction lines rendered via the route view. */
@@ -586,6 +591,12 @@ export class MapController {
   #pendingFocus: FocusTarget | null = null;
   #lastCameraAction: string | null = null;
 
+  // Phase 9 — zoom-dependent render decimation. #routeStride is the
+  // stride currently rendered into SOURCE.route; a zoom band change
+  // re-decimates, everything else reuses the applied data.
+  #routeStride = 1;
+  #routeRenderedCoords = 0;
+
   // Draw session (Phase 4)
   #drawSession: DrawSession | null = null;
   /**
@@ -723,6 +734,9 @@ export class MapController {
       map.on("dragstart", () => this.#noteUserCamera()),
       map.on("wheel", () => this.#noteUserCamera()),
       map.on("boxzoomstart", () => this.#noteUserCamera()),
+      // Phase 9 — re-decimate the recorded route when the zoom band
+      // changes (powers-of-two strides make this rare by construction).
+      map.on("zoomend", () => this.#onZoomBandChange()),
       map.on("click", [LAYER.spanHit, LAYER.markerHit], (e) => {
         // While drawing or picking span anchors, clicks are edit input —
         // never gap selection (a re-fit of the camera mid-interaction
@@ -1311,6 +1325,8 @@ export class MapController {
       provider: this.#provider,
       layerIds: style ? style.layers.map((l) => l.id) : [],
       routeFeatureCount: route?.lines.length ?? 0,
+      routeRenderedCoords: this.#routeRenderedCoords,
+      routeStride: this.#routeStride,
       gapSpanCount: route?.spans.length ?? 0,
       boundaryMarkerCount: route?.markers.length ?? 0,
       reconstructionLineCount: route?.reconstructions.length ?? 0,
@@ -1753,8 +1769,20 @@ export class MapController {
     const map = this.#map;
     if (!map) return;
     const route = this.#route;
+    // Phase 9 — the recorded lines render decimated for the current zoom
+    // (identity below the noise floor; spans/markers/reconstructions are
+    // never sampled — they are tiny by construction).
+    const { lines: rendered, stride } = decimateForZoom(
+      route?.lines ?? [],
+      map.getZoom(),
+    );
+    this.#routeStride = stride;
+    this.#routeRenderedCoords = rendered.reduce(
+      (sum, line) => sum + line.coordinates.length,
+      0,
+    );
     const routeSource = map.getSource(SOURCE.route) as GeoJSONSource | undefined;
-    routeSource?.setData(routeLineCollection(route?.lines ?? []));
+    routeSource?.setData(routeLineCollection(rendered));
     const spanSource = map.getSource(SOURCE.spans) as GeoJSONSource | undefined;
     spanSource?.setData(gapSpanCollection(route?.spans ?? []));
     const markerSource = map.getSource(SOURCE.markers) as
@@ -1781,6 +1809,18 @@ export class MapController {
     if (map.getLayer(LAYER.markerHalo)) {
       map.setFilter(LAYER.markerHalo, filter);
     }
+  }
+
+  /**
+   * Phase 9 — a zoom gesture ended: re-decimate the recorded route only
+   * when the stride band actually changed (powers of two ⇒ a handful of
+   * rebuilds across the whole zoom range).
+   */
+  #onZoomBandChange(): void {
+    const map = this.#map;
+    if (!map || !this.#route) return;
+    const stride = decimationStride(this.#route.lines, map.getZoom());
+    if (stride !== this.#routeStride) this.#applyRoute();
   }
 
   #fit(target: FocusTarget): void {

@@ -3,7 +3,7 @@
  * Recovery section (Task 26).
  *
  * Owns the runtime pipeline for one recovery file:
- *   File → text → parseGpx → validateGpx → detectGaps → recoveryStore
+ *   File → text → runParsePipeline (inline or Phase 9 worker) → recoveryStore
  * and exposes the same shape of memoized view models as the repair
  * studio's `useGpxSession` (gap rows, segment rows, statistics, extent),
  * so the section's components render familiar props — pure presentation,
@@ -31,12 +31,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
-import {
-  detectGaps,
-  type GapThresholds,
-} from "@/features/gpx/detectGaps";
-import { parseGpx } from "@/features/gpx/parse";
-import { validateGpx } from "@/features/gpx/validate";
+import { detectGaps, type GapThresholds } from "@/features/gpx/detectGaps";
 import {
   isUsableStatsPoint,
   originalDistanceStats,
@@ -44,7 +39,8 @@ import {
 } from "@/features/statistics/distance";
 import { originalTimeStats, type TimeStats } from "@/features/statistics/time";
 import { reimportStats, type ReimportStats } from "@/features/statistics/reimport";
-import { createDomXmlIo } from "@/lib/utils/xml";
+import { runParsePipeline } from "@/lib/gpx/parse-client";
+import type { ParseProgress } from "@/lib/gpx/parse-worker-protocol";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { describeParseError } from "@/hooks/use-gpx-session";
 import type {
@@ -68,12 +64,14 @@ export type { SessionError, SessionStatus } from "@/state/session-store";
 import { useUiStore } from "@/state/ui-store";
 import type {
   DetectedGap,
+  OriginalSegment,
   OriginalTrackData,
   OriginalTrackPoint,
   PointId,
   SegmentId,
   ValidationIssue,
 } from "@/types/domain";
+import { parsePointIdRef } from "@/types/ids";
 import type { BBox } from "@/lib/geo/bbox";
 import { bboxOf } from "@/lib/geo/bbox";
 import type { SessionError, SessionStatus } from "@/state/session-store";
@@ -93,6 +91,8 @@ export interface RecoverySession {
   reimport: ReimportStats | null;
   extent: BBox | null;
   error: SessionError | null;
+  /** Worker-parse progress (Phase 9) — null except during a worker parse. */
+  progress: ParseProgress | null;
   gapThresholds: GapThresholds;
   loadFile: (file: File) => Promise<void>;
   reset: () => void;
@@ -122,20 +122,26 @@ export function buildRecoveryGapRows(
   gaps: readonly DetectedGap[],
   data: OriginalTrackData,
 ): GapRow[] {
-  const points = new Map<
-    PointId,
-    { point: OriginalTrackPoint; segmentId: SegmentId }
-  >();
+  // Phase 9 — direct id resolution (O(gaps)), the repair studio's
+  // buildGapRows twin (see use-gpx-session.ts).
+  const segments = new Map<SegmentId, OriginalSegment>();
   for (const segment of data.segments) {
-    for (const point of segment.points) {
-      points.set(point.id, { point, segmentId: segment.id });
-    }
+    segments.set(segment.id, segment);
   }
+  const resolve = (
+    id: PointId,
+  ): { point: OriginalTrackPoint; segmentId: SegmentId } | undefined => {
+    const ref = parsePointIdRef(id);
+    if (ref === null) return undefined;
+    const segment = segments.get(ref.segmentId);
+    const point = segment?.points[ref.index];
+    return point === undefined ? undefined : { point, segmentId: ref.segmentId };
+  };
 
   const rows: GapRow[] = [];
   for (const gap of gaps) {
-    const before = points.get(gap.before.pointId);
-    const after = points.get(gap.after.pointId);
+    const before = resolve(gap.before.pointId);
+    const after = resolve(gap.after.pointId);
     if (!before || !after) continue;
     rows.push({
       id: gap.id,
@@ -228,21 +234,21 @@ export async function loadRecoveryFile(file: File): Promise<void> {
 
   try {
     const text = await file.text();
-    // Yield once so the loading state paints before the synchronous
-    // parse of large files (same contract as the repair studio).
+    // Yield once so the loading state paints before the parse of large
+    // files (same contract as the repair studio; the Phase 9 worker then
+    // runs the pipeline off-thread).
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const outcome = parseGpx(text, createDomXmlIo());
-    if (!outcome.ok) {
-      store.fail(describeParseError(outcome.error, file.name));
+    const result = await runParsePipeline(text, {
+      gapThresholds: useUiStore.getState().gapThresholds,
+      onProgress: (progress) =>
+        useRecoveryStore.getState().setProgress(progress),
+    });
+    if (!result.ok) {
+      store.fail(describeParseError(result.error, file.name));
       return;
     }
-    const validated = validateGpx(outcome.data);
-    const detected = detectGaps(
-      validated.data,
-      useUiStore.getState().gapThresholds,
-    );
-    store.setParsed(file.name, validated.data, detected);
+    store.setParsed(file.name, result.data, result.gaps);
   } catch (err) {
     store.fail({
       title: "Could not read file",
@@ -263,6 +269,7 @@ export function useRecoverySession(): RecoverySession {
   const data = useRecoveryStore((s) => s.data);
   const gaps = useRecoveryStore((s) => s.gaps);
   const error = useRecoveryStore((s) => s.error);
+  const progress = useRecoveryStore((s) => s.progress);
   const gapThresholds = useUiStore((s) => s.gapThresholds);
 
   // Same pipeline as the landing-tab entry point, wrapped for the stable
@@ -341,6 +348,7 @@ export function useRecoverySession(): RecoverySession {
     reimport,
     extent,
     error,
+    progress,
     gapThresholds,
     loadFile,
     reset,

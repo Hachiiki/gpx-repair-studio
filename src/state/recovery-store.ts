@@ -37,6 +37,7 @@
  */
 
 import { create } from "zustand";
+import type { ParseProgress } from "@/lib/gpx/parse-worker-protocol";
 import {
   addVertexCommand,
   clearVerticesCommand,
@@ -97,9 +98,13 @@ interface RecoveryState {
   data: OriginalTrackData | null;
   gaps: readonly DetectedGap[];
   error: SessionError | null;
+  /** Worker-parse progress (Phase 9) — null except during a worker parse. */
+  progress: ParseProgress | null;
 
   /** Enter the loading state for a new file. */
   beginLoad: (fileName: string) => void;
+  /** Update worker-parse progress (honored in the loading state only). */
+  setProgress: (progress: ParseProgress) => void;
   /** Store a successful parse; resets any previous error. */
   setParsed: (
     fileName: string,
@@ -204,6 +209,7 @@ const INITIAL = {
   data: null,
   gaps: [] as readonly DetectedGap[],
   error: null,
+  progress: null as ParseProgress | null,
 
   activeGapId: null,
   pointerMode: "pan" as PointerMode,
@@ -239,7 +245,12 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
   ...INITIAL,
 
   beginLoad: (fileName) =>
-    set({ status: "loading", fileName, error: null }),
+    set({ status: "loading", fileName, error: null, progress: null }),
+  setProgress: (progress) => {
+    if (get().status === "loading") {
+      set({ progress });
+    }
+  },
   setParsed: (fileName, data, gaps) =>
     set({
       status: "parsed",
@@ -247,6 +258,7 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       data,
       gaps,
       error: null,
+      progress: null,
       // A new file wipes all repair state — repairs belong to the file
       // they were drawn on, never to the next one.
       activeGapId: null,
@@ -264,7 +276,7 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
     }),
   setGaps: (gaps) => set({ gaps }),
   fail: (error) =>
-    set({ status: "error", error, data: null, gaps: [] }),
+    set({ status: "error", error, data: null, gaps: [], progress: null }),
 
   openEditor: (gapId) =>
     set((state) => {

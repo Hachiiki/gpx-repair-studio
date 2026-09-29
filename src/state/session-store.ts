@@ -18,6 +18,7 @@
  */
 
 import { create } from "zustand";
+import type { ParseProgress } from "@/lib/gpx/parse-worker-protocol";
 import type { DetectedGap, OriginalTrackData } from "@/types/domain";
 
 export type SessionStatus = "idle" | "loading" | "parsed" | "error";
@@ -51,9 +52,17 @@ interface SessionState {
   error: SessionError | null;
   /** The workspace a parsed file opens in (Task 20). */
   view: SessionView;
+  /**
+   * Worker-parse progress (Phase 9): non-null only while a large file
+   * streams through the parse worker — drives the loading bench's
+   * determinate bar. Null for inline (small-file) parses.
+   */
+  progress: ParseProgress | null;
 
   /** Enter the loading state for a new file (keeps the previous view until parsed). */
   beginLoad: (fileName: string, view?: SessionView) => void;
+  /** Update worker-parse progress (honored in the loading state only). */
+  setProgress: (progress: ParseProgress) => void;
   /** Store a successful parse; resets any previous error. */
   setParsed: (
     fileName: string,
@@ -77,18 +86,24 @@ const IDLE = {
   gaps: [] as readonly DetectedGap[],
   error: null,
   view: "repair" as SessionView,
+  progress: null as ParseProgress | null,
 };
 
 export const useSessionStore = create<SessionState>()((set) => ({
   ...IDLE,
 
   beginLoad: (fileName, view) =>
-    set({ status: "loading", fileName, ...(view ? { view } : {}) }),
+    set({ status: "loading", fileName, progress: null, ...(view ? { view } : {}) }),
+  setProgress: (progress) => {
+    if (useSessionStore.getState().status === "loading") {
+      set({ progress });
+    }
+  },
   setParsed: (fileName, data, gaps) =>
-    set({ status: "parsed", fileName, data, gaps, error: null }),
+    set({ status: "parsed", fileName, data, gaps, error: null, progress: null }),
   setGaps: (gaps) => set({ gaps }),
   setView: (view) => set({ view }),
   fail: (error) =>
-    set({ status: "error", error, data: null, gaps: [] }),
+    set({ status: "error", error, data: null, gaps: [], progress: null }),
   reset: () => set(IDLE),
 }));

@@ -57,6 +57,7 @@ import { useRepairAnnouncements } from "@/hooks/use-repair-announcements";
 import { useElevation, useElevationStats } from "@/hooks/use-elevation";
 import { useGpxExport } from "@/hooks/use-gpx-export";
 import { useGpxSession } from "@/hooks/use-gpx-session";
+import { useSessionStore } from "@/state/session-store";
 import { useMapController } from "@/hooks/use-map-controller";
 import { useShareCard } from "@/hooks/use-share-card";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
@@ -121,6 +122,8 @@ export function AppShell() {
   const recoveryStatus = useRecoveryStore((s) => s.status);
   const recoveryFileName = useRecoveryStore((s) => s.fileName);
   const recoveryError = useRecoveryStore((s) => s.error);
+  // Phase 9 — the repair session's worker-parse progress (large files).
+  const parseProgress = useSessionStore((s) => s.progress);
   const createPhase = useCreateStore((s) => s.phase);
   const createStats = useCreateStore((s) => s.stats);
   const createView = useCreateStore((s) => s.view);
@@ -392,7 +395,10 @@ export function AppShell() {
             />
           )
         ) : session.status === "loading" ? (
-          <SessionLoadingView fileName={session.fileName} />
+          <SessionLoadingView
+            fileName={session.fileName}
+            progress={parseProgress}
+          />
         ) : (
           /* The landing is a two-page flow (Task 42): the tool cards,
              then the chosen tool's page. The remembered mode decides

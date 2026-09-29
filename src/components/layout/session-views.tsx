@@ -548,7 +548,21 @@ export function ToolDetailView({
 export interface SessionLoadingViewProps {
   /** The file being parsed (announced to assistive technology). */
   fileName: string | null;
+  /**
+   * Worker-parse progress (Phase 9) — non-null only while a large file
+   * streams through the parse worker; drives the determinate bar.
+   * Null (small files) keeps the indeterminate skeleton.
+   */
+  progress?: { phase: string; fraction: number } | null;
 }
+
+/** Phase labels for the determinate progress readout (Phase 9). */
+const PROGRESS_PHASE_LABELS: Record<string, string> = {
+  parse: "Parsing",
+  validate: "Validating",
+  gaps: "Detecting gaps",
+  transfer: "Preparing view",
+};
 
 /**
  * One placeholder tools card — the bench's blocks taking shape (user
@@ -571,7 +585,7 @@ function SkeletonCard() {
   );
 }
 
-export function SessionLoadingView({ fileName }: SessionLoadingViewProps) {
+export function SessionLoadingView({ fileName, progress }: SessionLoadingViewProps) {
   return (
     <div
       role="status"
@@ -612,7 +626,37 @@ export function SessionLoadingView({ fileName }: SessionLoadingViewProps) {
             <p className="text-sm text-muted-foreground">
               Everything happens locally in your browser.
             </p>
-            <Skeleton className="mt-1 h-1.5 w-40 rounded-full" />
+            {progress ? (
+              /* Phase 9 — large files stream through the parse worker: a
+               * real determinate readout (phase + %) replaces the
+               * indeterminate skeleton; the enclosing role="status"
+               * region is polite-live, so updates announce themselves. */
+              <div className="w-56" data-testid="parse-progress">
+                <div
+                  className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(progress.fraction * 100)}
+                  aria-label="Parse progress"
+                >
+                  <div
+                    data-testid="parse-progress-fill"
+                    className="h-full rounded-full bg-ink transition-[width] duration-150 ease-out motion-reduce:transition-none"
+                    style={{ width: `${Math.min(100, Math.max(0, progress.fraction * 100))}%` }}
+                  />
+                </div>
+                <p
+                  data-testid="parse-progress-label"
+                  className="mt-1.5 text-xs tabular-nums text-muted-foreground"
+                >
+                  {PROGRESS_PHASE_LABELS[progress.phase] ?? "Working"} —{" "}
+                  {Math.round(progress.fraction * 100)}%
+                </p>
+              </div>
+            ) : (
+              <Skeleton className="mt-1 h-1.5 w-40 rounded-full" />
+            )}
           </div>
         </div>
         <aside

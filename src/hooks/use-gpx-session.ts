@@ -3,7 +3,7 @@
  * (docs/MASTER_PLAN.md §D-2 data flow, Phase 2 scope).
  *
  * Owns the runtime pipeline for one file:
- *   File → text → parseGpx → validateGpx → detectGaps → sessionStore
+ *   File → text → runParsePipeline (inline or Phase 9 worker) → sessionStore
  * and exposes memoized *view models* (gap rows, segment rows, stats) so
  * components stay pure presentation (props in, intents out; no component
  * ever imports feature internals — ESLint boundary).
@@ -20,12 +20,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
-import {
-  detectGaps,
-  type GapThresholds,
-} from "@/features/gpx/detectGaps";
-import { parseGpx } from "@/features/gpx/parse";
-import { validateGpx } from "@/features/gpx/validate";
+import { detectGaps, type GapThresholds } from "@/features/gpx/detectGaps";
 import {
   isUsableStatsPoint,
   originalDistanceStats,
@@ -33,7 +28,7 @@ import {
 } from "@/features/statistics/distance";
 import { originalTimeStats, type TimeStats } from "@/features/statistics/time";
 import { reimportStats, type ReimportStats } from "@/features/statistics/reimport";
-import { createDomXmlIo } from "@/lib/utils/xml";
+import { runParsePipeline } from "@/lib/gpx/parse-client";
 import {
   useSessionStore,
   type SessionError,
@@ -47,12 +42,14 @@ import type {
   GapKind,
   GapSeverity,
   GpxParseError,
+  OriginalSegment,
   OriginalTrackData,
   OriginalTrackPoint,
   PointId,
   SegmentId,
   ValidationIssue,
 } from "@/types/domain";
+import { parsePointIdRef } from "@/types/ids";
 import type { BBox } from "@/lib/geo/bbox";
 import { bboxOf } from "@/lib/geo/bbox";
 
@@ -190,18 +187,27 @@ function buildGapRows(
   gaps: readonly DetectedGap[],
   data: OriginalTrackData,
 ): GapRow[] {
-  // Index points by id once (O(n)); gaps reference boundaries by id.
-  const points = new Map<PointId, { point: OriginalTrackPoint; segmentId: SegmentId }>();
+  // Phase 9 — resolve boundary ids directly (O(gaps)) instead of indexing
+  // every point of a 100k-point file: segments are few, ids carry their
+  // own segment + index (types/ids.ts).
+  const segments = new Map<SegmentId, OriginalSegment>();
   for (const segment of data.segments) {
-    for (const point of segment.points) {
-      points.set(point.id, { point, segmentId: segment.id });
-    }
+    segments.set(segment.id, segment);
   }
+  const resolve = (
+    id: PointId,
+  ): { point: OriginalTrackPoint; segmentId: SegmentId } | undefined => {
+    const ref = parsePointIdRef(id);
+    if (ref === null) return undefined;
+    const segment = segments.get(ref.segmentId);
+    const point = segment?.points[ref.index];
+    return point === undefined ? undefined : { point, segmentId: ref.segmentId };
+  };
 
   const rows: GapRow[] = [];
   for (const gap of gaps) {
-    const before = points.get(gap.before.pointId);
-    const after = points.get(gap.after.pointId);
+    const before = resolve(gap.before.pointId);
+    const after = resolve(gap.after.pointId);
     // Boundary ids are produced by detectGpx over the same model — always
     // resolvable. Guard defensively without inventing data.
     if (!before || !after) continue;
@@ -300,21 +306,20 @@ export function useGpxSession(): GpxSession {
 
     try {
       const text = await file.text();
-      // Yield once more so the loading state paints before the synchronous
-      // parse of large files (Web Worker offload arrives in Phase 9).
+      // Yield once more so the loading state paints before the parse of
+      // large files (which then runs in the Phase 9 worker off-thread).
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      const outcome = parseGpx(text, createDomXmlIo());
-      if (!outcome.ok) {
-        session.fail(describeParseError(outcome.error, file.name));
+      const result = await runParsePipeline(text, {
+        gapThresholds: useUiStore.getState().gapThresholds,
+        onProgress: (progress) =>
+          useSessionStore.getState().setProgress(progress),
+      });
+      if (!result.ok) {
+        session.fail(describeParseError(result.error, file.name));
         return;
       }
-      const validated = validateGpx(outcome.data);
-      const detected = detectGaps(
-        validated.data,
-        useUiStore.getState().gapThresholds,
-      );
-      session.setParsed(file.name, validated.data, detected);
+      session.setParsed(file.name, result.data, result.gaps);
     } catch (err) {
       session.fail({
         title: "Could not read file",

@@ -216,7 +216,12 @@ export function RecoveryStudio() {
   }
 
   if (session.status === "loading") {
-    return <SessionLoadingView fileName={session.fileName} />;
+    return (
+      <SessionLoadingView
+        fileName={session.fileName}
+        progress={session.progress}
+      />
+    );
   }
 
   // Unreachable from the shell (it only mounts this section while its
