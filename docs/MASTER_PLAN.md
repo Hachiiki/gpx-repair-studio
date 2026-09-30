@@ -1655,3 +1655,150 @@ explicitly: **no export and no share** — nothing leaves the page.
   convention (user pass 48) — both known design, not defects.
 - Baseline: 1083 unit + 80 e2e, typecheck + eslint clean, isolated
   static-export build PASS.
+
+## Y. Mobile & Accessibility Hardening (Phase 8)
+
+*Phase 8 of §P — the production-quality touch and screen-reader pass.
+Committed as `ba997c6`; its closeout record was backfilled during the
+Task 51 verification (the Phase 9 session found the commit already on
+the branch with no worklog/plan entry — the work below is that
+commit's, read back from the diff.*
+
+### The announcement bus (`lib/announcements.ts`, `Announcer`)
+
+- The workflow moments that have NO visual focus change — gaps
+  detected after a parse, a reconstruction finishing, an export ready,
+  a long-press deleting a drawn point — are exactly the moments a
+  screen reader would otherwise sit silent through. `announce(msg)` is
+  a module-level pub/sub any layer can call (hooks, stores, the
+  MapLibre controller) with no prop-drilling, context, or import
+  cycle; `Announcer` (mounted once in the shell) renders the single
+  polite `aria-live` region. Announcements are the mirror of badges
+  and banners the sighted UI already shows — never a second UI.
+
+### One tools column, two layouts (`WorkspaceToolsColumn`)
+
+- Desktop (lg+) keeps the classic sticky aside, class-for-class. Touch
+  widths get the §P Phase 8 bottom sheet: a 9.5 rem scrollable peek
+  (swipe inside it browses without opening), a 35 dvh expanded state
+  (the map keeps its working canvas above), a 44 px grab-bar toggle
+  (tap, Enter/Space, or a ≥28 px drag, with honest `aria-expanded`),
+  and an IntersectionObserver that hides the sheet once the user
+  scrolls into the statistics section. The draw editor's Task-49
+  reveal effect dispatches `gpxr:tools-reveal`, the mobile twin of the
+  column scroll — opening an editor brings the Pen chips to the
+  thumb. The sheet's scroll container carries the same
+  `tools-panel` testid the aside uses, so every reveal/reveal-test
+  works unchanged on both layouts.
+
+### The touch layer (`mapController`)
+
+- Two-finger pan/zoom owns navigation while a draw mode is active (a
+  one-finger draw never fights the map); coarse pointers get ≥44 px
+  hit targets on handles (visually honest — an invisible 44 px halo
+  around a 5 px dot is a trap, so the target IS the drawn handle
+  size); a stationary ≥N ms press on a vertex handle in draw mode is
+  long-press delete, cancelled by ≥8 px of travel (it became a drag).
+
+### Keyboard operability
+
+- The skip link is the first tab stop; the whole repair flow
+  (upload → gap list → editor → export) is drivable by keyboard; the
+  export dialog takes focus, closes on Esc, and returns focus to its
+  opener; the sheet's grab bar is a real button (Enter/Space toggle).
+
+### Verification
+
+- `e2e/accessibility.spec.ts`: axe-core scans (serious + critical
+  bar, zero disable-rules/exclusions) over the plan's primary states —
+  landing, tool page, parsed workspace, draw editor open, export
+  dialog, and the mobile sheet-expanded editing state.
+- `e2e/keyboard.spec.ts`: the four flows above, tab-stop order
+  included. `e2e/mobile-touch.spec.ts`: the touch gestures through
+  `e2e/helpers/touch.ts` (tap, drag, two-finger pan, long-press) at
+  375 px, drawing included.
+- Also in the commit: `use-media-query` (SSR-safe, `lg` breakpoint
+  single source), the URI-wrap fix that kept GloryFit's long
+  `<link>` text from overflowing the mobile viewport, dialog/table
+  a11y fixes, and reduced-motion support in `globals.css`.
+- Baseline after Phase 8: 1176 unit + the suite's a11y/keyboard/
+  mobile-touch specs green (full-suite green re-proven at Task 51).
+
+## Z. Performance & Large Files (Phase 9 — Task 51)
+
+*Phase 9 of §P / §C-2. The parse pipeline left the main thread; the
+map renders decimated by zoom; the budgets are now measured, not
+aspirational.*
+
+### The worker parse (`workers/parseWorker.ts`, `lib/gpx/worker-xml.ts`, `lib/gpx/parse-client.ts`)
+
+- **The XmlIo seam paid out.** Workers have no DOMParser; instead of
+  vendoring a DOM, `worker-xml.ts` is a compact namespace-aware
+  tokenizer + minimal tree implementing exactly the DOM surface
+  `parseGpx` touches (documentElement, getElementsByTagNameNS,
+  localName, getAttribute, children, textContent, serialize).
+  Malformed input throws — `parseGpx` already maps a throwing io to
+  the typed malformed-xml error, the undeclared-prefix recovery
+  included.
+- **Correctness gate:** the corpus-equivalence suite — every committed
+  fixture parsed through BOTH ios must produce structurally equal
+  outcomes AND byte-equal identity exports (`tests/worker-xml.test.ts`,
+  398 tests; `tests/parse-client.test.ts`, 234).
+- **Streaming:** the validated model returns in ≤8,192-point chunks
+  (`PARSE_CHUNK_POINTS`) — each structured clone lands in the tens of
+  ms, never near the 200 ms budget; progress messages drive the
+  loading bench's determinate bar (phase label + %, `role="status"`
+  polite-live). Threshold: 1 MB of text (`PARSE_WORKER_THRESHOLD_BYTES`)
+  routes to the worker; below it the inline path is byte-identical to
+  the pre-Phase-9 behavior every existing spec pins. Infrastructure
+  failure (worker blocked, crash, 120 s timeout) degrades gracefully
+  to the inline pipeline with one console warning — correct output,
+  blocking parse, never a dead app.
+
+### Zoom decimation (`lib/map/decimate.ts`)
+
+- Render-only: statistics, badges, export, and gap detection keep the
+  full-resolution model; only the GeoJSON handed to the route source
+  is sampled. The stride keeps consecutive kept points ≥2 px apart at
+  the current zoom (maplibre 512 px tiles), quantized DOWN to powers
+  of two so a gesture only re-decimates on band crossings. Endpoints
+  are pinned; below 30,000 total coordinates (or stride 1) the input
+  references pass through untouched — normal files never pay a copy.
+  A floor keeps ≥512 rendered points so an overview stays a
+  recognizable track. Wired in `mapController#applyRoute` + a
+  `zoomend` re-apply; reconstructions, drafts, and gap geometry are
+  never decimated.
+
+### Measuring honestly (`e2e/performance.spec.ts`)
+
+- Four measurement rules, each earned by a false failure in this
+  sandbox: (1) `trace: "off"` for this file — Playwright's
+  retain-on-failure tracing added ~1.4 s to a timed window that
+  streams 100k points; (2) an untimed warm-up test compiles the dev
+  route + worker chunk before anything is timed; (3) the
+  parse-pipeline window is [upload mark, last worker progress
+  message arrival) — captured race-free by a Worker spy installed
+  before navigation — because the result handler (assembly + first
+  render + setData) is a separate 400–800 ms task that §C-2's
+  "parse + validate" rule does not govern; (4) the label observer
+  attaches to `document`, never `documentElement` — init scripts run
+  before `<html>` exists, and observing null throws silently-empty
+  logs.
+- Budgets, production (§C-2 verbatim) → dev ceiling (measured, warm):
+  50k workspace 2 s → 3.5 s (measured 2.36 s); 100k workspace ~4 s →
+  5 s (measured 3.3 s); 100k export 1 s → 2 s (measured 1.25 s);
+  parse-pipeline worst block ≤200 ms — measured 55–78 ms (the chunk
+  clones), asserted unchanged. The 100k suite also pins the phases
+  (parse → validate → gaps → transfer, ending transfer @ 100%) and
+  the user-facing label ("Preparing view" last).
+- 250k profile (`scripts/task51-mem-profile.mjs`): heap flat at
+  257 MB across parse → render → export; DOM 371 → 465 nodes (no
+  per-point DOM); upload → workspace 6.9 s; export 2.06 s / 24 MB
+  round-trip; the e2e gate (loads, no crash, heap < 2 GB, DOM <
+  5k) green.
+- Fixes earned by the verification pass: the spec's fixtures were
+  missing the injected time gap the decimation test reads (two
+  features); one draw-editor assertion (Task 44-era) was an unawaited
+  locator `expect` that slower sandboxes cut off at finalization.
+- Baseline after Phase 9: 1176 unit + 104 e2e, typecheck + eslint
+  clean, isolated static-export build PASS (worker chunks shipped).

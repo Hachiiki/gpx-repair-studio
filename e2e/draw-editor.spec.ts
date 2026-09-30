@@ -248,8 +248,12 @@ test.describe("draw editor — desktop", () => {
       .catch(() => "");
     expect(afterStats).toBe(beforeStats);
 
-    // The panel reports the same live state.
-    expect(page.getByTestId("vertex-count")).toHaveText(/2 \/ 128 points/);
+    // The panel reports the same live state. (Awaited: an unawaited
+    // locator assertion is cut off at test finalization — in a slow
+    // sandbox the first poll read "" before React committed.)
+    await expect(page.getByTestId("vertex-count")).toHaveText(
+      /2 \/ 128 points/,
+    );
   });
 
   test("undo, redo, and clear all work from the panel", async ({ page }) => {
