@@ -363,4 +363,36 @@ describe("RoadFollowRouter (fetch injected)", () => {
     });
     expect(await failing.segment("foot", A, B)).toBeNull();
   });
+
+  // Phase 10 — session recovery: a restored routed line re-enters through
+  // the cache, never the network.
+  it("seedCache makes restored legs cache hits with zero fetches", async () => {
+    const fetchMock = vi.fn<RoadFetch>();
+    const router = new RoadFollowRouter({ fetch: fetchMock });
+    const stored: RoadLeg = {
+      a: A,
+      b: B,
+      coordinates: AB_ROAD,
+      routeDistanceM: 1234.5,
+    };
+    router.seedCache("car", [stored]);
+    // The synchronous probe and the async resolve both hit the seed.
+    expect(router.cached("car", A, B)?.coordinates).toEqual(AB_ROAD);
+    await expect(router.segment("car", A, B)).resolves.toEqual(stored);
+    expect(fetchMock).not.toHaveBeenCalled();
+    // Mode is part of the key — the foot twin still routes.
+    expect(router.cached("foot", A, B)).toBeNull();
+  });
+
+  it("seedCache skips malformed legs instead of poisoning the cache", () => {
+    const router = new RoadFollowRouter({ fetch: vi.fn<RoadFetch>() });
+    const broken = {
+      a: { lat: Number.NaN, lon: 0 },
+      b: B,
+      coordinates: [] as [number, number][],
+      routeDistanceM: 0,
+    };
+    router.seedCache("car", [broken]);
+    expect(router.cached("car", broken.a, B)).toBeNull();
+  });
 });

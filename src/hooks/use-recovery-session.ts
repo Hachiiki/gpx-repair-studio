@@ -222,7 +222,9 @@ export function buildRecoverySegmentRows(
  */
 export async function loadRecoveryFile(file: File): Promise<void> {
   const store = useRecoveryStore.getState();
-  store.beginLoad(file.name);
+  // Phase 10: the file rides along (session recovery's autosave persists
+  // the original bytes without re-reading anything).
+  store.beginLoad(file.name, file);
 
   if (file.size === 0) {
     store.fail({

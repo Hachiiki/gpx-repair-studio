@@ -58,9 +58,16 @@ interface SessionState {
    * determinate bar. Null for inline (small-file) parses.
    */
   progress: ParseProgress | null;
+  /**
+   * The uploaded file itself (Phase 10 — session recovery): kept so the
+   * debounced autosave can persist the original bytes to IndexedDB
+   * without the hook re-reading anything. Never mutated, never sent
+   * anywhere; cleared with the session.
+   */
+  sourceFile: File | null;
 
   /** Enter the loading state for a new file (keeps the previous view until parsed). */
-  beginLoad: (fileName: string, view?: SessionView) => void;
+  beginLoad: (fileName: string, view?: SessionView, file?: File) => void;
   /** Update worker-parse progress (honored in the loading state only). */
   setProgress: (progress: ParseProgress) => void;
   /** Store a successful parse; resets any previous error. */
@@ -87,13 +94,20 @@ const IDLE = {
   error: null,
   view: "repair" as SessionView,
   progress: null as ParseProgress | null,
+  sourceFile: null as File | null,
 };
 
 export const useSessionStore = create<SessionState>()((set) => ({
   ...IDLE,
 
-  beginLoad: (fileName, view) =>
-    set({ status: "loading", fileName, progress: null, ...(view ? { view } : {}) }),
+  beginLoad: (fileName, view, file) =>
+    set({
+      status: "loading",
+      fileName,
+      progress: null,
+      sourceFile: file ?? null,
+      ...(view ? { view } : {}),
+    }),
   setProgress: (progress) => {
     if (useSessionStore.getState().status === "loading") {
       set({ progress });
@@ -104,6 +118,13 @@ export const useSessionStore = create<SessionState>()((set) => ({
   setGaps: (gaps) => set({ gaps }),
   setView: (view) => set({ view }),
   fail: (error) =>
-    set({ status: "error", error, data: null, gaps: [], progress: null }),
+    set({
+      status: "error",
+      error,
+      data: null,
+      gaps: [],
+      progress: null,
+      sourceFile: null,
+    }),
   reset: () => set(IDLE),
 }));

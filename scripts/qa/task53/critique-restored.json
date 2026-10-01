@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "**Critique:**\n\n1.  **Reconstruction Line Rendering:** The line renders correctly. It is a visible, emerald/dashed chain connecting the two gap anchors (the black circle and the end of the original track). It clearly shows the 3 interior vertices (white circles) forming the \"V\" shape. The \"ghost\" of the original straight-line gap (dashed red/orange) is also visible for reference.\n2.  **Tools Column State:** The \"Reconstruct route\" panel is in a sane, active editing state. It displays the correct metadata (From/To coordinates), the active tool chips (\"Default pen\", \"Straight lines\", \"By distance\"), the calculated stats (220m, 5:00 gap), and the essential action bar (Undo/Redo/Clear) at the bottom. The \"Editing\" badge confirms the session was restored into an active draw mode.\n3.  **Broken State/Layout Defects:** There are no signs of broken state or missing data. The layout is clean, the map and sidebar are well-aligned, and the UI elements are responsive to the restored data. The \"Drawing\" badge on the map and the open editor panel are perfectly synchronized.\n\nVerdict: SHIP",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790825388,
+  "id": "202610011129420e009d76dba54e8d",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "202610011129420e009d76dba54e8d",
+  "usage": {
+    "completion_tokens": 254,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1838,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2092
+  }
+}

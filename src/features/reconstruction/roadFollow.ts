@@ -403,6 +403,27 @@ export class RoadFollowRouter {
   }
 
   /**
+   * Phase 10 — session recovery: adopt persisted road legs into the cache
+   * so a restored routed line finds cache hits instead of re-issuing the
+   * same OSRM/Valhalla requests (WYSIWYG restore, zero network). Only
+   * well-formed legs are accepted — a foreign record can never poison the
+   * cache for pairs it does not legitimately answer.
+   */
+  seedCache(mode: RoutableRoadMode, legs: readonly RoadLeg[]): void {
+    for (const leg of legs) {
+      if (
+        !Number.isFinite(leg.a?.lat) ||
+        !Number.isFinite(leg.a?.lon) ||
+        !Number.isFinite(leg.b?.lat) ||
+        !Number.isFinite(leg.b?.lon)
+      ) {
+        continue;
+      }
+      this.#cache.set(routerKey(mode, leg.a, leg.b), leg);
+    }
+  }
+
+  /**
    * Resolve one leg. Same-key calls share a single request; successes are
    * cached for the session; every failure path resolves `null`.
    */

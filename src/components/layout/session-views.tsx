@@ -25,7 +25,7 @@
  * app does today.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   Clock,
@@ -85,6 +85,11 @@ export interface SessionIdleViewProps {
   /** The app-wide distance/pace unit (the create form's entry unit). */
   paceUnit: PaceUnit;
   onPaceUnitChange: (unit: PaceUnit) => void;
+  /**
+   * Phase 10 — the session-recovery prompt (rendered on the cards page,
+   * above the hero, exactly when restorable work exists on this device).
+   */
+  restorePrompt?: ReactNode;
 }
 
 export function SessionIdleView({
@@ -99,6 +104,7 @@ export function SessionIdleView({
   createStats,
   paceUnit,
   onPaceUnitChange,
+  restorePrompt,
 }: SessionIdleViewProps) {
   /*
    * Focus return (Task 42): remember which card opened the tool page,
@@ -113,6 +119,7 @@ export function SessionIdleView({
     return (
       <LandingCardsView
         returnFocusTo={returnFocus}
+        restorePrompt={restorePrompt}
         onOpenTool={(tool) => {
           setReturnFocus(tool);
           onOpenTool(tool);

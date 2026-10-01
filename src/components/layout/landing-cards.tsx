@@ -25,7 +25,7 @@
 
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   ArrowRight,
   Combine,
@@ -128,11 +128,18 @@ export interface LandingCardsViewProps {
    * that tool's page); `null` on a fresh visit — focus stays natural.
    */
   returnFocusTo: LandingMode | null;
+  /**
+   * Phase 10 — the session-recovery prompt, rendered above the hero
+   * exactly when IndexedDB holds restorable work (a node, so the shell
+   * owns the controller and this view stays pure presentation).
+   */
+  restorePrompt?: ReactNode;
 }
 
 export function LandingCardsView({
   onOpenTool,
   returnFocusTo,
+  restorePrompt,
 }: LandingCardsViewProps) {
   // Card refs keyed by mode — the focus-return target (see header).
   const cardRefs = useRef<
@@ -146,7 +153,8 @@ export function LandingCardsView({
   }, []);
 
   return (
-    <div className="hero-entrance mx-auto my-auto flex w-full max-w-4xl flex-col py-8">
+    <div className="hero-entrance mx-auto my-auto flex w-full max-w-4xl flex-col gap-6 py-8">
+      {restorePrompt}
       <div className="space-y-2 text-center">
         <h2 className="font-display text-[clamp(2.25rem,5vw,3.25rem)] font-extrabold leading-[1.02] tracking-[0.012em] text-balance">
           What would you like to do?

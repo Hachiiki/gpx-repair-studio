@@ -276,6 +276,58 @@ function buildSegmentRows(
 // The hook
 // ---------------------------------------------------------------------------
 
+/**
+ * The repair studio's upload pipeline, exported for the shell (Task 26
+ * pattern — `loadRecoveryFile`'s twin) and Phase 10's session restore:
+ * File → text → runParsePipeline (inline or Phase 9 worker) → session
+ * store. The file itself rides along into the store (`sourceFile`) so
+ * the recovery autosave can persist the original bytes.
+ */
+export async function loadGpxFile(file: File): Promise<void> {
+  const session = useSessionStore.getState();
+  // The remembered landing intent decides which workspace this file
+  // opens into (Task 20); switching later never re-parses. Task 26
+  // revision: the toggle's third tab ("recovery") routes its uploads
+  // into the recovery session instead — this path never sees it, and
+  // the narrowing keeps the store's SessionView honest by construction.
+  const remembered = useUiStore.getState().landingMode;
+  const view = remembered === "share" ? "share" : "repair";
+  session.beginLoad(file.name, view, file);
+
+  if (file.size === 0) {
+    session.fail({
+      title: "Empty file",
+      detail: `"${file.name}" contains no data. Choose a non-empty GPX export.`,
+    });
+    return;
+  }
+
+  try {
+    const text = await file.text();
+    // Yield once more so the loading state paints before the parse of
+    // large files (which then runs in the Phase 9 worker off-thread).
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const result = await runParsePipeline(text, {
+      gapThresholds: useUiStore.getState().gapThresholds,
+      onProgress: (progress) =>
+        useSessionStore.getState().setProgress(progress),
+    });
+    if (!result.ok) {
+      session.fail(describeParseError(result.error, file.name));
+      return;
+    }
+    session.setParsed(file.name, result.data, result.gaps);
+  } catch (err) {
+    session.fail({
+      title: "Could not read file",
+      detail:
+        `"${file.name}" could not be read: ` +
+        `${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+}
+
 export function useGpxSession(): GpxSession {
   const status = useSessionStore((s) => s.status);
   const fileName = useSessionStore((s) => s.fileName);
@@ -285,50 +337,10 @@ export function useGpxSession(): GpxSession {
   const view = useSessionStore((s) => s.view);
   const gapThresholds = useUiStore((s) => s.gapThresholds);
 
-  const loadFile = useCallback(async (file: File) => {
-    const session = useSessionStore.getState();
-    // The remembered landing intent decides which workspace this file
-    // opens into (Task 20); switching later never re-parses. Task 26
-    // revision: the toggle's third tab ("recovery") routes its uploads
-    // into the recovery session instead — this path never sees it, and
-    // the narrowing keeps the store's SessionView honest by construction.
-    const remembered = useUiStore.getState().landingMode;
-    const view = remembered === "share" ? "share" : "repair";
-    session.beginLoad(file.name, view);
-
-    if (file.size === 0) {
-      session.fail({
-        title: "Empty file",
-        detail: `"${file.name}" contains no data. Choose a non-empty GPX export.`,
-      });
-      return;
-    }
-
-    try {
-      const text = await file.text();
-      // Yield once more so the loading state paints before the parse of
-      // large files (which then runs in the Phase 9 worker off-thread).
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      const result = await runParsePipeline(text, {
-        gapThresholds: useUiStore.getState().gapThresholds,
-        onProgress: (progress) =>
-          useSessionStore.getState().setProgress(progress),
-      });
-      if (!result.ok) {
-        session.fail(describeParseError(result.error, file.name));
-        return;
-      }
-      session.setParsed(file.name, result.data, result.gaps);
-    } catch (err) {
-      session.fail({
-        title: "Could not read file",
-        detail:
-          `"${file.name}" could not be read: ` +
-          `${err instanceof Error ? err.message : String(err)}`,
-      });
-    }
-  }, []);
+  // The hook's upload intent — the shared pipeline above (Phase 10 made
+  // the same function the restore path uses, so a restored session is
+  // byte-for-byte an ordinary upload).
+  const loadFile = useCallback((file: File) => loadGpxFile(file), []);
 
   const reset = useCallback(() => {
     useSessionStore.getState().reset();

@@ -18,6 +18,15 @@ import { enterRepairTool } from "./helpers/landing";
  * reported to the log but do not fail the run — the plan's bar is
  * "no critical violations". Everything found is fixed in the app,
  * not silenced here: no disable-rules, no exclusions.
+ *
+ * Task 53 note — scroll-driven reveals: below-the-fold sections fade
+ * in via `animation-timeline: view()` (reveal-on-scroll), so their
+ * opacity is SCRUBBED by scroll position. A scan at the top of a long
+ * page measures near-invisible (≈3%) text and flags phantom contrast
+ * violations; `revealSettled` steps the page to its bottom first so
+ * every reveal completes, and the scan sees the page as a scrolling
+ * user does. (An environment drift — Chromium honoring view() — made
+ * this load-bearing; the CSS predates Phase 8's green runs.)
  */
 
 const FIXTURES = join("src", "features", "gpx", "fixtures", "files");
@@ -56,6 +65,28 @@ function criticals(results: Awaited<ReturnType<AxeBuilder["analyze"]>>) {
   return results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
 }
 
+/**
+ * Step the page to its bottom so every scroll-driven reveal completes
+ * (see the Task 53 note in the header) — the scan then measures fully
+ * revealed text instead of a scroll-scrubbed 3% ghost.
+ */
+async function revealSettled(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const root = document.scrollingElement ?? document.documentElement;
+    const step = Math.max(200, Math.floor(root.clientHeight * 0.8));
+    for (let y = 0; y <= root.scrollHeight; y += step) {
+      root.scrollTo(0, y);
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      );
+    }
+    root.scrollTo(0, root.scrollHeight);
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)),
+    );
+  });
+}
+
 test.describe("accessibility — desktop", () => {
   test("the landing (empty state) has no critical violations", async ({
     page,
@@ -71,6 +102,9 @@ test.describe("accessibility — desktop", () => {
     await page.goto("/");
     await page.getByTestId("landing-mode-repair").click();
     await page.getByTestId("upload-zone").waitFor({ state: "visible" });
+    // The tool page's "How it works" section is below the fold and
+    // scroll-revealed — settle the reveals before scanning (header note).
+    await revealSettled(page);
     const results = await scan(page).analyze();
     report(results);
     expect(criticals(results)).toEqual([]);

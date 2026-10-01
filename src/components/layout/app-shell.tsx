@@ -68,6 +68,8 @@ import { useCreateStore } from "@/state/create-store";
 import { useMergeStore } from "@/state/merge-store";
 import { usePlanStore } from "@/state/plan-store";
 import { loadRecoveryFile } from "@/hooks/use-recovery-session";
+import { useSessionRecovery } from "@/hooks/use-session-recovery";
+import { RestorePrompt } from "@/components/layout/restore-prompt";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
@@ -151,6 +153,14 @@ export function AppShell() {
   useEffect(() => {
     void useUiStore.persist.rehydrate();
   }, []);
+
+  /*
+   * Phase 10 — session recovery: the debounced IndexedDB autosave of
+   * in-progress work (all four drawing sessions) plus the landing page's
+   * restore/discard prompt. Mounted once, here, because the shell is
+   * the only always-alive component — subscriptions live for the page.
+   */
+  const sessionRecovery = useSessionRecovery();
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -431,6 +441,7 @@ export function AppShell() {
             createStats={createStats}
             paceUnit={paceUnit}
             onPaceUnitChange={setPaceUnit}
+            restorePrompt={<RestorePrompt recovery={sessionRecovery} />}
           />
         )}
       </main>

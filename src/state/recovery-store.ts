@@ -72,6 +72,7 @@ import type {
 } from "@/types/domain";
 import { gapId, gapIdEnd, gapIdStart, vertexId } from "@/types/ids";
 import type { PickMode } from "@/state/editor-store";
+import type { FileSessionHydration } from "@/lib/storage/session-record";
 import type { SessionError, SessionStatus } from "@/state/session-store";
 
 /**
@@ -100,9 +101,15 @@ interface RecoveryState {
   error: SessionError | null;
   /** Worker-parse progress (Phase 9) — null except during a worker parse. */
   progress: ParseProgress | null;
+  /**
+   * The uploaded file itself (Phase 10 — session recovery): kept so the
+   * autosave can persist the original bytes to IndexedDB. Cleared with
+   * the session; never mutated, never sent anywhere.
+   */
+  sourceFile: File | null;
 
   /** Enter the loading state for a new file. */
-  beginLoad: (fileName: string) => void;
+  beginLoad: (fileName: string, file?: File) => void;
   /** Update worker-parse progress (honored in the loading state only). */
   setProgress: (progress: ParseProgress) => void;
   /** Store a successful parse; resets any previous error. */
@@ -198,6 +205,13 @@ interface RecoveryState {
   toggleSkip: (gapId: GapId) => void;
   /** Drop state for gaps that no longer exist after re-detection. */
   prune: (knownGapIds: readonly GapId[]) => void;
+  /**
+   * Phase 10 — session recovery: adopt a stored session's work after its
+   * file re-parsed cleanly (deterministic gap/point ids re-attach the
+   * stored repairs). History is NOT restored — the undo stack spans one
+   * editor session by design; the vertex-id allocator is re-armed.
+   */
+  hydrate: (payload: FileSessionHydration) => void;
 
   /** Full reset (new file / leaving the section's session). */
   reset: () => void;
@@ -210,6 +224,7 @@ const INITIAL = {
   gaps: [] as readonly DetectedGap[],
   error: null,
   progress: null as ParseProgress | null,
+  sourceFile: null as File | null,
 
   activeGapId: null,
   pointerMode: "pan" as PointerMode,
@@ -244,8 +259,14 @@ export function activeRecoveryReconstruction(
 export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
   ...INITIAL,
 
-  beginLoad: (fileName) =>
-    set({ status: "loading", fileName, error: null, progress: null }),
+  beginLoad: (fileName, file) =>
+    set({
+      status: "loading",
+      fileName,
+      error: null,
+      progress: null,
+      sourceFile: file ?? null,
+    }),
   setProgress: (progress) => {
     if (get().status === "loading") {
       set({ progress });
@@ -276,7 +297,14 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
     }),
   setGaps: (gaps) => set({ gaps }),
   fail: (error) =>
-    set({ status: "error", error, data: null, gaps: [], progress: null }),
+    set({
+      status: "error",
+      error,
+      data: null,
+      gaps: [],
+      progress: null,
+      sourceFile: null,
+    }),
 
   openEditor: (gapId) =>
     set((state) => {
@@ -724,6 +752,23 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
           ? { activeGapId: null, history: EMPTY_HISTORY, pointerMode: "pan" as PointerMode }
           : {}),
       };
+    }),
+
+  hydrate: (payload) =>
+    set({
+      reconstructions: payload.reconstructions,
+      skippedGapIds: payload.skippedGapIds,
+      manualSpans: payload.manualSpans,
+      fileTiming: payload.fileTiming,
+      roadLegs: payload.roadLegs,
+      vertexSeq: payload.vertexSeq,
+      // No editor is open right after a restore; the user picks a gap and
+      // finds the line as they left it.
+      activeGapId: null,
+      history: EMPTY_HISTORY,
+      pickMode: null,
+      selectedGapId: null,
+      roadRouting: { pending: 0, failed: false },
     }),
 
   reset: () => set({ ...INITIAL }),

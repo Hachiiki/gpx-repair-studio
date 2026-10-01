@@ -48,6 +48,7 @@ import {
   type ConsistencyNotice,
 } from "@/features/create/stats";
 import { CREATE_ROUTE_ID } from "@/features/create/track";
+import type { CreateSessionHydration } from "@/lib/storage/session-record";
 import type {
   DrawVertex,
   PenMode,
@@ -105,6 +106,14 @@ interface CreateState {
   editRoute: () => void;
   /** Full reset — new activity, empty form (the header's "Start over"). */
   reset: () => void;
+  /**
+   * Phase 10 — session recovery: adopt a stored create session (the
+   * confirmed statistics + the drawn route + its settings). The session
+   * token bumps (a fresh elevation signature); history is not restored —
+   * the undo stack spans one editor session by design. Always reopens
+   * in the studio view (a view is not work).
+   */
+  hydrate: (payload: CreateSessionHydration) => void;
 
   /** Switch the in-section view (studio ⇄ share; share only from review). */
   setView: (view: CreateView) => void;
@@ -238,6 +247,27 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       ...INITIAL,
       sessionSeq: state.sessionSeq + 1,
       reconstruction: initialReconstruction(),
+    })),
+
+  hydrate: (payload) =>
+    set((state) => ({
+      stats: payload.stats,
+      consistency: checkStatsConsistency(payload.stats),
+      phase: payload.phase,
+      view: "studio" as CreateView,
+      shareDialogOpen: false,
+      reconstruction: payload.reconstruction,
+      roadLegs: payload.roadLegs,
+      spacingM: payload.spacingM,
+      matchDistance: payload.matchDistance,
+      vertexSeq: payload.vertexSeq,
+      // The chips adopt the style the route was drawn with (the same
+      // contract as reopening a line); ready to draw when phase is draw.
+      pathStyle: payload.reconstruction.pathStyle ?? state.pathStyle,
+      pointerMode: payload.phase === "draw" ? ("draw" as PointerMode) : ("pan" as PointerMode),
+      history: EMPTY_HISTORY,
+      roadRouting: { pending: 0, failed: false },
+      sessionSeq: state.sessionSeq + 1,
     })),
 
   setView: (view) => set({ view }),

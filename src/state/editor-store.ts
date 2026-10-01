@@ -51,6 +51,7 @@ import {
   type DrawHistory,
   type VertexPosition,
 } from "@/features/reconstruction/drawModel";
+import type { FileSessionHydration } from "@/lib/storage/session-record";
 import type { FileTimingContext } from "@/features/reconstruction/timestamps";
 import type {
   GapId,
@@ -179,6 +180,15 @@ interface EditorState {
   toggleSkip: (gapId: GapId) => void;
   /** Drop state for gaps that no longer exist after re-detection. */
   prune: (knownGapIds: readonly GapId[]) => void;
+  /**
+   * Phase 10 — session recovery: adopt a stored session's repair work
+   * after its file re-parsed cleanly (gap ids are deterministic, so the
+   * stored reconstructions/spans re-attach to the re-detected gaps).
+   * History is NOT restored — the undo stack spans one editor session
+   * by design. The vertex-id allocator is re-armed so future edits can
+   * never collide with restored ids.
+   */
+  hydrate: (payload: FileSessionHydration) => void;
   /** Full reset (new file / session reset). */
   reset: () => void;
 }
@@ -638,6 +648,22 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           ? { activeGapId: null, history: EMPTY_HISTORY, pointerMode: "pan" as PointerMode }
           : {}),
       };
+    }),
+
+  hydrate: (payload) =>
+    set({
+      reconstructions: payload.reconstructions,
+      skippedGapIds: payload.skippedGapIds,
+      manualSpans: payload.manualSpans,
+      fileTiming: payload.fileTiming,
+      roadLegs: payload.roadLegs,
+      vertexSeq: payload.vertexSeq,
+      // No editor is open right after a restore — the user picks a gap
+      // and finds the line as they left it.
+      activeGapId: null,
+      history: EMPTY_HISTORY,
+      pickMode: null,
+      roadRouting: { pending: 0, failed: false },
     }),
 
   reset: () => set({ ...INITIAL }),

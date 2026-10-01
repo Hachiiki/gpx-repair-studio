@@ -46,6 +46,7 @@ import {
   type VertexPosition,
 } from "@/features/reconstruction/drawModel";
 import { PLAN_ROUTE_ID } from "@/features/plan/estimate";
+import type { PlanSessionHydration } from "@/lib/storage/session-record";
 import type {
   DrawVertex,
   PenMode,
@@ -70,6 +71,13 @@ interface PlanState {
   beginPlanning: () => void;
   /** Full reset — leave the studio, clear the route (the header's "Start over"). */
   reset: () => void;
+  /**
+   * Phase 10 — session recovery: adopt a stored plan (the drawn route +
+   * the entered goal time). The session token bumps (a fresh elevation
+   * signature); history is not restored — the undo stack spans one
+   * editor session by design.
+   */
+  hydrate: (payload: PlanSessionHydration) => void;
 
   /**
    * The goal time the pace calculator runs on (ms), or `null` while no
@@ -158,6 +166,22 @@ export const usePlanStore = create<PlanState>()((set, get) => ({
       ...INITIAL,
       sessionSeq: state.sessionSeq + 1,
       reconstruction: initialReconstruction(),
+    })),
+
+  hydrate: (payload) =>
+    set((state) => ({
+      phase: "studio" as PlanPhase,
+      plannedTimeMs: payload.plannedTimeMs,
+      reconstruction: payload.reconstruction,
+      roadLegs: payload.roadLegs,
+      vertexSeq: payload.vertexSeq,
+      // The chips adopt the style the route was drawn with; the studio
+      // reopens ready to draw.
+      pathStyle: payload.reconstruction.pathStyle ?? state.pathStyle,
+      pointerMode: "draw" as PointerMode,
+      history: EMPTY_HISTORY,
+      roadRouting: { pending: 0, failed: false },
+      sessionSeq: state.sessionSeq + 1,
     })),
 
   setPlannedTime: (plannedTimeMs) => set({ plannedTimeMs }),
