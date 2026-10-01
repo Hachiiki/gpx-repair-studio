@@ -226,7 +226,7 @@ describe("SessionIdleView — tool pages (Task 20 + 26 + 42)", () => {
 describe("SessionIdleView — the tool cards home (Task 42)", () => {
   const CARD_MODES = ["repair", "share", "recovery", "create", "merge", "plan"] as const;
 
-  it("asks the opening question and offers all six tools as cards", () => {
+  it("asks the opening question and offers all six tools as tiles", () => {
     renderIdle({ view: "home" });
 
     expect(
@@ -234,19 +234,30 @@ describe("SessionIdleView — the tool cards home (Task 42)", () => {
     ).toBeVisible();
 
     const grid = screen.getByTestId("landing-mode-toggle");
-    const cards = grid.querySelectorAll("button");
-    expect(cards).toHaveLength(6);
+    const tiles = grid.querySelectorAll("button");
+    expect(tiles).toHaveLength(6);
     for (const mode of CARD_MODES) {
       expect(screen.getByTestId(`landing-mode-${mode}`)).toBeVisible();
     }
-    // The repair door carries its title (the card is a button, the
+    // The repair door carries its title (the tile is a button, the
     // title its accessible label).
     expect(screen.getByTestId("landing-mode-repair")).toHaveTextContent(
       "Repair a recording",
     );
+    // Task 56: the compact-tile density — three columns from tablet up
+    // (two rows instead of the old card grid's three)…
+    expect(grid.className).toContain("md:grid-cols-[repeat(3");
+    // …and one-line blurbs, because the tool page carries the full
+    // teaching copy (the home only answers "which tool?").
+    expect(screen.getByTestId("landing-mode-repair")).toHaveTextContent(
+      "then draw the missing route yourself.",
+    );
+    expect(screen.getByTestId("landing-mode-plan")).not.toHaveTextContent(
+      "A scratchpad: nothing is exported or shared",
+    );
   });
 
-  it("gives every card an illustration with descriptive alt text", () => {
+  it("gives every tile an illustration with descriptive alt text", () => {
     renderIdle({ view: "home" });
 
     const grid = screen.getByTestId("landing-mode-toggle");
@@ -256,9 +267,12 @@ describe("SessionIdleView — the tool cards home (Task 42)", () => {
       expect(image.getAttribute("alt")).toBeTruthy();
       expect(image.getAttribute("src")).toMatch(/^\/cards\/\w+\.webp$/);
     }
+    // Task 56: the plates stay, on the shorter 2:1 tile crop.
+    const plates = grid.querySelectorAll("[class*='aspect-[2/1]']");
+    expect(plates).toHaveLength(6);
   });
 
-  it("dispatches the open intent when a card is clicked", () => {
+  it("dispatches the open intent when a tile is clicked", () => {
     const opened: string[] = [];
     renderIdle({ view: "home", onOpenTool: (mode) => opened.push(mode) });
 
@@ -269,7 +283,7 @@ describe("SessionIdleView — the tool cards home (Task 42)", () => {
     expect(screen.getByTestId("landing-mode-toggle")).toBeVisible();
   });
 
-  it("returns focus to the card that opened the tool page (the back trip)", () => {
+  it("returns focus to the tile that opened the tool page (the back trip)", () => {
     const opened: string[] = [];
     const backs: number[] = [];
     const view = render(

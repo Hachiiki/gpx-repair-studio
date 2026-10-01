@@ -9,8 +9,9 @@
  * presentation: props in, intents out, no session logic.
  *
  * Task 42: the landing is TWO pages now, and SessionIdleView dispatches
- * between them. "home" is the tool cards (LandingCardsView — one card
- * per destination); "tool" is the selected tool's detail page
+ * between them. "home" is the tool tiles (LandingCardsView — one
+ * compact illustrated tile per destination, Task 56); "tool" is the
+ * selected tool's detail page
  * (ToolDetailView below), which carries everything the old tab swap
  * used to reveal: the hero, the "How it works" trio, the tool facts,
  * and the intake. The mode toggle is gone — opening a card is the only
