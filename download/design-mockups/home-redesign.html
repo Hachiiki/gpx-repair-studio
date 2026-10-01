@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home redesign — three compact layouts · GPX Repair Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Big+Shoulders:opsz,wght@10..72,100..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   HOME REDESIGN PROPOSAL — three compact alternatives to the
+   illustration cards, in the shipped Field Plot language.
+
+   The problem being solved: today's home is a 2×3 grid of
+   large cards, each carrying a 16:9 illustration plate — the
+   page runs ~1400px tall. But every card already opens a tool
+   page that carries the full explanation, the "How it works"
+   trio, and the upload intake. The home only needs to answer
+   ONE question ("which tool?"), so it can be much denser.
+
+   A — INDEX LIST      six full-width rows, no illustrations
+   B — INDEX + PREVIEW compact menu left, one illustration at
+                        a time in a sticky right rail
+   C — COMPACT TILES   3-across icon tiles, the middle ground
+
+   Palette (pinned): #FC4C02 signal · #222222 ink · #000000 ink+
+                     #FFFFFF paper · #5A5A5A shade · bone field
+   ============================================================ */
+
+:root {
+  --signal: #FC4C02;
+  --signal-ink: #C43D00; /* text-safe tone (WCAG AA on paper) */
+  --ink: #222222;
+  --inkplus: #000000;
+  --paper: #FFFFFF;
+  --shade: #5A5A5A;
+  --bone: #F1F1F0;
+
+  --ink-03: rgba(34,34,34,0.03);
+  --ink-04: rgba(34,34,34,0.04);
+  --ink-06: rgba(34,34,34,0.06);
+  --ink-08: rgba(34,34,34,0.08);
+  --ink-10: rgba(34,34,34,0.10);
+  --ink-15: rgba(34,34,34,0.15);
+  --ink-20: rgba(34,34,34,0.20);
+  --sig-04: rgba(252,76,2,0.04);
+  --sig-08: rgba(252,76,2,0.08);
+  --sig-10: rgba(252,76,2,0.10);
+
+  --font-ui: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-display: "Big Shoulders", "Archivo", "Arial Narrow", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --r-chip: 3px;
+  --r-control: 5px;
+  --r-card: 10px;
+  --r-plate: 12px;
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --shadow-key: 0 2px 0 0 #222222;
+  --shadow-lift: 0 3px 0 0 rgba(34,34,34,0.15);
+}
+
+/* ---------- reset & base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink);
+  background-color: var(--bone);
+  /* the plotting field: faint graph paper on bone (pass 35) */
+  background-image:
+    linear-gradient(var(--ink-04) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ink-04) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, p, dl, dd, dt, ul, ol, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+img, svg { display: block; }
+a { color: inherit; text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+button, label { font: inherit; color: inherit; }
+button { background: none; border: 0; padding: 0; cursor: pointer; }
+::selection { background: rgba(252,76,2,0.25); }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; border-radius: 2px; }
+
+.mono { font-family: var(--font-data); }
+
+.skip-link {
+  position: absolute; left: 12px; top: -48px; z-index: 100;
+  background: var(--inkplus); color: var(--paper);
+  padding: 8px 14px; border-radius: var(--r-control);
+  font-weight: 600; font-size: 13px; transition: top 150ms var(--ease);
+}
+.skip-link:focus { top: 10px; color: var(--paper); }
+
+/* ---------- app frame (mirrors the shipped shell) ---------- */
+.shell { min-height: 100dvh; display: flex; flex-direction: column; }
+.container { width: 100%; max-width: 92rem; margin: 0 auto; padding: 0 16px; }
+@media (min-width: 640px) { .container { padding: 0 24px; } }
+
+.app-header {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--bone);
+  border-bottom: 2px solid var(--ink);
+}
+.app-header__inner { display: flex; align-items: center; gap: 12px; height: 62px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand__mark {
+  width: 32px; height: 32px; border-radius: 8px; flex: none;
+  background: var(--signal); border: 1.5px solid var(--ink);
+  box-shadow: var(--shadow-key);
+  display: grid; place-items: center; color: var(--paper);
+}
+.brand__name {
+  font-family: var(--font-display);
+  font-weight: 700; font-size: 21px; letter-spacing: 0.02em;
+  line-height: 1; white-space: nowrap;
+}
+.chip--plain {
+  font-family: var(--font-data); font-size: 11px; letter-spacing: 0.06em;
+  color: var(--shade); background: var(--paper);
+  border: 1.5px solid var(--ink-20); border-radius: 999px;
+  padding: 3px 9px; white-space: nowrap;
+}
+.app-header__spacer { flex: 1; }
+.ghostbtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-data); font-size: 11px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--shade); padding: 7px 10px; border-radius: var(--r-control);
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+.ghostbtn:hover { background: var(--ink-06); color: var(--ink); }
+.version { font-family: var(--font-data); font-size: 11px; color: var(--shade); }
+@media (max-width: 560px) { .version, .chip--plain { display: none; } }
+
+/* ---------- keycap button (Field Plot) ---------- */
+.keybtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--signal); color: var(--inkplus);
+  border: 1.5px solid var(--ink); border-radius: var(--r-control);
+  box-shadow: var(--shadow-key);
+  padding: 9px 16px; font-weight: 700; font-size: 13.5px; line-height: 1;
+  transition: translate 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+.keybtn:hover { translate: 0 -1px; box-shadow: 0 3px 0 0 var(--ink); }
+.keybtn:active { translate: 0 1px; box-shadow: 0 0 0 0 var(--ink); }
+
+/* ============================================================
+   PROPOSAL BAR — the variant switcher (meta UI, not app UI)
+   ============================================================ */
+main.container { flex: 1; width: 100%; }
+.prop-wrap { max-width: 56rem; margin: 0 auto; padding: 22px 0 40px; }
+
+.prop-bar input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+.prop-seg {
+  display: flex; gap: 0; width: max-content; max-width: 100%;
+  border: 1.5px solid var(--ink); border-radius: var(--r-control);
+  background: var(--paper); overflow: hidden;
+  box-shadow: var(--shadow-key);
+}
+.prop-seg label {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  padding: 9px 16px; cursor: pointer;
+  font-size: 13.5px; font-weight: 600; color: var(--shade);
+  border-right: 1.5px solid var(--ink-15);
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+.prop-seg label:last-child { border-right: 0; }
+.prop-seg label b {
+  font-family: var(--font-display); font-weight: 800; font-size: 15px;
+  letter-spacing: 0.04em;
+}
+.prop-seg label:hover { background: var(--ink-03); color: var(--ink); }
+#va:checked ~ .prop-bar .prop-seg label[for="va"],
+#vb:checked ~ .prop-bar .prop-seg label[for="vb"],
+#vc:checked ~ .prop-bar .prop-seg label[for="vc"] {
+  background: var(--signal); color: var(--inkplus);
+}
+#va:focus-visible ~ .prop-bar .prop-seg label[for="va"],
+#vb:focus-visible ~ .prop-bar .prop-seg label[for="vb"],
+#vc:focus-visible ~ .prop-bar .prop-seg label[for="vc"] {
+  outline: 2px solid var(--signal); outline-offset: 2px;
+}
+.prop-cap {
+  font-family: var(--font-data); font-size: 11px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--shade);
+  display: flex; align-items: center; gap: 8px;
+}
+.prop-cap::before {
+  content: ""; width: 8px; height: 8px; background: var(--signal);
+  border: 1.5px solid var(--ink); border-radius: 2px;
+}
+.prop-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.prop-sub { font-size: 12.5px; color: var(--shade); margin-top: 10px; max-width: 72ch; }
+
+/* panes: radio-driven, the same technique as the approved home.html */
+.pane { display: none; }
+#va:checked ~ .pane-a,
+#vb:checked ~ .pane-b,
+#vc:checked ~ .pane-c { display: block; animation: rise 340ms var(--ease) both; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #va:checked ~ .pane-a, #vb:checked ~ .pane-b, #vc:checked ~ .pane-c { animation: none; }
+  * { transition-duration: 1ms !important; }
+}
+
+.pane-note {
+  font-family: var(--font-data); font-size: 11px; letter-spacing: 0.08em;
+  color: var(--shade); text-align: center; margin: 22px auto 0;
+  padding: 8px 12px; border: 1.5px dashed var(--ink-20); border-radius: var(--r-chip);
+  width: max-content; max-width: 100%;
+}
+.pane-note b { color: var(--signal-ink); font-weight: 500; }
+
+/* ============================================================
+   SHARED: hero, tour link, restore strip, footer
+   ============================================================ */
+.hero { text-align: center; padding-top: 6px; }
+.hero__title {
+  font-family: var(--font-display); font-weight: 800;
+  font-size: clamp(2.1rem, 4.6vw, 3rem); line-height: 1.04;
+  letter-spacing: 0.012em;
+}
+.hero__sub {
+  margin: 10px auto 0; max-width: 56ch; font-size: 15px;
+  line-height: 1.6; color: var(--shade);
+}
+.tour-link {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
+  font-size: 13px; font-weight: 600; color: var(--shade);
+  padding: 6px 10px; border-radius: var(--r-control);
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+.tour-link:hover { background: var(--ink-06); color: var(--ink); }
+
+/* restore strip — the compact Phase 11 prompt, one line */
+.restore {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--paper); border: 1.5px solid var(--ink);
+  border-radius: var(--r-card);
+  padding: 10px 14px; margin: 22px auto 0;
+}
+.restore__icon {
+  width: 30px; height: 30px; border-radius: 999px; flex: none;
+  display: grid; place-items: center;
+  background: var(--sig-10); color: var(--signal-ink);
+}
+.restore__label { font-size: 13.5px; font-weight: 600; }
+.restore__meta { font-family: var(--font-data); font-size: 11px; color: var(--shade); }
+.restore__actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+/* footer (mirrors the shipped SiteFooter) */
+.app-footer { margin-top: auto; border-top: 1.5px solid var(--ink-15); background: var(--bone); }
+.app-footer__inner {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 16px 0; font-size: 12.5px; color: var(--shade); text-align: center;
+}
+@media (min-width: 640px) {
+  .app-footer__inner { flex-direction: row; justify-content: center; gap: 12px; }
+}
+.app-footer__sep { display: none; width: 1px; height: 14px; background: var(--ink-20); }
+@media (min-width: 640px) { .app-footer__sep { display: block; } }
+.app-footer__inner button {
+  font-weight: 600; color: var(--shade); border-radius: 4px;
+  text-decoration: underline; text-decoration-color: var(--ink-20);
+  text-underline-offset: 2px; padding: 2px 4px;
+  transition: color 120ms var(--ease);
+}
+.app-footer__inner button:hover { color: var(--ink); }
+
+/* ============================================================
+   VARIANT A — INDEX LIST
+   Six numbered rows in one plate. The surveyor's table of
+   contents: number, icon, title, one-line blurb, arrow.
+   ============================================================ */
+.a-list {
+  background: var(--paper); border: 1.5px solid var(--ink);
+  border-radius: var(--r-card); overflow: hidden;
+  max-width: 46rem; margin: 26px auto 0;
+}
+.a-row {
+  display: grid; grid-template-columns: 2.6rem 2.4rem 1fr 1.6rem;
+  align-items: center; gap: 14px; width: 100%; text-align: left;
+  padding: 13px 18px 13px 16px; cursor: pointer;
+  border-bottom: 1px solid var(--ink-08);
+  transition: background 120ms var(--ease);
+}
+.a-row:last-child { border-bottom: 0; }
+.a-row:hover { background: var(--ink-03); }
+.a-row:focus-visible { outline-offset: -3px; }
+.a-num {
+  font-family: var(--font-data); font-size: 12px; color: var(--shade);
+  letter-spacing: 0.04em; text-align: right; font-variant-numeric: tabular-nums;
+  transition: color 120ms var(--ease);
+}
+.a-row:hover .a-num { color: var(--signal-ink); }
+.a-ico {
+  width: 34px; height: 34px; border-radius: var(--r-control);
+  background: var(--sig-08); color: var(--signal-ink);
+  display: grid; place-items: center; flex: none;
+}
+.a-title { font-size: 15.5px; font-weight: 700; letter-spacing: -0.005em; line-height: 1.3; }
+.a-blurb { font-size: 12.5px; color: var(--shade); line-height: 1.45; margin-top: 1px; }
+.a-arrow { color: var(--ink-20); transition: color 120ms var(--ease), transform 150ms var(--ease); }
+.a-row:hover .a-arrow { color: var(--signal-ink); transform: translateX(3px); }
+@media (max-width: 560px) {
+  .a-row { grid-template-columns: 2.4rem 1fr 1.4rem; }
+  .a-ico { display: none; }
+  .a-num { text-align: left; }
+}
+
+/* ============================================================
+   VARIANT B — INDEX + PREVIEW
+   Compact menu left; the selected tool's illustration, blurb,
+   and Open keycap in a right rail. Radio-driven: the rows are
+   labels for hidden radios; the rail swaps via :checked.
+   ============================================================ */
+.b-wrap input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+.b-grid {
+  display: grid; grid-template-columns: minmax(0, 1fr) 21.5rem;
+  gap: 22px; align-items: start; margin: 26px auto 0;
+}
+.b-list {
+  background: var(--paper); border: 1.5px solid var(--ink);
+  border-radius: var(--r-card); overflow: hidden;
+}
+.b-row {
+  display: grid; grid-template-columns: 2.4rem 1fr 1.4rem;
+  align-items: center; gap: 12px; cursor: pointer;
+  padding: 0 14px 0 16px; min-height: 3.4rem;
+  border-bottom: 1px solid var(--ink-08);
+  position: relative;
+  transition: background 120ms var(--ease);
+}
+.b-row:last-child { border-bottom: 0; }
+.b-row::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--signal); opacity: 0;
+  transition: opacity 120ms var(--ease);
+}
+.b-row:hover { background: var(--ink-03); }
+.b-num {
+  font-family: var(--font-data); font-size: 11.5px; color: var(--shade);
+  font-variant-numeric: tabular-nums;
+}
+.b-name { font-size: 14.5px; font-weight: 600; line-height: 1.3; }
+.b-row .b-blurb { display: none; }
+.b-chev { color: var(--ink-20); }
+#tb-repair:checked  ~ .b-grid .b-list label[for="tb-repair"],
+#tb-share:checked   ~ .b-grid .b-list label[for="tb-share"],
+#tb-recovery:checked~ .b-grid .b-list label[for="tb-recovery"],
+#tb-create:checked  ~ .b-grid .b-list label[for="tb-create"],
+#tb-merge:checked   ~ .b-grid .b-list label[for="tb-merge"],
+#tb-plan:checked    ~ .b-grid .b-list label[for="tb-plan"] {
+  background: var(--sig-04);
+}
+#tb-repair:checked  ~ .b-grid .b-list label[for="tb-repair"]::before,
+#tb-share:checked   ~ .b-grid .b-list label[for="tb-share"]::before,
+#tb-recovery:checked~ .b-grid .b-list label[for="tb-recovery"]::before,
+#tb-create:checked  ~ .b-grid .b-list label[for="tb-create"]::before,
+#tb-merge:checked   ~ .b-grid .b-list label[for="tb-merge"]::before,
+#tb-plan:checked    ~ .b-grid .b-list label[for="tb-plan"]::before { opacity: 1; }
+#tb-repair:checked  ~ .b-grid .b-list label[for="tb-repair"] .b-num,
+#tb-share:checked   ~ .b-grid .b-list label[for="tb-share"] .b-num,
+#tb-recovery:checked~ .b-grid .b-list label[for="tb-recovery"] .b-num,
+#tb-create:checked  ~ .b-grid .b-list label[for="tb-create"] .b-num,
+#tb-merge:checked   ~ .b-grid .b-list label[for="tb-merge"] .b-num,
+#tb-plan:checked    ~ .b-grid .b-list label[for="tb-plan"] .b-num { color: var(--signal-ink); }
+#tb-repair:checked  ~ .b-grid .b-list label[for="tb-repair"] .b-chev,
+#tb-share:checked   ~ .b-grid .b-list label[for="tb-share"] .b-chev,
+#tb-recovery:checked~ .b-grid .b-list label[for="tb-recovery"] .b-chev,
+#tb-create:checked  ~ .b-grid .b-list label[for="tb-create"] .b-chev,
+#tb-merge:checked   ~ .b-grid .b-list label[for="tb-merge"] .b-chev,
+#tb-plan:checked    ~ .b-grid .b-list label[for="tb-plan"] .b-chev { color: var(--signal-ink); }
+#tb-repair:focus-visible  ~ .b-grid .b-list label[for="tb-repair"],
+#tb-share:focus-visible   ~ .b-grid .b-list label[for="tb-share"],
+#tb-recovery:focus-visible~ .b-grid .b-list label[for="tb-recovery"],
+#tb-create:focus-visible  ~ .b-grid .b-list label[for="tb-create"],
+#tb-merge:focus-visible   ~ .b-grid .b-list label[for="tb-merge"],
+#tb-plan:focus-visible    ~ .b-grid .b-list label[for="tb-plan"] {
+  outline: 2px solid var(--signal); outline-offset: -3px;
+}
+
+/* the rail */
+.b-rail { position: sticky; top: 5.5rem; }
+.b-prev {
+  display: none;
+  background: var(--paper); border: 1.5px solid var(--ink);
+  border-radius: var(--r-plate); padding: 12px;
+  box-shadow: var(--shadow-lift);
+  animation: rise 260ms var(--ease) both;
+}
+#tb-repair:checked  ~ .b-grid .b-rail .b-prev-repair,
+#tb-share:checked   ~ .b-grid .b-rail .b-prev-share,
+#tb-recovery:checked~ .b-grid .b-rail .b-prev-recovery,
+#tb-create:checked  ~ .b-grid .b-rail .b-prev-create,
+#tb-merge:checked   ~ .b-grid .b-rail .b-prev-merge,
+#tb-plan:checked    ~ .b-grid .b-rail .b-prev-plan { display: block; }
+.b-prev__frame {
+  border: 1.5px solid var(--ink-15); border-radius: var(--r-control);
+  overflow: hidden; aspect-ratio: 16 / 10; background: var(--bone);
+}
+.b-prev__frame img { width: 100%; height: 100%; object-fit: cover; }
+.b-prev__kicker {
+  font-family: var(--font-data); font-size: 10.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--shade); margin: 12px 2px 0;
+}
+.b-prev__title { font-size: 17px; font-weight: 700; letter-spacing: -0.005em; margin: 3px 2px 0; }
+.b-prev__blurb { font-size: 13px; line-height: 1.55; color: var(--shade); margin: 7px 2px 0; }
+.b-prev .keybtn { width: 100%; margin-top: 14px; }
+.b-hint {
+  font-family: var(--font-data); font-size: 10.5px; color: var(--shade);
+  text-align: center; margin-top: 10px; letter-spacing: 0.06em;
+}
+
+/* B on narrow screens: rail hides, rows expand like variant A */
+@media (max-width: 880px) {
+  .b-grid { grid-template-columns: minmax(0, 1fr); }
+  .b-rail { display: none; }
+  .b-row .b-blurb { display: block; font-size: 12.5px; color: var(--shade); line-height: 1.45; margin-top: 1px; }
+  .b-row { grid-template-columns: 2.4rem 1fr 1.4rem; }
+}
+
+/* ============================================================
+   VARIANT C — COMPACT TILES
+   3-across icon tiles: the middle ground. No illustration
+   plates; a two-line micro blurb; hover lift.
+   ============================================================ */
+.c-grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px; margin: 26px auto 0;
+}
+@media (max-width: 760px) { .c-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .c-grid { grid-template-columns: minmax(0, 1fr); } }
+.c-tile {
+  position: relative; display: flex; flex-direction: column;
+  background: var(--paper); border: 1.5px solid var(--ink);
+  border-radius: var(--r-card); padding: 16px; text-align: left;
+  min-height: 9.5rem; cursor: pointer;
+  transition: translate 150ms var(--ease), box-shadow 150ms var(--ease);
+}
+.c-tile:hover { translate: 0 -2px; box-shadow: var(--shadow-lift); }
+.c-tile:focus-visible { outline-offset: 2px; }
+.c-ico {
+  width: 34px; height: 34px; border-radius: var(--r-control);
+  background: var(--sig-08); color: var(--signal-ink);
+  display: grid; place-items: center;
+}
+.c-title { font-size: 15px; font-weight: 700; margin-top: 11px; letter-spacing: -0.005em; }
+.c-blurb {
+  font-size: 12.5px; color: var(--shade); line-height: 1.5; margin-top: 5px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.c-arrow {
+  position: absolute; right: 13px; top: 15px; color: var(--signal-ink);
+  opacity: 0; transform: translate(-4px, 4px);
+  transition: opacity 150ms var(--ease), transform 150ms var(--ease);
+}
+.c-tile:hover .c-arrow, .c-tile:focus-visible .c-arrow { opacity: 1; transform: translate(0, 0); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="app-header">
+    <div class="container app-header__inner">
+      <span class="brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.5 17.5c4.6 0 2.6-5.6 6.1-6.6 2.4-.7 3.4.9 4.4-.4"/>
+            <circle cx="18.4" cy="6.4" r="1.7" fill="currentColor" stroke="none"/>
+          </svg>
+        </span>
+        <span class="brand__name">GPX Repair Studio</span>
+      </span>
+      <span class="chip--plain">Local-first</span>
+      <span class="app-header__spacer"></span>
+      <button type="button" class="ghostbtn">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        About &amp; privacy
+      </button>
+      <span class="version">v1.0.0</span>
+    </div>
+  </header>
+
+  <main class="container" id="main-content">
+    <div class="prop-wrap">
+
+      <!-- the proposal switcher (meta UI — not part of the app) -->
+      <input type="radio" name="variant" id="va" checked>
+      <input type="radio" name="variant" id="vb">
+      <input type="radio" name="variant" id="vc">
+
+      <div class="prop-bar">
+        <div class="prop-head">
+          <p class="prop-cap">Home redesign · 3 options</p>
+          <div class="prop-seg" role="radiogroup" aria-label="Design variant">
+            <label for="va"><b>A</b> Index list</label>
+            <label for="vb"><b>B</b> Index + preview</label>
+            <label for="vc"><b>C</b> Compact tiles</label>
+          </div>
+        </div>
+        <p class="prop-sub">
+          Today: six large cards with 16:9 illustrations — the page runs about
+          1400&nbsp;px tall. Each entry already opens a tool page with the full
+          explanation and the upload, so the home only has to answer
+          “which tool?”. Same header, hero, and footer in every variant —
+          only the tool list changes.
+        </p>
+      </div>
+
+      <!-- ============ VARIANT A — INDEX LIST ============ -->
+      <section class="pane pane-a" aria-label="Variant A — index list">
+
+        <div class="hero">
+          <h2 class="hero__title">What would you like to do?</h2>
+          <p class="hero__sub">
+            Six tools, one workbench — pick one to see how it works and start.
+            Everything runs in this browser, and your files never leave this device.
+          </p>
+          <button type="button" class="tour-link">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+            New here? Take the tour
+          </button>
+        </div>
+
+        <!-- the compact restore strip (appears only when saved sessions exist) -->
+        <div class="restore">
+          <span class="restore__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          </span>
+          <span>
+            <span class="restore__label">Restore a previous session</span><br>
+            <span class="restore__meta">2 sessions saved on this device</span>
+          </span>
+          <span class="restore__actions">
+            <button type="button" class="ghostbtn">Discard</button>
+            <button type="button" class="keybtn">Restore</button>
+          </span>
+        </div>
+
+        <ul role="list" class="a-list">
+          <li>
+            <button type="button" class="a-row">
+              <span class="a-num">01</span>
+              <span class="a-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+              </span>
+              <span>
+                <span class="a-title">Repair a recording</span><br>
+                <span class="a-blurb">Inspect a GPX with gaps or damage, then draw the missing route yourself.</span>
+              </span>
+              <span class="a-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="a-row">
+              <span class="a-num">02</span>
+              <span class="a-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/><path d="M17 3v0"/></svg>
+              </span>
+              <span>
+                <span class="a-title">Create a share card</span><br>
+                <span class="a-blurb">Turn any activity into a Strava-style share graphic — a transparent PNG.</span>
+              </span>
+              <span class="a-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="a-row">
+              <span class="a-num">03</span>
+              <span class="a-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+              </span>
+              <span>
+                <span class="a-title">Recover a GPS gap</span><br>
+                <span class="a-blurb">The clock kept running while GPS dropped out — draw what went missing.</span>
+              </span>
+              <span class="a-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="a-row">
+              <span class="a-num">04</span>
+              <span class="a-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6"/><path d="M12 10v2l1.5 1"/><path d="M9 6.4V3h6v3.4"/><path d="M9 17.6V21h6v-3.4"/></svg>
+              </span>
+              <span>
+                <span class="a-title">Create from stats</span><br>
+                <span class="a-blurb">Your watch recorded the numbers but no map — enter them, draw the route.</span>
+              </span>
+              <span class="a-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="a-row">
+              <span class="a-num">05</span>
+              <span class="a-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="10" height="10" rx="2"/><rect x="10.5" y="10.5" width="10" height="10" rx="2"/></svg>
+              </span>
+              <span>
+                <span class="a-title">Combine recordings</span><br>
+                <span class="a-blurb">Two or more GPX files become one route — every point preserved.</span>
+              </span>
+              <span class="a-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="a-row">
+              <span class="a-num">06</span>
+              <span class="a-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15.5 4.5 19.5 8.5"/></svg>
+              </span>
+              <span>
+                <span class="a-title">Plan a route</span><br>
+                <span class="a-blurb">Sketch a route on the map and read its distance, elevation, and pace.</span>
+              </span>
+              <span class="a-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </span>
+            </button>
+          </li>
+        </ul>
+
+        <p class="pane-note">
+          <b>A · INDEX LIST</b> — one plate, six numbered rows · list ≈ 470&nbsp;px
+          vs ≈ 1260&nbsp;px of cards today · no illustrations on the home
+        </p>
+      </section>
+
+      <!-- ============ VARIANT B — INDEX + PREVIEW ============ -->
+      <section class="pane pane-b" aria-label="Variant B — index with preview rail">
+
+        <div class="hero">
+          <h2 class="hero__title">What would you like to do?</h2>
+          <p class="hero__sub">
+            Six tools, one workbench — pick one to see how it works and start.
+            Everything runs in this browser, and your files never leave this device.
+          </p>
+          <button type="button" class="tour-link">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+            New here? Take the tour
+          </button>
+        </div>
+
+        <div class="restore">
+          <span class="restore__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          </span>
+          <span>
+            <span class="restore__label">Restore a previous session</span><br>
+            <span class="restore__meta">2 sessions saved on this device</span>
+          </span>
+          <span class="restore__actions">
+            <button type="button" class="ghostbtn">Discard</button>
+            <button type="button" class="keybtn">Restore</button>
+          </span>
+        </div>
+
+        <div class="b-wrap">
+          <input type="radio" name="toolb" id="tb-repair" checked>
+          <input type="radio" name="toolb" id="tb-share">
+          <input type="radio" name="toolb" id="tb-recovery">
+          <input type="radio" name="toolb" id="tb-create">
+          <input type="radio" name="toolb" id="tb-merge">
+          <input type="radio" name="toolb" id="tb-plan">
+
+          <div class="b-grid">
+            <div class="b-list" role="radiogroup" aria-label="Pick a tool">
+              <label class="b-row" for="tb-repair">
+                <span class="b-num">01</span>
+                <span>
+                  <span class="b-name">Repair a recording</span>
+                  <span class="b-blurb">Inspect a GPX with gaps or damage, then draw the missing route yourself.</span>
+                </span>
+                <span class="b-chev" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </span>
+              </label>
+              <label class="b-row" for="tb-share">
+                <span class="b-num">02</span>
+                <span>
+                  <span class="b-name">Create a share card</span>
+                  <span class="b-blurb">Turn any activity into a Strava-style share graphic — a transparent PNG.</span>
+                </span>
+                <span class="b-chev" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </span>
+              </label>
+              <label class="b-row" for="tb-recovery">
+                <span class="b-num">03</span>
+                <span>
+                  <span class="b-name">Recover a GPS gap</span>
+                  <span class="b-blurb">The clock kept running while GPS dropped out — draw what went missing.</span>
+                </span>
+                <span class="b-chev" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </span>
+              </label>
+              <label class="b-row" for="tb-create">
+                <span class="b-num">04</span>
+                <span>
+                  <span class="b-name">Create from stats</span>
+                  <span class="b-blurb">Your watch recorded the numbers but no map — enter them, draw the route.</span>
+                </span>
+                <span class="b-chev" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </span>
+              </label>
+              <label class="b-row" for="tb-merge">
+                <span class="b-num">05</span>
+                <span>
+                  <span class="b-name">Combine recordings</span>
+                  <span class="b-blurb">Two or more GPX files become one route — every point preserved.</span>
+                </span>
+                <span class="b-chev" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </span>
+              </label>
+              <label class="b-row" for="tb-plan">
+                <span class="b-num">06</span>
+                <span>
+                  <span class="b-name">Plan a route</span>
+                  <span class="b-blurb">Sketch a route on the map and read its distance, elevation, and pace.</span>
+                </span>
+                <span class="b-chev" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </span>
+              </label>
+            </div>
+
+            <aside class="b-rail" aria-live="polite">
+              <div class="b-prev b-prev-repair">
+                <div class="b-prev__frame">
+                  <img src="cards/repair.webp" width="896" height="560" alt="Illustration of a map route with a missing section being redrawn in orange">
+                </div>
+                <p class="b-prev__kicker">Repair</p>
+                <p class="b-prev__title">Repair a recording</p>
+                <p class="b-prev__blurb">
+                  Inspect a GPX with gaps or damage, then draw the missing route
+                  yourself — with a clear line between recorded and reconstructed data.
+                </p>
+                <button type="button" class="keybtn">
+                  Open
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </button>
+              </div>
+
+              <div class="b-prev b-prev-share">
+                <div class="b-prev__frame">
+                  <img src="cards/share.webp" width="896" height="560" alt="Illustration of a phone displaying a share card with a route and stats">
+                </div>
+                <p class="b-prev__kicker">Share</p>
+                <p class="b-prev__title">Create a share card</p>
+                <p class="b-prev__blurb">
+                  Turn any activity into a Strava-style share graphic — your route
+                  with the distance, pace, and time the file records, as a transparent PNG.
+                </p>
+                <button type="button" class="keybtn">
+                  Open
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </button>
+              </div>
+
+              <div class="b-prev b-prev-recovery">
+                <div class="b-prev__frame">
+                  <img src="cards/recovery.webp" width="896" height="560" alt="Illustration of a GPS watch and a route with a dotted missing segment between two pins">
+                </div>
+                <p class="b-prev__kicker">Recovery</p>
+                <p class="b-prev__title">Recover a GPS gap</p>
+                <p class="b-prev__blurb">
+                  The clock kept running while GPS dropped out mid-workout. Draw
+                  the section that went missing and export a corrected file.
+                </p>
+                <button type="button" class="keybtn">
+                  Open
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </button>
+              </div>
+
+              <div class="b-prev b-prev-create">
+                <div class="b-prev__frame">
+                  <img src="cards/create.webp" width="896" height="560" alt="Illustration of a sports watch beside a pencil drawing a brand-new route">
+                </div>
+                <p class="b-prev__kicker">Create</p>
+                <p class="b-prev__title">Create from stats</p>
+                <p class="b-prev__blurb">
+                  Your watch recorded the numbers but no map. Enter the statistics,
+                  draw the route, and download a GPX ready for Strava.
+                </p>
+                <button type="button" class="keybtn">
+                  Open
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </button>
+              </div>
+
+              <div class="b-prev b-prev-merge">
+                <div class="b-prev__frame">
+                  <img src="cards/merge.webp" width="896" height="560" alt="Illustration of two separate map routes converging into one continuous line">
+                </div>
+                <p class="b-prev__kicker">Merge</p>
+                <p class="b-prev__title">Combine recordings</p>
+                <p class="b-prev__blurb">
+                  Two or more GPX files become one route — every point, elevation,
+                  and waypoint preserved. Set the order, name the result, download one file.
+                </p>
+                <button type="button" class="keybtn">
+                  Open
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </button>
+              </div>
+
+              <div class="b-prev b-prev-plan">
+                <div class="b-prev__frame">
+                  <img src="cards/plan.webp" width="896" height="560" alt="Illustration of a winding route being measured with ruler ticks and a drafting compass">
+                </div>
+                <p class="b-prev__kicker">Plan</p>
+                <p class="b-prev__title">Plan a route</p>
+                <p class="b-prev__blurb">
+                  Sketch a route on the map and read its numbers — distance,
+                  elevation, and the pace a time you enter implies. A scratchpad:
+                  nothing is exported or shared.
+                </p>
+                <button type="button" class="keybtn">
+                  Open
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </button>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <p class="pane-note">
+          <b>B · INDEX + PREVIEW</b> — select a row to swap the illustration ·
+          keeps the artwork, one image at a time · whole page ≈ one screen
+        </p>
+      </section>
+
+      <!-- ============ VARIANT C — COMPACT TILES ============ -->
+      <section class="pane pane-c" aria-label="Variant C — compact tiles">
+
+        <div class="hero">
+          <h2 class="hero__title">What would you like to do?</h2>
+          <p class="hero__sub">
+            Six tools, one workbench — pick one to see how it works and start.
+            Everything runs in this browser, and your files never leave this device.
+          </p>
+          <button type="button" class="tour-link">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+            New here? Take the tour
+          </button>
+        </div>
+
+        <div class="restore">
+          <span class="restore__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          </span>
+          <span>
+            <span class="restore__label">Restore a previous session</span><br>
+            <span class="restore__meta">2 sessions saved on this device</span>
+          </span>
+          <span class="restore__actions">
+            <button type="button" class="ghostbtn">Discard</button>
+            <button type="button" class="keybtn">Restore</button>
+          </span>
+        </div>
+
+        <ul role="list" class="c-grid">
+          <li>
+            <button type="button" class="c-tile">
+              <span class="c-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+              </span>
+              <span class="c-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+              </span>
+              <span class="c-title">Repair a recording</span>
+              <span class="c-blurb">Inspect a GPX with gaps or damage, then draw the missing route yourself.</span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="c-tile">
+              <span class="c-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
+              </span>
+              <span class="c-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+              </span>
+              <span class="c-title">Create a share card</span>
+              <span class="c-blurb">Turn any activity into a Strava-style share graphic — a transparent PNG.</span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="c-tile">
+              <span class="c-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+              </span>
+              <span class="c-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+              </span>
+              <span class="c-title">Recover a GPS gap</span>
+              <span class="c-blurb">The clock kept running while GPS dropped out — draw what went missing.</span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="c-tile">
+              <span class="c-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6"/><path d="M12 10v2l1.5 1"/><path d="M9 6.4V3h6v3.4"/><path d="M9 17.6V21h6v-3.4"/></svg>
+              </span>
+              <span class="c-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+              </span>
+              <span class="c-title">Create from stats</span>
+              <span class="c-blurb">Your watch recorded the numbers but no map — enter them, draw the route.</span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="c-tile">
+              <span class="c-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="10" height="10" rx="2"/><rect x="10.5" y="10.5" width="10" height="10" rx="2"/></svg>
+              </span>
+              <span class="c-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+              </span>
+              <span class="c-title">Combine recordings</span>
+              <span class="c-blurb">Two or more GPX files become one route — every point preserved.</span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="c-tile">
+              <span class="c-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15.5 4.5 19.5 8.5"/></svg>
+              </span>
+              <span class="c-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+              </span>
+              <span class="c-title">Plan a route</span>
+              <span class="c-blurb">Sketch a route on the map and read its distance, elevation, and pace.</span>
+            </button>
+          </li>
+        </ul>
+
+        <p class="pane-note">
+          <b>C · COMPACT TILES</b> — 3-across icon tiles, no illustration plates ·
+          the middle ground: smaller cards, 2 rows instead of 3
+        </p>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container app-footer__inner">
+      <p style="display: inline-flex; align-items: center; gap: 6px;">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span>All processing happens in your browser — the file never leaves this device.</span>
+      </p>
+      <span class="app-footer__sep" aria-hidden="true"></span>
+      <nav aria-label="About and privacy" style="display: inline-flex; gap: 12px;">
+        <button type="button">About</button>
+        <button type="button">Privacy &amp; data</button>
+      </nav>
+    </div>
+  </footer>
+</div>
+</body>
+</html>

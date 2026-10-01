@@ -1280,3 +1280,23 @@ Work Log:
 Stage Summary:
 - Phase 11 is DONE and v1 is tagged: first-run onboarding (once per browser, honest, a11y-clean), the complete Privacy & Data disclosure with a code-pinned egress table, the About page with pinned version and attribution, the README, seeded e2e that never trips on the tour, and the full gate green — 1269 unit + 122 e2e + static export PASS, zero console errors in live QA, VLM SHIP on every new surface.
 - Baseline for any post-v1 work: 1269 unit + 122 e2e, typecheck + eslint clean, static export PASS.
+
+---
+Task ID: 55
+Agent: Super Z (main agent)
+Task: User-requested home page redesign — design proposal only (cards "too big"; produce alternative compact layouts for review BEFORE any implementation)
+
+Work Log:
+- Surveyed the shipped landing (`landing-cards.tsx`): 2×3 grid of illustration cards, each with a 16:9 webp plate + icon + kicker + title + blurb + "Open" row → page ≈1400px tall. Confirmed each card opens `ToolDetailView` (hero + how-it-works trio + intake), so the home only needs to answer "which tool?" — validates compact layouts.
+- Followed the project's mockup convention (Task 33 `download/design-mockups/`): copied the six real `public/cards/*.webp` illustrations into `download/design-mockups/cards/` for a self-contained proposal.
+- Built `download/design-mockups/home-redesign.html` — single self-contained file (inline Field Plot CSS, Google Fonts CDN) with a radio-driven A/B/C variant switcher mirroring real app chrome (header w/ About+version, hero, tour link, compact restore strip, footer):
+  - A · INDEX LIST — one plate, six numbered rows (num + icon + title + one-line blurb + arrow), ≈470px vs ≈1260px of cards; no illustrations on home.
+  - B · INDEX + PREVIEW — compact menu left + sticky preview rail right (illustration + kicker + blurb + Open keycap, radio-driven swap, 6 real images verified loading 896×512); mobile collapses to A-like rows.
+  - C · COMPACT TILES — 3-across icon tiles (no illustration plates), 2 rows, hover lift; the middle-ground option.
+- QA via agent-browser + VLM: initial critiques flagged "washed out/broken B" — diagnosed as screenshots captured mid entrance-animation (plus one wrong-pane sequencing click), NOT a real defect; retook settled screenshots after 1.2s waits. Settled results: desktop A/B/C all 9/10, no clipped/overlapping/misaligned elements; mobile 390px A 9/10, B 8/10, C 8.5/10, all touch targets ≥44px, no horizontal scroll, restore strip wraps cleanly.
+- Packaged: `download/design-mockups/home-redesign.html` + `cards/` + `previews/` (4 settled screenshots) + `home-redesign-mockup.zip` (320K). Critique JSONs in `scripts/qa/home-redesign/`.
+
+Stage Summary:
+- Deliverable: interactive 3-variant design proposal at `download/design-mockups/home-redesign.html` (+ zip + PNG previews). NO app code touched — awaiting user's pick.
+- Key decisions: all variants keep the information contract (entries still open the tool detail page); B noted mobile caveat (selection state is just the orange rail when the preview hides — in real implementation clicking a row navigates immediately, so transient).
+- Next step: user reviews and picks A/B/C (or mixes elements); then implement in `landing-cards.tsx` + update tests/e2e (`landing-mode-toggle` testid contract) in a follow-up task.
