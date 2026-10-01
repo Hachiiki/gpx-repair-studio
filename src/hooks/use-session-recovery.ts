@@ -107,6 +107,8 @@ declare global {
 /** What the landing's restore prompt consumes. */
 export interface SessionRecoveryController {
   offers: readonly SessionOffer[];
+  /** The mount scan of stored records has settled (Phase 11: the onboarding tour waits for it). */
+  hasScanned: boolean;
   /** The section currently being restored (its row shows progress). */
   restoring: SessionSection | null;
   restore: (section: SessionSection) => void;
@@ -256,6 +258,8 @@ function planHasWork(): boolean {
 export function useSessionRecovery(): SessionRecoveryController {
   const [offers, setOffers] = useState<SessionOffer[]>([]);
   const [restoring, setRestoring] = useState<SessionSection | null>(null);
+  /** True once the mount scan resolved — offers (or their absence) are final. */
+  const [hasScanned, setHasScanned] = useState(false);
 
   /** Mirror of `offers` for the dev bridge (closures must not go stale). */
   const offersRef = useRef<SessionOffer[]>([]);
@@ -430,7 +434,10 @@ export function useSessionRecovery(): SessionRecoveryController {
           knownRecord.current[section] = true;
         }
       }
-      if (!cancelled && found.length > 0) setOffers(found);
+      if (!cancelled) {
+        setHasScanned(true);
+        if (found.length > 0) setOffers(found);
+      }
     })();
 
     const subscriptions: (() => void)[] = [];
@@ -737,5 +744,5 @@ export function useSessionRecovery(): SessionRecoveryController {
     })();
   }, []);
 
-  return { offers, restoring, restore, discard, clearAll };
+  return { offers, hasScanned, restoring, restore, discard, clearAll };
 }
