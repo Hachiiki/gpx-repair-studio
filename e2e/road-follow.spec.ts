@@ -244,9 +244,10 @@ test.describe("road follow — clicks trace the road between them", () => {
     expect(badgeM).toBeGreaterThan(chordLength * 0.9);
     expect(badgeM).toBeLessThan(roadLength * 1.1);
 
-    // The idle status teaches the drag affordance.
+    // The idle status points at the drag affordance — in Draw mode that
+    // means teaching Move (user pass 52), not inviting the drag itself.
     await expect(page.getByTestId("road-follow-status")).toContainText(
-      "Drag any point",
+      "Switch to Move (M) to drag a point",
     );
 
     // Commit: the reconstruction line renders (the committed geometry with
@@ -424,9 +425,10 @@ test.describe("road follow — clicks trace the road between them", () => {
     expect(rendered[2][0]).toBeCloseTo(v1.lon, 4);
     // The request actually went to Valhalla.
     expect(log.count).toBeGreaterThanOrEqual(1);
-    // And the editor reports health, not the unavailable fallback.
+    // And the editor reports health, not the unavailable fallback — in
+    // Draw mode the status teaches Move (user pass 52).
     await expect(page.getByTestId("road-follow-status")).toContainText(
-      "Drag any point",
+      "Switch to Move (M) to drag a point",
     );
 
     await page.getByTestId("done-editing-button").click();

@@ -572,7 +572,10 @@ export function useRecoveryDraw(
         event.preventDefault();
         useRecoveryStore.getState().setPointerMode("pan");
       } else if (key === "c") {
-        // Pen toggle (user pass 48).
+        // Pen toggle (user pass 48) — a Draw-mode concern ONLY (user
+        // pass 52): toggling the pen while the pointer is in Move or
+        // Pan would read as "drawing came back on" when it did not.
+        if (useRecoveryStore.getState().pointerMode !== "draw") return;
         event.preventDefault();
         const store = useRecoveryStore.getState();
         store.setPenMode(store.pen === "curve" ? "default" : "curve");

@@ -296,6 +296,53 @@ describe("RouteDrawPanel", () => {
     fireEvent.click(screen.getByTestId("road-follow-foot"));
     expect(setPathStyle).toHaveBeenCalledWith("foot");
   });
+
+  it("user pass 52: the road-follow status points at Move while the pencil draws", () => {
+    const { rerender } = render(
+      <RouteDrawPanel draw={drawBinding()} stats={STATS} paceUnit="km" />,
+    );
+    expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
+      "Switch to Move (M) to drag a point",
+    );
+    rerender(
+      <RouteDrawPanel
+        draw={drawBinding({ pointerMode: "move" })}
+        stats={STATS}
+        paceUnit="km"
+      />,
+    );
+    expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
+      "Drag any point to adjust",
+    );
+  });
+
+  it("user pass 52: the pen group is inert outside Draw mode", () => {
+    const setPenMode = vi.fn();
+    const { rerender } = render(
+      <RouteDrawPanel
+        draw={drawBinding({ pointerMode: "move", setPenMode })}
+        stats={STATS}
+        paceUnit="km"
+      />,
+    );
+    expect(screen.getByTestId("pen-mode-default")).toBeDisabled();
+    expect(screen.getByTestId("pen-mode-curve")).toBeDisabled();
+    expect(screen.getByTestId("pen-inactive-note")).toHaveTextContent(
+      /drags your points/i,
+    );
+    fireEvent.click(screen.getByTestId("pen-mode-curve"));
+    expect(setPenMode).not.toHaveBeenCalled();
+
+    rerender(
+      <RouteDrawPanel
+        draw={drawBinding({ pointerMode: "draw", setPenMode })}
+        stats={STATS}
+        paceUnit="km"
+      />,
+    );
+    expect(screen.getByTestId("pen-mode-default")).toBeEnabled();
+    expect(screen.queryByTestId("pen-inactive-note")).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

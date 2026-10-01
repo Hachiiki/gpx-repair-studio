@@ -255,6 +255,10 @@ export function usePlanDraw(map: PlanMapBinding): PlanDrawBinding {
         event.preventDefault();
         usePlanStore.getState().setPointerMode("pan");
       } else if (key === "c") {
+        // Pen toggle (user pass 48) — a Draw-mode concern ONLY (user
+        // pass 52): toggling the pen while the pointer is in Move or
+        // Pan would read as "drawing came back on" when it did not.
+        if (usePlanStore.getState().pointerMode !== "draw") return;
         event.preventDefault();
         const store = usePlanStore.getState();
         store.setPenMode(store.pen === "curve" ? "default" : "curve");

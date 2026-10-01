@@ -120,9 +120,9 @@ export function CreateGuideCard({
             className="rounded-md border border-signal/40 bg-signal/[0.06] px-3 py-2 text-xs leading-relaxed text-ink"
             role="status"
           >
-            Keep clicking to extend the route. Drag any point to adjust it,
-            double-click to remove it, and finish when the line matches
-            where you went.
+            Keep clicking to extend the route. Switch to Move (M) to drag
+            any point, double-click to remove it, and finish when the line
+            matches where you went.
           </p>
         )}
 

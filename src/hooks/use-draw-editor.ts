@@ -766,8 +766,10 @@ export function useDrawEditor(
         event.preventDefault();
         useEditorStore.getState().setPointerMode("pan");
       } else if (key === "c") {
-        // Pen toggle (user pass 48) — a draw-mode concern; switching the
-        // pen elsewhere is a harmless no-op for the pointer.
+        // Pen toggle (user pass 48) — a Draw-mode concern ONLY (user
+        // pass 52): toggling the pen while the pointer is in Move or
+        // Pan would read as "drawing came back on" when it did not.
+        if (useEditorStore.getState().pointerMode !== "draw") return;
         event.preventDefault();
         const store = useEditorStore.getState();
         store.setPenMode(store.pen === "curve" ? "default" : "curve");

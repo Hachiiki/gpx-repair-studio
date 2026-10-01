@@ -467,6 +467,22 @@ describe("DrawEditorPanel — road follow (snap to road)", () => {
         draw={makeBinding({ pathStyle: "car", routingPending: false, routingFailed: false })}
       />,
     );
+    // User pass 52: the idle status must not invite dragging while the
+    // pointer is in Draw — it points at Move instead.
+    expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
+      "Switch to Move (M) to drag a point",
+    );
+
+    rerender(
+      <DrawEditorPanel
+        draw={makeBinding({
+          pathStyle: "car",
+          routingPending: false,
+          routingFailed: false,
+          pointerMode: "move",
+        })}
+      />,
+    );
     expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
       "Drag any point to adjust",
     );
@@ -535,6 +551,49 @@ describe("DrawEditorPanel — the pen group (user pass 48: curve is a pen)", () 
       />,
     );
     expect(screen.queryByTestId("pen-curve-hint")).toBeNull();
+  });
+});
+
+describe("DrawEditorPanel — the pen group is inert outside Draw (user pass 52)", () => {
+  it("Move mode: the pen chips disable and the note says why", () => {
+    render(<DrawEditorPanel draw={makeBinding({ pointerMode: "move" })} />);
+    // Chips keep their pressed state (the pen is remembered) but are
+    // honestly inert — disabled, no hover affordance.
+    expect(screen.getByTestId("pen-mode-default")).toBeDisabled();
+    expect(screen.getByTestId("pen-mode-curve")).toBeDisabled();
+    expect(screen.getByTestId("pen-mode-default")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // No freehand hint while the pen is inert.
+    expect(screen.queryByTestId("pen-curve-hint")).toBeNull();
+    const note = screen.getByTestId("pen-inactive-note");
+    expect(note).toHaveTextContent(/pen works in Draw mode only/i);
+    expect(note).toHaveTextContent(/drags your points/i);
+  });
+
+  it("Pan mode: the note says the pointer navigates", () => {
+    render(<DrawEditorPanel draw={makeBinding({ pointerMode: "pan" })} />);
+    expect(screen.getByTestId("pen-mode-default")).toBeDisabled();
+    expect(screen.getByTestId("pen-inactive-note")).toHaveTextContent(
+      /navigates the map/i,
+    );
+  });
+
+  it("Draw mode: the chips are live and the note is gone", () => {
+    render(<DrawEditorPanel draw={makeBinding({ pointerMode: "draw" })} />);
+    expect(screen.getByTestId("pen-mode-default")).toBeEnabled();
+    expect(screen.getByTestId("pen-mode-curve")).toBeEnabled();
+    expect(screen.queryByTestId("pen-inactive-note")).toBeNull();
+  });
+
+  it("an inert chip click dispatches nothing (the button is disabled)", () => {
+    const setPenMode = vi.fn();
+    render(
+      <DrawEditorPanel draw={makeBinding({ pointerMode: "move", setPenMode })} />,
+    );
+    fireEvent.click(screen.getByTestId("pen-mode-curve"));
+    expect(setPenMode).not.toHaveBeenCalled();
   });
 });
 

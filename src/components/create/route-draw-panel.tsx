@@ -141,6 +141,10 @@ export interface RouteDrawPanelProps {
 export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
   if (!draw.active) return null;
 
+  // User pass 52: the pen only lives in Draw mode — Move drags points,
+  // Pan navigates. Outside Draw the pen group renders inert.
+  const penLive = draw.pointerMode === "draw";
+
   // The live drawn-vs-recorded comparison — the reconciliation's
   // pre-announcement (the review phase formalizes it). The same 2% ratio
   // the reconciliation uses, so "matches" live means "matches" at review.
@@ -172,7 +176,11 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        {/* Pen (user pass 48): HOW the Draw mode captures points. */}
+        {/* Pen (user pass 48): HOW the Draw mode captures points.
+            User pass 52: outside Draw mode the group is honestly INERT
+            (chips dim and disable) — a chip that still looks "on" while
+            the pointer is in Move or Pan reads as "drawing is active",
+            and the pencil never drags, the dragger never draws. */}
         <div
           className="grid gap-2"
           data-testid="pen-mode-group"
@@ -184,32 +192,55 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
             <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {PEN_CHOICES.map((choice) => (
-              <HintTip
-                key={choice.value}
-                side="left"
-                title={choice.label}
-                description={choice.hint}
-              >
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className={
-                    draw.pen === choice.value
-                      ? "h-auto rounded-full border-[1.25px] border-inkplus bg-inkplus px-3 py-[5px] text-[12.5px] font-semibold text-paper hover:bg-inkplus hover:text-paper"
-                      : "h-auto rounded-full border-[1.25px] border-ink/25 bg-card px-3 py-[5px] text-[12.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
-                  }
-                  aria-pressed={draw.pen === choice.value}
-                  data-testid={`pen-mode-${choice.value}`}
-                  onClick={() => draw.setPenMode(choice.value)}
+            {PEN_CHOICES.map((choice) =>
+              penLive ? (
+                <HintTip
+                  key={choice.value}
+                  side="left"
+                  title={choice.label}
+                  description={choice.hint}
                 >
-                  {choice.label}
-                </Button>
-              </HintTip>
-            ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className={
+                      draw.pen === choice.value
+                        ? "h-auto rounded-full border-[1.25px] border-inkplus bg-inkplus px-3 py-[5px] text-[12.5px] font-semibold text-paper hover:bg-inkplus hover:text-paper"
+                        : "h-auto rounded-full border-[1.25px] border-ink/25 bg-card px-3 py-[5px] text-[12.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
+                    }
+                    aria-pressed={draw.pen === choice.value}
+                    data-testid={`pen-mode-${choice.value}`}
+                    onClick={() => draw.setPenMode(choice.value)}
+                  >
+                    {choice.label}
+                  </Button>
+                </HintTip>
+              ) : (
+                <span
+                  key={choice.value}
+                  className="inline-flex cursor-not-allowed"
+                >
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled
+                    className={
+                      draw.pen === choice.value
+                        ? "h-auto rounded-full border-[1.25px] border-inkplus bg-inkplus px-3 py-[5px] text-[12.5px] font-semibold text-paper"
+                        : "h-auto rounded-full border-[1.25px] border-ink/25 bg-card px-3 py-[5px] text-[12.5px] font-semibold text-muted-foreground"
+                    }
+                    aria-pressed={draw.pen === choice.value}
+                    data-testid={`pen-mode-${choice.value}`}
+                  >
+                    {choice.label}
+                  </Button>
+                </span>
+              ),
+            )}
           </div>
-          {draw.pointerMode === "draw" && draw.pen === "curve" && (
+          {penLive && draw.pen === "curve" && (
             <p
               className="text-[11px] leading-snug text-muted-foreground"
               data-testid="pen-curve-hint"
@@ -218,6 +249,20 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
               Drag on the map to draw your curve — release to place it. A
               quick tap still adds a single point. (C toggles pens, D/M/P
               switch modes.)
+            </p>
+          )}
+          {!penLive && (
+            <p
+              className="text-[11px] leading-snug text-muted-foreground"
+              data-testid="pen-inactive-note"
+              role="status"
+            >
+              The pen works in Draw mode only — press D (or the pencil tool)
+              to draw. Right now the pointer{" "}
+              {draw.pointerMode === "move"
+                ? "drags your points"
+                : "navigates the map"}
+              .
             </p>
           )}
         </div>
@@ -275,7 +320,9 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
                 ? "Finding the road…"
                 : draw.routingFailed
                   ? "Road follow unavailable right now — straight lines until it recovers."
-                  : "Drag any point to adjust it — the road re-finds itself."}
+                  : draw.pointerMode === "move"
+                    ? "Drag any point to adjust it — the road re-finds itself."
+                    : "Switch to Move (M) to drag a point — the road re-finds itself."}
             </p>
           )}
         </div>

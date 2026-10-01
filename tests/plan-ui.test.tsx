@@ -238,6 +238,60 @@ describe("PlanDrawPanel", () => {
     expect(screen.queryByTestId("road-follow-curve")).toBeNull();
   });
 
+  it("user pass 52: the pen group is inert outside Draw, honest about Move", () => {
+    const setPenMode = vi.fn();
+    const { rerender } = render(
+      <PlanDrawPanel
+        draw={drawBinding({ pointerMode: "move", setPenMode })}
+        paceUnit="km"
+      />,
+    );
+    expect(screen.getByTestId("pen-mode-default")).toBeDisabled();
+    expect(screen.getByTestId("pen-mode-curve")).toBeDisabled();
+    expect(screen.getByTestId("pen-inactive-note")).toHaveTextContent(
+      /drags your points/i,
+    );
+    fireEvent.click(screen.getByTestId("pen-mode-curve"));
+    expect(setPenMode).not.toHaveBeenCalled();
+
+    rerender(
+      <PlanDrawPanel
+        draw={drawBinding({ pointerMode: "pan", setPenMode })}
+        paceUnit="km"
+      />,
+    );
+    expect(screen.getByTestId("pen-inactive-note")).toHaveTextContent(
+      /navigates the map/i,
+    );
+
+    rerender(
+      <PlanDrawPanel
+        draw={drawBinding({ pointerMode: "draw", setPenMode })}
+        paceUnit="km"
+      />,
+    );
+    expect(screen.getByTestId("pen-mode-default")).toBeEnabled();
+    expect(screen.queryByTestId("pen-inactive-note")).toBeNull();
+  });
+
+  it("user pass 52: the road-follow status points at Move while the pencil draws", () => {
+    const { rerender } = render(
+      <PlanDrawPanel draw={drawBinding()} paceUnit="km" />,
+    );
+    expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
+      "Switch to Move (M) to drag a point",
+    );
+    rerender(
+      <PlanDrawPanel
+        draw={drawBinding({ pointerMode: "move" })}
+        paceUnit="km"
+      />,
+    );
+    expect(screen.getByTestId("road-follow-status")).toHaveTextContent(
+      "Drag any point to adjust",
+    );
+  });
+
   it("renders the accessible vertex list with per-point delete", () => {
     const deleteVertex = vi.fn();
     render(

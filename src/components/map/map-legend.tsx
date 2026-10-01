@@ -73,7 +73,7 @@ const ENTRIES = (
         className="size-2.5 rounded-full border-2 border-[#FC4C02] bg-white"
         aria-hidden="true"
       />
-      Drawn point (drag to move)
+      Drawn point (drag in Move mode)
     </li>
   </ul>
 );
