@@ -9,8 +9,9 @@
  * Discard (the record is deleted, nothing else changes).
  *
  * The footer is the §M-3 disclosure in plain words: what is stored, that
- * it never leaves the device, and how to clear all of it — the full
- * "Privacy & Data" page arrives with Phase 11.
+ * it never leaves the device, and how to clear all of it — with a door
+ * into the full "Privacy & Data" page (Phase 11's InfoDialog, opened
+ * through the shell-owned pane state).
  *
  * Phase 10 — Session Recovery. Pure presentation: the controller prop
  * carries every behavior (hooks/use-session-recovery).
@@ -60,9 +61,18 @@ function savedAgo(savedAt: number): string {
 export interface RestorePromptProps {
   /** The recovery controller (offers + actions). */
   recovery: SessionRecoveryController;
+  /**
+   * Phase 11 — open the full "Privacy & Data" page (the InfoDialog's
+   * privacy pane). Optional: the prompt works without it (tests render
+   * it bare), and the shell always provides it.
+   */
+  onOpenPrivacy?: () => void;
 }
 
-export function RestorePrompt({ recovery }: RestorePromptProps): ReactNode {
+export function RestorePrompt({
+  recovery,
+  onOpenPrivacy,
+}: RestorePromptProps): ReactNode {
   if (recovery.offers.length === 0) return null;
   return (
     <section
@@ -162,14 +172,27 @@ export function RestorePrompt({ recovery }: RestorePromptProps): ReactNode {
 
       {/*
        * The §M-3 disclosure (Phase 10's slice of it): what is stored,
-       * where it stays, how to remove it. Phase 11 builds the full
-       * "Privacy & Data" page.
+       * where it stays, how to remove it — and, since Phase 11, the
+       * door to the full "Privacy & Data" page.
        */}
       <div className="flex flex-col gap-2 border-t-[1.5px] border-ink/15 p-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-[52ch] text-[12px] leading-relaxed text-muted-foreground">
           Saved sessions — your file and the edits you drew — stay in this
           browser&apos;s storage on this device. They are never uploaded,
           and restoring re-opens them exactly as they were.
+          {onOpenPrivacy && (
+            <>
+              {" "}
+              <button
+                type="button"
+                data-testid="restore-open-privacy"
+                onClick={onOpenPrivacy}
+                className="rounded-[4px] font-semibold text-muted-foreground underline decoration-ink/25 underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-2"
+              >
+                More about privacy and data
+              </button>
+            </>
+          )}
         </p>
         <Button
           type="button"

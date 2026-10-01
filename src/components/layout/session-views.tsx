@@ -90,6 +90,11 @@ export interface SessionIdleViewProps {
    * above the hero, exactly when restorable work exists on this device).
    */
   restorePrompt?: ReactNode;
+  /**
+   * Phase 11 — replay the onboarding tour from the cards page's
+   * "Take the tour" link (the shell owns the tour controller).
+   */
+  onStartTour?: () => void;
 }
 
 export function SessionIdleView({
@@ -105,6 +110,7 @@ export function SessionIdleView({
   paceUnit,
   onPaceUnitChange,
   restorePrompt,
+  onStartTour,
 }: SessionIdleViewProps) {
   /*
    * Focus return (Task 42): remember which card opened the tool page,
@@ -120,6 +126,7 @@ export function SessionIdleView({
       <LandingCardsView
         returnFocusTo={returnFocus}
         restorePrompt={restorePrompt}
+        onStartTour={onStartTour}
         onOpenTool={(tool) => {
           setReturnFocus(tool);
           onOpenTool(tool);

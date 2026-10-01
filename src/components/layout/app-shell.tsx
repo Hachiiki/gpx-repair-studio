@@ -27,8 +27,7 @@
 
 "use client";
 
-import { useEffect } from "react";
-import { ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/layout/header";
 import {
   SessionIdleView,
@@ -69,7 +68,11 @@ import { useMergeStore } from "@/state/merge-store";
 import { usePlanStore } from "@/state/plan-store";
 import { loadRecoveryFile } from "@/hooks/use-recovery-session";
 import { useSessionRecovery } from "@/hooks/use-session-recovery";
+import { useOnboardingTour } from "@/hooks/use-onboarding-tour";
 import { RestorePrompt } from "@/components/layout/restore-prompt";
+import { OnboardingTour } from "@/components/layout/onboarding-tour";
+import { InfoDialog, type InfoPane } from "@/components/layout/info-dialog";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
@@ -161,6 +164,26 @@ export function AppShell() {
    * the only always-alive component — subscriptions live for the page.
    */
   const sessionRecovery = useSessionRecovery();
+
+  /*
+   * Phase 11 — the first-run onboarding tour (4 steps, once per
+   * browser). Auto-opens on the cards page for genuinely new visitors,
+   * after the storage scan above settles; the landing's "Take the
+   * tour" link replays it anytime.
+   */
+  const tour = useOnboardingTour({
+    enabled: landingView === "home" && session.status === "idle",
+    storageScanDone: sessionRecovery.hasScanned,
+    hasRestoreOffers: sessionRecovery.offers.length > 0,
+  });
+
+  /*
+   * Phase 11 — the About / "Privacy & Data" dialog (§M-3): opened
+   * from the footer, the restore prompt's privacy link, and the tour's
+   * first step's "full privacy page" door. One pane state, one dialog.
+   */
+  const [infoPane, setInfoPane] = useState<InfoPane | null>(null);
+  const openInfo = (pane: InfoPane) => setInfoPane(pane);
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -441,25 +464,32 @@ export function AppShell() {
             createStats={createStats}
             paceUnit={paceUnit}
             onPaceUnitChange={setPaceUnit}
-            restorePrompt={<RestorePrompt recovery={sessionRecovery} />}
+            restorePrompt={
+              <RestorePrompt
+                recovery={sessionRecovery}
+                onOpenPrivacy={() => openInfo("privacy")}
+              />
+            }
+            onStartTour={tour.start}
           />
         )}
       </main>
 
-      <footer className="mt-auto border-t-[1.5px] border-ink/15 bg-background">
-        <div
-          className={cn(
-            SHELL_CONTAINER,
-            "flex items-center justify-center gap-1.5 py-4 text-[12.5px] text-muted-foreground",
-          )}
-        >
-          <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>
-            All processing happens in your browser — the file never leaves
-            this device.
-          </span>
-        </div>
-      </footer>
+      {/*
+       * Phase 11 — the shared footer: the local-first line plus the
+       * About / Privacy & Data doors (§M-3 — the disclosure is one
+       * click away in every app state).
+       */}
+      <SiteFooter onOpenInfo={openInfo} />
+
+      {/* Phase 11 — the first-run tour and the info dialog, mounted at
+       * the shell level so they sit above every view. */}
+      <OnboardingTour tour={tour} />
+      <InfoDialog
+        pane={infoPane}
+        onPaneChange={setInfoPane}
+        onClose={() => setInfoPane(null)}
+      />
     </div>
   );
 }

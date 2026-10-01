@@ -99,15 +99,9 @@ export function PrivacyPane() {
               <tr className="border-b-[1.5px] border-ink bg-ink/[0.04]">
                 <th
                   scope="col"
-                  className="px-3 py-2 font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-shade"
+                  className="w-[38%] px-3 py-2 font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-shade"
                 >
-                  When
-                </th>
-                <th
-                  scope="col"
-                  className="px-3 py-2 font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-shade"
-                >
-                  Where
+                  When &amp; where
                 </th>
                 <th
                   scope="col"
@@ -123,14 +117,16 @@ export function PrivacyPane() {
                   key={row.trigger}
                   className="border-b-[1.5px] border-ink/10 align-top last:border-b-0"
                 >
-                  <td className="px-3 py-2.5 text-[12.5px] font-semibold leading-snug">
-                    {row.trigger}
-                    <span className="mt-1 block font-mono text-[10.5px] font-normal tracking-[0.01em] text-shade">
+                  <td className="px-3 py-2.5">
+                    <p className="text-[12.5px] font-semibold leading-snug">
+                      {row.trigger}
+                    </p>
+                    <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground">
+                      {row.destination}
+                    </p>
+                    <p className="mt-1 font-mono text-[11px] tracking-[0.01em] text-shade">
                       {row.hosts}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 text-[12.5px] leading-snug text-muted-foreground">
-                    {row.destination}
+                    </p>
                   </td>
                   <td className="px-3 py-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
                     {row.payload}
@@ -161,10 +157,9 @@ export function PrivacyPane() {
           Everything except the three rows above works with the network
           off: upload, parse, inspect, draw (Straight and Curve), time
           reconstruction, statistics, merge, export, and the share card.
-          Without tiles the basemap degrades visibly but the route, the
-          gaps, and every drawn line still render — and the map
-          toolbar&apos;s basemap picker has a &quot;None&quot; option
-          that never requests tiles at all.
+          Without tiles the basemap falls back to a plain background —
+          the route, the gaps, and every drawn line still render on it,
+          so the work keeps going while you are offline.
         </p>
       </section>
 
@@ -180,8 +175,8 @@ export function PrivacyPane() {
           <li className="text-[13.5px] leading-relaxed text-muted-foreground">
             <span className="font-semibold text-foreground">Basemap:</span>{" "}
             the map toolbar&apos;s basemap control (the layers icon)
-            switches between OpenFreeMap, OpenStreetMap Standard raster,
-            and None — remembered with your settings.
+            switches between OpenFreeMap and OpenStreetMap Standard
+            raster — remembered with your settings.
           </li>
           <li className="text-[13.5px] leading-relaxed text-muted-foreground">
             <span className="font-semibold text-foreground">
@@ -316,24 +311,26 @@ export function AboutPane() {
         </p>
       </section>
 
-      <section className="space-y-2" aria-labelledby="about-attribution-heading">
+      <section className="space-y-3" aria-labelledby="about-attribution-heading">
         <h3
           id="about-attribution-heading"
           className="text-[17px] font-bold tracking-tight"
         >
           Built on open data &amp; software
         </h3>
-        <ul role="list" className="space-y-1.5">
+        <ul role="list" className="space-y-2.5">
           {ATTRIBUTIONS.map((entry) => (
             <li
               key={entry.name}
               data-testid="about-attribution-row"
-              className="text-[13px] leading-relaxed text-muted-foreground"
+              className="border-l-[1.5px] border-ink/20 pl-3"
             >
-              <span className="font-semibold text-foreground">
+              <p className="text-[13px] font-semibold leading-snug">
                 {entry.name}
-              </span>{" "}
-              — {entry.credit}
+              </p>
+              <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                {entry.credit}
+              </p>
             </li>
           ))}
         </ul>

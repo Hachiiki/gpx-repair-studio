@@ -9,7 +9,27 @@ import { defineConfig, devices } from "@playwright/test";
  *
  * Phase 0 ships Chromium only (smoke coverage); WebKit + mobile viewports are
  * added when real UI phases land (Phases 2+), per the master plan §N.
+ *
+ * Phase 11 — the seeded storageState below marks the onboarding tour as
+ * already seen, so the ~110 existing specs never meet the first-run
+ * overlay. The tour's own spec (e2e/onboarding-tour.spec.ts) opts OUT of
+ * the seed with a test-local storageState override — the tour is a
+ * fresh-browser behavior and gets a fresh browser there.
  */
+
+/** Same key/value as src/lib/storage/tour-flag.ts writes (kept in sync by tests). */
+const SEEN_TOUR_STATE = {
+  cookies: [],
+  origins: [
+    {
+      origin: "http://localhost:3000",
+      localStorage: [
+        { name: "gpx-repair-studio.tour.v1", value: "seen" },
+      ],
+    },
+  ],
+};
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
@@ -30,6 +50,8 @@ export default defineConfig({
     // The export workflow (Phase 7) downloads the repaired GPX through a
     // blob URL anchor click — specs assert on the downloaded bytes.
     acceptDownloads: true,
+    // Phase 11 — every spec starts with the tour already seen (see header).
+    storageState: SEEN_TOUR_STATE,
   },
   projects: [
     {

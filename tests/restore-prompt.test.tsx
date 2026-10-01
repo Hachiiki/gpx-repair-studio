@@ -29,6 +29,7 @@ function controller(
 ): SessionRecoveryController {
   return {
     offers: [],
+    hasScanned: true,
     restoring: null,
     restore: vi.fn(),
     discard: vi.fn(),

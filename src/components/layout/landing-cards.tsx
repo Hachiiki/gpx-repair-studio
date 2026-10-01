@@ -28,6 +28,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import {
   ArrowRight,
+  CircleHelp,
   Combine,
   History,
   ImageUp,
@@ -134,12 +135,18 @@ export interface LandingCardsViewProps {
    * owns the controller and this view stays pure presentation).
    */
   restorePrompt?: ReactNode;
+  /**
+   * Phase 11 — replay the onboarding tour (the shell owns the tour
+   * controller). Optional so tests can render the cards bare.
+   */
+  onStartTour?: () => void;
 }
 
 export function LandingCardsView({
   onOpenTool,
   returnFocusTo,
   restorePrompt,
+  onStartTour,
 }: LandingCardsViewProps) {
   // Card refs keyed by mode — the focus-return target (see header).
   const cardRefs = useRef<
@@ -164,6 +171,17 @@ export function LandingCardsView({
           start. Everything runs in this browser, and your files never
           leave this device.
         </p>
+        {onStartTour && (
+          <button
+            type="button"
+            data-testid="landing-start-tour"
+            onClick={onStartTour}
+            className="mx-auto mt-1 inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
+          >
+            <CircleHelp className="size-3.5" aria-hidden="true" />
+            New here? Take the tour
+          </button>
+        )}
       </div>
 
       {/*

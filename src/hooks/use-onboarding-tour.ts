@@ -93,14 +93,17 @@ export function useOnboardingTour(
   }, []);
 
   // First-run auto-open — exactly once, on the cards page, after the
-  // storage scan, only for genuinely new visitors.
+  // storage scan, only for genuinely new visitors. The setStep rides a
+  // microtask (the codebase's async-callback pattern for
+  // react-hooks/set-state-in-effect: the flag read is the external
+  // system this effect synchronizes with, not React state).
   useEffect(() => {
     if (!autoOpenArmed.current) return;
     if (!options.enabled || !options.storageScanDone) return;
     if (options.hasRestoreOffers) return;
     autoOpenArmed.current = false;
     if (readTourFlag() === "unseen") {
-      setStep(0);
+      void Promise.resolve().then(() => setStep(0));
     }
   }, [options.enabled, options.storageScanDone, options.hasRestoreOffers]);
 
@@ -112,7 +115,7 @@ export function useOnboardingTour(
     if (step === null || manualOpen.current) return;
     if (!options.enabled) {
       writeTourSeen();
-      setStep(null);
+      void Promise.resolve().then(() => setStep(null));
     }
   }, [options.enabled, step]);
 
