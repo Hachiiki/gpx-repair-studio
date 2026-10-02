@@ -52,13 +52,18 @@ import { FileTimingCard } from "@/components/reconstruction/file-timing-card";
 import { GapList } from "@/components/reconstruction/gap-list";
 import { ManualRepairsCard } from "@/components/reconstruction/manual-repairs-card";
 import { ElevationProfileChart } from "@/components/statistics/elevation-profile-chart";
+import { SplitsCard } from "@/components/statistics/splits-card";
 import { StatsPanel } from "@/components/statistics/stats-panel";
+import { StatsPrintHeader } from "@/components/statistics/stats-print-header";
+import { TimeInMotionCard } from "@/components/statistics/time-in-motion-card";
 import { useDrawEditor } from "@/hooks/use-draw-editor";
 import { useRepairAnnouncements } from "@/hooks/use-repair-announcements";
 import { useDeepValidation } from "@/hooks/use-deep-validation";
 import { useElevation, useElevationStats } from "@/hooks/use-elevation";
 import { useGpxExport } from "@/hooks/use-gpx-export";
 import { useGpxSession } from "@/hooks/use-gpx-session";
+import { useSplits, useStoppedTime } from "@/hooks/use-splits";
+import { useStatsExport } from "@/hooks/use-stats-export";
 import { useSessionStore } from "@/state/session-store";
 import { useMapController } from "@/hooks/use-map-controller";
 import { useShareCard } from "@/hooks/use-share-card";
@@ -97,6 +102,21 @@ export function AppShell() {
   const elevation = useElevation(session, draw);
   const exporter = useGpxExport(session, draw, elevation.attachment);
   const elevationStats = useElevationStats(exporter.merge);
+  /*
+   * Phase 15 — the stats dashboard (§EE 15): splits, stopped time,
+   * and the stats-sheet intents, all over the SAME merge the export
+   * and the elevation rows use (the one-merge rule). Re-imported
+   * repair markers ride along so marked stretches flag estimated.
+   */
+  const splits = useSplits(exporter.merge, session.workingData?.repairMarkers);
+  const motion = useStoppedTime(exporter.merge);
+  const statsExport = useStatsExport({
+    session,
+    splits,
+    motion,
+    elevation: elevationStats.rows,
+    repair: draw.repairTimeStats,
+  });
   /*
    * Task 35 — the share card renders the EDITED route: the committed
    * repairs' join rides along, so the card's route and trio are the
@@ -495,7 +515,16 @@ export function AppShell() {
             }
             details={
               <RevealOnScroll>
-                <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 xl:grid-cols-[repeat(3,minmax(0,1fr))]">
+                {/*
+                 * Phase 15 — the stats dashboard prints as its own sheet
+                 * (§EE 15.4): everything else in the details column hides
+                 * under print, the dashboard region carries the print-only
+                 * masthead, and the print CSS re-pins the palette.
+                 */}
+                <div
+                  className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 xl:grid-cols-[repeat(3,minmax(0,1fr))]"
+                  data-print-hide
+                >
                   <GpxSummaryCard
                     fileName={session.fileName ?? ""}
                     data={session.data}
@@ -505,11 +534,8 @@ export function AppShell() {
                   <SegmentList rows={session.segmentRows} />
                 </div>
                 {session.distanceStats && session.timeStats && (
-                  /* mt-4 — the same breathing room the grid above gives
-                   * its cards; without it the two 1.5 px ink borders
-                   * sit flush against each other (recovery's layout
-                   * already had this gap). */
-                  <div className="mt-4">
+                  <div data-print-region="stats" className="mt-4">
+                    <StatsPrintHeader fileName={session.fileName} />
                     <StatsPanel
                       distanceStats={session.distanceStats}
                       timeStats={session.timeStats}
@@ -521,23 +547,37 @@ export function AppShell() {
                       working={deep.working}
                       paceUnit={paceUnit}
                       onPaceUnitChange={setPaceUnit}
+                      onDownloadStatsCsv={statsExport.downloadStatsCsv}
+                      onPrintStats={statsExport.printStats}
                     />
-                  </div>
-                )}
-                {elevationStats.profile && elevationStats.profile.hasAnyEle && (
-                  <div className="mt-4">
-                    <ElevationProfileChart
-                      profile={elevationStats.profile}
-                      gainLossSummary={
-                        elevationStats.rows.mixed
-                          ? `${Math.round(
-                              elevationStats.rows.mixed.gainM,
-                            )} m up, ${Math.round(
-                              elevationStats.rows.mixed.lossM,
-                            )} m down`
-                          : null
-                      }
-                    />
+                    {splits !== null && (
+                      /* mt-4 — the same breathing room the grid gives its
+                       * cards (the ink borders never sit flush). */
+                      <div className="mt-4">
+                        <SplitsCard splits={splits} paceUnit={paceUnit} />
+                      </div>
+                    )}
+                    {motion.hasTimingData && (
+                      <div className="mt-4">
+                        <TimeInMotionCard motion={motion} />
+                      </div>
+                    )}
+                    {elevationStats.profile && elevationStats.profile.hasAnyEle && (
+                      <div className="mt-4">
+                        <ElevationProfileChart
+                          profile={elevationStats.profile}
+                          gainLossSummary={
+                            elevationStats.rows.mixed
+                              ? `${Math.round(
+                                  elevationStats.rows.mixed.gainM,
+                                )} m up, ${Math.round(
+                                  elevationStats.rows.mixed.lossM,
+                                )} m down`
+                              : null
+                          }
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </RevealOnScroll>

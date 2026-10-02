@@ -29,8 +29,9 @@ import { formatSynthTimestamp } from "./convert";
 
 const CRLF = "\r\n";
 
-/** RFC 4180 field escaping: quote only when needed, double the quotes. */
-function csvField(value: string): string {
+/** RFC 4180 field escaping: quote only when needed, double the quotes.
+ * Phase 15: shared with the stats CSV exporter (one escaper, one rule). */
+export function csvField(value: string): string {
   if (/[",\r\n]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
   }

@@ -31,6 +31,7 @@ import {
   CardDescription,
   CardHeader,
 } from "@/components/ui/card";
+import { Download, Printer } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -154,6 +155,13 @@ export interface StatsPanelProps {
   /** §J-2 pace unit toggle. */
   paceUnit: PaceUnit;
   onPaceUnitChange: (unit: PaceUnit) => void;
+  /**
+   * Phase 15 — the stats-sheet intents (§EE 15.4). Omitted (the merge
+   * and recovery studios) → no action buttons; provided → "Stats CSV"
+   * and "Print" join the header's action row.
+   */
+  onDownloadStatsCsv?: () => void;
+  onPrintStats?: () => void;
 }
 
 const PACE_ROW_LABELS: Record<PaceRow["id"], string> = {
@@ -173,6 +181,8 @@ export function StatsPanel({
   working = null,
   paceUnit,
   onPaceUnitChange,
+  onDownloadStatsCsv,
+  onPrintStats,
 }: StatsPanelProps) {
   const noTime = !timeStats.hasTimingData;
   const reimportDistance = reimport?.repairedDistanceM ?? 0;
@@ -227,6 +237,37 @@ export function StatsPanel({
               : "Original recording only — repairs are not included yet."}
         </CardDescription>
         <CardAction>
+          {(onDownloadStatsCsv !== undefined || onPrintStats !== undefined) && (
+            /* §EE 15.4 — the stats-sheet intents: download the dashboard
+             * as CSV, print the dashboard. Screen-only furniture. */
+            <div
+              data-print-hide-on-print
+              className="flex items-center gap-1.5"
+            >
+              {onDownloadStatsCsv !== undefined && (
+                <button
+                  type="button"
+                  data-testid="download-stats-csv-button"
+                  onClick={onDownloadStatsCsv}
+                  className="inline-flex items-center gap-1.5 rounded-[5px] border-[1.25px] border-ink/30 px-2 py-1 text-[12px] font-semibold text-ink transition-colors hover:border-signal hover:bg-signal/[0.08] focus-visible:outline-2"
+                >
+                  <Download className="size-3.5" aria-hidden="true" />
+                  Stats CSV
+                </button>
+              )}
+              {onPrintStats !== undefined && (
+                <button
+                  type="button"
+                  data-testid="print-stats-button"
+                  onClick={onPrintStats}
+                  className="inline-flex items-center gap-1.5 rounded-[5px] border-[1.25px] border-ink/30 px-2 py-1 text-[12px] font-semibold text-ink transition-colors hover:border-signal hover:bg-signal/[0.08] focus-visible:outline-2"
+                >
+                  <Printer className="size-3.5" aria-hidden="true" />
+                  Print
+                </button>
+              )}
+            </div>
+          )}
           <PaceUnitToggle unit={paceUnit} onChange={onPaceUnitChange} />
         </CardAction>
       </CardHeader>

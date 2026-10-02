@@ -366,3 +366,72 @@
     }
   }
 }
+
+/*
+ * Phase 15 — the print-friendly stats view (§EE 15.4).
+ *
+ * "Print stats" adds `printing-stats` to <body> and calls window.print();
+ * these rules shape what the sheet shows: everything outside the stats
+ * region hides (data-print-hide on the header, footer, map, tools, and
+ * the file-summary grid), a print-only masthead appears, and the palette
+ * re-pins to the LIGHT anchors regardless of the active theme — ink on
+ * paper is what a printer is. Cards keep their ink borders (they read
+ * as ruled tables) and never split across pages.
+ */
+.stats-print-only {
+  display: none;
+}
+
+@media print {
+  /* The bench re-pins to the light anchors: body-level vars win the
+   * inheritance race over the .dark <html> overrides, so a dark-mode
+   * user still prints an ink-on-white sheet. */
+  body.printing-stats {
+    color-scheme: light;
+    --signal: #fc4c02;
+    --signal-ink: #c43d00;
+    --ink: #222222;
+    --inkplus: #000000;
+    --paper: #ffffff;
+    --shade: #5a5a5a;
+    --grid-line: oklch(0.196 0.002 286 / 4%);
+    --background: #ffffff;
+    --foreground: oklch(0.196 0.002 286);
+    --card: #ffffff;
+    --card-foreground: oklch(0.196 0.002 286);
+    --muted-foreground: oklch(0.446 0 0);
+    --border: oklch(0.196 0.002 286 / 20%);
+    background: #ffffff;
+    background-image: none;
+  }
+
+  body.printing-stats [data-print-hide] {
+    display: none !important;
+  }
+
+  body.printing-stats .stats-print-only {
+    display: block;
+  }
+
+  /* The stats region prints edge-to-edge of the @page box, cards keep
+   * their internal padding, and no card splits across a page break. */
+  body.printing-stats [data-print-region] {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+  body.printing-stats [data-print-region] > * {
+    break-inside: avoid;
+  }
+
+  /* Interactive furniture never prints: toggles, download buttons, the
+   * profile table's disclosure chevrons stay on screen only. */
+  body.printing-stats [data-print-hide-on-print] {
+    display: none !important;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}

@@ -80,7 +80,11 @@ export function AppHeader({
   const showSession = status === "parsed" && fileName !== null;
 
   return (
-    <header className="sticky top-0 z-40 border-b-2 border-ink bg-background">
+    <header
+      data-print-hide
+      data-testid="app-header"
+      className="sticky top-0 z-40 border-b-2 border-ink bg-background"
+    >
       <div
         className={cn(
           SHELL_CONTAINER,

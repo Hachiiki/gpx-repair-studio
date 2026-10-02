@@ -1,0 +1,45 @@
+section,label,value,unit,provenance,note
+meta,app,GPX Repair Studio,,,
+meta,source_file,sample-ride-with-gaps.gpx,,,
+meta,generated_at,2026-10-02T13:00:57.993Z,,,
+meta,privacy,computed locally in the browser,,,
+meta,split_length,1000,m,,follows the app's pace unit setting
+summary,total_distance,6458.2,m,recorded,merged route: working copy plus committed repairs
+summary,recorded_moving_time,1191,s,recorded,
+summary,wall_time,2997,s,recorded,
+summary,stopped_time,0,s,recorded,speed below 0.5 m/s; 0 stop events
+summary,in_motion_time,1191,s,recorded,
+summary,elevation_gain,0,m,mixed,"hysteresis deadband, mixed recorded and estimated sources"
+summary,elevation_loss,4,m,mixed,
+summary,elevation_coverage,100,percent,,
+split,split_1_distance,1000,m,recorded,
+split,split_1_time,315.5,s,recorded,
+split,split_1_pace_per_km,315528,s,recorded,
+split,split_1_pace_per_mi,507793.1,s,recorded,
+split,split_1_elevation_gain,0,m,recorded,
+split,split_2_distance,1000,m,recorded,partial time: 1 gap leg
+split,split_2_time,137.6,s,recorded,partial time: 1 gap leg
+split,split_2_pace_per_km,137639.3,s,recorded,
+split,split_2_pace_per_mi,221508.9,s,recorded,
+split,split_2_elevation_gain,0,m,recorded,
+split,split_3_distance,1000,m,recorded,
+split,split_3_time,260.8,s,recorded,
+split,split_3_pace_per_km,260832.8,s,recorded,
+split,split_3_pace_per_mi,419769.6,s,recorded,
+split,split_3_elevation_gain,0,m,recorded,
+split,split_4_distance,1000,m,recorded,
+split,split_5_distance,1000,m,recorded,partial time: 1 gap leg
+split,split_5_time,20.3,s,recorded,partial time: 1 gap leg
+split,split_5_pace_per_km,20263.6,s,recorded,
+split,split_5_pace_per_mi,32611.1,s,recorded,
+split,split_5_elevation_gain,0,m,recorded,
+split,split_6_distance,1000,m,recorded,
+split,split_6_time,312.1,s,recorded,
+split,split_6_pace_per_km,312098,s,recorded,
+split,split_6_pace_per_mi,502273,s,recorded,
+split,split_6_elevation_gain,0,m,recorded,
+split,split_7_distance,458.2,m,recorded,
+split,split_7_time,144.6,s,recorded,
+split,split_7_pace_per_km,315683.9,s,recorded,
+split,split_7_pace_per_mi,508044,s,recorded,
+split,split_7_elevation_gain,0,m,recorded,

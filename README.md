@@ -23,6 +23,8 @@ The design principle underneath all six: **recorded data and reconstructed data 
 
 **Formats in & out.** The intake reads **GPX, TCX, and FIT** — auto-detected from the file's bytes, not its name, so a Garmin `.FIT` or a Strava-style `.TCX` drops straight into the same repair pipeline (heart rate / cadence / power ride along as read-only passthrough; pause records without coordinates are skipped and disclosed). The export dialog offers **KML** (Google Earth), **GeoJSON** (GIS tools), and **CSV** (spreadsheets) alongside GPX: every format carries the provenance labels — KML as ExtendedData, GeoJSON as feature properties, CSV as a per-point provenance column — and the GPX export remains the full-fidelity one with `gpxr` markers.
 
+**Stats dashboard** (repair workspace): every kilometer (or mile — the pace toggle decides) of the route becomes a split with its distance, time, average pace, and elevation gain, drawn as a pace-over-distance bar chart and listed in a table where splits crossing reconstructed stretches are flagged *estimated*. **Time in motion** separates moving time from stopped time (a stop is implied speed under 0.5 m/s, disclosed in place) with the stop events listed. The **elevation profile** shades recorded vs reconstructed stretches, reads out values under the pointer, and answers the keyboard alone (arrow keys walk a cursor; a table gives the textual equivalent). The whole dashboard exports as a **long-format stats CSV** (meta, summary, per-split, stop-event rows) or prints as a clean sheet — light palette, no chrome, stats only — via **Stats CSV** and **Print** in the statistics header.
+
 ---
 
 ## Privacy in one paragraph

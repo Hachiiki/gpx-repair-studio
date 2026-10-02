@@ -37,7 +37,11 @@ const LINK_CLASS =
 
 export function SiteFooter({ onOpenInfo, onOpenHelp }: SiteFooterProps) {
   return (
-    <footer className="mt-auto border-t-[1.5px] border-ink/15 bg-background">
+    <footer
+      data-print-hide
+      data-testid="site-footer"
+      className="mt-auto border-t-[1.5px] border-ink/15 bg-background"
+    >
       <div
         className={cn(
           SHELL_CONTAINER,

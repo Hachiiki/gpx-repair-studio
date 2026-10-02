@@ -56,11 +56,13 @@ export function WorkspaceLayout({
   const cueLabel = scrollCueLabel ?? detailsTitle;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-12">
-      {/* Section 1 — map + tools. */}
+        {/* Section 1 — map + tools. Phase 15: the whole first section
+            hides when the stats sheet prints (data-print-hide). */}
       <section
         id={sectionId}
         aria-label={sectionLabel}
         data-testid={`${sectionId}-section`}
+        data-print-hide
         className="scroll-mt-20"
       >
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
@@ -119,6 +121,7 @@ export function WorkspaceLayout({
           <a
             href={`#${sectionId}`}
             data-testid="back-to-map-link"
+            data-print-hide
             className="inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
           >
             <ArrowUp className="size-3.5" aria-hidden="true" />
