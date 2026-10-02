@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Based on the provided screenshot of the 'Deep validation' card, here is the QA review:\n\n1.  **Issue Kinds (in display order):**\n    *   Speed spikes\n    *   Duplicate points\n    *   GPS drift (partially visible at the bottom of the list)\n\n2.  **Severity Badge Distinguishability:**\n    *   **Yes**, they are visually distinguishable. The \"warning\" badge uses a distinct orange border and text color compared to the white/gray text of other elements. While an \"error\" or \"info\" badge isn't fully visible in this specific view, the styling for \"warning\" is clear and follows standard UI patterns for severity levels.\n\n3.  **Legibility of Action Links:**\n    *   **Yes**, both the **\"Jump to map\"** and fix action links (**\"Remove spikes...\"**, **\"Dedupe...\"**) are highly legible. They use a bright orange color that provides excellent contrast against the dark background and are not obstructed by any other UI elements.\n\n4.  **Clipped, Overlapping, or Misaligned Elements:**\n    *   **Yes, there is a clipping issue.** The third item in the list (**\"GPS drift\"**) is significantly clipped at the bottom. Its severity badge is cut off horizontally, and its description and action links are completely hidden by the \"PRESETS\" section header below it.\n\n5.  **Visual Design Score & Critical Defect:**\n    *   **Score: 7/10**. The typography, spacing, and iconography are clean and professional.\n    *   **Critical Defect:** **Content Clipping/Overflow**. The list of validation issues is being cut off by the subsequent \"PRESETS\" container. This is a functional bug that prevents the user from seeing or interacting with all detected errors. This must be fixed before shipping to ensure users can address every issue found during the deep validation process.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790912651,
+  "id": "20261002114404e8751986fb2e4694",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20261002114404e8751986fb2e4694",
+  "usage": {
+    "completion_tokens": 403,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1812,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2215
+  }
+}

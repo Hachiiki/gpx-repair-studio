@@ -34,6 +34,8 @@ export const GPXR_ELEMENTS = {
   reconstructed: "reconstructed",
   /** Track-level repair summary. */
   summary: "summary",
+  /** Per-point working-copy modification marker (Phase 13). */
+  modified: "modified",
 } as const;
 
 /** Attribute names of the vocabulary. */
@@ -99,5 +101,34 @@ export function buildSummaryExtension(
     String(attrs.reconstructedDistanceM),
   );
   el.setAttribute(GPXR_ATTRIBUTES.gapCount, String(attrs.gapCount));
+  return el;
+}
+
+/** Attribute values for {@link GPXR_ELEMENTS.modified}. */
+export interface ModifiedMarkerAttributes {
+  /** What changed on this recorded point (e.g. "elevation"). */
+  reason: string;
+  /** How the replacement value was derived, when estimated. */
+  eleMethod?: string;
+}
+
+/**
+ * Build the per-point `<gpxr:modified>` marker (Phase 13): a RECORDED
+ * point whose value a confirmed deep-validation fix replaced. The point
+ * stays recorded — only the replaced field is marked, so any consumer
+ * (ours included) can tell measured data from repaired data per field.
+ */
+export function buildModifiedExtension(
+  doc: Document,
+  attrs: ModifiedMarkerAttributes,
+): Element {
+  const el = doc.createElementNS(
+    GPXR_NAMESPACE,
+    `${GPXR_PREFIX}:${GPXR_ELEMENTS.modified}`,
+  );
+  el.setAttribute("reason", attrs.reason);
+  if (attrs.eleMethod !== undefined) {
+    el.setAttribute(GPXR_ATTRIBUTES.eleMethod, attrs.eleMethod);
+  }
   return el;
 }

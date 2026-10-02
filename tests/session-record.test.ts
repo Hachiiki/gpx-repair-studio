@@ -99,6 +99,19 @@ const BASE_FILE_STATE = {
       roadLeg({ lat: 52.521, lon: 13.406 }, { lat: 52.522, lon: 13.407 }),
     ],
   },
+  // Phase 13 — the working-copy fix log (one spike removal).
+  workingEdits: [
+    {
+      id: "fix/1",
+      label: "Remove 2 speed spikes",
+      reason: "spike" as const,
+      appliedAt: 1_700_000_001_000,
+      entries: [
+        { kind: "point-deletion" as const, pointId: pointId(SEG, 3) },
+        { kind: "point-deletion" as const, pointId: pointId(SEG, 7) },
+      ],
+    },
+  ],
 };
 
 // ---------------------------------------------------------------------------

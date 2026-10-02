@@ -130,6 +130,30 @@ export function ExportDialog({
                 </span>
               </li>
             )}
+            {(summary.workingDeletedPoints > 0 ||
+              summary.workingSortedSegments > 0 ||
+              summary.workingSmoothedElevations > 0) && (
+              <li className="flex items-start gap-2" data-testid="export-working-note">
+                <span aria-hidden="true" className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
+                <span>
+                  Deep-validation fixes ride along:{" "}
+                  {[
+                    summary.workingDeletedPoints > 0
+                      ? `${summary.workingDeletedPoints} point${summary.workingDeletedPoints === 1 ? "" : "s"} removed`
+                      : null,
+                    summary.workingSortedSegments > 0
+                      ? `${summary.workingSortedSegments} segment${summary.workingSortedSegments === 1 ? "" : "s"} sorted by time`
+                      : null,
+                    summary.workingSmoothedElevations > 0
+                      ? `${summary.workingSmoothedElevations} elevation${summary.workingSmoothedElevations === 1 ? "" : "s"} smoothed`
+                      : null,
+                  ]
+                    .filter((part) => part !== null)
+                    .join(", ")}
+                  {" — the repair note and gpxr:modified markers disclose every change."}
+                </span>
+              </li>
+            )}
           </ul>
         </div>
 

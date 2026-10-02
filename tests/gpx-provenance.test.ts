@@ -23,7 +23,12 @@ describe("schema constants", () => {
   it("declares the documented namespace, prefix, and names", () => {
     expect(GPXR_NAMESPACE).toBe("https://gpx-repair.studio/schema/1");
     expect(GPXR_PREFIX).toBe("gpxr");
-    expect(GPXR_ELEMENTS).toEqual({ reconstructed: "reconstructed", summary: "summary" });
+    expect(GPXR_ELEMENTS).toEqual({
+      reconstructed: "reconstructed",
+      summary: "summary",
+      // Phase 13 — the working-copy per-point modification marker.
+      modified: "modified",
+    });
     expect(GPXR_ATTRIBUTES).toEqual({
       timeMethod: "timeMethod",
       eleMethod: "eleMethod",

@@ -75,6 +75,7 @@ import { useRecoveryStore } from "@/state/recovery-store";
 import { useCreateStore } from "@/state/create-store";
 import { usePlanStore } from "@/state/plan-store";
 import { useUiStore } from "@/state/ui-store";
+import { useWorkingStore } from "@/state/working-store";
 import type { GapThresholds } from "@/features/gpx/detectGaps";
 import type { FileTimingContext } from "@/features/reconstruction/timestamps";
 import type {
@@ -157,6 +158,7 @@ function repairSignature(): string {
   const session = useSessionStore.getState();
   const editor = useEditorStore.getState();
   const thresholds = useUiStore.getState().gapThresholds;
+  const working = useWorkingStore.getState();
   return [
     session.status,
     session.fileName ?? "",
@@ -164,6 +166,9 @@ function repairSignature(): string {
     thresholds.timeGapMs,
     thresholds.speedAnomalyKmh,
     thresholds.speedDtGuardMs,
+    // Phase 13 — the fix log: unique ids per confirmed fix, so both
+    // applies and undos change the signature.
+    working.edits.map((edit) => edit.id).join(","),
   ].join("¦");
 }
 
@@ -231,6 +236,9 @@ function fileSessionHasWork(editor: EditorLike): boolean {
 
 function repairHasWork(): boolean {
   const session = useSessionStore.getState();
+  // Phase 13 — confirmed deep-validation fixes are recoverable work on
+  // their own (a session can hold fixes and no drawn repairs).
+  if (useWorkingStore.getState().edits.length > 0) return session.status === "parsed";
   return session.status === "parsed" && fileSessionHasWork(useEditorStore.getState());
 }
 
@@ -320,6 +328,8 @@ export function useSessionRecovery(): SessionRecoveryController {
                 manualSpans: useEditorStore.getState().manualSpans,
                 fileTiming: useEditorStore.getState().fileTiming,
                 roadLegs: useEditorStore.getState().roadLegs,
+                // Phase 13 — the working copy's confirmed-fix log.
+                workingEdits: useWorkingStore.getState().edits,
               },
               savedAt,
             )
@@ -333,6 +343,8 @@ export function useSessionRecovery(): SessionRecoveryController {
                 manualSpans: useRecoveryStore.getState().manualSpans,
                 fileTiming: useRecoveryStore.getState().fileTiming,
                 roadLegs: useRecoveryStore.getState().roadLegs,
+                // The recovery section has no working copy.
+                workingEdits: [],
               },
               savedAt,
             );
@@ -459,6 +471,10 @@ export function useSessionRecovery(): SessionRecoveryController {
         evaluate("repair", repairSignature(), repairHasWork());
       }),
       useEditorStore.subscribe(() => {
+        evaluate("repair", repairSignature(), repairHasWork());
+      }),
+      // Phase 13 — working-copy fixes are repair work too.
+      useWorkingStore.subscribe(() => {
         evaluate("repair", repairSignature(), repairHasWork());
       }),
       useUiStore.subscribe(() => {
@@ -634,6 +650,9 @@ export function useSessionRecovery(): SessionRecoveryController {
             const hydration = hydrateFileSession(record);
             if (section === "repair") {
               useEditorStore.getState().hydrate(hydration);
+              // Phase 13 — the working copy's fix log rides the same
+              // restore (deterministic point ids re-attach the edits).
+              useWorkingStore.getState().hydrate(hydration.workingEdits);
             } else {
               useRecoveryStore.getState().hydrate(hydration);
             }

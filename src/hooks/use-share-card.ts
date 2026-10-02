@@ -100,14 +100,15 @@ export function useShareCard(
   }, []);
 
   // The route: the same view the map renders — recorded pieces split at
-  // gaps/damage, re-imported reconstruction runs, and (Task 35) every
-  // committed live repair — converted from GeoJSON [lon, lat] pairs to
-  // the domain's LatLon. Recomputed for a new file, re-detection, or a
-  // change in the committed repairs.
+  // gaps/damage, re-imported reconstruction runs, every committed live
+  // repair, and (Phase 13) the working copy's deep-validation fixes —
+  // converted from GeoJSON [lon, lat] pairs to the domain's LatLon.
+  // Recomputed for a new file, re-detection, a change in the committed
+  // repairs, or a working-copy fix.
   const polylines = useMemo(() => {
-    if (!session.data) return [] as (readonly LatLon[])[];
+    if (!session.workingData) return [] as (readonly LatLon[])[];
     const refs = buildEditorRouteRefs({
-      data: session.data,
+      data: session.workingData,
       gapRows: session.gapRows,
       manualSpans: editorManualSpans,
       skippedGapIds: editorSkipped,
@@ -116,7 +117,7 @@ export function useShareCard(
       roadLegs: editorRoadLegs,
     });
     const view = buildRouteView(
-      session.data,
+      session.workingData,
       session.gapRows,
       refs.reconstructionRefs,
       refs.manualGapRefs,
@@ -126,7 +127,7 @@ export function useShareCard(
       part.coordinates.map(([lon, lat]) => ({ lat, lon }) as LatLon),
     );
   }, [
-    session.data,
+    session.workingData,
     session.gapRows,
     editorManualSpans,
     editorSkipped,

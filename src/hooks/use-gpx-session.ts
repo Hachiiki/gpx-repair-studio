@@ -28,6 +28,7 @@ import {
 } from "@/features/statistics/distance";
 import { originalTimeStats, type TimeStats } from "@/features/statistics/time";
 import { reimportStats, type ReimportStats } from "@/features/statistics/reimport";
+import { applyWorkingEdits } from "@/features/validation/workingCopy";
 import { runParsePipeline } from "@/lib/gpx/parse-client";
 import {
   useSessionStore,
@@ -36,6 +37,7 @@ import {
   type SessionView,
 } from "@/state/session-store";
 import { useUiStore } from "@/state/ui-store";
+import { useWorkingStore } from "@/state/working-store";
 import type {
   DetectedGap,
   GapId,
@@ -48,6 +50,7 @@ import type {
   PointId,
   SegmentId,
   ValidationIssue,
+  WorkingTrackData,
 } from "@/types/domain";
 import { parsePointIdRef } from "@/types/ids";
 import type { BBox } from "@/lib/geo/bbox";
@@ -108,6 +111,15 @@ export interface GpxSession {
   status: SessionStatus;
   fileName: string | null;
   data: OriginalTrackData | null;
+  /**
+   * Phase 13 — the working copy: the original with every confirmed
+   * deep-validation fix applied (deletions, sorts, elevation
+   * overrides). The ORIGINAL object itself while the edit log is
+   * empty (identity — effect keys stay quiet for pristine files).
+   * Statistics, the map route, the share card, and the export render
+   * THIS view; gap detection and the parse report stay on `data`.
+   */
+  workingData: WorkingTrackData | null;
   issues: readonly ValidationIssue[];
   gapRows: readonly GapRow[];
   segmentRows: readonly SegmentRow[];
@@ -336,6 +348,7 @@ export function useGpxSession(): GpxSession {
   const error = useSessionStore((s) => s.error);
   const view = useSessionStore((s) => s.view);
   const gapThresholds = useUiStore((s) => s.gapThresholds);
+  const workingEdits = useWorkingStore((s) => s.edits);
 
   // The hook's upload intent — the shared pipeline above (Phase 10 made
   // the same function the restore path uses, so a restored session is
@@ -370,18 +383,33 @@ export function useGpxSession(): GpxSession {
     }
   }, [gapThresholds]);
 
+  // Phase 13 — the working copy: pure derivation of (original, edit
+  // log). Identity-stable while the log is empty (applyWorkingEdits
+  // returns the original itself), so every downstream memo keyed on
+  // the model stays quiet for pristine files.
+  const workingData = useMemo<WorkingTrackData | null>(
+    () => (data ? applyWorkingEdits(data, workingEdits) : null),
+    [data, workingEdits],
+  );
+
   // Derived view models — recomputed only when the model or gaps change.
+  // Phase 13: the stats and the segment rows recompute from the WORKING
+  // copy (§EE 13.2 — exports and stats recompute from the working copy);
+  // gap detection and the parse report stay on the original.
   const distanceStats = useMemo(
-    () => (data ? originalDistanceStats(data) : null),
-    [data],
+    () => (workingData ? originalDistanceStats(workingData) : null),
+    [workingData],
   );
   const timeStats = useMemo(
-    () => (data ? originalTimeStats(data, gapThresholds.timeGapMs) : null),
-    [data, gapThresholds.timeGapMs],
+    () =>
+      workingData
+        ? originalTimeStats(workingData, gapThresholds.timeGapMs)
+        : null,
+    [workingData, gapThresholds.timeGapMs],
   );
   const reimport = useMemo(
-    () => (data ? reimportStats(data) : null),
-    [data],
+    () => (workingData ? reimportStats(workingData) : null),
+    [workingData],
   );
   const gapRows = useMemo(
     () => (data && gaps.length > 0 ? buildGapRows(gaps, data) : []),
@@ -389,8 +417,10 @@ export function useGpxSession(): GpxSession {
   );
   const segmentRows = useMemo(
     () =>
-      data && distanceStats ? buildSegmentRows(data, distanceStats) : [],
-    [data, distanceStats],
+      workingData && distanceStats
+        ? buildSegmentRows(workingData, distanceStats)
+        : [],
+    [workingData, distanceStats],
   );
   const extent = useMemo(() => {
     if (!data) return null;
@@ -407,6 +437,7 @@ export function useGpxSession(): GpxSession {
     status,
     fileName,
     data,
+    workingData,
     issues: data?.issues ?? [],
     gapRows,
     segmentRows,

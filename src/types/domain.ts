@@ -540,3 +540,149 @@ export interface MergedPointView {
   order: number;
   belongsToGap?: GapId;
 }
+
+// ---------------------------------------------------------------------------
+// Deep validation & the working copy (Phase 13 — §EE 13.1/13.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a working-copy edit exists — the honesty trail every fix carries
+ * into the export note and the change log.
+ */
+export type FixReason =
+  | "spike" // a teleport leg's point removed
+  | "duplicate" // a near-duplicate point removed (keep-first)
+  | "drift" // a stop-and-wander GPS-drift run collapsed
+  | "sort" // a segment reordered by timestamp (order is estimated)
+  | "elevation" // an outlying elevation replaced by interpolation
+  | "thin"; // a dense recording decimated to a minimum spacing
+
+/**
+ * One override of the immutable original (§EE 13.2). Entries are the
+ * atomic units; a `WorkingEdit` groups the entries of ONE confirmed fix
+ * so undo removes exactly what the user approved.
+ */
+export type WorkingEditEntry =
+  | { kind: "point-deletion"; pointId: PointId }
+  | { kind: "segment-sort"; segmentId: SegmentId }
+  | {
+      kind: "elevation-override";
+      pointId: PointId;
+      /** The replacement elevation, meters. */
+      ele: number;
+      /** How the replacement was derived (exported as `eleMethod`). */
+      method: Estimated<number>["method"];
+      /** The recorded elevation it replaces, when there was one. */
+      originalEle?: number;
+    };
+
+/** One user-confirmed fix on the working copy — one undo step. */
+export interface WorkingEdit {
+  /** Deterministic id: `fix/{seq}` allocated by the working store. */
+  id: string;
+  /** Human label for the change log, e.g. "Remove 4 speed spikes". */
+  label: string;
+  reason: FixReason;
+  /** Epoch ms when the fix was confirmed. */
+  appliedAt: number;
+  entries: readonly WorkingEditEntry[];
+}
+
+/**
+ * A recorded point as the working copy holds it: identical to the
+ * original except an elevation replaced by a fix (§EE 13.2 "smoothing").
+ * `ele` is the OVERRIDDEN value (every consumer sees the fix); the
+ * verbatim `raw` capture and `workingEle` keep the provenance.
+ */
+export interface WorkingTrackPoint extends OriginalTrackPoint {
+  /** Present only when a fix replaced this point's elevation. */
+  workingEle?: {
+    /** The replacement value (mirrors `ele`). */
+    ele: number;
+    /** How the replacement was derived (export marker). */
+    method: Estimated<number>["method"];
+    /** The recorded elevation it replaced, when there was one. */
+    originalEle?: number;
+  };
+}
+
+/** What the working layer changed, for honest stat labels. */
+export interface WorkingMeta {
+  /** Points removed from the working view (all reasons). */
+  deletedPointCount: number;
+  /** Segments reordered by timestamp. */
+  sortedSegmentIds: readonly SegmentId[];
+  /** Elevations replaced by interpolation. */
+  overriddenEleCount: number;
+  /** True when at least one edit exists. */
+  hasEdits: boolean;
+}
+
+/** A working-copy view of the file: original-shaped, edits applied. */
+export interface WorkingTrackData extends OriginalTrackData {
+  segments: readonly (Omit<OriginalSegment, "points"> & {
+    points: readonly WorkingTrackPoint[];
+  })[];
+  /** Edit bookkeeping; absent/empty for a pristine copy. */
+  working?: WorkingMeta;
+}
+
+/** Deep-check issue kinds (§EE 13.1) — the fixable recording damage. */
+export type DeepIssueKind =
+  | "speed-spike" // implied leg speed above the (high) teleport threshold
+  | "duplicate-cluster" // near-duplicate points (< radius within a window)
+  | "non-monotonic-time" // backwards time transitions
+  | "elevation-outlier" // step/z-score elevation damage
+  | "gps-drift" // sustained sub-threshold scatter (stop-and-wander)
+  | "missing-elevation"; // runs of points without <ele>
+
+export type DeepIssueSeverity = "error" | "warning" | "info";
+
+/** One deep-check finding, aggregated per kind (bounded output). */
+export interface DeepIssue {
+  kind: DeepIssueKind;
+  severity: DeepIssueSeverity;
+  /** Occurrences folded into this issue (legs, transitions, points). */
+  count: number;
+  message: string;
+  /** The points involved, in document order (the textual list basis). */
+  points: readonly PointRef[];
+  /** Segments involved (whole-segment findings). */
+  segments?: readonly SegmentId[];
+}
+
+/** The deep validation report over one (working) model. */
+export interface DeepReport {
+  issues: readonly DeepIssue[];
+  /** Total occurrences across issues (0 = clean). */
+  totalCount: number;
+}
+
+/** The one-click fixes (§EE 13.4). */
+export type FixKind =
+  | "remove-spikes"
+  | "dedupe"
+  | "sort-by-time"
+  | "smooth-elevations"
+  | "remove-drift"
+  | "thin";
+
+/** The named preset bundles (§EE 13.5). */
+export type PresetId =
+  | "drift-cleanup"
+  | "dedupe-sort"
+  | "resample-thin"
+  | "spike-sweep";
+
+/** A planned fix: what would change, before anything does. */
+export interface FixPlan {
+  /** Which fix / preset produced the plan. */
+  kind: FixKind | PresetId;
+  label: string;
+  /** The entries applying the plan would write. */
+  entries: readonly WorkingEditEntry[];
+  /** The points the plan touches (jump/preview list). */
+  points: readonly PointRef[];
+  /** What-would-change lines for the preview dialog. */
+  summary: readonly string[];
+}

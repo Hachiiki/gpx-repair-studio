@@ -43,6 +43,10 @@ function summary(
     reimportedPoints: 0,
     repairsWithElevation: 0,
     staleElevationCount: 0,
+    // Phase 13 — the working copy's export counts (pristine default).
+    workingDeletedPoints: 0,
+    workingSortedSegments: 0,
+    workingSmoothedElevations: 0,
     ...overrides,
   };
 }

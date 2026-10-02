@@ -145,6 +145,12 @@ export interface StatsPanelProps {
   manualTotalDurationMs?: number | null;
   /** Re-imported repair stats (§H-7) — marked stretches of a re-upload. */
   reimport?: ReimportStats | null;
+  /**
+   * Phase 13 — the working copy's edit summary. Omitted/null → no
+   * working-copy label; present with edits → the stats carry the
+   * "modified" disclosure (§EE 13.2: affected distances are labeled).
+   */
+  working?: import("@/types/domain").WorkingMeta | null;
   /** §J-2 pace unit toggle. */
   paceUnit: PaceUnit;
   onPaceUnitChange: (unit: PaceUnit) => void;
@@ -164,6 +170,7 @@ export function StatsPanel({
   elevation = null,
   manualTotalDurationMs = null,
   reimport = null,
+  working = null,
   paceUnit,
   onPaceUnitChange,
 }: StatsPanelProps) {
@@ -213,15 +220,44 @@ export function StatsPanel({
           Statistics
         </h3>
         <CardDescription>
-          {hasRepairs
-            ? "Original recording plus committed repairs — every estimated value is labeled with its source."
-            : "Original recording only — repairs are not included yet."}
+          {working?.hasEdits
+            ? "Recomputed from the working copy — confirmed fixes included, the original file untouched."
+            : hasRepairs
+              ? "Original recording plus committed repairs — every estimated value is labeled with its source."
+              : "Original recording only — repairs are not included yet."}
         </CardDescription>
         <CardAction>
           <PaceUnitToggle unit={paceUnit} onChange={onPaceUnitChange} />
         </CardAction>
       </CardHeader>
       <CardContent>
+        {working?.hasEdits && (
+          /* Phase 13 — the working-copy disclosure (§EE 13.2: affected
+           * distances are labeled as modified). The numbers in this
+           * panel recompute from the working copy; this note says so. */
+          <p
+            data-testid="stats-working-note"
+            className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-[8px] border-[1.25px] border-signal/40 bg-signal/[0.06] px-3 py-2 text-[12px] leading-relaxed text-muted-foreground"
+          >
+            <span className="font-semibold text-ink">Modified:</span>
+            <span>
+              {[
+                working.deletedPointCount > 0
+                  ? `${working.deletedPointCount} point${working.deletedPointCount === 1 ? "" : "s"} removed`
+                  : null,
+                working.sortedSegmentIds.length > 0
+                  ? `${working.sortedSegmentIds.length} segment${working.sortedSegmentIds.length === 1 ? "" : "s"} sorted by time`
+                  : null,
+                working.overriddenEleCount > 0
+                  ? `${working.overriddenEleCount} elevation${working.overriddenEleCount === 1 ? "" : "s"} smoothed`
+                  : null,
+              ]
+                .filter((part) => part !== null)
+                .join(" · ")}
+              {" — the numbers here reflect the working copy, not the raw file."}
+            </span>
+          </p>
+        )}
         {hasRepairs && (
           /* The outcome banner (user pass 35): original → what the edits
            * added → the outcome. The repaired column carries the signal

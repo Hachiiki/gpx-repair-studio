@@ -60,6 +60,9 @@ import type {
   ReconstructedPoint,
   TrackExtra,
   TrackMeta,
+  WorkingMeta,
+  WorkingTrackData,
+  WorkingTrackPoint,
 } from "@/types/domain";
 import type {
   MergeResult,
@@ -67,6 +70,7 @@ import type {
   MergedTrack,
 } from "@/features/reconstruction/merge";
 import {
+  buildModifiedExtension,
   buildReconstructedExtension,
   buildSummaryExtension,
 } from "./provenanceSchema";
@@ -266,7 +270,7 @@ function appendPoint(
   doc: Document,
   segEl: Element,
   ns: string,
-  point: OriginalTrackPoint,
+  point: WorkingTrackPoint,
   io: XmlIo,
 ): void {
   const ptEl = doc.createElementNS(ns, "trkpt");
@@ -274,12 +278,48 @@ function appendPoint(
   if (point.raw.lat !== null) ptEl.setAttribute("lat", point.raw.lat);
   if (point.raw.lon !== null) ptEl.setAttribute("lon", point.raw.lon);
 
+  /*
+   * Phase 13 — a working-copy elevation override replaces the ele
+   * VALUE while every other child stays verbatim; the point then
+   * carries a `<gpxr:modified>` marker so the replacement is honest
+   * to every consumer. The verbatim raw capture is never rewritten —
+   * identity re-export of the ORIGINAL still emits the recorded text.
+   */
+  const override = point.workingEle;
+  let eleWritten = false;
   for (const child of point.raw.children) {
-    if (child.kind === "ele" || child.kind === "time") {
-      appendTextElement(doc, ptEl, ns, child.kind, child.text);
+    if (child.kind === "ele") {
+      appendTextElement(
+        doc,
+        ptEl,
+        ns,
+        "ele",
+        override !== undefined ? String(override.ele) : child.text,
+      );
+      eleWritten = true;
+    } else if (child.kind === "time") {
+      appendTextElement(doc, ptEl, ns, "time", child.text);
     } else {
       ptEl.appendChild(importFragment(doc, io, child.xml, "trkpt extra"));
     }
+  }
+  if (override !== undefined && !eleWritten) {
+    // Defensive: an override on a point that recorded no <ele> — write
+    // the replacement first so schema order (ele before time) holds.
+    ptEl.insertBefore(
+      doc.createElementNS(ns, "ele"),
+      ptEl.firstChild,
+    ).textContent = String(override.ele);
+  }
+  if (override !== undefined) {
+    const extensions = doc.createElementNS(ns, "extensions");
+    extensions.appendChild(
+      buildModifiedExtension(doc, {
+        reason: "elevation",
+        eleMethod: override.method,
+      }),
+    );
+    ptEl.appendChild(extensions);
   }
   segEl.appendChild(ptEl);
 }
@@ -313,7 +353,11 @@ function formatTimestamp(epochMs: number): string {
 }
 
 /** The metadata repair note (only emitted when repairs exist). */
-function repairNote(merge: MergeResult, originalCreator?: string): string {
+function repairNote(
+  merge: MergeResult,
+  working: WorkingMeta | undefined,
+  originalCreator?: string,
+): string {
   const parts = [
     `Repaired with GPX Repair Studio — ${merge.repairCount} gap` +
       `${merge.repairCount === 1 ? "" : "s"} reconstructed, ` +
@@ -326,6 +370,38 @@ function repairNote(merge: MergeResult, originalCreator?: string): string {
     parts.push(
       `Elevation of reconstructed points estimated from ${merge.elevationProviders.join(", ")}.`,
     );
+  }
+  /*
+   * Phase 13 — the working copy's sentences: what the deep-validation
+   * fixes changed, in the same honest voice. Sorted segments mark the
+   * file's ORDER as estimated (§EE 13.4 "marks the file estimated").
+   */
+  if (working?.hasEdits) {
+    const sentences: string[] = [];
+    if (working.deletedPointCount > 0) {
+      sentences.push(
+        `${working.deletedPointCount} damaged point` +
+          `${working.deletedPointCount === 1 ? " was" : "s were"} removed ` +
+          `(spikes, duplicates, or GPS drift)`,
+      );
+    }
+    if (working.sortedSegmentIds.length > 0) {
+      sentences.push(
+        `${working.sortedSegmentIds.length} segment` +
+          `${working.sortedSegmentIds.length === 1 ? " was" : "s were"} ` +
+          `reordered by timestamp (order is estimated)`,
+      );
+    }
+    if (working.overriddenEleCount > 0) {
+      sentences.push(
+        `${working.overriddenEleCount} elevation` +
+          `${working.overriddenEleCount === 1 ? " was" : "s were"} ` +
+          `smoothed (interpolated; gpxr:modified markers)`,
+      );
+    }
+    if (sentences.length > 0) {
+      parts.push(`Working copy: ${sentences.join("; ")}.`);
+    }
   }
   if (originalCreator !== undefined) {
     parts.push(`Original creator: ${originalCreator}.`);
@@ -443,27 +519,34 @@ function appendRecordedRunAsSegment(
  * Deterministic: same (data, merge, settings) → same bytes.
  */
 export function exportGpxRepaired(
-  data: OriginalTrackData,
+  data: WorkingTrackData,
   merge: MergeResult,
   settings: ExportSettings,
   io: XmlIo,
 ): string {
   const hasRepairs = merge.repairCount > 0;
-  const version = hasRepairs ? "1.1" : data.fileMeta.version;
+  /*
+   * Phase 13 — any confirmed working-copy edit also upgrades the file:
+   * the repair note and the gpxr:modified markers require GPX 1.1
+   * `<extensions>` (the same disclosure the export dialog carries).
+   */
+  const hasWorkingEdits = data.working?.hasEdits ?? false;
+  const upgraded = hasRepairs || hasWorkingEdits;
+  const version = upgraded ? "1.1" : data.fileMeta.version;
   const ns = version === "1.1" ? GPX_NAMESPACE_11 : GPX_NAMESPACE_10;
   const doc = io.createDocument(ns, "gpx");
   const root = doc.documentElement;
 
   root.setAttribute("version", version);
-  if (hasRepairs) {
+  if (upgraded) {
     root.setAttribute("creator", "GPX Repair Studio");
   } else if (data.fileMeta.raw.creator !== undefined) {
     root.setAttribute("creator", data.fileMeta.raw.creator);
   }
 
   // --- File-level metadata (identity layout + the repair note) -----------
-  const note = hasRepairs
-    ? repairNote(merge, data.fileMeta.raw.creator)
+  const note = upgraded
+    ? repairNote(merge, data.working, data.fileMeta.raw.creator)
     : undefined;
   const hasFileMeta =
     data.fileMeta.name !== undefined ||

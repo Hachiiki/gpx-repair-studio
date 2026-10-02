@@ -27,7 +27,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppHeader } from "@/components/layout/header";
 import {
   SessionIdleView,
@@ -41,6 +41,8 @@ import { ExportCard } from "@/components/gpx/export-card";
 import { GpxSummaryCard } from "@/components/gpx/gpx-summary-card";
 import { SegmentList } from "@/components/gpx/segment-list";
 import { ValidationReport } from "@/components/gpx/validation-report";
+import { DeepValidationCard } from "@/components/gpx/deep-validation-card";
+import type { PreviewPointInfo } from "@/components/gpx/fix-preview-dialog";
 import { RecoveryStudio } from "@/components/recovery/recovery-studio";
 import { CreateStudio } from "@/components/create/create-studio";
 import { MergeStudio } from "@/components/merge/merge-studio";
@@ -53,6 +55,7 @@ import { ElevationProfileChart } from "@/components/statistics/elevation-profile
 import { StatsPanel } from "@/components/statistics/stats-panel";
 import { useDrawEditor } from "@/hooks/use-draw-editor";
 import { useRepairAnnouncements } from "@/hooks/use-repair-announcements";
+import { useDeepValidation } from "@/hooks/use-deep-validation";
 import { useElevation, useElevationStats } from "@/hooks/use-elevation";
 import { useGpxExport } from "@/hooks/use-gpx-export";
 import { useGpxSession } from "@/hooks/use-gpx-session";
@@ -76,12 +79,21 @@ import { InfoDialog, type InfoPane } from "@/components/layout/info-dialog";
 import { HelpDialog } from "@/components/layout/help-dialog";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { makeSampleFile } from "@/samples";
+import { parsePointIdRef } from "@/types/ids";
+import type { PointRef } from "@/types/domain";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
   const session = useGpxSession();
   const map = useMapController(session);
   const draw = useDrawEditor(session, map);
+  /*
+   * Phase 13 — the deep-validation binding: the working copy's
+   * report, fix/preset planning, and the confirmed-fix log. Mounted
+   * after the map (its jump intent focuses the camera) and before the
+   * export (the export reads the same working view via the session).
+   */
+  const deep = useDeepValidation(session);
   const elevation = useElevation(session, draw);
   const exporter = useGpxExport(session, draw, elevation.attachment);
   const elevationStats = useElevationStats(exporter.merge);
@@ -223,6 +235,42 @@ export function AppShell() {
    * toggle, the legend, and every map hook read the same store.
    */
   useTheme();
+
+  /*
+   * Phase 13 — point-id resolution for the deep-validation surfaces
+   * (jump labels, textual lists, preview dialogs). Resolved against
+   * the ORIGINAL model: fixes never move points, so original
+   * coordinates are exact; the map focuses the same spot either way.
+   */
+  const resolvePreviewPoint = useCallback(
+    (pointId: string): PreviewPointInfo | null => {
+      const data = session.data;
+      if (!data) return null;
+      const ref = parsePointIdRef(pointId as PointRef["pointId"]);
+      if (ref === null) return null;
+      const segment = data.segments.find((s) => s.id === ref.segmentId);
+      const point = segment?.points[ref.index];
+      if (!point) return null;
+      return {
+        pointId: point.id,
+        segmentId: ref.segmentId,
+        lat: point.lat,
+        lon: point.lon,
+        ...(point.ele !== undefined ? { ele: point.ele } : {}),
+        ...(point.time !== undefined ? { time: point.time } : {}),
+      };
+    },
+    [session.data],
+  );
+
+  /* Phase 13 — jump-to-map: resolve the issue point, focus the camera. */
+  const jumpToPoint = useCallback(
+    (ref: PointRef) => {
+      const info = resolvePreviewPoint(ref.pointId);
+      if (info) map.focusPoint?.(info.lat, info.lon);
+    },
+    [resolvePreviewPoint, map],
+  );
 
   /*
    * Phase 12 — "Try a sample" (§EE 12.1): each file tool's bundled
@@ -393,6 +441,15 @@ export function AppShell() {
             }
             tools={
               <>
+                {/*
+                 * Phase 13 — the deep-validation card leads the tools:
+                 * find problems first, then repair gaps, then export.
+                 */}
+                <DeepValidationCard
+                  deep={deep}
+                  onJumpToPoint={jumpToPoint}
+                  resolvePoint={resolvePreviewPoint}
+                />
                 <DrawEditorPanel draw={draw} elevation={elevation.controls} />
                 <ManualRepairsCard
                   rows={draw.manualRows}
@@ -461,6 +518,7 @@ export function AppShell() {
                       elevation={elevationStats.rows}
                       manualTotalDurationMs={draw.fileTiming.totalDurationMs}
                       reimport={session.reimport}
+                      working={deep.working}
                       paceUnit={paceUnit}
                       onPaceUnitChange={setPaceUnit}
                     />

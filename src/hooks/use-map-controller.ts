@@ -543,6 +543,12 @@ export interface MapBinding {
   retryBasemap: () => void;
   fitToActivity: () => void;
   /**
+   * Phase 13 — jump-to-map: focus a small window on one coordinate.
+   * Optional: only the repair workspace wires it (deep-validation
+   * issues); other sections have no jump consumers yet.
+   */
+  focusPoint?: (lat: number, lon: number) => void;
+  /**
    * Stable accessor for the live controller (Phase 4: the draw-editor
    * hook drives the controller's draw session through it — components
    * never call this).
@@ -643,16 +649,23 @@ export function useMapController(session: GpxSession): MapBinding {
 
   const route = useMemo(
     () =>
-      showMap && session.data
+      showMap && session.workingData
         ? buildRouteView(
-            session.data,
+            session.workingData,
             gapRows,
             editorRefs.reconstructionRefs,
             manualGapRefs,
             extendGapRefs,
           )
         : null,
-    [showMap, session.data, gapRows, editorRefs, manualGapRefs, extendGapRefs],
+    [
+      showMap,
+      session.workingData,
+      gapRows,
+      editorRefs,
+      manualGapRefs,
+      extendGapRefs,
+    ],
   );
   useEffect(() => {
     controllerRef.current?.setRoute(route);
@@ -750,6 +763,26 @@ export function useMapController(session: GpxSession): MapBinding {
     }
   }, [session.extent]);
 
+  /*
+   * Phase 13 — jump-to-map for deep-validation issues: focus a tiny
+   * padded window around one coordinate (the issue point's position —
+   * fixes never move points, so original coordinates stay exact). No
+   * persistent selection state: the camera move is the jump; the issue
+   * row keeps its own highlight.
+   */
+  const focusPoint = useCallback((lat: number, lon: number) => {
+    const pad = 0.0012; // ≈ 130 m — enough context to see the neighborhood
+    controllerRef.current?.fitBounds(
+      {
+        minLat: lat - pad,
+        maxLat: lat + pad,
+        minLon: lon - pad,
+        maxLon: lon + pad,
+      },
+      { maxZoom: 17, action: "focus-issue" },
+    );
+  }, []);
+
   // The highlight chip stays a detected-gap affordance: its copy ("the path
   // … was not recorded") would be a lie for manual spans, where the stretch
   // IS recorded and the user redraws it by choice. Manual spans get their
@@ -779,6 +812,7 @@ export function useMapController(session: GpxSession): MapBinding {
     setProvider,
     retryBasemap,
     fitToActivity,
+    focusPoint,
     getController,
   };
 }

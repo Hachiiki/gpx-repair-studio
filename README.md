@@ -19,6 +19,8 @@ The design principle underneath all six: **recorded data and reconstructed data 
 
 **Dark mode** ships built-in: the footer's toggle (System / Light / Dark) re-themes the whole bench — including the map, whose basemap is darkened at runtime and whose recorded-route ink flips to a light line. **Press `?`** anywhere (or footer → **Shortcuts & help**) for the keyboard map and a guide to where everything lives.
 
+**Deep validation** (repair workspace) hunts the damage a fix can address: GPS teleports (implied speeds above 130 km/h), near-duplicate points, backwards clocks, elevation outliers, stop-and-wander drift, and missing-elevation runs. Every finding jumps to the map and lists its points as text; every fix — remove spikes, dedupe, sort by time, smooth elevations, thin an over-dense recording — shows *exactly* what would change before you confirm, lands in a per-fix change log with an undo, and never rewrites the original: fixes live on a **working copy** that statistics, the map route, and the export recompute from, with the changes disclosed in the exported file's metadata and marked per point (`gpxr:modified`). Presets chain the fixes — *Drift cleanup*, *Dedupe & sort*, *Resample (thin)*, *Spike & outlier sweep* — each previewed as a whole. Confirmed fixes survive a reload with the rest of your session.
+
 ---
 
 ## Privacy in one paragraph

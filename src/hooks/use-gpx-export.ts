@@ -73,6 +73,17 @@ export interface ExportSummary {
   repairsWithElevation: number;
   /** Committed repairs whose elevation went STALE (excluded, Phase 6). */
   staleElevationCount: number;
+  /*
+   * Phase 13 — the working copy's share of the export: deep-validation
+   * fixes ride along (deleted points absent, sorted segments reordered,
+   * smoothed elevations overridden + labeled).
+   */
+  /** Points removed from the working copy by confirmed fixes. */
+  workingDeletedPoints: number;
+  /** Segments reordered by timestamp. */
+  workingSortedSegments: number;
+  /** Elevations replaced by interpolation. */
+  workingSmoothedElevations: number;
 }
 
 /** App-layer facade for the export card + dialog. */
@@ -122,6 +133,13 @@ export function useGpxExport(
   const setPrettyPrint = useUiStore((s) => s.setExportPrettyPrint);
 
   const data = session.data;
+  /*
+   * Phase 13 — the export's basis is the WORKING copy: confirmed
+   * deep-validation fixes ride along (§EE 13.2 — exports recompute
+   * from the working copy). Identity-stable while the edit log is
+   * empty, so pristine exports are byte-identical to before.
+   */
+  const workingData = session.workingData;
   const statusById = draw.statusById;
   const repairTimeStats = draw.repairTimeStats;
 
@@ -188,15 +206,17 @@ export function useGpxExport(
   const hasTimingData = session.timeStats?.hasTimingData ?? false;
 
   // One merge serves every download — mode/pretty only affect bytes.
+  // Phase 13: the merge runs over the WORKING copy (deep-validation
+  // fixes applied); repairs join it by point id exactly as before.
   const merge = useMemo(
     () =>
-      data
-        ? mergeRepairs(data, sites, {
+      workingData
+        ? mergeRepairs(workingData, sites, {
             fileTiming,
             fileHasTimingData: hasTimingData,
           })
         : null,
-    [data, sites, fileTiming, hasTimingData],
+    [workingData, sites, fileTiming, hasTimingData],
   );
 
   const summary = useMemo<ExportSummary | null>(() => {
@@ -205,6 +225,7 @@ export function useGpxExport(
       (row) =>
         row.id === activeGapId && (reconstructions[row.id]?.vertices.length ?? 0) > 0,
     ).length;
+    const working = workingData?.working;
     return {
       repairCount: merge.repairCount,
       insertedPoints: merge.insertedPoints,
@@ -215,13 +236,21 @@ export function useGpxExport(
       discrepancyCount: repairTimeStats.discrepancies.length,
       hasTimingData,
       fileTiming,
-      willUpgradeTo11: data.fileMeta.version === "1.0" && merge.repairCount > 0,
+      // Phase 13: any working edit also forces the 1.1 upgrade (the
+      // gpxr vocabulary + repair note require extensions).
+      willUpgradeTo11:
+        data.fileMeta.version === "1.0" &&
+        (merge.repairCount > 0 || (working?.hasEdits ?? false)),
       reimportedPoints: session.reimport?.markerCount ?? 0,
       repairsWithElevation: merge.elevatedRepairCount,
       staleElevationCount: elevation?.staleCount ?? 0,
+      workingDeletedPoints: working?.deletedPointCount ?? 0,
+      workingSortedSegments: working?.sortedSegmentIds.length ?? 0,
+      workingSmoothedElevations: working?.overriddenEleCount ?? 0,
     };
   }, [
     data,
+    workingData,
     merge,
     allRows,
     activeGapId,
@@ -235,9 +264,9 @@ export function useGpxExport(
   ]);
 
   const download = useCallback((): string | null => {
-    if (!data || !merge) return null;
+    if (!workingData || !merge) return null;
     const xml = exportGpxRepaired(
-      data,
+      workingData,
       merge,
       { mode: exportMode, prettyPrint },
       createDomXmlIo(),
@@ -248,7 +277,7 @@ export function useGpxExport(
     // aria-live region speaks it.
     announce(`Export ready — ${fileName} downloaded.`);
     return fileName;
-  }, [data, merge, exportMode, prettyPrint, session.fileName]);
+  }, [workingData, merge, exportMode, prettyPrint, session.fileName]);
 
   return {
     ready: merge !== null,

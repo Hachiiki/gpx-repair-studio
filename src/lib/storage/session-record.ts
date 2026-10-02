@@ -50,10 +50,22 @@ import type {
   Reconstruction,
   RoadLeg,
   TimeStrategy,
+  WorkingEdit,
 } from "@/types/domain";
 
-/** Bump when the record shape changes; add a migration in readSessionRecord. */
-export const SESSION_RECORD_SCHEMA_VERSION = 1;
+/**
+ * Bump when the record shape changes; add a migration in readSessionRecord.
+ *
+ * v2 (Phase 13): file records gain `workingEdits` — the confirmed
+ * deep-validation fix log of the repair section's working copy. v1
+ * records migrate by defaulting it to an empty log (no fixes were
+ * possible then); create/plan records are shape-identical across the
+ * bump (only the version number moved).
+ */
+export const SESSION_RECORD_SCHEMA_VERSION = 2;
+
+/** The read-side ceiling: newer records than this are discarded, never guessed. */
+const MAX_READABLE_SCHEMA_VERSION = SESSION_RECORD_SCHEMA_VERSION;
 
 // ---------------------------------------------------------------------------
 // Stored shapes (exactly what IndexedDB holds)
@@ -69,6 +81,9 @@ export interface StoredReconstruction {
   timeStrategy: TimeStrategy;
 }
 
+/** A stored working-copy edit (Phase 13) — the plain-JSON twin of `WorkingEdit`. */
+export type StoredWorkingEdit = WorkingEdit;
+
 /** Repair/recovery work — the file bytes sit beside it in the `files` store. */
 export interface StoredFileSession {
   schemaVersion: typeof SESSION_RECORD_SCHEMA_VERSION;
@@ -82,6 +97,11 @@ export interface StoredFileSession {
   manualSpans: ManualSpan[];
   fileTiming: FileTimingContext;
   roadLegs: Record<string, RoadLeg[]>;
+  /**
+   * The working-copy fix log (Phase 13) — empty for the recovery
+   * section (it has no working copy) and for pre-v2 records.
+   */
+  workingEdits: StoredWorkingEdit[];
 }
 
 /** The create-from-stats session (no file in, one drawn route). */
@@ -128,6 +148,8 @@ export interface FileSessionCapture {
   manualSpans: readonly ManualSpan[];
   fileTiming: FileTimingContext;
   roadLegs: Readonly<Record<string, readonly RoadLeg[]>>;
+  /** The working-copy fix log (Phase 13; recovery passes []). */
+  workingEdits: readonly WorkingEdit[];
 }
 
 /** What the hook reads out of the create session for capture. */
@@ -160,6 +182,8 @@ export interface FileSessionHydration {
   roadLegs: Record<string, RoadLeg[]>;
   /** The vertex-id allocator re-armed to the highest stored sequence. */
   vertexSeq: number;
+  /** The working-copy fix log (Phase 13) — [] for recovery/pre-v2 records. */
+  workingEdits: WorkingEdit[];
 }
 
 /** Create store patch. */
@@ -231,6 +255,10 @@ export function captureFileSession(
     manualSpans: capture.manualSpans.map((span) => ({ ...span })),
     fileTiming: { ...capture.fileTiming },
     roadLegs,
+    workingEdits: capture.workingEdits.map((edit) => ({
+      ...edit,
+      entries: edit.entries.map((entry) => ({ ...entry })),
+    })),
   };
 }
 
@@ -324,6 +352,10 @@ export function hydrateFileSession(
       Object.entries(record.roadLegs).map(([gapId, legs]) => [gapId, [...legs]]),
     ),
     vertexSeq: rearmVertexSeq(Object.values(record.reconstructions)),
+    workingEdits: record.workingEdits.map((edit) => ({
+      ...edit,
+      entries: edit.entries.map((entry) => ({ ...entry })),
+    })),
   };
 }
 
@@ -494,19 +526,77 @@ function isRoadLegRecord(
   );
 }
 
+/** The valid `FixReason` vocabulary (kept in lockstep with the domain). */
+const FIX_REASONS = new Set([
+  "spike",
+  "duplicate",
+  "drift",
+  "sort",
+  "elevation",
+  "thin",
+]);
+
+/** Structural check of one stored working-copy edit (Phase 13, v2). */
+function isWorkingEdit(value: unknown): value is StoredWorkingEdit {
+  if (typeof value !== "object" || value === null) return false;
+  const edit = value as Record<string, unknown>;
+  if (typeof edit.id !== "string" || edit.id.length === 0) return false;
+  if (typeof edit.label !== "string") return false;
+  if (typeof edit.reason !== "string" || !FIX_REASONS.has(edit.reason)) {
+    return false;
+  }
+  if (!isFiniteNumber(edit.appliedAt)) return false;
+  if (!Array.isArray(edit.entries) || edit.entries.length === 0) return false;
+  return edit.entries.every((entry) => {
+    if (typeof entry !== "object" || entry === null) return false;
+    const e = entry as Record<string, unknown>;
+    if (e.kind === "point-deletion") {
+      return typeof e.pointId === "string" && e.pointId.length > 0;
+    }
+    if (e.kind === "segment-sort") {
+      return typeof e.segmentId === "string" && e.segmentId.length > 0;
+    }
+    if (e.kind === "elevation-override") {
+      return (
+        typeof e.pointId === "string" &&
+        e.pointId.length > 0 &&
+        isFiniteNumber(e.ele) &&
+        (e.originalEle === undefined || isFiniteNumber(e.originalEle))
+      );
+    }
+    return false;
+  });
+}
+
 /**
- * Validate (and, one day, migrate) one raw stored value into a typed
- * record. Null for anything this build does not recognize — including
- * NEWER schema versions (an app downgrade must discard, never guess) —
- * so a corrupt or foreign row can never reach a store.
+ * Validate (and migrate) one raw stored value into a typed record. Null
+ * for anything this build does not recognize — including NEWER schema
+ * versions (an app downgrade must discard, never guess) — so a corrupt
+ * or foreign row can never reach a store.
  */
 export function readSessionRecord(raw: unknown): StoredSessionRecord | null {
   if (typeof raw !== "object" || raw === null) return null;
   const record = raw as Record<string, unknown>;
-  if (record.schemaVersion !== SESSION_RECORD_SCHEMA_VERSION) return null;
+  const version = record.schemaVersion;
+  if (
+    !isFiniteNumber(version) ||
+    version < 1 ||
+    version > MAX_READABLE_SCHEMA_VERSION
+  ) {
+    return null;
+  }
   if (!isFiniteNumber(record.savedAt)) return null;
 
-  // -- future migrations hook in here: coerce older shapes to v1 first ---
+  // -- migrations: coerce older shapes to the current version first ------
+  if (version === 1) {
+    // v1 → v2 (Phase 13): file records gain the working-copy fix log.
+    // No v1 session could hold fixes — the honest default is an empty
+    // log. Create/plan records are shape-identical across the bump.
+    if (record.kind === "file" && record.workingEdits === undefined) {
+      record.workingEdits = [];
+    }
+    record.schemaVersion = SESSION_RECORD_SCHEMA_VERSION;
+  }
 
   if (record.kind === "file") {
     if (record.section !== "repair" && record.section !== "recovery") {
@@ -537,6 +627,12 @@ export function readSessionRecord(raw: unknown): StoredSessionRecord | null {
       return null;
     }
     if (!isRoadLegRecord(record.roadLegs)) return null;
+    if (
+      !Array.isArray(record.workingEdits) ||
+      !record.workingEdits.every(isWorkingEdit)
+    ) {
+      return null;
+    }
     return record as unknown as StoredFileSession;
   }
 
@@ -617,6 +713,25 @@ export function describeSessionRecord(
         record.skippedGapIds.length === 1
           ? "1 skipped gap"
           : `${record.skippedGapIds.length} skipped gaps`,
+      );
+    }
+    // Phase 13: confirmed deep-validation fixes are work too — the
+    // prompt's detail line says they would come back.
+    if (record.workingEdits.length > 0) {
+      const removed = record.workingEdits.reduce(
+        (total, edit) =>
+          total +
+          edit.entries.filter((entry) => entry.kind === "point-deletion")
+            .length,
+        0,
+      );
+      const others = record.workingEdits.length;
+      extras.push(
+        others === 1
+          ? removed > 0
+            ? `1 fix (${removed} points)`
+            : "1 fix"
+          : `${others} fixes${removed > 0 ? ` (${removed} points)` : ""}`,
       );
     }
     const detailParts = [

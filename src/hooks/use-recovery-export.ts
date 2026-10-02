@@ -168,6 +168,11 @@ export function useRecoveryExport(
       reimportedPoints: session.reimport?.markerCount ?? 0,
       repairsWithElevation: merge.elevatedRepairCount,
       staleElevationCount: elevation?.staleCount ?? 0,
+      // Phase 13: the recovery section has no working copy — its
+      // deep-validation fields are honestly zero.
+      workingDeletedPoints: 0,
+      workingSortedSegments: 0,
+      workingSmoothedElevations: 0,
     };
   }, [
     data,

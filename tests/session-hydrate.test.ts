@@ -72,6 +72,8 @@ function hydrationPayload(): FileSessionHydration {
       ],
     },
     vertexSeq: 9,
+    // Phase 13 — the working-copy fix log rides the hydration payload.
+    workingEdits: [],
   };
 }
 
@@ -188,6 +190,7 @@ describe("store round-trip through the record", () => {
         manualSpans: useEditorStore.getState().manualSpans,
         fileTiming: useEditorStore.getState().fileTiming,
         roadLegs: useEditorStore.getState().roadLegs,
+        workingEdits: [],
       },
       1,
     );
