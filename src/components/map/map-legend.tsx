@@ -13,75 +13,112 @@
  * unmounted): they are the readable encoding contract the tests pin,
  * and the map keeps its canvas clear of static furniture.
  *
- * Pure presentation (no props — the encoding is fixed by the map layers in
- * lib/map/mapController.ts; any style change there is mirrored here).
+ * Phase 12: the sample swatches mirror the map layers' CURRENT theme
+ * palette (mapOverlayPalette — the same values the controller paints
+ * with, re-exported through the hooks facade), so the legend can never
+ * show a light-ink swatch over a darkened map. Marker whites stay
+ * white in both themes (see palette.markerPaper).
  */
 
 "use client";
 
 import { useState } from "react";
 import { Route } from "lucide-react";
+import { mapOverlayPalette, type MapOverlayPalette } from "@/hooks/use-map-controller";
+import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 
 const SAMPLE_LINE_CLASS = "h-1 w-7 rounded-full";
 
 /** The six encoding entries — unchanged vocabulary, always mounted. */
-const ENTRIES = (
-  <ul className="grid gap-1.5">
-    <li className="flex items-center gap-2">
-      <span className={`${SAMPLE_LINE_CLASS} bg-[#222222]`} aria-hidden="true" />
-      Recorded route (solid ink)
-    </li>
-    <li className="flex items-center gap-2">
-      <span
-        className={`${SAMPLE_LINE_CLASS} border-0 bg-[repeating-linear-gradient(90deg,#5A5A5A_0_6px,transparent_6px_11px)]`}
-        aria-hidden="true"
-      />
-      Gap span (dashed, severity shades)
-    </li>
-    <li className="flex items-center gap-2">
-      <span
-        className="size-2.5 rounded-full border-[3px] border-[#000000] bg-transparent"
-        aria-hidden="true"
-      />
-      <span
-        className="size-2.5 rounded-full bg-[#000000] ring-2 ring-white"
-        aria-hidden="true"
-      />
-      Gap boundaries (ring = before, dot = after)
-    </li>
-    <li className="flex items-center gap-2">
-      <span className={`${SAMPLE_LINE_CLASS} bg-[#FC4C02]`} aria-hidden="true" />
-      Repaired route (solid orange)
-    </li>
-    <li className="flex items-center gap-2">
-      <span
-        className={`${SAMPLE_LINE_CLASS} bg-[repeating-linear-gradient(90deg,#FC4C02_0_5px,transparent_5px_9px)]`}
-        aria-hidden="true"
-      />
-      Footpath repair (dashed — drawn with Footpaths)
-    </li>
-    <li className="flex items-center gap-2">
-      <span
-        className={`${SAMPLE_LINE_CLASS} bg-[repeating-linear-gradient(90deg,#FC4C02_0_5px,transparent_5px_9px)] opacity-60`}
-        aria-hidden="true"
-      />
-      Open connection (closes on finish)
-    </li>
-    <li className="flex items-center gap-2">
-      <span
-        className="size-2.5 rounded-full border-2 border-[#FC4C02] bg-white"
-        aria-hidden="true"
-      />
-      Drawn point (drag in Move mode)
-    </li>
-  </ul>
-);
+function renderEntries(palette: MapOverlayPalette) {
+  return (
+    <ul className="grid gap-1.5">
+      <li className="flex items-center gap-2">
+        <span
+          className={SAMPLE_LINE_CLASS}
+          style={{ backgroundColor: palette.route }}
+          aria-hidden="true"
+        />
+        Recorded route (solid ink)
+      </li>
+      <li className="flex items-center gap-2">
+        <span
+          className={SAMPLE_LINE_CLASS}
+          style={{
+            backgroundImage: `repeating-linear-gradient(90deg,${palette.severity.suspect} 0 6px,transparent 6px 11px)`,
+          }}
+          aria-hidden="true"
+        />
+        Gap span (dashed, severity shades)
+      </li>
+      <li className="flex items-center gap-2">
+        <span
+          className="size-2.5 rounded-full border-[3px] bg-transparent"
+          style={{ borderColor: palette.severity.severe }}
+          aria-hidden="true"
+        />
+        <span
+          className="size-2.5 rounded-full"
+          style={{
+            backgroundColor: palette.severity.severe,
+            boxShadow: `0 0 0 2px ${palette.markerPaper}`,
+          }}
+          aria-hidden="true"
+        />
+        Gap boundaries (ring = before, dot = after)
+      </li>
+      <li className="flex items-center gap-2">
+        <span
+          className={SAMPLE_LINE_CLASS}
+          style={{ backgroundColor: palette.recon }}
+          aria-hidden="true"
+        />
+        Repaired route (solid orange)
+      </li>
+      <li className="flex items-center gap-2">
+        <span
+          className={SAMPLE_LINE_CLASS}
+          style={{
+            backgroundImage: `repeating-linear-gradient(90deg,${palette.recon} 0 5px,transparent 5px 9px)`,
+          }}
+          aria-hidden="true"
+        />
+        Footpath repair (dashed — drawn with Footpaths)
+      </li>
+      <li className="flex items-center gap-2">
+        <span
+          className={SAMPLE_LINE_CLASS}
+          style={{
+            backgroundImage: `repeating-linear-gradient(90deg,${palette.recon} 0 5px,transparent 5px 9px)`,
+            opacity: 0.6,
+          }}
+          aria-hidden="true"
+        />
+        Open connection (closes on finish)
+      </li>
+      <li className="flex items-center gap-2">
+        <span
+          className="size-2.5 rounded-full border-2"
+          style={{
+            borderColor: palette.recon,
+            backgroundColor: palette.markerPaper,
+          }}
+          aria-hidden="true"
+        />
+        Drawn point (drag in Move mode)
+      </li>
+    </ul>
+  );
+}
 
 export function MapLegend() {
   // Pinned = clicked open (stays until clicked again). Hover and keyboard
   // focus open it transiently through the same CSS group.
   const [pinned, setPinned] = useState(false);
+  // Phase 12 — the swatches mirror whatever theme the map is painting.
+  const { resolved } = useTheme();
+  const palette = mapOverlayPalette(resolved === "dark");
 
   return (
     <div
@@ -104,7 +141,7 @@ export function MapLegend() {
         )}
       >
         <div className="rounded-lg border border-ink/20 bg-paper/90 px-2.5 py-2.5 text-[11px] leading-tight text-ink/70 shadow-float backdrop-blur-[3px]">
-          {ENTRIES}
+          {renderEntries(palette)}
         </div>
       </div>
       <button

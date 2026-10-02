@@ -17,7 +17,7 @@
 
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   SessionIdleView,
   SessionLoadingView,
@@ -67,6 +67,22 @@ describe("SessionIdleView — tool detail page", () => {
     ).toBeVisible();
     expect(screen.getByTestId("upload-zone")).toBeVisible();
     expect(screen.queryByTestId("session-error")).toBeNull();
+  });
+
+
+  it("Phase 12: offers the tool's sample when the intent is provided", () => {
+    const onTrySample = vi.fn();
+    renderIdle({ onTrySample, sampleLabel: "a sample ride" });
+
+    const link = screen.getByTestId("try-sample");
+    expect(link).toHaveTextContent(/sample ride/i);
+    fireEvent.click(link);
+    expect(onTrySample).toHaveBeenCalledTimes(1);
+  });
+
+  it("Phase 12: shows no sample link on tool pages without the intent", () => {
+    renderIdle();
+    expect(screen.queryByTestId("try-sample")).toBeNull();
   });
 
   it("surfaces a failed load above the hero, keeping the zone for retry", () => {

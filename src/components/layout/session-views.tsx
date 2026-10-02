@@ -81,6 +81,14 @@ export interface SessionIdleViewProps {
    * no statistics, just the map and the user's curiosity.
    */
   onPlanBegin: () => void;
+  /**
+   * Phase 12 — "Try a sample" for the open file tool (repair, share,
+   * recovery): loads the tool's bundled sample through the same onFile
+   * pipeline. Undefined for tools without a file sample.
+   */
+  onTrySample?: () => void;
+  /** What the sample link calls the sample ("a sample ride", …). */
+  sampleLabel?: string;
   /** Previously confirmed statistics (prefill when returning to the form). */
   createStats: ActivityStats | null;
   /** The app-wide distance/pace unit (the create form's entry unit). */
@@ -107,6 +115,8 @@ export function SessionIdleView({
   onBackToCards,
   onCreateBegin,
   onPlanBegin,
+  onTrySample,
+  sampleLabel,
   createStats,
   paceUnit,
   onPaceUnitChange,
@@ -143,6 +153,8 @@ export function SessionIdleView({
       onBack={onBackToCards}
       onCreateBegin={onCreateBegin}
       onPlanBegin={onPlanBegin}
+      onTrySample={onTrySample}
+      sampleLabel={sampleLabel}
       createStats={createStats}
       paceUnit={paceUnit}
       onPaceUnitChange={onPaceUnitChange}
@@ -393,6 +405,10 @@ export interface ToolDetailViewProps {
   onCreateBegin: (stats: ActivityStats) => void;
   /** Plan-tool intake (Task 50): enter the planning studio. */
   onPlanBegin: () => void;
+  /** Phase 12 — the file tools' "Try a sample" intent (see UploadZone). */
+  onTrySample?: () => void;
+  /** What the sample link calls the sample. */
+  sampleLabel?: string;
   /** Previously confirmed statistics (prefill when returning to the form). */
   createStats: ActivityStats | null;
   /** The app-wide distance/pace unit (the create form's entry unit). */
@@ -414,6 +430,8 @@ export function ToolDetailView({
   onBack,
   onCreateBegin,
   onPlanBegin,
+  onTrySample,
+  sampleLabel,
   createStats,
   paceUnit,
   onPaceUnitChange,
@@ -486,7 +504,11 @@ export function ToolDetailView({
         ) : mode === "plan" ? (
           <PlanStartCard onBegin={onPlanBegin} />
         ) : (
-          <UploadZone onFile={onFile} />
+          <UploadZone
+            onFile={onFile}
+            onTrySample={onTrySample}
+            sampleLabel={sampleLabel}
+          />
         )}
       </div>
 

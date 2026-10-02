@@ -37,6 +37,8 @@ import { bboxOf } from "@/lib/geo/bbox";
 import type { BBox } from "@/lib/geo/bbox";
 import { usePlanStore } from "@/state/plan-store";
 import { useUiStore } from "@/state/ui-store";
+import { useTheme } from "@/hooks/use-theme";
+import { resolvedThemeNow } from "@/state/theme-store";
 import type { GapId } from "@/types/domain";
 import type { MapBinding } from "@/hooks/use-map-controller";
 
@@ -64,6 +66,8 @@ export function usePlanMap(): PlanMapBinding {
   const [locateStatus, setLocateStatus] = useState<LocateStatus>("idle");
 
   const provider = useUiStore((s) => s.tileProvider);
+  // Phase 12 — the resolved theme (overlay palette + basemap darkening).
+  const { resolved: resolvedTheme } = useTheme();
   const phase = usePlanStore((s) => s.phase);
   const vertices = usePlanStore((s) => s.reconstruction.vertices);
 
@@ -84,6 +88,7 @@ export function usePlanMap(): PlanMapBinding {
     const controller = new MapController({
       container,
       provider: useUiStore.getState().tileProvider,
+      darkTheme: resolvedThemeNow() === "dark",
       callbacks: {
         onStatusChange: (next) => {
           if (!disposed) setStatus(next);
@@ -116,6 +121,11 @@ export function usePlanMap(): PlanMapBinding {
   useEffect(() => {
     controllerRef.current?.setTileProvider(provider);
   }, [provider]);
+
+  // Phase 12 — theme changes re-theme the overlays + basemap.
+  useEffect(() => {
+    controllerRef.current?.setDarkTheme(resolvedTheme === "dark");
+  }, [resolvedTheme]);
 
   const fitToRoute = useCallback(() => {
     if (extent) {

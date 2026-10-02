@@ -104,7 +104,7 @@ export function CreateShareView({
             pace={spec.pace}
             time={spec.time}
           />
-          <p className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-3 py-1 text-[11.5px] text-paper/80">
+          <p className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-3 py-1 text-[11.5px] text-white/80">
             Transparent background — shown on dark
           </p>
         </div>

@@ -52,6 +52,22 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${archivo.variable} ${bigShoulders.variable} ${plexMono.variable}`}
     >
+      <head>
+        {/*
+         * Phase 12 — the pre-paint theme script. It reads the same raw
+         * localStorage key src/state/theme-store.ts writes (kept in sync
+         * by tests/theme.test.ts) and sets the .dark class + color-scheme
+         * BEFORE the first paint, so a dark-theme user never sees a
+         * light flash. suppressHydrationWarning on <html> above absorbs
+         * the class the script adds ahead of React. This is the classic
+         * hand-rolled next-themes pattern — no dependency, no flash.
+         */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem("gpx-repair-studio.theme.v1");var p=s==="light"||s==="dark"||s==="system"?s:"system";var d=p==="dark"||(p==="system"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;if(d)r.classList.add("dark");r.style.colorScheme=d?"dark":"light";}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="antialiased bg-background text-foreground">
         {children}
         <Toaster />

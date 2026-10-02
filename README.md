@@ -15,6 +15,10 @@ Six tools, one workbench:
 
 The design principle underneath all six: **recorded data and reconstructed data never mix.** Statistics label what was measured and what was drawn, exports mark every reconstructed point (so Strava and other platforms can see the difference), and the original recording is never modified.
 
+**No file handy?** Every file tool's intake carries a **“Try a sample”** link — a small synthetic recording bundled inside the app (the repair sample has two GPS gaps to fix; the merge sample is a two-part commute). The create form has **“Use example numbers.”** Everything runs the same pipeline as a real upload.
+
+**Dark mode** ships built-in: the footer's toggle (System / Light / Dark) re-themes the whole bench — including the map, whose basemap is darkened at runtime and whose recorded-route ink flips to a light line. **Press `?`** anywhere (or footer → **Shortcuts & help**) for the keyboard map and a guide to where everything lives.
+
 ---
 
 ## Privacy in one paragraph

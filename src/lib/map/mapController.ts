@@ -82,6 +82,14 @@ import {
   MAP_TILE_PROVIDERS,
   type TileProviderId,
 } from "./styles";
+import {
+  collectDarkPaintUpdates,
+  type StyleLayerRef,
+} from "./darken-style";
+import {
+  mapOverlayPalette,
+  type MapOverlayPalette,
+} from "./palette";
 
 /** `map.setFilter`'s filter type (not exported directly by maplibre-gl v6). */
 type LayerFilter = Parameters<MlMap["setFilter"]>[1];
@@ -226,22 +234,20 @@ const LAYER = {
   pickAnchor: "gpxr-pick-anchor",
 } as const;
 
-/**
- * Ink & Signal map palette (Task 29). The five UI anchors rule the
- * canvas too: the recorded route is INK (solid #222222 — the watch's
+/*
+ * Ink & Signal map palette (Task 29; Phase 12). The five UI anchors
+ * rule the canvas too: the recorded route is INK (the watch's
  * truth, immutable), everything the app creates is SIGNAL
  * (#FC4C02 — committed reconstructions, drafts, selection). Gap
  * spans are a SHADE ramp: heavier ink = heavier problem (severity
  * also carried by dash pattern + markers + legend, never color
  * alone).
+ *
+ * Phase 12: "ink" and the severity ramp are THEME-DEPENDENT (light
+ * line + light ramp over the darkened basemap) — the values live in
+ * lib/map/palette.ts and are selected at layer-add time from
+ * #darkTheme; signal holds in both themes.
  */
-const ROUTE_COLOR = "#222222";
-
-/** Reconstruction color: the brand signal — the app's own work. */
-const RECON_COLOR = "#FC4C02";
-/** Draft chain: the same signal at reduced alpha — placed, not yet
- *  committed (width + white handles carry the active state too). */
-const RECON_COLOR_DRAFT = "rgba(252,76,2,0.85)";
 
 /** Snap magnet radius in screen pixels (converted to meters at commit). */
 const SNAP_RADIUS_PX = 14;
@@ -378,23 +384,18 @@ const STROKE_MIN_STEP_PX = 2.5;
  * the trailing click places a single point, no stroke is committed. */
 const STROKE_MIN_LENGTH_PX = 8;
 
-/** Gap-span colors by severity — a darkness ramp on the shade anchor
- * (dash pattern + markers + legend carry the meaning too). */
-const SEVERITY_COLORS: Record<string, string> = {
-  severe: "#000000",
-  suspect: "#5A5A5A",
-  info: "rgba(90,90,90,0.55)",
-};
-
-const severityColor = (): unknown =>
+/** Gap-span + marker colors by severity — a darkness ramp on the shade
+ * anchor (dash pattern + markers + legend carry the meaning too);
+ * Phase 12: the ramp rides the theme palette. */
+const severityColor = (palette: MapOverlayPalette): unknown =>
   [
     "match",
     ["get", "severity"],
     "severe",
-    SEVERITY_COLORS.severe,
+    palette.severity.severe,
     "suspect",
-    SEVERITY_COLORS.suspect,
-    SEVERITY_COLORS.info,
+    palette.severity.suspect,
+    palette.severity.info,
   ];
 
 /** A filter that matches nothing (used to "clear" selection filters). */
@@ -580,6 +581,9 @@ export class MapController {
   #resizeObserver: ResizeObserver | null = null;
   #destroyed = false;
 
+  /** Phase 12 — the theme the overlay palette + basemap darkening use. */
+  #darkTheme = false;
+
   #status: MapControllerStatus = "initializing";
   #ready = false;
   #offline = false;
@@ -667,10 +671,14 @@ export class MapController {
   constructor(options: {
     container: HTMLElement;
     provider: TileProviderId;
+    /** Phase 12 — start in the dark theme (basemap darkened, light
+     * overlay palette); toggling later goes through setDarkTheme. */
+    darkTheme?: boolean;
     callbacks?: MapControllerCallbacks;
   }) {
     this.#container = options.container;
     this.#provider = options.provider;
+    this.#darkTheme = options.darkTheme ?? false;
     this.#callbacks = options.callbacks ?? {};
   }
 
@@ -926,6 +934,53 @@ export class MapController {
     if (id === this.#provider) return;
     this.#provider = id;
     if (this.#map) this.#applyStyle(MAP_TILE_PROVIDERS[id].style);
+  }
+
+  /**
+   * Phase 12 — switch the theme. The overlay layers re-theme by
+   * re-applying the current provider's style (the existing style-swap
+   * machinery re-adds every gpxr-* layer with the new palette and
+   * restores route/selection/draw state — the same path a provider
+   * switch takes, so mid-edit toggles are safe). The basemap itself
+   * is darkened on the fresh style load (#darkenBasemap). The style
+   * fetch is cached by the browser; the one-off tile reload on a
+   * theme toggle is the accepted cost (recorded in MASTER_PLAN §FF).
+   */
+  setDarkTheme(dark: boolean): void {
+    if (dark === this.#darkTheme) return;
+    this.#darkTheme = dark;
+    if (this.#map) this.#applyStyle(MAP_TILE_PROVIDERS[this.#provider].style);
+  }
+
+  /**
+   * Phase 12 — darken the loaded basemap: walk the provider's own
+   * layers and flip their plain color paints (raster layers are
+   * dimmed via brightness/saturation). Skipped gpxr-* layers are
+   * themed by the overlay palette instead. No-op when nothing
+   * parseable is found (exotic styles degrade gracefully).
+   */
+  #darkenBasemap(): void {
+    const map = this.#map;
+    if (!map) return;
+    const layers = (map.getStyle()?.layers ?? []) as StyleLayerRef[];
+    const updates = collectDarkPaintUpdates(
+      (layerId, property) =>
+        map.getPaintProperty(
+          layerId,
+          property as Parameters<MlMap["getPaintProperty"]>[1],
+        ),
+      layers,
+    );
+    for (const update of updates) {
+      // The property names come from our own COLOR_PROPERTIES table —
+      // they are valid paint keys by construction (the generic maplibre
+      // signature just cannot know that).
+      map.setPaintProperty(
+        update.layerId,
+        update.property as Parameters<MlMap["setPaintProperty"]>[1],
+        update.value,
+      );
+    }
   }
 
   /** Re-attempt the current provider's style after a degradation. */
@@ -1401,6 +1456,11 @@ export class MapController {
       // tile fetch errors will re-assert it if connectivity is still bad.
       this.#setOffline(false);
     }
+    // Phase 12 — darken the basemap (if the theme asks for it) BEFORE
+    // the overlay layers are added, so the walk only meets the
+    // provider's own layers; our gpxr-* layers are themed by the
+    // palette instead.
+    if (this.#darkTheme) this.#darkenBasemap();
     this.#addLayers();
     this.#applyRoute();
     this.#applySelection();
@@ -1448,6 +1508,11 @@ export class MapController {
   #addLayers(): void {
     const map = this.#map;
     if (!map) return;
+
+    // Phase 12 — the overlay palette for the current theme (see
+    // lib/map/palette.ts): ink route + severity ramp flip with the
+    // theme, signal holds.
+    const palette = mapOverlayPalette(this.#darkTheme);
 
     if (!map.getSource(SOURCE.route)) {
       map.addSource(SOURCE.route, {
@@ -1508,7 +1573,7 @@ export class MapController {
       source: SOURCE.route,
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": ROUTE_COLOR,
+        "line-color": palette.route,
         "line-width": 3,
         "line-opacity": 0.9,
       },
@@ -1522,14 +1587,14 @@ export class MapController {
       source: SOURCE.spans,
       filter: NONE_FILTER,
       layout: { "line-join": "round", "line-cap": "round" },
-      paint: { "line-color": "#FC4C02", "line-width": 7, "line-opacity": 0.45 },
+      paint: { "line-color": palette.recon, "line-width": 7, "line-opacity": 0.45 },
     });
     map.addLayer({
       id: LAYER.markerHalo,
       type: "circle",
       source: SOURCE.markers,
       filter: NONE_FILTER,
-      paint: { "circle-radius": 13, "circle-color": "#ffffff", "circle-opacity": 0.85 },
+      paint: { "circle-radius": 13, "circle-color": palette.markerPaper, "circle-opacity": 0.85 },
     });
 
     // Gap span — dashed, severity-colored (never color alone: dash + legend).
@@ -1539,7 +1604,7 @@ export class MapController {
       source: SOURCE.spans,
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": severityColor() as never,
+        "line-color": severityColor(palette) as never,
         "line-width": 3,
         "line-dasharray": [2, 2],
       },
@@ -1555,7 +1620,7 @@ export class MapController {
       paint: {
         "circle-radius": 7,
         "circle-color": "rgba(0,0,0,0)",
-        "circle-stroke-color": severityColor() as never,
+        "circle-stroke-color": severityColor(palette) as never,
         "circle-stroke-width": 3,
       },
     });
@@ -1566,8 +1631,8 @@ export class MapController {
       filter: ["==", ["get", "role"], "after"],
       paint: {
         "circle-radius": 5.5,
-        "circle-color": severityColor() as never,
-        "circle-stroke-color": "#ffffff",
+        "circle-color": severityColor(palette) as never,
+        "circle-stroke-color": palette.markerPaper,
         "circle-stroke-width": 2,
       },
     });
@@ -1608,7 +1673,7 @@ export class MapController {
       source: SOURCE.recon,
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": RECON_COLOR,
+        "line-color": palette.recon,
         "line-width": 3.5,
         "line-opacity": 0.95,
       },
@@ -1626,7 +1691,7 @@ export class MapController {
       source: SOURCE.recon,
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": RECON_COLOR,
+        "line-color": palette.recon,
         "line-width": 3,
         "line-opacity": 0.95,
         "line-dasharray": [2.5, 2],
@@ -1642,7 +1707,7 @@ export class MapController {
       source: SOURCE.draft,
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": RECON_COLOR_DRAFT,
+        "line-color": palette.reconDraft,
         "line-width": 4.5,
       },
     });
@@ -1656,7 +1721,7 @@ export class MapController {
       source: SOURCE.stroke,
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": RECON_COLOR_DRAFT,
+        "line-color": palette.reconDraft,
         "line-width": 4.5,
       },
     });
@@ -1670,7 +1735,7 @@ export class MapController {
       source: SOURCE.closing,
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": RECON_COLOR_DRAFT,
+        "line-color": palette.reconDraft,
         "line-width": 2.5,
         "line-dasharray": [1.5, 2.5],
         "line-opacity": 0.6,
@@ -1685,7 +1750,7 @@ export class MapController {
       source: SOURCE.rubber,
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": RECON_COLOR_DRAFT,
+        "line-color": palette.reconDraft,
         "line-width": 1.5,
         "line-dasharray": [1.5, 2],
         "line-opacity": 0.55,
@@ -1699,8 +1764,8 @@ export class MapController {
       source: SOURCE.midpoints,
       paint: {
         "circle-radius": 4.5,
-        "circle-color": "#ffffff",
-        "circle-stroke-color": RECON_COLOR_DRAFT,
+        "circle-color": palette.markerPaper,
+        "circle-stroke-color": palette.reconDraft,
         "circle-stroke-width": 1.5,
         "circle-opacity": 0.9,
       },
@@ -1719,8 +1784,8 @@ export class MapController {
         "circle-radius": (this.#touchInput
           ? TOUCH_HANDLE_RADIUS_PAINT
           : HANDLE_RADIUS_PAINT) as never,
-        "circle-color": "#ffffff",
-        "circle-stroke-color": RECON_COLOR,
+        "circle-color": palette.markerPaper,
+        "circle-stroke-color": palette.recon,
         "circle-stroke-width": (this.#touchInput
           ? TOUCH_HANDLE_STROKE_PAINT
           : HANDLE_STROKE_PAINT) as never,
@@ -1758,8 +1823,8 @@ export class MapController {
       source: SOURCE.pickAnchor,
       paint: {
         "circle-radius": 6,
-        "circle-color": "#ffffff",
-        "circle-stroke-color": RECON_COLOR_DRAFT,
+        "circle-color": palette.markerPaper,
+        "circle-stroke-color": palette.reconDraft,
         "circle-stroke-width": 3,
       },
     });

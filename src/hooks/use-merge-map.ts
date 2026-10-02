@@ -41,6 +41,8 @@ import { isUsableStatsPoint } from "@/features/statistics/distance";
 import type { MergeSession } from "@/hooks/use-merge-session";
 import { useMergeStore } from "@/state/merge-store";
 import { useUiStore } from "@/state/ui-store";
+import { useTheme } from "@/hooks/use-theme";
+import { resolvedThemeNow } from "@/state/theme-store";
 import type { GapId } from "@/types/domain";
 
 export type { MapControllerStatus };
@@ -59,6 +61,8 @@ export function useMergeMap(session: MergeSession): MergeMapBinding {
   const [offline, setOffline] = useState(false);
 
   const provider = useUiStore((s) => s.tileProvider);
+  // Phase 12 — the resolved theme (overlay palette + basemap darkening).
+  const { resolved: resolvedTheme } = useTheme();
   const phase = useMergeStore((s) => s.phase);
 
   const setContainer = useCallback((element: HTMLDivElement | null) => {
@@ -78,6 +82,7 @@ export function useMergeMap(session: MergeSession): MergeMapBinding {
     const controller = new MapController({
       container,
       provider: useUiStore.getState().tileProvider,
+      darkTheme: resolvedThemeNow() === "dark",
       callbacks: {
         onStatusChange: (next) => {
           if (!disposed) setStatus(next);
@@ -131,6 +136,11 @@ export function useMergeMap(session: MergeSession): MergeMapBinding {
   useEffect(() => {
     controllerRef.current?.setTileProvider(provider);
   }, [provider]);
+
+  // Phase 12 — theme changes re-theme the overlays + basemap.
+  useEffect(() => {
+    controllerRef.current?.setDarkTheme(resolvedTheme === "dark");
+  }, [resolvedTheme]);
 
   const fitToActivity = useCallback(() => {
     if (extent) {

@@ -23,7 +23,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowRight, Watch } from "lucide-react";
+import { ArrowRight, Sparkles, Watch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PaceUnitToggle } from "@/components/shared/pace-unit-toggle";
@@ -149,6 +149,31 @@ export function ActivityStatsForm({
   const [start, setStart] = useState(prefill?.start ?? "");
   const [errors, setErrors] = useState<StatsFieldErrors>({});
 
+  /*
+   * Phase 12 — "Use example numbers": the sample for the no-file
+   * workflow. 5 [unit] at 6:00 / [unit] = exactly 30:00 — the same
+   * arithmetic holds in km AND mi, so the example is always internally
+   * consistent with the cross-check (time ≈ distance × pace), whatever
+   * the current unit is. The user's own values always win: this only
+   * fills empty-looking fields on demand, never overwrites silently.
+   */
+  const fillExampleNumbers = () => {
+    setDistance("5");
+    setPaceMinutes("6");
+    setPaceSeconds("0");
+    setHours("0");
+    setMinutes("30");
+    setSeconds("0");
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    setStart(
+      `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+        now.getDate(),
+      )}T07:30`,
+    );
+    setErrors({});
+  };
+
   const numberOrNull = (text: string): number | null => {
     const trimmed = text.trim();
     if (trimmed === "") return null;
@@ -206,6 +231,15 @@ export function ActivityStatsForm({
           What your watch recorded — the distance, pace, and time of the
           workout whose map went missing.
         </p>
+        <button
+          type="button"
+          data-testid="stats-example"
+          onClick={fillExampleNumbers}
+          className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-[5px] px-1.5 py-1 text-[12.5px] font-semibold text-signal-ink underline decoration-signal/40 underline-offset-[3px] transition-colors hover:bg-signal/[0.08] focus-visible:outline-2"
+        >
+          <Sparkles className="size-3.5" aria-hidden="true" />
+          Use example numbers
+        </button>
       </div>
 
       {/* Unit preference — the app-wide km/mi segmented control. */}

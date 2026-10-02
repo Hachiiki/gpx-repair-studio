@@ -72,4 +72,28 @@ describe("UploadZone", () => {
       screen.getByText(/never leaves this device/i),
     ).toBeInTheDocument();
   });
+
+  it("Phase 12: offers the sample link when provided and dispatches it", () => {
+    const onTrySample = vi.fn();
+    render(<UploadZone onFile={vi.fn()} onTrySample={onTrySample} sampleLabel="a sample ride" />);
+
+    const link = screen.getByTestId("try-sample");
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveTextContent(/sample ride/i);
+
+    fireEvent.click(link);
+    expect(onTrySample).toHaveBeenCalledTimes(1);
+  });
+
+  it("Phase 12: renders no sample link without the intent", () => {
+    render(<UploadZone onFile={vi.fn()} />);
+    expect(screen.queryByTestId("try-sample")).not.toBeInTheDocument();
+  });
+
+  it("hides the sample link while disabled", () => {
+    render(
+      <UploadZone onFile={vi.fn()} disabled onTrySample={vi.fn()} />,
+    );
+    expect(screen.queryByTestId("try-sample")).not.toBeInTheDocument();
+  });
 });

@@ -1337,3 +1337,20 @@ Work Log:
 
 Stage Summary:
 - v2 roadmap committed to MASTER_PLAN.md section EE; every one of the 18 requested capabilities mapped to a phase; repo pushed and in sync with origin/main at 23fd8ed.
+
+---
+Task ID: 57
+Agent: Super Z (main agent)
+Task: Phase 12 (Task 57) — quick wins & theming: sample files, dark mode, shortcuts & help dialog
+
+Work Log:
+- Theme core: globals.css anchors → plain CSS vars (:root + .dark swap) referenced via @theme inline (utilities + alpha blends flip at runtime); grid-line/keycap-shadow/MapLibre-ctrl vars; pre-paint inline script in layout.tsx over the raw key gpx-repair-studio.theme.v1 (no flash); state/theme-store.ts (module observable, resolvedThemeNow for map constructors) + hooks/use-theme.ts (useSyncExternalStore + matchMedia, guards for jsdom); ThemeToggle segmented chip (System/Light/Dark) in the footer.
+- Dark map: lib/map/palette.ts (light route ink + light severity ramp, signal holds, white marker paper) + lib/map/darken-style.ts (per-layer-type luminance curves: fills dark, lines lighter, symbols light-on-dark-halo; raster brightness dims; expressions untouched); mapController gains darkTheme ctor option + setDarkTheme (style re-apply rides the provider-swap machinery) + #darkenBasemap on style load before #addLayers; all 5 map hooks wired (ctor + effect); map-legend swatches mirror the palette via the hooks facade.
+- Samples: scripts/generate-samples.ts (seeded, 3 s cadence — repair-ride 400 pts/2 holes, clean-run 220 pts, merge pair 80+100 pts chained 20 min apart) → src/samples/*.gpx.ts + registry (makeSampleFile → real File through the SAME loadFile pipeline); doors: upload-zone "Try a sample" (repair/share/recovery), merge-intake "Try a sample pair", create form "Use example numbers" (5 unit @ 6:00 = 30:00, consistent in km and mi). Landing tiles intentionally stay quiet (deviation from §EE recorded in §FF).
+- Help: help-content.tsx (SHORTCUT_GROUPS as a shipped-bindings contract + tool guide) + help-dialog.tsx; "?" listener in AppShell (guards inputs + any open [role=dialog]); footer "Shortcuts & help" door.
+- Tests: +42 unit (theme incl. pre-paint key contract, samples via real parser/gap detector, darken-style math, palette, help, toggle, footer; updated upload-zone/session-views/info-content) → 1311/1311; e2e phase12-quickwins.spec.ts 9/9; full Playwright regression 122/122 in 4 chunks (one session-recovery flake re-verified 3× standalone); typecheck + eslint clean.
+- Live QA (scripts/phase12-live-qa.mjs): both themes at 1440/900/390 + workspace with the sample + share view + help dialog; mid-session theme toggle both directions; persistence across reload; zero console/page errors. VLM (scripts/qa/phase12/): dark landing 9.5, dark workspace 9, help 9, share 9/9.5 — one real defect caught (share stage pill used themed text-paper → fixed to fixed-white in all three share views) and one hallucinated help-dialog "overlap" disproven by scripts/phase12-probe-help-overlap.mjs (opaque bg-background panel; the artifact was a mid-fade capture — settle wait added to the QA script, the Task 56 lesson now encoded).
+- Docs: MASTER_PLAN §FF (decisions: share stages stay dark by design, illustrations stay framed, samples at intake not tiles, one-reload theme-toggle cost); README gains the sample/dark-mode/help paragraphs.
+
+Stage Summary:
+- Phase 12 shipped: samples in every intake, a flash-free dark mode reaching the map canvas itself, and a shortcuts & help dialog — all gates green (1311 unit, 131 e2e, VLM SHIP on both themes).

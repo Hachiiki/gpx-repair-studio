@@ -48,6 +48,19 @@
  * rings — 3:1 graphics bar), and every text usage moves to
  * signal-ink. Alpha blends of ink below 55% are likewise reserved
  * for non-text; text shades at ink/70 or darker.
+ *
+ * Phase 12 (dark mode): the five anchors are plain CSS variables
+ * declared on :root, referenced by @theme inline so every Tailwind
+ * utility (text-ink, bg-paper, border-ink/20 …) and every alpha
+ * blend flips with them at runtime; .dark swaps the bench to its
+ * night variant — same anchors, inverted roles (paper goes dark,
+ * ink goes light, the graph paper grid goes white, signal stays
+ * signal). The class is set pre-paint by the inline script in
+ * src/app/layout.tsx (no light flash) and kept in sync by
+ * src/hooks/use-theme.ts. The signal-ink text tone lightens to
+ * #FF6A2B in the dark theme: the brand orange itself passes 4.5:1
+ * on the dark background but NOT on the dark card surface
+ * (#2E2E2E ≈ 4.0:1), so the text tone stays just ahead of it.
  */
 @theme inline {
   --font-sans: var(--font-archivo);
@@ -57,21 +70,25 @@
   --font-display: var(--font-big-shoulders), var(--font-archivo), "Arial Narrow",
     sans-serif;
   /* Shadow vocabulary (mockup styles.css): the keycap hard edge and
-   * the floating map chrome. */
-  --shadow-key: 0 2px 0 0 #222222;
-  --shadow-key-hover: 0 3px 0 0 #222222;
+   * the floating map chrome. The keycap edge rides var(--ink) so it
+   * flips with the theme (Phase 12). */
+  --shadow-key: 0 2px 0 0 var(--ink);
+  --shadow-key-hover: 0 3px 0 0 var(--ink);
   --shadow-float: 0 6px 18px rgb(0 0 0 / 0.14), 0 1px 3px rgb(0 0 0 / 0.1);
   --shadow-lift: 0 3px 0 0 rgb(34 34 34 / 0.15);
   /* Named anchors so components can address the palette directly
-   * (text-ink, bg-signal, border-ink/20, text-shade …). */
-  --color-signal: #fc4c02;
+   * (text-ink, bg-signal, border-ink/20, text-shade …). The values
+   * are var() references (Phase 12): the utilities inline the var,
+   * so overriding the anchor on .dark re-themes every usage —
+   * alpha blends included (Tailwind emits color-mix() for them). */
+  --color-signal: var(--signal);
   /* Phase 8: the signal tone at text contrast (see the palette
    * doc above) — same brand, WCAG-safe as foreground. */
-  --color-signal-ink: #c43d00;
-  --color-ink: #222222;
-  --color-inkplus: #000000;
-  --color-paper: #ffffff;
-  --color-shade: #5a5a5a;
+  --color-signal-ink: var(--signal-ink);
+  --color-ink: var(--ink);
+  --color-inkplus: var(--inkplus);
+  --color-paper: var(--paper);
+  --color-shade: var(--shade);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -118,6 +135,16 @@
  *   #5A5A5A → oklch(0.446 0 0)          shade
  */
 :root {
+  /* The Field Plot anchors (Phase 12: plain vars so .dark can swap
+   * them — see the @theme block above). */
+  --signal: #fc4c02;
+  --signal-ink: #c43d00;
+  --ink: #222222;
+  --inkplus: #000000;
+  --paper: #ffffff;
+  --shade: #5a5a5a;
+  /* The graph-paper field's grid lines (body background below). */
+  --grid-line: oklch(0.196 0.002 286 / 4%);
   /* Field Plot radius scale (mockup): chip 3 / control 5 / card 10 /
    * plate 12 — the base (radius-lg) is the card radius. */
   --radius: 0.625rem;
@@ -163,9 +190,32 @@
   --sidebar-ring: oklch(0.666 0.199 39.6);
 }
 
-/* Dark parity on the same five anchors (unused today — the app ships
- * light-only — but kept consistent should a toggle ever land). */
+/*
+ * Dark parity on the same five anchors (Phase 12 — the night bench).
+ * The class is applied to <html> pre-paint by the inline script in
+ * src/app/layout.tsx and driven by src/hooks/use-theme.ts.
+ *
+ * Anchor role inversion:
+ *   paper  #FFFFFF → oklch(0.239 0.002 286)  dark surfaces (matches
+ *           --card, so plates/cards stay one step off the field)
+ *   ink    #222222 → oklch(0.93 0.002 286)   light warm text/borders
+ *   ink+   #000000 → #ffffff                 the hardest surface
+ *   shade  #5A5A5A → oklch(0.72 0 0)         secondary text
+ *   signal        → unchanged (the brand holds in the dark)
+ *   signal-ink    → #ff6a2b  (see the palette doc above: ≈4.8:1 on
+ *                   the dark card, 4.5:1 being the AA bar)
+ * The share stages (bg-[#222222]) and the share card itself stay
+ * dark BY DESIGN in both themes: the stage is the white-on-
+ * transparent card's backdrop (an artifact's frame, not app chrome).
+ */
 .dark {
+  --signal: #fc4c02;
+  --signal-ink: #ff6a2b;
+  --ink: oklch(0.93 0.002 286);
+  --inkplus: #ffffff;
+  --paper: oklch(0.239 0.002 286);
+  --shade: oklch(0.72 0 0);
+  --grid-line: oklch(1 0 0 / 4%);
   --background: oklch(0.196 0.002 286);
   --foreground: oklch(1 0 0);
   --card: oklch(0.239 0.002 286);
@@ -205,10 +255,11 @@
   }
   body {
     @apply bg-background text-foreground text-[15px] leading-relaxed;
-    /* The plotting field: faint 28 px graph paper (ink at 4%). */
+    /* The plotting field: faint 28 px graph paper (grid lines in the
+     * theme's ink — white once the bench goes dark). */
     background-image:
-      linear-gradient(oklch(0.196 0.002 286 / 4%) 1px, transparent 1px),
-      linear-gradient(90deg, oklch(0.196 0.002 286 / 4%) 1px, transparent 1px);
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
     background-size: 28px 28px;
   }
   ::selection {
@@ -228,11 +279,15 @@
  * controls read as generic web furniture — an equipment-grade ink
  * border, the float shadow, and an ink-tinted hover bring them onto
  * the bench. The map plate itself is framed by the component
- * (2 px ink border, 12 px radius).
+ * (2 px ink border, 12 px radius). Phase 12: the border, fill, and
+ * hover ride the anchor vars so the controls follow the theme
+ * (the basemap itself is darkened by the controller — see
+ * src/lib/map/darken-style.ts).
  */
 .maplibregl-ctrl-group {
   border-radius: 8px;
-  border: 1.5px solid oklch(0.196 0.002 286);
+  border: 1.5px solid var(--ink);
+  background-color: var(--paper);
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.14), 0 1px 3px rgb(0 0 0 / 0.1);
   overflow: hidden;
 }
@@ -241,10 +296,15 @@
   transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1);
 }
 .maplibregl-ctrl-group button:hover {
-  background-color: oklch(0.196 0.002 286 / 6%);
+  background-color: color-mix(in oklab, var(--ink) 8%, var(--paper));
 }
 .maplibregl-ctrl-attrib {
   border-radius: 6px 0 0 0;
+  background-color: color-mix(in oklab, var(--paper) 85%, transparent);
+  color: var(--shade);
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--shade);
 }
 /* Phase 8 (WCAG 2.1 AA — links distinguishable without color): the
  * attribution line is a sentence of text with links inside it, so the

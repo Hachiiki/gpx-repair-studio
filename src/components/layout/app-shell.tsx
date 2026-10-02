@@ -69,10 +69,13 @@ import { usePlanStore } from "@/state/plan-store";
 import { loadRecoveryFile } from "@/hooks/use-recovery-session";
 import { useSessionRecovery } from "@/hooks/use-session-recovery";
 import { useOnboardingTour } from "@/hooks/use-onboarding-tour";
+import { useTheme } from "@/hooks/use-theme";
 import { RestorePrompt } from "@/components/layout/restore-prompt";
 import { OnboardingTour } from "@/components/layout/onboarding-tour";
 import { InfoDialog, type InfoPane } from "@/components/layout/info-dialog";
+import { HelpDialog } from "@/components/layout/help-dialog";
 import { SiteFooter } from "@/components/layout/site-footer";
+import { makeSampleFile } from "@/samples";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
@@ -184,6 +187,62 @@ export function AppShell() {
    */
   const [infoPane, setInfoPane] = useState<InfoPane | null>(null);
   const openInfo = (pane: InfoPane) => setInfoPane(pane);
+
+  /*
+   * Phase 12 — the shortcuts & help dialog: the footer button and the
+   * "?" key open it. The key listener guards text fields and open
+   * dialogs (any [role=dialog] — the info dialog, the tour, the draw
+   * editor's confirmations) so "?" never stacks a dialog on a dialog.
+   */
+  const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => {
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.key !== "?") return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (document.querySelector("[role='dialog']")) return;
+      event.preventDefault();
+      setHelpOpen(true);
+    };
+    window.addEventListener("keydown", onKeydown);
+    return () => window.removeEventListener("keydown", onKeydown);
+  }, []);
+
+  /*
+   * Phase 12 — the theme binding (dark mode). Mounted at the shell so
+   * the .dark class + color-scheme stay in sync for the whole app even
+   * if the footer (which owns the toggle) were ever conditional; the
+   * toggle, the legend, and every map hook read the same store.
+   */
+  useTheme();
+
+  /*
+   * Phase 12 — "Try a sample" (§EE 12.1): each file tool's bundled
+   * sample, loaded through the SAME pipeline as an upload (the mode's
+   * own onFile — recovery routes to its session, repair/share to the
+   * main one). The create form carries its own example-numbers prefill;
+   * plan starts empty; merge adds its pair inside its intake.
+   */
+  const trySample = () => {
+    const file = makeSampleFile(
+      landingMode === "share" ? "clean-run" : "repair-ride",
+    );
+    if (landingMode === "recovery") {
+      void loadRecoveryFile(file);
+    } else {
+      void session.loadFile(file);
+    }
+  };
+  const sampleLabel =
+    landingMode === "share" ? "a sample run" : "a sample ride";
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -461,6 +520,14 @@ export function AppShell() {
               useCreateStore.getState().beginDrawing(stats)
             }
             onPlanBegin={() => usePlanStore.getState().beginPlanning()}
+            onTrySample={
+              landingMode === "repair" ||
+              landingMode === "share" ||
+              landingMode === "recovery"
+                ? trySample
+                : undefined
+            }
+            sampleLabel={sampleLabel}
             createStats={createStats}
             paceUnit={paceUnit}
             onPaceUnitChange={setPaceUnit}
@@ -478,18 +545,21 @@ export function AppShell() {
       {/*
        * Phase 11 — the shared footer: the local-first line plus the
        * About / Privacy & Data doors (§M-3 — the disclosure is one
-       * click away in every app state).
+       * click away in every app state). Phase 12 adds the theme toggle
+       * and the Shortcuts & help door.
        */}
-      <SiteFooter onOpenInfo={openInfo} />
+      <SiteFooter onOpenInfo={openInfo} onOpenHelp={() => setHelpOpen(true)} />
 
       {/* Phase 11 — the first-run tour and the info dialog, mounted at
-       * the shell level so they sit above every view. */}
+       * the shell level so they sit above every view. Phase 12 adds
+       * the shortcuts & help dialog. */}
       <OnboardingTour tour={tour} />
       <InfoDialog
         pane={infoPane}
         onPaneChange={setInfoPane}
         onClose={() => setInfoPane(null)}
       />
+      <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

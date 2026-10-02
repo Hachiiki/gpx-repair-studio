@@ -36,6 +36,8 @@ import {
 } from "@/lib/map/styles";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { useUiStore } from "@/state/ui-store";
+import { useTheme } from "@/hooks/use-theme";
+import { resolvedThemeNow } from "@/state/theme-store";
 import type { GapId, OriginalTrackPoint, PointId } from "@/types/domain";
 import type { GapRow, RecoverySession } from "@/hooks/use-recovery-session";
 import {
@@ -59,6 +61,8 @@ export function useRecoveryMap(session: RecoverySession) {
   // selections must not fight each other's hygiene effects.
   const selectedGapId = useRecoveryStore((s) => s.selectedGapId);
   const provider = useUiStore((s) => s.tileProvider);
+  // Phase 12 — the resolved theme (overlay palette + basemap darkening).
+  const { resolved: resolvedTheme } = useTheme();
 
   const editorReconstructions = useRecoveryStore((s) => s.reconstructions);
   const editorActiveGapId = useRecoveryStore((s) => s.activeGapId);
@@ -87,6 +91,7 @@ export function useRecoveryMap(session: RecoverySession) {
     const controller = new MapController({
       container,
       provider: useUiStore.getState().tileProvider,
+      darkTheme: resolvedThemeNow() === "dark",
       callbacks: {
         onStatusChange: (next) => {
           if (!disposed) setStatus(next);
@@ -223,6 +228,11 @@ export function useRecoveryMap(session: RecoverySession) {
   useEffect(() => {
     controllerRef.current?.setTileProvider(provider);
   }, [provider]);
+
+  // Phase 12 — theme changes re-theme the overlays + basemap.
+  useEffect(() => {
+    controllerRef.current?.setDarkTheme(resolvedTheme === "dark");
+  }, [resolvedTheme]);
 
   // Selection hygiene: clear a selection that no longer exists (new
   // file, reset, or re-detection removed the section). User-drawn spans

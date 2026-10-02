@@ -21,9 +21,10 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Combine, FileUp, ShieldCheck, X } from "lucide-react";
+import { Combine, FileUp, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useMergeSession } from "@/hooks/use-merge-session";
 import { formatDistanceMeters } from "@/lib/utils/format";
+import { makeSampleFile } from "@/samples";
 import { cn } from "@/lib/utils";
 
 export function MergeIntake() {
@@ -101,6 +102,29 @@ export function MergeIntake() {
         <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
         Files are read locally in this tab — nothing is uploaded anywhere.
       </p>
+
+      {/*
+       * Phase 12 — "Try a sample pair": the bundled two-part commute,
+       * added through the same addFiles pipeline as a real drop (one
+       * button, both files — the tool needs two to demonstrate).
+       */}
+      <div className="flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
+        <span>No files handy?</span>
+        <button
+          type="button"
+          data-testid="merge-try-sample"
+          onClick={() =>
+            void session.addFiles([
+              makeSampleFile("merge-a"),
+              makeSampleFile("merge-b"),
+            ])
+          }
+          className="inline-flex items-center gap-1 rounded-[5px] px-1.5 py-1 font-semibold text-signal-ink underline decoration-signal/40 underline-offset-[3px] transition-colors hover:bg-signal/[0.08] focus-visible:outline-2"
+        >
+          <Sparkles className="size-3.5" aria-hidden="true" />
+          Try a sample pair
+        </button>
+      </div>
 
       {/*
        * The collected files: one row per file, in merge order. The row

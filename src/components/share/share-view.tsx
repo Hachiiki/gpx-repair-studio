@@ -151,7 +151,7 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
               <Skeleton className="absolute left-[44.9%] top-[83.5%] size-[9.6%] rounded-[3px] bg-white/[0.13]" />
             </div>
           )}
-          <p className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-3 py-1 text-[11.5px] text-paper/80">
+          <p className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-3 py-1 text-[11.5px] text-white/80">
             Transparent background — shown on dark
           </p>
         </div>

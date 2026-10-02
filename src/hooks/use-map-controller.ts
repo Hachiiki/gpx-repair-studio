@@ -44,6 +44,8 @@ import {
 } from "@/lib/map/styles";
 import { useEditorStore } from "@/state/editor-store";
 import { useUiStore } from "@/state/ui-store";
+import { useTheme } from "@/hooks/use-theme";
+import { resolvedThemeNow } from "@/state/theme-store";
 import type {
   DrawVertex,
   GapId,
@@ -63,6 +65,9 @@ import type { GapRow, GpxSession } from "@/hooks/use-gpx-session";
 export type { MapControllerStatus };
 export type { TileProviderId, TileProviderOption };
 export type { RouteViewData };
+// Phase 12 — the theme-dependent overlay palette (the legend mirrors
+// the map layers' colors with it).
+export { mapOverlayPalette, type MapOverlayPalette } from "@/lib/map/palette";
 
 // ---------------------------------------------------------------------------
 // Route view building (pure; exported for node-side unit tests)
@@ -552,6 +557,8 @@ export function useMapController(session: GpxSession): MapBinding {
   const [offline, setOffline] = useState(false);
   const selectedGapId = useUiStore((s) => s.selectedGapId);
   const provider = useUiStore((s) => s.tileProvider);
+  // Phase 12 — the resolved theme (overlay palette + basemap darkening).
+  const { resolved: resolvedTheme } = useTheme();
   const editorReconstructions = useEditorStore((s) => s.reconstructions);
   const editorActiveGapId = useEditorStore((s) => s.activeGapId);
   const editorSkipped = useEditorStore((s) => s.skippedGapIds);
@@ -582,6 +589,7 @@ export function useMapController(session: GpxSession): MapBinding {
     const controller = new MapController({
       container,
       provider: useUiStore.getState().tileProvider,
+      darkTheme: resolvedThemeNow() === "dark",
       callbacks: {
         onStatusChange: (next) => {
           if (!disposed) setStatus(next);
@@ -668,6 +676,11 @@ export function useMapController(session: GpxSession): MapBinding {
   useEffect(() => {
     controllerRef.current?.setTileProvider(provider);
   }, [provider]);
+
+  // Phase 12 — theme changes re-theme the overlays + basemap.
+  useEffect(() => {
+    controllerRef.current?.setDarkTheme(resolvedTheme === "dark");
+  }, [resolvedTheme]);
 
   // Selection hygiene: clear a selection that no longer exists (new file,
   // reset, or re-detection removed the gap). Manual spans count too — a

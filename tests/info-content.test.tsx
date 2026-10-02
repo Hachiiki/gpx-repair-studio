@@ -226,7 +226,7 @@ describe("InfoDialog", () => {
 describe("SiteFooter", () => {
   it("carries the local-first line and both doors", () => {
     const onOpenInfo = vi.fn();
-    render(<SiteFooter onOpenInfo={onOpenInfo} />);
+    render(<SiteFooter onOpenInfo={onOpenInfo} onOpenHelp={vi.fn()} />);
     expect(
       screen.getByText(/All processing happens in your browser/i),
     ).toBeInTheDocument();
@@ -236,7 +236,7 @@ describe("SiteFooter", () => {
 
   it("dispatches the right pane per link", () => {
     const onOpenInfo = vi.fn();
-    render(<SiteFooter onOpenInfo={onOpenInfo} />);
+    render(<SiteFooter onOpenInfo={onOpenInfo} onOpenHelp={vi.fn()} />);
     fireEvent.click(screen.getByTestId("footer-about"));
     expect(onOpenInfo).toHaveBeenCalledWith("about");
     fireEvent.click(screen.getByTestId("footer-privacy"));
