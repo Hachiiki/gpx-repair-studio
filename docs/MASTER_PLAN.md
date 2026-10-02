@@ -2059,3 +2059,316 @@ illustrations stay. `landing-cards.tsx` was rebuilt as a tile grid:
   grid) and scroll the page before `fullPage` captures (below-fold
   `decoding="async"` images are loaded but not yet painted, and read
   as empty plates — `scripts/task56-live-qa.mjs` now does both).
+
+## EE. V2 Roadmap — Phases 12–22 (user-requested expansion)
+
+After v1 shipped (tag `v1`, Task 56), the user asked for **all** of
+the proposed expansion — 18 capabilities across four goals: more
+freedom to use, more power, more usefulness, and a better experience
+for every kind of user. They are organized below into eleven
+dependency-ordered phases, Tasks 57–67. Task numbering continues
+from 56; phase numbering continues from 11.
+
+**Ordering rationale:**
+
+- Dark mode rides the existing CSS token system and lands **early**
+  (Phase 12) so every later surface is built and QA'd against both
+  themes instead of retrofitted at the end.
+- Validation (13) precedes presets (presets are bundles of detectors
+  + fixes) and precedes surgery (16) — both reuse the
+  provenance-labeled working-copy layer that 13 introduces.
+- Formats (14) precede batch (18): batch multiplies per-file
+  capability, so per-file capability must exist first.
+- Stats (15) precede the PDF summary (19): the report consumes the
+  stats engine.
+- Road snapping (17) is deliberately isolated — the only phase that
+  ever sends geometry off-device — and is fenced behind explicit
+  per-session consent.
+- i18n (21) lands late so final strings are extracted once; PWA
+  (22) lands last so the offline precache ships a stabilized asset
+  set.
+
+**Goal → phase map:**
+
+| Goal | Phases |
+|---|---|
+| Freedom / free to use | 14 (formats), 18 (batch + portable sessions), 22 (offline PWA) |
+| Power | 13 (validation), 15 (stats), 16 (surgery), 17 (snapping), 22 (elevation cache) |
+| Usefulness | 12 (sample files), 13 (report + presets), 19 (compare + PDF summary) |
+| Experience for all | 12 (dark mode), 16 (numeric entry / a11y), 19 (guided flows), 20 (palette), 21 (i18n) |
+
+**Conventions (unchanged from v1):** every phase ends in a working,
+committed state `phase(N): …`; typecheck + eslint + vitest +
+Playwright green before commit; VLM QA on new/changed surfaces;
+worklog + this plan updated per phase; original data immutable; all
+modifications provenance-labeled; static export — no server, no
+accounts, no telemetry (Phase 17's consented router call is the sole
+exception, re-consented every session).
+
+### Phase 12 — Quick wins & theming (Task 57)
+
+**Objective:** immediate low-risk value, plus the cross-cutting theme
+system every later phase inherits.
+
+- **12.1 Sample files:** one curated synthetic fixture per tool
+  (repair: a multi-gap ride; merge: two overlapping recordings;
+  create-from-stats: nothing — it already starts from numbers;
+  plan: starts empty; share/export: reuses repair's), bundled as
+  inlined static assets (no network fetch — offline-safe from day
+  one), "Try a sample" action on each tool surface + landing tiles;
+  loaded sessions behave identically to real ones (same provenance
+  rules).
+- **12.2 Dark mode:** audit that `ink/paper/shade/signal` are pure
+  CSS variables; define `[data-theme="dark"]` overrides; toggle in
+  the footer/header persisted to
+  `gpx-repair-studio.theme.v1` (`light|dark|system`, default
+  `system` via `matchMedia`); map tiles switch to a dark OpenFreeMap
+  style if one exists, else a token-aware dimmed canvas overlay
+  (decision recorded in-phase); every SVG/chart color tokenized.
+- **12.3 Help dialog + shortcut cheat sheet:** `?` opens a dialog
+  listing current keyboard shortcuts and where to find each tool —
+  the foundation the Phase 20 command registry will feed.
+
+**Non-goals:** i18n, command palette, new tools.
+**Verification:** unit (theme hook persistence + sample loader),
+e2e (theme persists across reload; sample opens the right tool with
+a loaded session; help dialog opens/closes with focus return), VLM
+on both themes at 1440/900/390.
+
+### Phase 13 — Deep validation & repair presets (Task 58)
+
+**Objective:** the app finds problems, not just fixes known gaps.
+
+- **13.1 Detector suite** (pure TS, `src/domain/validation/`):
+  speed spikes (default threshold 130 km/h, configurable), duplicate
+  points (< 1 m within a window), non-monotonic timestamps,
+  elevation outliers (step/z-score), stop-and-wander drift heuristic
+  (sustained sub-0.5 m/s scatter flagged as likely GPS drift),
+  missing-elevation runs.
+- **13.2 Provenance extension — the working-copy layer:** original
+  data stays immutable; every fix (deletion, reordering, smoothing)
+  is an override entry with a reason and timestamp. Exports and
+  stats recompute from the working copy and label affected
+  distances as modified. This layer is the foundation Phases 16 and
+  19 build on.
+- **13.3 Report UI:** issues grouped by severity with counts,
+  jump-to-map, and a full textual list (a11y rule: every map
+  capability has a text equivalent).
+- **13.4 One-click fixes:** remove spikes, dedupe, sort-by-time
+  (marks the file estimated), smooth flagged elevations — each
+  previewed, confirmed, undoable, and logged.
+- **13.5 Presets:** named bundles ("Drift cleanup", "Dedupe & sort",
+  "Resample") that run detector→fix chains with a what-would-change
+  preview before applying. Phase 18 reuses these for batch.
+
+**Non-goals:** auto-applying fixes without preview, batch, snapping.
+**Verification:** detector goldens on synthetic defective files,
+fix round-trip unit tests, preset integration tests, e2e full
+find→preview→fix→export flow, VLM on the report UI.
+
+### Phase 14 — Formats: in & out (Task 59)
+
+**Objective:** meet users where their devices are.
+
+- **14.1 Ingest auto-detect:** GPX / TCX / FIT by magic bytes +
+  extension, routed through the Phase 9 worker parse pipeline.
+- **14.2 TCX import:** extend the DOMParser facade
+  (Activities→Courses→TrackPoints; hr/cad read as optional
+  passthrough, not editable).
+- **14.3 FIT import:** binary decoder. In-phase decision: a vetted
+  dependency (`fit-file-parser` or equivalent — license, bundle
+  size, worker compatibility checked) vs a minimal hand-rolled
+  Record/Lap decoder; decision and rationale recorded here.
+- **14.4 Export:** KML (LineString + stats as ExtendedData), GeoJSON
+  (FeatureCollection with per-track stat properties), CSV
+  (trackpoints). The existing export menu gains a format picker;
+  every format carries the provenance labels.
+
+**Non-goals:** FIT/TCX writing, editing hr/cad fields.
+**Verification:** fixture round-trips per format (binary FIT
+fixtures hash-checked), golden export files, e2e import→repair→
+export in each format, VLM on the export picker.
+
+### Phase 15 — Stats dashboard (Task 60)
+
+**Objective:** from fixer to workbench — users get more out of
+every file.
+
+- **15.1 Splits engine:** km/mi configurable; per-split distance,
+  time, avg pace, elevation gain; splits crossing reconstructed
+  segments flagged estimated (honesty rule).
+- **15.2 Elevation profile:** hand-rolled SVG (no new dependency,
+  static-export safe), original vs reconstructed shading, hover
+  readout, and a keyboard-navigable table as the textual
+  equivalent.
+- **15.3 Pace & time-in-motion:** pace-over-distance chart,
+  stopped-time detection summary.
+- **15.4 Stats CSV export** + a print-friendly stats view (Phase 19
+  builds the full repair summary on this).
+
+**Non-goals:** hr/power analytics (data exists post-14 but analysis
+is deferred), third-party sharing integrations.
+**Verification:** split-math goldens against hand-computed tracks,
+chart a11y (axe + keyboard), e2e open-stats→export-CSV, VLM.
+
+### Phase 16 — Track surgery & input freedom (Task 61)
+
+**Objective:** full control of geometry beyond drawing — and the
+keyboard-only repair milestone.
+
+- **16.1 Surgery ops** (on the Phase 13 working-copy layer): split
+  track at a selected point, delete an A–B range, reorder segments,
+  duplicate a segment. All provenance-labeled; stats recompute.
+- **16.2 Numeric coordinate entry:** per-vertex forms
+  (lat/lng/elevation/time) to add, insert, and move vertices by
+  typing, plus arrow-key nudge with a configurable step — **closes
+  the v1-documented a11y limitation** (drawing required a pointing
+  device). A complete reconstruction becomes possible keyboard-only.
+- **16.3 Validation:** coordinate sanity checks (bounds, precision)
+  on entry, with the same honest-error style as the rest of the app.
+
+**Non-goals:** freehand mode, snapping (17), batch.
+**Verification:** surgery unit tests (geometry + provenance),
+**e2e: a full gap repair completed with zero pointer events**
+(keyboard-only milestone), VLM on the vertex forms.
+
+### Phase 17 — Road snapping, opt-in (Task 62)
+
+**Objective:** the biggest realism upgrade for reconstructions,
+without breaking the privacy promise.
+
+- **17.1 Router provider abstraction:** OSRM-compatible endpoint,
+  configurable URL; default points at a public OSRM instance with
+  plain-language privacy implications stated; self-hosting
+  instructions added to the README and privacy page.
+- **17.2 Consent gate:** explicit per-session opt-in (never
+  persisted as default-on, re-asked each session, never silent);
+  plain notice: "snapping sends the drawn line to a third-party
+  router". Toggle lives in the draw tools; consent state shown in
+  the footer while active.
+- **17.3 Snap engine:** match the drawn polyline to the routed
+  path, preview with distance delta (routed vs straight-line),
+  apply/unapply (undo), in-memory cache keyed by rounded-polyline
+  hash (persistent cache joins Phase 22).
+- **17.4 Offline/declined fallback:** unchanged freehand drawing;
+  the snap control disables with an explanation when offline.
+
+**Non-goals:** turn-by-turn instructions, routing waypoints,
+ever snapping original recorded data (only user-drawn
+reconstructions), any other external service.
+**Verification:** provider adapter with mocked fetch, consent-flow
+e2e (no network call before consent — asserted), privacy page copy
+update, VLM on the snap preview.
+
+### Phase 18 — Batch & portable sessions (Task 63)
+
+**Objective:** bulk power, and users keep full ownership of their
+work.
+
+- **18.1 Multi-file queue:** drop N files → a queue list with
+  per-file status (parsed / issues found / fixed / exported) and
+  aggregate stats.
+- **18.2 Batch operations:** run a Phase 13 preset across the queue
+  with per-file previews before confirming; batch export as a ZIP
+  (vetted client-side zipper — `fflate` or equivalent, static-export
+  compatible) plus a manifest summary of what changed per file.
+- **18.3 Portable session file:** serialize the full working state
+  (originals + working-copy overrides + reconstruction + view) to a
+  versioned `.gpxrepair.json`; open-from-file on the landing;
+  export from the session. No accounts, ever — the file *is* the
+  session.
+- **18.4 Session manager:** named sessions in IndexedDB (extends
+  Phase 10 recovery) — rename, delete, export, import.
+
+**Non-goals:** cloud sync, accounts, cross-tab collaboration.
+**Verification:** ZIP integrity tests, session round-trip fidelity
+goldens, queue state-machine tests, e2e multi-file drop→preset→
+export flow, VLM on the queue UI.
+
+### Phase 19 — Compare, summaries & guided flows (Task 64)
+
+**Objective:** trust in what changed, and deeper onboarding.
+
+- **19.1 Before/after compare:** overlay mode (original as ghost
+  track + working copy solid, changed segments highlighted in
+  signal) and side-by-side mode; a stats delta table (distance,
+  time, gain — original vs after, with estimated/modified flags).
+- **19.2 Repair summary / print-PDF:** print stylesheet (no new
+  dependency, static-export friendly): provenance table (estimated,
+  filtered, snapped, sorted — every modification with counts),
+  stats, and a static SVG snapshot of the track. Per-file and
+  per-batch manifest variants.
+- **19.3 Per-tool guided walkthroughs:** 3–5 step task-based tours
+  per tool (extending the Phase 11 tour infra), using the Phase 12
+  sample files as teaching payloads; dismissible, replayable from
+  the help dialog.
+
+**Non-goals:** video tutorials, account-based progress tracking.
+**Verification:** compare-math unit tests, print-emulation e2e
+(`media: print`), tour replay e2e, VLM on compare + summary.
+
+### Phase 20 — Command palette & shortcuts (Task 65)
+
+**Objective:** power users fly; everyone else discovers.
+
+- **20.1 Command registry:** every action (navigate, switch tool,
+  run fix/preset, export, theme, tours) registered with id, label,
+  shortcut, and availability context — a single source that also
+  feeds the Phase 12 help dialog.
+- **20.2 Palette:** Ctrl/Cmd+K opens a fuzzy-searchable,
+  keyboard-first palette over the registry, including recent
+  sessions. Focus-trapped, listbox-semantics a11y.
+- **20.3 Shortcut audit:** bind the remaining major actions without
+  conflicts; all bindings visible in the cheat sheet.
+
+**Non-goals:** user-defined macros, scripting console.
+**Verification:** registry unit tests, palette a11y (axe + keyboard
+nav), e2e open→search→run, VLM.
+
+### Phase 21 — Internationalization (Task 66)
+
+**Objective:** open the tool to non-English users.
+
+- **21.1 String extraction:** all UI copy moves to typed
+  dictionaries; a lint rule forbids new hard-coded strings.
+- **21.2 Runtime:** lightweight typed lookup + parameter
+  interpolation (no heavy i18n framework — dependency discipline);
+  locale persisted, `?lang=` override for testing.
+- **21.3 Locales:** English (source) + the initial set the user
+  picks (decision point at phase start); number, unit, and date
+  localization.
+- **21.4 Pseudo-locale harness:** a long-string expansion locale
+  for overflow QA (VLM pass under expansion).
+
+**Non-goals:** RTL locales (revisit after the locale set is real),
+machine translation of user data.
+**Verification:** missing-key CI gate (unit), pseudo-locale VLM
+sweep, e2e locale switch persistence.
+
+### Phase 22 — Offline PWA & persistent caches (Task 67)
+
+**Objective:** install it, use it in the mountains, never wait
+twice.
+
+- **22.1 Manifest + icons:** installable, standalone display,
+  theme colors for both themes.
+- **22.2 Service worker:** precache the static-export asset
+  manifest; stale-while-revalidate runtime strategy; an
+  update-available toast that asks before reloading — never a
+  silent swap mid-edit.
+- **22.3 Elevation cache persistence:** Cache Storage/IndexedDB
+  backend for the Phase 7 LRU design (rounded-coord keys, size cap,
+  and a clear button in the privacy settings).
+- **22.4 Offline proof:** e2e that blocks network, loads the app
+  from cache, and completes a repair + export with zero requests.
+
+**Non-goals:** background sync, push notifications.
+**Verification:** offline e2e (the phase's centerpiece), Lighthouse
+installability, cache-cap eviction tests, VLM on install/update
+toasts.
+
+### v2 release
+
+After Phase 22: full regression (typecheck, eslint, unit, Playwright,
+static export), a VLM sweep across both themes and all locales,
+README refresh, worklog closeout — **tag `v2`**, push.

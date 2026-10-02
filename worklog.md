@@ -1321,3 +1321,19 @@ Stage Summary:
 - The home page is now Variant C with illustrations: a 3-across tile grid whose plates are the kept webp artwork on a 2:1 crop — desktop page 1070px (−24%), band-900 1006px (−34%), mobile 2599px (−21%), with every landing contract (testids, 6 buttons + 6 imgs, focus return, a11y labels) intact.
 - Full gates green: 1269/1269 unit, 122/122 e2e, typecheck + eslint clean, zero console errors, VLM SHIP on all three viewports (one hallucinated overlap claim disproven by measurement).
 - Committed as task(56) with the QA scripts (chunk runner, live-qa, overlap probe) and critique JSONs; screenshots in download/task56-*.
+
+---
+Task ID: 57 (planning)
+Agent: Super Z (main agent)
+Task: v2 roadmap — organize all 18 user-approved expansion ideas into dependency-ordered phases; push outstanding commits
+
+Work Log:
+- Answered the user's "has this been push?": Phase 11 (6064b31) and tag v1 were already on origin; Tasks 55–56 (mockups + Variant C redesign, 3afaa32 + 23fd8ed) were local-only — pushed both; main now 23fd8ed on origin, in sync.
+- User approved ALL 18 proposed capabilities and asked for a todo list + phased implementation plan.
+- Wrote section EE "V2 Roadmap — Phases 12–22" into docs/MASTER_PLAN.md (Tasks 57–67, one task per phase): ordering rationale, goal→phase map, conventions carried over from v1, per-phase objective/scope/non-goals/verification.
+- Phase order and why: 12 quick wins & dark mode (theming early so later phases inherit both themes) → 13 deep validation + working-copy provenance layer + presets → 14 formats in/out (FIT/TCX, KML/GeoJSON/CSV) → 15 stats dashboard → 16 track surgery + numeric entry (keyboard-only repair milestone) → 17 opt-in road snapping (consent-fenced, the only off-device geometry egress) → 18 batch + portable .gpxrepair.json sessions → 19 compare view + print/PDF summary + guided tours → 20 command palette → 21 i18n (strings extracted once, late) → 22 PWA offline + persistent caches → tag v2.
+- Open decision points recorded in-plan: FIT decoder (dependency vs hand-rolled), dark map tile style, OSRM default endpoint, initial i18n locale set.
+- Replaced the session todo list with the 13-item v2 plan (plan-v2 + p12…p22 + release-v2).
+
+Stage Summary:
+- v2 roadmap committed to MASTER_PLAN.md section EE; every one of the 18 requested capabilities mapped to a phase; repo pushed and in sync with origin/main at 23fd8ed.
