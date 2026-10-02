@@ -75,7 +75,7 @@ export function UploadZone({
         </span>
         <span className="space-y-1">
           <span className="block text-lg font-bold tracking-tight">
-            Drop your GPX file here
+            Drop your GPX, TCX, or FIT file here
           </span>
           <span className="block text-[13.5px] text-muted-foreground">
             or{" "}
@@ -107,7 +107,7 @@ export function UploadZone({
       <input
         id={inputId}
         type="file"
-        accept=".gpx,.xml"
+        accept=".gpx,.tcx,.fit,.xml"
         className="sr-only"
         disabled={disabled}
         onChange={(event) => {

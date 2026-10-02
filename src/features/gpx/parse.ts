@@ -69,100 +69,35 @@ import {
   GPXR_ELEMENTS,
   GPXR_NAMESPACE,
 } from "./provenanceSchema";
+// Phase 14 — the walk/value helpers moved to xml-walk.ts as the shared
+// single source (the TCX parser needs the same strict semantics).
+import {
+  childrenByLocalName,
+  firstChildByLocalName,
+  parseFiniteNumber,
+  parseStrictEpochMs,
+  trimmedTextOfFirstChild,
+} from "./xml-walk";
 
 /** GPX 1.1 default namespace. */
 export const GPX_NAMESPACE_11 = "http://www.topografix.com/GPX/1/1";
 /** GPX 1.0 namespace. */
 export const GPX_NAMESPACE_10 = "http://www.topografix.com/GPX/1/0";
 
-/** Strict xsd:dateTime-with-mandatory-timezone shape (GPX §J). */
-const ISO_8601_WITH_TZ =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/;
-
-/**
- * Parse a timestamp strictly as ISO-8601 with timezone; `undefined` when
- * the text is naive, malformed, or semantically invalid (e.g. Feb 30 —
- * `Date.parse` would silently roll such dates over, so ranges are checked
- * explicitly before conversion).
- */
-function parseStrictEpochMs(text: string | undefined): number | undefined {
-  if (text === undefined) return undefined;
-  const trimmed = text.trim();
-  const match = ISO_8601_WITH_TZ.exec(trimmed);
-  if (match === null) return undefined;
-
-  const [, yearS, monthS, dayS, hourS, minuteS, secondS, sign, offHourS, offMinuteS] = match;
-  const year = Number(yearS);
-  const month = Number(monthS);
-  const day = Number(dayS);
-
-  if (month < 1 || month > 12) return undefined;
-  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][
-    month - 1
-  ];
-  if (day < 1 || day > daysInMonth) return undefined;
-  if (Number(hourS) > 23 || Number(minuteS) > 59 || Number(secondS) > 59) {
-    return undefined;
-  }
-  if (sign !== undefined && (Number(offHourS) > 23 || Number(offMinuteS) > 59)) {
-    return undefined;
-  }
-
-  const ms = Date.parse(trimmed);
-  return Number.isNaN(ms) ? undefined : ms;
-}
-
-// ---------------------------------------------------------------------------
-// Small DOM helpers (namespace-tolerant, structure-aware)
-// ---------------------------------------------------------------------------
-
-/** Direct child elements with the given localName, in document order. */
-function childrenByLocalName(el: Element, name: string): Element[] {
-  return Array.from(el.children).filter((c) => c.localName === name);
-}
-
-/** First direct child element with the given localName, if any. */
-function firstChildByLocalName(el: Element, name: string): Element | undefined {
-  return Array.from(el.children).find((c) => c.localName === name);
-}
-
-/** Trimmed text of the first matching child element; undefined if absent. */
-function trimmedTextOfFirstChild(
-  el: Element | undefined,
-  name: string,
-): string | undefined {
-  if (el === undefined) return undefined;
-  const child = firstChildByLocalName(el, name);
-  if (child === undefined) return undefined;
-  const text = (child.textContent ?? "").trim();
-  return text === "" ? undefined : text;
-}
-
-// ---------------------------------------------------------------------------
-// Value parsing (NaN-guarded, per §H-2)
-// ---------------------------------------------------------------------------
-
-/**
- * Parse a numeric string. `undefined` when absent, blank, or non-finite —
- * callers turn that into an anomaly flag rather than inventing a value.
- */
-function parseFiniteNumber(
-  text: string | null | undefined,
-): number | undefined {
-  if (text === null || text === undefined) return undefined;
-  const trimmed = text.trim();
-  if (trimmed === "") return undefined;
-  const value = Number(trimmed);
-  return Number.isFinite(value) ? value : undefined;
-}
-
 // ---------------------------------------------------------------------------
 // parsererror detection (jsdom: "1:16: msg"; Chrome: "line 2 at column 3";
 // Firefox: "Line Number 2, Column 3:")
 // ---------------------------------------------------------------------------
 
-function extractParserError(doc: Document): GpxParseError | null {
+/**
+ * Extract a typed `malformed-xml` error from a `<parsererror>` document,
+ * or null when the document parsed cleanly. Handles the three error-text
+ * dialects (jsdom "1:16: msg"; Chrome "line 2 at column 3"; Firefox
+ * "Line Number 2, Column 3:").
+ *
+ * Phase 14: shared with the TCX parser — same XML machinery, same errors.
+ */
+export function extractParserError(doc: Document): GpxParseError | null {
   let errorEl: Element | null = null;
   const root = doc.documentElement;
   if (root !== null && root.localName === "parsererror") {

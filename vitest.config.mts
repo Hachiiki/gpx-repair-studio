@@ -56,6 +56,9 @@ export default defineConfig({
         "src/lib/geo/**",
         "src/features/gpx/**",
         "src/features/statistics/**",
+        // Phase 14: the formats family (sniff, TCX/FIT import, KML/GeoJSON/
+        // CSV export) is pure domain code.
+        "src/features/formats/**",
         // Task 20: the share card's pure joins (content derivation).
         "src/features/share/**",
         // Task 20: the share card's pure layout math + artwork data
@@ -75,7 +78,10 @@ export default defineConfig({
         "src/lib/map/styles.ts",
         "src/lib/map/geojson.ts",
       ],
-      exclude: ["src/features/gpx/fixtures/files/**"],
+      exclude: [
+        "src/features/gpx/fixtures/files/**",
+        "src/features/formats/fixtures/files/**",
+      ],
       thresholds: {
         lines: 90,
       },

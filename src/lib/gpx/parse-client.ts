@@ -1,21 +1,26 @@
 /**
- * Parse pipeline client (docs/MASTER_PLAN.md Phase 9, §C-2).
+ * Parse pipeline client (docs/MASTER_PLAN.md Phase 9 §C-2; Phase 14).
  *
  * One entry point for every intake (repair/share, recovery, merge):
  *
- *   runParsePipeline(text, { gapThresholds, onProgress })
+ *   runParsePipeline({ bytes, fileName }, { gapThresholds, onProgress })
  *
- * Small files (below PARSE_WORKER_THRESHOLD_BYTES) run the inline
- * pipeline — parseGpx + validateGpx + detectGpx on the main thread with
- * the native DOM facade, byte-identical to the pre-Phase-9 behavior
- * every existing test pins. Large files run the same domain pipeline in
- * the parse worker (compact tokenizer XmlIo) and stream the model back
- * in point chunks so no single structured clone approaches the 200 ms
- * main-thread budget (§C-2: parse+validate without blocking > 200 ms).
+ * The bytes are sniffed once (§EE 14.1 — magic bytes + extension): GPX
+ * and TCX are decoded to text (the same lossy UTF-8 semantics
+ * `File#text()` has) and parsed through the injected XmlIo; FIT stays
+ * binary and goes to the reader. Small files (below
+ * PARSE_WORKER_THRESHOLD_BYTES) run the inline pipeline — parse +
+ * validate + gaps on the main thread with the native DOM facade,
+ * byte-identical to the pre-Phase-9 behavior every existing test pins.
+ * Large files run the same domain pipeline in the parse worker (compact
+ * tokenizer XmlIo for XML, pure DataView for FIT) and stream the model
+ * back in point chunks so no single structured clone approaches the
+ * 200 ms main-thread budget.
  *
  * Failure semantics are explicit:
- *   - A typed parse error (malformed XML, not-a-gpx, bad version) is a
- *     RESULT ({ ok: false, error }) — surfaced to the user as today.
+ *   - A typed parse error (malformed XML, wrong root, bad FIT header,
+ *     unknown format) is a RESULT ({ ok: false, error }) — surfaced to
+ *     the user as today.
  *   - An infrastructure failure (Worker unavailable, worker crash,
  *     timeout) falls back to the inline pipeline once — correct output,
  *     blocking parse — so a blocked-worker environment never loses
@@ -28,6 +33,9 @@
 import { detectGaps, type GapThresholds } from "@/features/gpx/detectGaps";
 import { parseGpx } from "@/features/gpx/parse";
 import { validateGpx } from "@/features/gpx/validate";
+import { parseTcx } from "@/features/formats/parse-tcx";
+import { parseFit } from "@/features/formats/parse-fit";
+import { sniffTrackFormat } from "@/features/formats/sniff";
 import { createDomXmlIo } from "@/lib/utils/xml";
 import type {
   DetectedGap,
@@ -59,6 +67,12 @@ export interface ParsePipelineOptions {
   detectGaps?: boolean;
 }
 
+/** The source of one intake: raw bytes + the upload's name (§EE 14.1). */
+export interface ParsePipelineSource {
+  bytes: ArrayBuffer;
+  fileName: string;
+}
+
 export type ParsePipelineResult =
   | {
       ok: true;
@@ -73,10 +87,15 @@ export type ParsePipelineResult =
 // ---------------------------------------------------------------------------
 
 function runInline(
-  text: string,
+  source: { format: "gpx" | "tcx"; text: string } | { format: "fit"; bytes: ArrayBuffer },
   options: ParsePipelineOptions,
 ): ParsePipelineResult {
-  const outcome = parseGpx(text, createDomXmlIo());
+  const outcome =
+    source.format === "fit"
+      ? parseFit(new Uint8Array(source.bytes))
+      : source.format === "tcx"
+        ? parseTcx(source.text, createDomXmlIo())
+        : parseGpx(source.text, createDomXmlIo());
   if (!outcome.ok) return { ok: false, error: outcome.error };
   const validated = validateGpx(outcome.data);
   const gaps =
@@ -100,7 +119,7 @@ function runInline(
  * Throws ONLY on infrastructure failure (construction, crash, timeout).
  */
 function runInWorker(
-  text: string,
+  request: ParseRequest,
   options: ParsePipelineOptions,
 ): Promise<ParsePipelineResult> {
   return new Promise<ParsePipelineResult>((resolve, reject) => {
@@ -188,13 +207,9 @@ function runInWorker(
       }
     };
 
-    const request: ParseRequest = {
-      type: "parse",
-      text,
-      gapThresholds: options.gapThresholds,
-      detectGaps: options.detectGaps !== false,
-    };
     try {
+      // Structured clone (no transfer): the main-thread bytes stay intact
+      // so the inline fallback can re-run after an infrastructure failure.
       worker.postMessage(request);
     } catch (err) {
       finish(null, err);
@@ -207,22 +222,54 @@ function runInWorker(
 // ---------------------------------------------------------------------------
 
 /**
- * Parse + validate (+ gap detection) one GPX document, off the main
- * thread when it is large. Never throws for user input; infrastructure
- * failures degrade to the inline pipeline.
+ * Sniff, parse, validate (+ gap detection) one track file (GPX, TCX, or
+ * FIT), off the main thread when it is large. Never throws for user
+ * input; infrastructure failures degrade to the inline pipeline.
  */
 export async function runParsePipeline(
-  text: string,
+  source: ParsePipelineSource,
   options: ParsePipelineOptions,
 ): Promise<ParsePipelineResult> {
-  const useWorker =
-    text.length >= PARSE_WORKER_THRESHOLD_BYTES &&
-    typeof Worker !== "undefined";
-  if (!useWorker) {
-    return runInline(text, options);
+  const bytes = new Uint8Array(source.bytes);
+  const sniff = sniffTrackFormat(bytes, source.fileName);
+  if (sniff.format === "unknown") {
+    return {
+      ok: false,
+      error: { kind: "unsupported-format", detail: sniff.reason },
+    };
   }
+
+  // Decode XML formats once (lossy UTF-8 — exactly File#text()).
+  let text: string | undefined;
+  if (sniff.format !== "fit") {
+    text = new TextDecoder("utf-8").decode(bytes);
+  }
+
+  const sizeForThreshold =
+    sniff.format === "fit" ? bytes.byteLength : (text?.length ?? 0);
+  const useWorker =
+    sizeForThreshold >= PARSE_WORKER_THRESHOLD_BYTES &&
+    typeof Worker !== "undefined";
+
+  if (!useWorker) {
+    return runInline(
+      sniff.format === "fit"
+        ? { format: "fit", bytes: source.bytes }
+        : { format: sniff.format, text: text! },
+      options,
+    );
+  }
+  const request: ParseRequest = {
+    type: "parse",
+    format: sniff.format,
+    ...(sniff.format === "fit"
+      ? { bytes: source.bytes }
+      : { text: text! }),
+    gapThresholds: options.gapThresholds,
+    detectGaps: options.detectGaps !== false,
+  };
   try {
-    return await runInWorker(text, options);
+    return await runInWorker(request, options);
   } catch (err) {
     // Graceful degradation (§C-4): workers blocked or broken → the
     // inline pipeline still produces the correct result.
@@ -232,6 +279,11 @@ export async function runParsePipeline(
         err instanceof Error ? err.message : err,
       );
     }
-    return runInline(text, options);
+    return runInline(
+      sniff.format === "fit"
+        ? { format: "fit", bytes: source.bytes }
+        : { format: sniff.format, text: text! },
+      options,
+    );
   }
 }

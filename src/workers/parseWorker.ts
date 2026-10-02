@@ -1,14 +1,15 @@
 /// <reference lib="webworker" />
 /**
- * Parse worker (docs/MASTER_PLAN.md Phase 9, §C-2).
+ * Parse worker (docs/MASTER_PLAN.md Phase 9, §C-2; Phase 14 formats).
  *
- * Runs the domain parse pipeline — parseGpx → validateGpx → detectGaps —
- * off the main thread for large files (the client in
- * src/lib/gpx/parse-client.ts decides by size threshold). Domain purity
- * from Phase 1 is what makes this a low-risk move: the pipeline is pure
- * TypeScript given an XmlIo, and the worker supplies the compact
- * tokenizer XmlIo (lib/gpx/worker-xml.ts) because workers have no
- * DOMParser.
+ * Runs the domain parse pipeline — parse (GPX / TCX / FIT, by the
+ * sniffed format) → validateGpx → detectGaps — off the main thread for
+ * large files (the client in src/lib/gpx/parse-client.ts decides by
+ * size threshold). Domain purity is what makes this a low-risk move:
+ * every parser is pure TypeScript given bytes or an XmlIo, and the
+ * worker supplies the compact tokenizer XmlIo (lib/gpx/worker-xml.ts)
+ * because workers have no DOMParser. The FIT reader is pure DataView
+ * math — no adapter needed.
  *
  * The parsed model is streamed back in ≤ PARSE_CHUNK_POINTS chunks so no
  * single structured clone blocks the main thread near the 200 ms budget;
@@ -20,6 +21,8 @@
 import { detectGaps } from "@/features/gpx/detectGaps";
 import { parseGpx } from "@/features/gpx/parse";
 import { validateGpx } from "@/features/gpx/validate";
+import { parseTcx } from "@/features/formats/parse-tcx";
+import { parseFit } from "@/features/formats/parse-fit";
 import { createWorkerXmlIo } from "@/lib/gpx/worker-xml";
 import {
   PARSE_CHUNK_POINTS,
@@ -39,13 +42,18 @@ self.onmessage = (event: MessageEvent<ParseRequest>) => {
   };
 
   try {
-    // --- Parse ------------------------------------------------------------
+    // --- Parse (routed by the sniffed format — §EE 14.1) -----------------
     const io = createWorkerXmlIo({
       onProgress: (consumed, total) => {
         progress("parse", total === 0 ? 1 : consumed / total);
       },
     });
-    const outcome = parseGpx(request.text, io);
+    const outcome =
+      request.format === "fit"
+        ? parseFit(new Uint8Array(request.bytes ?? new ArrayBuffer(0)))
+        : request.format === "tcx"
+          ? parseTcx(request.text ?? "", io)
+          : parseGpx(request.text ?? "", io);
     if (!outcome.ok) {
       post({ type: "result", ok: false, error: outcome.error });
       return;

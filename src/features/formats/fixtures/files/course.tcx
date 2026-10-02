@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase
+  xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
+  <Courses>
+    <Course>
+      <Name>Morning Loop</Name>
+      <Lap>
+        <TotalTimeSeconds>900.0</TotalTimeSeconds>
+        <DistanceMeters>3200.0</DistanceMeters>
+        <Track>
+          <Trackpoint>
+            <Time>2024-06-15T22:30:00.000Z</Time>
+            <Position><LatitudeDegrees>47.356700</LatitudeDegrees><LongitudeDegrees>8.553400</LongitudeDegrees></Position>
+            <AltitudeMeters>412.0</AltitudeMeters>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2024-06-15T22:30:30.000Z</Time>
+            <Position><LatitudeDegrees>47.357150</LatitudeDegrees><LongitudeDegrees>8.553750</LongitudeDegrees></Position>
+            <AltitudeMeters>414.5</AltitudeMeters>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2024-06-15T22:31:00.000Z</Time>
+            <Position><LatitudeDegrees>47.357600</LatitudeDegrees><LongitudeDegrees>8.554100</LongitudeDegrees></Position>
+            <AltitudeMeters>417.0</AltitudeMeters>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2024-06-15T22:31:30.000Z</Time>
+            <Position><LatitudeDegrees>47.358050</LatitudeDegrees><LongitudeDegrees>8.554450</LongitudeDegrees></Position>
+            <AltitudeMeters>419.0</AltitudeMeters>
+          </Trackpoint>
+        </Track>
+      </Lap>
+      <CoursePoint>
+        <Name>Start &amp; Caf&#233;</Name>
+        <Time>2024-06-15T22:30:00.000Z</Time>
+        <Position><LatitudeDegrees>47.356700</LatitudeDegrees><LongitudeDegrees>8.553400</LongitudeDegrees></Position>
+        <PointType>Generic</PointType>
+      </CoursePoint>
+      <CoursePoint>
+        <Name>Summit "Uetliberg"</Name>
+        <Time>2024-06-15T22:31:30.000Z</Time>
+        <Position><LatitudeDegrees>47.358050</LatitudeDegrees><LongitudeDegrees>8.554450</LongitudeDegrees></Position>
+        <PointType>Summit</PointType>
+      </CoursePoint>
+    </Course>
+  </Courses>
+</TrainingCenterDatabase>

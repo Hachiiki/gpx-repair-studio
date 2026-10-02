@@ -46,6 +46,7 @@ import {
   type GapThresholds,
 } from "@/features/gpx/detectGaps";
 import type { ExportMode } from "@/features/gpx/exportGpx";
+import type { ExportFormat } from "@/features/formats/export-formats";
 import {
   DEFAULT_TILE_PROVIDER,
   type TileProviderId,
@@ -109,6 +110,8 @@ interface UiState {
   exportMode: ExportMode;
   /** Pretty-print exported GPX (§H-7). Phase 7. */
   exportPrettyPrint: boolean;
+  /** Export format (§EE 14.4): GPX full-fidelity default. Phase 14. */
+  exportFormat: ExportFormat;
   /** Landing-page tool (Task 20 + Task 42): what the next upload opens into. */
   landingMode: LandingMode;
   /** Landing page (Task 42): the tool cards, or the tool's detail page. Transient. */
@@ -122,6 +125,7 @@ interface UiState {
   setPaceUnit: (unit: PaceUnit) => void;
   setExportMode: (mode: ExportMode) => void;
   setExportPrettyPrint: (pretty: boolean) => void;
+  setExportFormat: (format: ExportFormat) => void;
   setLandingMode: (mode: LandingMode) => void;
   /** Task 42: open a tool's detail page (also becomes the remembered intent). */
   openLandingTool: (mode: LandingMode) => void;
@@ -138,6 +142,7 @@ export const useUiStore = create<UiState>()(
       paceUnit: "km" as PaceUnit,
       exportMode: "structure-preserving" as ExportMode,
       exportPrettyPrint: false,
+      exportFormat: "gpx" as ExportFormat,
       landingMode: "repair" as LandingMode,
       landingView: "home" as LandingView,
       selectedGapId: null,
@@ -149,6 +154,7 @@ export const useUiStore = create<UiState>()(
       setPaceUnit: (paceUnit) => set({ paceUnit }),
       setExportMode: (exportMode) => set({ exportMode }),
       setExportPrettyPrint: (exportPrettyPrint) => set({ exportPrettyPrint }),
+      setExportFormat: (exportFormat) => set({ exportFormat }),
       setLandingMode: (landingMode) => set({ landingMode }),
       // Task 42 — the cards home: one action keeps the open tool page
       // and the remembered upload intent the same value.
@@ -168,6 +174,7 @@ export const useUiStore = create<UiState>()(
         paceUnit: state.paceUnit,
         exportMode: state.exportMode,
         exportPrettyPrint: state.exportPrettyPrint,
+        exportFormat: state.exportFormat,
         landingMode: state.landingMode,
       }),
       // Avoid SSR/prerender hydration mismatches; AppShell rehydrates on

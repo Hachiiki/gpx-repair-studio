@@ -33,8 +33,16 @@ import {
   exportGpxRepaired,
   type ExportMode,
 } from "@/features/gpx/exportGpx";
+import { exportKml } from "@/features/formats/export-kml";
+import { exportGeoJson } from "@/features/formats/export-geojson";
+import { exportCsv } from "@/features/formats/export-csv";
+import type { ExportFormat } from "@/features/formats/export-formats";
 import { createDomXmlIo } from "@/lib/utils/xml";
-import { downloadTextFile, repairedFileName } from "@/lib/utils/download";
+import {
+  downloadTextFile,
+  exportFileName,
+  exportMimeType,
+} from "@/lib/utils/download";
 import { announce } from "@/lib/announcements";
 import { useEditorStore } from "@/state/editor-store";
 import { useUiStore } from "@/state/ui-store";
@@ -44,6 +52,8 @@ import type { GpxSession } from "@/hooks/use-gpx-session";
 // App-layer facade: components may not import feature internals (ESLint
 // boundary, §F), so the export vocabulary they need flows through here.
 export type { ExportMode } from "@/features/gpx/exportGpx";
+export type { ExportFormat } from "@/features/formats/export-formats";
+export { EXPORT_FORMAT_OPTIONS } from "@/features/formats/export-formats";
 
 /** What the pre-export dialog shows — every number is derived, never stored. */
 export interface ExportSummary {
@@ -99,8 +109,11 @@ export interface GpxExportBinding {
   /** Persisted export settings (§H-7). */
   exportMode: ExportMode;
   prettyPrint: boolean;
+  /** Persisted export format (§EE 14.4). */
+  exportFormat: ExportFormat;
   setExportMode: (mode: ExportMode) => void;
   setPrettyPrint: (pretty: boolean) => void;
+  setExportFormat: (format: ExportFormat) => void;
   /** Serialize + download; returns the file name handed to the browser. */
   download: () => string | null;
 }
@@ -129,8 +142,10 @@ export function useGpxExport(
 
   const exportMode = useUiStore((s) => s.exportMode);
   const prettyPrint = useUiStore((s) => s.exportPrettyPrint);
+  const exportFormat = useUiStore((s) => s.exportFormat);
   const setExportMode = useUiStore((s) => s.setExportMode);
   const setPrettyPrint = useUiStore((s) => s.setExportPrettyPrint);
+  const setExportFormat = useUiStore((s) => s.setExportFormat);
 
   const data = session.data;
   /*
@@ -265,19 +280,59 @@ export function useGpxExport(
 
   const download = useCallback((): string | null => {
     if (!workingData || !merge) return null;
-    const xml = exportGpxRepaired(
-      workingData,
-      merge,
-      { mode: exportMode, prettyPrint },
-      createDomXmlIo(),
-    );
-    const fileName = repairedFileName(session.fileName ?? "activity.gpx");
-    downloadTextFile(fileName, xml);
+    /*
+     * §EE 14.4 — the format picker: GPX is the full-fidelity export;
+     * KML/GeoJSON/CSV are the interchange views built from the SAME
+     * working copy + merge (the stats labels reuse the panel's numbers,
+     * never a second computation).
+     */
+    const stats = {
+      distanceM: session.distanceStats?.totalDistanceM ?? 0,
+      ...(session.timeStats?.hasTimingData
+        ? { movingMs: session.timeStats.recordedMovingTimeMs }
+        : {}),
+    };
+    const text =
+      exportFormat === "kml"
+        ? exportKml(workingData, merge, {
+            prettyPrint,
+            sourceName: session.fileName ?? undefined,
+            stats,
+          })
+        : exportFormat === "geojson"
+          ? exportGeoJson(workingData, merge, {
+              prettyPrint,
+              sourceName: session.fileName ?? undefined,
+              stats,
+            })
+          : exportFormat === "csv"
+            ? exportCsv(workingData, merge, {
+                prettyPrint,
+                sourceName: session.fileName ?? undefined,
+                stats,
+              })
+            : exportGpxRepaired(
+                workingData,
+                merge,
+                { mode: exportMode, prettyPrint },
+                createDomXmlIo(),
+              );
+    const fileName = exportFileName(session.fileName ?? "activity.gpx", exportFormat);
+    downloadTextFile(fileName, text, exportMimeType(exportFormat));
     // Phase 8: no visual focus moves on a blob download — the
     // aria-live region speaks it.
     announce(`Export ready — ${fileName} downloaded.`);
     return fileName;
-  }, [workingData, merge, exportMode, prettyPrint, session.fileName]);
+  }, [
+    workingData,
+    merge,
+    exportMode,
+    prettyPrint,
+    exportFormat,
+    session.fileName,
+    session.distanceStats,
+    session.timeStats,
+  ]);
 
   return {
     ready: merge !== null,
@@ -285,8 +340,10 @@ export function useGpxExport(
     summary,
     exportMode,
     prettyPrint,
+    exportFormat,
     setExportMode,
     setPrettyPrint,
+    setExportFormat,
     download,
   };
 }

@@ -21,6 +21,8 @@ The design principle underneath all six: **recorded data and reconstructed data 
 
 **Deep validation** (repair workspace) hunts the damage a fix can address: GPS teleports (implied speeds above 130 km/h), near-duplicate points, backwards clocks, elevation outliers, stop-and-wander drift, and missing-elevation runs. Every finding jumps to the map and lists its points as text; every fix — remove spikes, dedupe, sort by time, smooth elevations, thin an over-dense recording — shows *exactly* what would change before you confirm, lands in a per-fix change log with an undo, and never rewrites the original: fixes live on a **working copy** that statistics, the map route, and the export recompute from, with the changes disclosed in the exported file's metadata and marked per point (`gpxr:modified`). Presets chain the fixes — *Drift cleanup*, *Dedupe & sort*, *Resample (thin)*, *Spike & outlier sweep* — each previewed as a whole. Confirmed fixes survive a reload with the rest of your session.
 
+**Formats in & out.** The intake reads **GPX, TCX, and FIT** — auto-detected from the file's bytes, not its name, so a Garmin `.FIT` or a Strava-style `.TCX` drops straight into the same repair pipeline (heart rate / cadence / power ride along as read-only passthrough; pause records without coordinates are skipped and disclosed). The export dialog offers **KML** (Google Earth), **GeoJSON** (GIS tools), and **CSV** (spreadsheets) alongside GPX: every format carries the provenance labels — KML as ExtendedData, GeoJSON as feature properties, CSV as a per-point provenance column — and the GPX export remains the full-fidelity one with `gpxr` markers.
+
 ---
 
 ## Privacy in one paragraph

@@ -26,6 +26,13 @@
  *     so relational checks (validate) and point-local damage (parse) share
  *     one flag vocabulary on the frozen model.
  *
+ * Phase 14 additions (formats in & out — §EE 14):
+ *   - `TrackPointMetrics` — the read-only hr/cad/watts passthrough carried by
+ *     points imported from TCX/FIT (never by GPX parse; never editable).
+ *   - `GpxParseError` (name kept for stability — it is the parse-error
+ *     vocabulary of the whole app now) gains the non-GPX intake kinds:
+ *     `unsupported-format`, `not-a-tcx-document`, `malformed-fitness-file`.
+ *
  * Phase 1 — GPX Domain Core. Pure types; no runtime behavior here.
  */
 
@@ -129,6 +136,30 @@ export interface OriginalTrackPoint extends LatLon {
   flags: readonly PointAnomaly[];
   /** Verbatim source capture for identity export. Never mutated. */
   raw: RawTrkptCapture;
+  /**
+   * Phase 14 — recorded physiology metrics from TCX/FIT import
+   * (heart rate / cadence / power). Read-only passthrough: the GPX
+   * parser never sets it, no editor can change it, and the KML/GeoJSON/
+   * CSV exporters read it for their optional columns. The GPX re-export
+   * path emits the same values through the synthesized
+   * `gpxtpx:TrackPointExtension` raw capture instead.
+   */
+  metrics?: TrackPointMetrics;
+}
+
+/**
+ * Recorded sensor channels one point can carry (Phase 14 — TCX/FIT import
+ * passthrough). Kept as plain optional numbers so structured clones,
+ * persistence, and the working copy need no special handling; absent for
+ * GPX-parsed points and always absent on reconstructed points.
+ */
+export interface TrackPointMetrics {
+  /** Heart rate, beats per minute. */
+  hr?: number;
+  /** Cadence, rpm (bike) or steps-per-minute (run). */
+  cad?: number;
+  /** Power, watts (cycling recorders). */
+  watts?: number;
 }
 
 /**
@@ -266,6 +297,25 @@ export type GpxParseError =
       /** The `version` attribute is missing or not "1.0"/"1.1". */
       kind: "invalid-version";
       found: string | null;
+    }
+  | {
+      /** Phase 14 — the bytes matched no known track-file format. */
+      kind: "unsupported-format";
+      /** What the sniffer saw, for the honest error copy. */
+      detail: string;
+    }
+  | {
+      /** Phase 14 — well-formed XML, but the root is not a TCX
+       * `<TrainingCenterDatabase>`. */
+      kind: "not-a-tcx-document";
+      rootElement: string | null;
+    }
+  | {
+      /** Phase 14 — the FIT container itself is unreadable (bad header,
+       * no recoverable messages). Truncation that still yields records
+       * is NOT this error — it decodes with a validation issue. */
+      kind: "malformed-fitness-file";
+      message: string;
     };
 
 /** Result of `parseGpx`: a typed model or a typed error — never throws. */
@@ -292,7 +342,8 @@ export type ValidationIssueKind =
   | "single-point-segment" // <trkseg> with exactly one <trkpt>
   | "track-without-segments" // <trk> without any <trkseg>
   | "no-timing-data" // no point in the file carries a usable <time>
-  | "reimported-repair"; // parse: gpxr provenance markers found (info only)
+  | "reimported-repair" // parse: gpxr provenance markers found (info only)
+  | "conversion-note"; // Phase 14: a TCX/FIT import disclosure (info only)
 
 export type ValidationSeverity = "info" | "warning" | "error";
 

@@ -51,7 +51,7 @@ describe("MergeIntake", () => {
 
     const combine = screen.getByTestId("merge-combine");
     expect(combine).toBeDisabled();
-    expect(screen.getByText(/Add at least two GPX files/i)).toBeVisible();
+    expect(screen.getByText(/Add at least two track files/i)).toBeVisible();
   });
 
   it("parses dropped files into stat rows and opens the studio on Combine", async () => {

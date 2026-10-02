@@ -31,8 +31,16 @@ import {
   exportGpxRepaired,
   type ExportMode,
 } from "@/features/gpx/exportGpx";
+import { exportKml } from "@/features/formats/export-kml";
+import { exportGeoJson } from "@/features/formats/export-geojson";
+import { exportCsv } from "@/features/formats/export-csv";
+import type { ExportFormat } from "@/features/formats/export-formats";
 import { createDomXmlIo } from "@/lib/utils/xml";
-import { downloadTextFile, repairedFileName } from "@/lib/utils/download";
+import {
+  downloadTextFile,
+  exportFileName,
+  exportMimeType,
+} from "@/lib/utils/download";
 import { announce } from "@/lib/announcements";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { useUiStore } from "@/state/ui-store";
@@ -40,7 +48,7 @@ import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
 import type { RecoverySession } from "@/hooks/use-recovery-session";
 import type { GpxExportBinding } from "@/hooks/use-gpx-export";
 
-export type { ExportMode };
+export type { ExportMode, ExportFormat };
 
 /**
  * The elevation data the merge consumes — the same input shape the
@@ -67,8 +75,10 @@ export function useRecoveryExport(
 
   const exportMode = useUiStore((s) => s.exportMode);
   const prettyPrint = useUiStore((s) => s.exportPrettyPrint);
+  const exportFormat = useUiStore((s) => s.exportFormat);
   const setExportMode = useUiStore((s) => s.setExportMode);
   const setPrettyPrint = useUiStore((s) => s.setExportPrettyPrint);
+  const setExportFormat = useUiStore((s) => s.setExportFormat);
 
   const data = session.data;
   const statusById = draw.statusById;
@@ -190,19 +200,57 @@ export function useRecoveryExport(
 
   const download = useCallback((): string | null => {
     if (!data || !merge) return null;
-    const xml = exportGpxRepaired(
-      data,
-      merge,
-      { mode: exportMode, prettyPrint },
-      createDomXmlIo(),
-    );
-    const fileName = repairedFileName(session.fileName ?? "activity.gpx");
-    downloadTextFile(fileName, xml);
+    /*
+     * §EE 14.4 — the same format picker as the repair studio (the
+     * recovery section has no working copy; the note honestly says so).
+     */
+    const stats = {
+      distanceM: session.distanceStats?.totalDistanceM ?? 0,
+      ...(session.timeStats?.hasTimingData
+        ? { movingMs: session.timeStats.recordedMovingTimeMs }
+        : {}),
+    };
+    const text =
+      exportFormat === "kml"
+        ? exportKml(data, merge, {
+            prettyPrint,
+            sourceName: session.fileName ?? undefined,
+            stats,
+          })
+        : exportFormat === "geojson"
+          ? exportGeoJson(data, merge, {
+              prettyPrint,
+              sourceName: session.fileName ?? undefined,
+              stats,
+            })
+          : exportFormat === "csv"
+            ? exportCsv(data, merge, {
+                prettyPrint,
+                sourceName: session.fileName ?? undefined,
+                stats,
+              })
+            : exportGpxRepaired(
+                data,
+                merge,
+                { mode: exportMode, prettyPrint },
+                createDomXmlIo(),
+              );
+    const fileName = exportFileName(session.fileName ?? "activity.gpx", exportFormat);
+    downloadTextFile(fileName, text, exportMimeType(exportFormat));
     // Phase 8: the download handed the browser a blob — no visual
     // focus moves, so the aria-live region speaks it.
     announce(`Export ready — ${fileName} downloaded.`);
     return fileName;
-  }, [data, merge, exportMode, prettyPrint, session.fileName]);
+  }, [
+    data,
+    merge,
+    exportMode,
+    prettyPrint,
+    exportFormat,
+    session.fileName,
+    session.distanceStats,
+    session.timeStats,
+  ]);
 
   return {
     ready: merge !== null,
@@ -210,8 +258,10 @@ export function useRecoveryExport(
     summary,
     exportMode,
     prettyPrint,
+    exportFormat,
     setExportMode,
     setPrettyPrint,
+    setExportFormat,
     download,
   };
 }

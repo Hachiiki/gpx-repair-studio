@@ -1,12 +1,16 @@
 /**
  * ExportDialog — the pre-export summary (docs/MASTER_PLAN.md §H-7,
- * Phase 7).
+ * Phase 7; §EE 14.4 Phase 14).
  *
  * The honesty surface of the export: what will change (inserted repairs,
- * never-touched originals), the final numbers, the settings (mode +
- * pretty-print), and every caveat that applies — repairs still lacking
- * durations export without timestamps, open editors are excluded, a 1.0
- * file upgrades to 1.1 because the provenance extensions require it.
+ * never-touched originals), the final numbers, the settings (format +
+ * mode + pretty-print), and every caveat that applies — repairs still
+ * lacking durations export without timestamps, open editors are excluded,
+ * a 1.0 file upgrades to 1.1 because the provenance extensions require it.
+ *
+ * Phase 14 adds the format picker: GPX (full fidelity, gpxr markers),
+ * KML, GeoJSON, and CSV — the interchange views of the same working
+ * copy + merge, each carrying the provenance labels its own way.
  *
  * Pure presentation: summary + settings in, intents out. Nothing is
  * computed here beyond formatting.
@@ -25,7 +29,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
-import type { ExportSummary, ExportMode } from "@/hooks/use-gpx-export";
+import {
+  EXPORT_FORMAT_OPTIONS,
+  type ExportFormat,
+  type ExportSummary,
+  type ExportMode,
+} from "@/hooks/use-gpx-export";
 import { formatDistanceMeters } from "@/lib/utils/format";
 
 export interface ExportDialogProps {
@@ -34,8 +43,10 @@ export interface ExportDialogProps {
   summary: ExportSummary;
   exportMode: ExportMode;
   prettyPrint: boolean;
+  exportFormat: ExportFormat;
   onExportModeChange: (mode: ExportMode) => void;
   onPrettyPrintChange: (pretty: boolean) => void;
+  onExportFormatChange: (format: ExportFormat) => void;
   onDownload: () => void;
 }
 
@@ -62,17 +73,23 @@ export function ExportDialog({
   summary,
   exportMode,
   prettyPrint,
+  exportFormat,
   onExportModeChange,
   onPrettyPrintChange,
+  onExportFormatChange,
   onDownload,
 }: ExportDialogProps) {
   const hasRepairs = summary.repairCount > 0;
+  const formatOption =
+    EXPORT_FORMAT_OPTIONS.find((o) => o.value === exportFormat) ??
+    EXPORT_FORMAT_OPTIONS[0];
+  const prettyApplies = exportFormat !== "csv";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent data-testid="export-dialog" className="max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Export repaired GPX</DialogTitle>
+          <DialogTitle>Export your repaired track</DialogTitle>
           <DialogDescription>
             {hasRepairs
               ? "The download includes your committed repairs, marked so re-uploading keeps them distinguishable from the recording."
@@ -252,10 +269,10 @@ export function ExportDialog({
           </div>
         )}
 
-        {/* Settings */}
-        <fieldset className="grid gap-2.5" data-testid="export-settings">
-          <legend className="text-sm font-semibold">File layout</legend>
-          {MODE_OPTIONS.map((option) => (
+        {/* Format picker (§EE 14.4) */}
+        <fieldset className="grid gap-2.5" data-testid="export-format-settings">
+          <legend className="text-sm font-semibold">File format</legend>
+          {EXPORT_FORMAT_OPTIONS.map((option) => (
             <label
               key={option.value}
               className="grid cursor-pointer gap-1 rounded-md border p-3 text-sm transition-colors has-[[input:checked]]:border-primary"
@@ -263,11 +280,11 @@ export function ExportDialog({
               <span className="flex items-center gap-2 font-medium">
                 <input
                   type="radio"
-                  name="export-mode"
+                  name="export-format"
                   value={option.value}
-                  checked={exportMode === option.value}
-                  onChange={() => onExportModeChange(option.value)}
-                  data-testid={`export-mode-${option.value}`}
+                  checked={exportFormat === option.value}
+                  onChange={() => onExportFormatChange(option.value)}
+                  data-testid={`export-format-${option.value}`}
                   className="accent-primary"
                 />
                 {option.label}
@@ -277,16 +294,47 @@ export function ExportDialog({
               </span>
             </label>
           ))}
+        </fieldset>
+
+        {/* GPX layout (only the GPX export has segment modes) */}
+        {exportFormat === "gpx" && (
+          <fieldset className="grid gap-2.5" data-testid="export-settings">
+            <legend className="text-sm font-semibold">GPX layout</legend>
+            {MODE_OPTIONS.map((option) => (
+              <label
+                key={option.value}
+                className="grid cursor-pointer gap-1 rounded-md border p-3 text-sm transition-colors has-[[input:checked]]:border-primary"
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  <input
+                    type="radio"
+                    name="export-mode"
+                    value={option.value}
+                    checked={exportMode === option.value}
+                    onChange={() => onExportModeChange(option.value)}
+                    data-testid={`export-mode-${option.value}`}
+                    className="accent-primary"
+                  />
+                  {option.label}
+                </span>
+                <span className="pl-6 text-xs text-muted-foreground">
+                  {option.hint}
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+        {prettyApplies && (
           <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm font-medium">
             Human-readable formatting
             <Switch
               checked={prettyPrint}
               onCheckedChange={onPrettyPrintChange}
               data-testid="export-pretty-print"
-              aria-label="Pretty-print the exported XML"
+              aria-label="Pretty-print the exported file"
             />
           </label>
-        </fieldset>
+        )}
 
         <DialogFooter>
           <Button
@@ -305,7 +353,7 @@ export function ExportDialog({
               onOpenChange(false);
             }}
           >
-            Download GPX
+            Download {formatOption.label}
           </Button>
         </DialogFooter>
       </DialogContent>

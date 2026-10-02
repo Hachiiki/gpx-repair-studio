@@ -102,8 +102,10 @@ export function ExportCard({ exporter }: ExportCardProps) {
         summary={summary}
         exportMode={exporter.exportMode}
         prettyPrint={exporter.prettyPrint}
+        exportFormat={exporter.exportFormat}
         onExportModeChange={exporter.setExportMode}
         onPrettyPrintChange={exporter.setPrettyPrint}
+        onExportFormatChange={exporter.setExportFormat}
         onDownload={exporter.download}
       />
     </>

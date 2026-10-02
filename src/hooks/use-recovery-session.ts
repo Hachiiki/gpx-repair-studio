@@ -229,23 +229,27 @@ export async function loadRecoveryFile(file: File): Promise<void> {
   if (file.size === 0) {
     store.fail({
       title: "Empty file",
-      detail: `"${file.name}" contains no data. Choose a non-empty GPX export.`,
+      detail: `"${file.name}" contains no data. Choose a non-empty track export.`,
     });
     return;
   }
 
   try {
-    const text = await file.text();
+    // Phase 14 — bytes, not text: the pipeline sniffs GPX/TCX/FIT.
+    const bytes = await file.arrayBuffer();
     // Yield once so the loading state paints before the parse of large
     // files (same contract as the repair studio; the Phase 9 worker then
     // runs the pipeline off-thread).
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const result = await runParsePipeline(text, {
-      gapThresholds: useUiStore.getState().gapThresholds,
-      onProgress: (progress) =>
-        useRecoveryStore.getState().setProgress(progress),
-    });
+    const result = await runParsePipeline(
+      { bytes, fileName: file.name },
+      {
+        gapThresholds: useUiStore.getState().gapThresholds,
+        onProgress: (progress) =>
+          useRecoveryStore.getState().setProgress(progress),
+      },
+    );
     if (!result.ok) {
       store.fail(describeParseError(result.error, file.name));
       return;

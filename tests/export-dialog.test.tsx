@@ -58,6 +58,7 @@ function renderDialog(
   const onOpenChange = vi.fn();
   const onExportModeChange = vi.fn();
   const onPrettyPrintChange = vi.fn();
+  const onExportFormatChange = vi.fn();
   render(
     <ExportDialog
       open
@@ -65,12 +66,14 @@ function renderDialog(
       summary={summary(props.summary)}
       exportMode={props.exportMode ?? "structure-preserving"}
       prettyPrint={props.prettyPrint ?? false}
+      exportFormat={props.exportFormat ?? "gpx"}
       onExportModeChange={onExportModeChange}
       onPrettyPrintChange={onPrettyPrintChange}
+      onExportFormatChange={onExportFormatChange}
       onDownload={onDownload}
     />,
   );
-  return { onDownload, onOpenChange, onExportModeChange, onPrettyPrintChange };
+  return { onDownload, onOpenChange, onExportModeChange, onPrettyPrintChange, onExportFormatChange };
 }
 
 describe("ExportCard", () => {
@@ -86,8 +89,10 @@ describe("ExportCard", () => {
           summary: summary(overrides),
           exportMode: "structure-preserving",
           prettyPrint: false,
+          exportFormat: "gpx",
           setExportMode: vi.fn(),
           setPrettyPrint: vi.fn(),
+          setExportFormat: vi.fn(),
           download,
         }}
       />,
@@ -128,8 +133,10 @@ describe("ExportCard", () => {
           summary: null,
           exportMode: "structure-preserving",
           prettyPrint: false,
+          exportFormat: "gpx",
           setExportMode: vi.fn(),
           setPrettyPrint: vi.fn(),
+          setExportFormat: vi.fn(),
           download: vi.fn(),
         }}
       />,
@@ -161,7 +168,10 @@ describe("ExportDialog — what goes into the file", () => {
     const dialog = screen.getByTestId("export-dialog");
     expect(dialog).toHaveTextContent("No committed repairs yet");
     expect(dialog).toHaveTextContent("structure-preserved copy");
-    expect(dialog).not.toHaveTextContent("gpxr provenance markers");
+    // The "what goes into the file" list carries no marker note (the
+    // format picker's GPX hint text legitimately mentions gpxr).
+    const changes = screen.getByTestId("export-changes");
+    expect(changes).not.toHaveTextContent("gpxr provenance markers");
   });
 
   it("mentions preserved markers from a previous repair (re-import)", () => {
@@ -234,5 +244,42 @@ describe("ExportDialog — settings + download", () => {
     fireEvent.click(screen.getByTestId("export-cancel-button"));
     expect(onDownload).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("ExportDialog — the format picker (Phase 14)", () => {
+  it("lists all four formats with their hints", () => {
+    renderDialog();
+    const settings = screen.getByTestId("export-format-settings");
+    expect(settings).toHaveTextContent("GPX");
+    expect(settings).toHaveTextContent("KML");
+    expect(settings).toHaveTextContent("GeoJSON");
+    expect(settings).toHaveTextContent("CSV");
+    expect(settings).toHaveTextContent("provenance column");
+  });
+
+  it("switching the format dispatches the intent", () => {
+    const { onExportFormatChange } = renderDialog();
+    fireEvent.click(screen.getByTestId("export-format-kml"));
+    expect(onExportFormatChange).toHaveBeenCalledWith("kml");
+  });
+
+  it("the GPX layout modes are hidden for non-GPX formats", () => {
+    renderDialog({ exportFormat: "kml" });
+    expect(screen.queryByTestId("export-mode-merged")).not.toBeInTheDocument();
+    // Pretty-print still applies to KML.
+    expect(screen.getByTestId("export-pretty-print")).toBeInTheDocument();
+  });
+
+  it("CSV hides the pretty-print switch (single canonical spelling)", () => {
+    renderDialog({ exportFormat: "csv" });
+    expect(screen.queryByTestId("export-pretty-print")).not.toBeInTheDocument();
+  });
+
+  it("the download button names the selected format", () => {
+    renderDialog({ exportFormat: "geojson" });
+    expect(screen.getByTestId("export-download-button")).toHaveTextContent(
+      "Download GeoJSON",
+    );
   });
 });

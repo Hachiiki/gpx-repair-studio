@@ -22,7 +22,7 @@ describe("UploadZone", () => {
       'input[type="file"]',
     );
     expect(fileInput).not.toBeNull();
-    expect(fileInput).toHaveAttribute("accept", ".gpx,.xml");
+    expect(fileInput).toHaveAttribute("accept", ".gpx,.tcx,.fit,.xml");
     // The visible zone is a <label for=…>: keyboard users reach the native
     // picker by focusing the input itself.
     expect(fileInput).not.toBeDisabled();

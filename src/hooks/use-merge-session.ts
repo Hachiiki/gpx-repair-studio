@@ -84,25 +84,29 @@ export async function addMergeFiles(files: readonly File[]): Promise<void> {
     if (file.size === 0) {
       live.setFileError(id, {
         title: "Empty file",
-        detail: `"${file.name}" contains no data. Choose a non-empty GPX export.`,
+        detail: `"${file.name}" contains no data. Choose a non-empty track export.`,
       });
       continue;
     }
 
     try {
-      const text = await file.text();
+      // Phase 14 — bytes, not text: the pipeline sniffs GPX/TCX/FIT.
+      const bytes = await file.arrayBuffer();
       // Yield once so the parsing state paints before the parse of large
       // files (same contract as the other intakes; the Phase 9 worker
       // then runs the pipeline off-thread — merge needs no gap
       // detection, so the worker skips it).
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      const result = await runParsePipeline(text, {
-        // Thresholds are unused here (merge never detects gaps) — the
-        // canonical defaults keep the request contract complete.
-        gapThresholds: DEFAULT_GAP_THRESHOLDS,
-        detectGaps: false,
-      });
+      const result = await runParsePipeline(
+        { bytes, fileName: file.name },
+        {
+          // Thresholds are unused here (merge never detects gaps) — the
+          // canonical defaults keep the request contract complete.
+          gapThresholds: DEFAULT_GAP_THRESHOLDS,
+          detectGaps: false,
+        },
+      );
       if (!result.ok) {
         live.setFileError(id, describeParseError(result.error, file.name));
         continue;

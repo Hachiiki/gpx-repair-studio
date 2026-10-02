@@ -175,6 +175,28 @@ export function describeParseError(
           `declares ${error.found ? `"${error.found}"` : "no version"}. ` +
           `Re-export from your device or platform with a standard GPX version.`,
       };
+    case "unsupported-format":
+      return {
+        title: "Unsupported file format",
+        detail:
+          `"${fileName}" is not a GPX, TCX, or FIT track file (${error.detail}). ` +
+          `Re-export the activity in one of those formats and try again.`,
+      };
+    case "not-a-tcx-document":
+      return {
+        title: "Not a TCX file",
+        detail:
+          `Expected a <TrainingCenterDatabase> root element but found ` +
+          `${error.rootElement ? `<${error.rootElement}>` : "no root element"}. ` +
+          `Re-export the activity as a TCX file and try again.`,
+      };
+    case "malformed-fitness-file":
+      return {
+        title: "Unreadable FIT file",
+        detail:
+          `"${fileName}" could not be decoded as a FIT file (${error.message}). ` +
+          `The file may be corrupted or not a FIT export at all.`,
+      };
   }
 }
 
@@ -309,22 +331,27 @@ export async function loadGpxFile(file: File): Promise<void> {
   if (file.size === 0) {
     session.fail({
       title: "Empty file",
-      detail: `"${file.name}" contains no data. Choose a non-empty GPX export.`,
+      detail: `"${file.name}" contains no data. Choose a non-empty GPX, TCX, or FIT export.`,
     });
     return;
   }
 
   try {
-    const text = await file.text();
+    // Phase 14 — bytes, not text: the pipeline sniffs GPX/TCX/FIT from
+    // the magic bytes and decodes XML itself (same lossy UTF-8).
+    const bytes = await file.arrayBuffer();
     // Yield once more so the loading state paints before the parse of
     // large files (which then runs in the Phase 9 worker off-thread).
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const result = await runParsePipeline(text, {
-      gapThresholds: useUiStore.getState().gapThresholds,
-      onProgress: (progress) =>
-        useSessionStore.getState().setProgress(progress),
-    });
+    const result = await runParsePipeline(
+      { bytes, fileName: file.name },
+      {
+        gapThresholds: useUiStore.getState().gapThresholds,
+        onProgress: (progress) =>
+          useSessionStore.getState().setProgress(progress),
+      },
+    );
     if (!result.ok) {
       session.fail(describeParseError(result.error, file.name));
       return;

@@ -74,7 +74,7 @@ export function MergeIntake() {
           </span>
           <span className="space-y-1">
             <span className="block text-[17px] font-bold tracking-tight">
-              Drop your GPX files here
+              Drop your GPX, TCX, or FIT files here
             </span>
             <span className="block text-[13px] text-muted-foreground">
               two or more — or{" "}
@@ -87,7 +87,7 @@ export function MergeIntake() {
         <input
           id={inputId}
           type="file"
-          accept=".gpx,application/gpx+xml,text/xml"
+          accept=".gpx,.tcx,.fit,.xml,application/gpx+xml,text/xml"
           multiple
           className="sr-only"
           onChange={(event) => {
@@ -210,7 +210,7 @@ export function MergeIntake() {
       {!canCombine && (
         <p className="text-center text-[12.5px] text-muted-foreground">
           {session.parsedCount === 0
-            ? "Add at least two GPX files to combine them."
+            ? "Add at least two track files to combine them."
             : "One more file — a merge needs at least two."}
         </p>
       )}

@@ -184,7 +184,7 @@ export function MergeFilesCard({
           <input
             id={inputId}
             type="file"
-            accept=".gpx,application/gpx+xml,text/xml"
+            accept=".gpx,.tcx,.fit,.xml,application/gpx+xml,text/xml"
             multiple
             className="sr-only"
             onChange={(event) => {

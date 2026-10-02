@@ -27,6 +27,7 @@ import type {
   OriginalTrackPoint,
 } from "@/types/domain";
 import type { GapThresholds } from "@/features/gpx/detectGaps";
+import type { TrackFormat } from "@/features/formats/sniff";
 
 /** Pipeline phases, in order (the client also uses "read" pre-worker). */
 export type ParseWorkerPhase =
@@ -43,7 +44,12 @@ export interface ParseProgress {
 
 export interface ParseRequest {
   type: "parse";
-  text: string;
+  /** Phase 14 — the sniffed format decides which parser runs. */
+  format: TrackFormat;
+  /** Decoded document text (XML formats; the client decoded the bytes). */
+  text?: string;
+  /** Raw FIT bytes (transferable — the binary format never becomes text). */
+  bytes?: ArrayBuffer;
   gapThresholds: GapThresholds;
   /** False for consumers that don't need gap detection (merge). */
   detectGaps: boolean;
@@ -84,9 +90,10 @@ export type ParseResponse =
 export const PARSE_CHUNK_POINTS = 8_192;
 
 /**
- * Files whose decoded text is at least this size route to the worker
- * (~10k+ points for typical GPX). Below it the inline path runs —
- * byte-identical to the pre-Phase-9 behavior every existing test pins.
+ * Files whose source size is at least this many bytes route to the worker
+ * (~10k+ points for typical GPX; comparable for TCX text and FIT binary).
+ * Below it the inline path runs — byte-identical to the pre-Phase-9
+ * behavior every existing test pins.
  */
 export const PARSE_WORKER_THRESHOLD_BYTES = 1_000_000;
 

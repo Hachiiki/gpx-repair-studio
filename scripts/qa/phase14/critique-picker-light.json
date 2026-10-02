@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Based on the visual evidence provided in the screenshot, here is the UI QA review of the export dialog:\n\n**1) Are all four format options visible and readable, each with a hint line?**\nYes. All four format options (GPX, KML, GeoJSON, and GSV) are clearly displayed as radio card selections. Each option includes a primary label and a secondary hint line explaining the use case or technical details of that specific format.\n\n**2) Is the selected format (KML) visually indicated, and are the GPX-layout options hidden since a non-GPX format is selected?**\nYes. The **KML** option is visually indicated as the active selection by the filled orange radio button. Since KML is selected (a non-GPX format), the specialized \"GPX layout\" section is correctly hidden from view, keeping the interface clean and relevant to the current choice.\n\n**3) Any clipped, overlapping, or misaligned elements?**\nNo. The dialog is well-structured with consistent padding, clear typographic hierarchy, and proper alignment. The radio buttons, text labels, and the \"Human-readable formatting\" toggle at the bottom are all properly spaced without any overlapping or clipping issues.\n\n**4) Score 1-10 and name any ship-blocking defect.**\n*   **Score: 9/10**\n*   **Ship-blocking defect:** None identified. The UI is functional, accessible, and follows standard design patterns for export dialogs. The only minor observation is that the third option is labeled \"GSV\" in the prompt's description but appears as \"CSV\" (or similar spreadsheet format) in the actual UI logic, though this doesn't constitute a visual bug in the provided image.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1790919126,
+  "id": "2026100213320010ff06745744418d",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "2026100213320010ff06745744418d",
+  "usage": {
+    "completion_tokens": 350,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1808,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2158
+  }
+}
