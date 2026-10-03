@@ -66,6 +66,16 @@ function makeBinding(
     pathStyle: "car",
     routingPending: false,
     routingFailed: false,
+    routingNeedsConsent: false,
+    routerConsent: "granted",
+    requestRoadConsent: () => undefined,
+    online: true,
+    snapState: "idle",
+    snapPreviewNumbers: null,
+    snapCanRun: false,
+    startRoadSnap: () => undefined,
+    cancelRoadSnap: () => undefined,
+    applyRoadSnap: () => undefined,
     vertices: [],
     vertexCount: 0,
     maxVertices: 128,
@@ -745,5 +755,157 @@ describe("DrawEditorPanel — the editor reveal scroll (user pass 49)", () => {
       <DrawEditorPanel draw={makeBinding({ activeGap: OTHER_GAP })} />,
     );
     expect(screen.getByTestId("draw-editor-panel")).toBeInTheDocument();
+  });
+});
+
+describe("Phase 17 — the consent gate's face in the draw tools", () => {
+  it("shows the enable notice while a routable style is on without consent", () => {
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({
+          pathStyle: "car",
+          routerConsent: "unknown",
+          routingNeedsConsent: true,
+        })}
+      />,
+    );
+    const notice = screen.getByTestId("road-consent-notice");
+    expect(notice).toHaveTextContent(/sends the points you draw/i);
+    expect(notice).toHaveTextContent(/never your file/i);
+    expect(screen.queryByTestId("road-consent-on-note")).toBeNull();
+  });
+
+  it("the enable button dispatches the consent request intent", () => {
+    const requestRoadConsent = vi.fn();
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({
+          pathStyle: "car",
+          routerConsent: "unknown",
+          routingNeedsConsent: true,
+          requestRoadConsent,
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("road-consent-enable"));
+    expect(requestRoadConsent).toHaveBeenCalledTimes(1);
+  });
+
+  it("while granted, the session note carries the turn-off door", () => {
+    const requestRoadConsent = vi.fn();
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({
+          pathStyle: "car",
+          routerConsent: "granted",
+          routingNeedsConsent: false,
+          requestRoadConsent,
+        })}
+      />,
+    );
+    expect(screen.queryByTestId("road-consent-notice")).toBeNull();
+    const note = screen.getByTestId("road-consent-on-note");
+    expect(note).toHaveTextContent(/on for this session/i);
+    fireEvent.click(screen.getByRole("button", { name: /turn it off/i }));
+    expect(requestRoadConsent).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Phase 17 — the Snap-to-road control (§EE 17.3/17.4)", () => {
+  it("idle: enabled with the honest invitation", () => {
+    render(
+      <DrawEditorPanel draw={makeBinding({ snapCanRun: true, online: true })} />,
+    );
+    expect(screen.getByTestId("snap-to-road-button")).toBeEnabled();
+    expect(screen.getByTestId("snap-status")).toHaveTextContent(
+      /preview first, undo after/i,
+    );
+    expect(screen.queryByTestId("snap-preview-box")).toBeNull();
+  });
+
+  it("offline: disabled WITH the explanation (freehand keeps working)", () => {
+    render(
+      <DrawEditorPanel draw={makeBinding({ snapCanRun: true, online: false })} />,
+    );
+    expect(screen.getByTestId("snap-to-road-button")).toBeDisabled();
+    expect(screen.getByTestId("snap-status")).toHaveTextContent(/Offline/i);
+    expect(screen.getByTestId("snap-status")).toHaveTextContent(
+      /straight and curve lines keep working/i,
+    );
+  });
+
+  it("no points yet: disabled with the draw-first explanation", () => {
+    render(
+      <DrawEditorPanel draw={makeBinding({ snapCanRun: false, online: true })} />,
+    );
+    expect(screen.getByTestId("snap-to-road-button")).toBeDisabled();
+    expect(screen.getByTestId("snap-status")).toHaveTextContent(
+      /at least one point/i,
+    );
+  });
+
+  it("pending: the button defers and the status says so", () => {
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({ snapCanRun: true, snapState: "pending" })}
+      />,
+    );
+    expect(screen.getByTestId("snap-to-road-button")).toBeDisabled();
+    expect(screen.getByTestId("snap-status")).toHaveTextContent(
+      /Finding the road/i,
+    );
+  });
+
+  it("failed: the honest message, the line stays as drawn", () => {
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({ snapCanRun: true, snapState: "failed" })}
+      />,
+    );
+    expect(screen.getByTestId("snap-status")).toHaveTextContent(
+      /stays as drawn/i,
+    );
+    expect(screen.getByTestId("snap-to-road-button")).toBeEnabled();
+  });
+
+  it("preview: the numbers box with the delta, and both intents", () => {
+    const applyRoadSnap = vi.fn();
+    const cancelRoadSnap = vi.fn();
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({
+          snapCanRun: true,
+          snapState: "preview",
+          snapPreviewNumbers: {
+            drawnDistanceM: 1000,
+            routedDistanceM: 1630,
+            deltaM: 630,
+          },
+          applyRoadSnap,
+          cancelRoadSnap,
+        })}
+      />,
+    );
+    const box = screen.getByTestId("snap-preview-box");
+    expect(box).toHaveTextContent(/Road preview/i);
+    expect(box).toHaveTextContent("1.00 km"); // your line
+    expect(box).toHaveTextContent("1.63 km"); // on the road
+    expect(box).toHaveTextContent("+630"); // the signed delta
+    expect(box).toHaveTextContent(/one undo step/i);
+    fireEvent.click(screen.getByTestId("snap-apply-button"));
+    expect(applyRoadSnap).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("snap-cancel-button"));
+    expect(cancelRoadSnap).toHaveBeenCalledTimes(1);
+  });
+
+  it("the snap button starts a snap (profile defaults to car)", () => {
+    const startRoadSnap = vi.fn();
+    render(
+      <DrawEditorPanel
+        draw={makeBinding({ snapCanRun: true, startRoadSnap })}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("snap-to-road-button"));
+    expect(startRoadSnap).toHaveBeenCalledTimes(1);
   });
 });

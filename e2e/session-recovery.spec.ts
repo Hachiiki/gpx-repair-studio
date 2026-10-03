@@ -1,7 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import { join } from "node:path";
 import { enterRepairTool } from "./helpers/landing";
-import { abortRoadRouting, mockOsrmBulge, type OsrmCallLog } from "./helpers/road-follow";
+import {
+  abortRoadRouting,
+  grantRoadConsent,
+  mockOsrmBulge,
+  type OsrmCallLog,
+} from "./helpers/road-follow";
 
 /**
  * E2E — Phase 10, session recovery (IndexedDB autosave + restore).
@@ -290,6 +295,7 @@ test.describe("road-followed lines restore WYSIWYG (zero new requests)", () => {
     await upload(page);
     await poll(page, () => mapBridge(page), (s) => s.ready && s.routeFeatureCount > 0 && !s.moving);
     await openEditor(page);
+    await grantRoadConsent(page);
     await drawPoints(page, DRAW_POINTS.slice(0, 3));
     // The road legs resolve through the mock (that is what gets stored).
     const beforeChain = await settledChain(page);

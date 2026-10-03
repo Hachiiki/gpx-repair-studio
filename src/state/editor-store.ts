@@ -227,6 +227,23 @@ export function activeReconstruction(
     : (state.reconstructions[state.activeGapId] ?? null);
 }
 
+/**
+ * Phase 17 — a `set-line` command (the snap apply) moves the line's
+ * path style with its geometry; the ACTIVE chip state follows the
+ * reconstruction so the panel never shows a style the line does not
+ * have. Called only for `set-line` commits and their undo/redo —
+ * every other path keeps the existing write-through contract.
+ */
+function styleSyncPatch(
+  state: EditorState,
+  gapId: GapId,
+  reconstruction: Reconstruction,
+): Partial<EditorState> {
+  if (state.activeGapId !== gapId) return {};
+  const style = reconstruction.pathStyle ?? "off";
+  return state.pathStyle === style ? {} : { pathStyle: style };
+}
+
 export const useEditorStore = create<EditorState>()((set, get) => ({
   ...INITIAL,
 
@@ -425,6 +442,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         [current.gapId]: next.reconstruction,
       },
       history: next.history,
+      // §EE 17.3: a snap apply carries the style with the geometry.
+      ...(command.kind === "set-line"
+        ? styleSyncPatch(state, current.gapId, next.reconstruction)
+        : {}),
     });
   },
 
@@ -576,6 +597,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     const state = get();
     const current = activeReconstruction(state);
     if (!current) return;
+    const popped = state.history.undo[state.history.undo.length - 1];
     const next = undoCommand({
       reconstruction: current,
       history: state.history,
@@ -586,6 +608,11 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         [current.gapId]: next.reconstruction,
       },
       history: next.history,
+      // §EE 17.3: undoing a snap restores the line's style with its
+      // geometry — the chips show what the line IS again.
+      ...(popped?.kind === "set-line"
+        ? styleSyncPatch(state, current.gapId, next.reconstruction)
+        : {}),
     });
   },
 
@@ -593,6 +620,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     const state = get();
     const current = activeReconstruction(state);
     if (!current) return;
+    const popped = state.history.redo[state.history.redo.length - 1];
     const next = redoCommand({
       reconstruction: current,
       history: state.history,
@@ -603,6 +631,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         [current.gapId]: next.reconstruction,
       },
       history: next.history,
+      ...(popped?.kind === "set-line"
+        ? styleSyncPatch(state, current.gapId, next.reconstruction)
+        : {}),
     });
   },
 

@@ -46,6 +46,7 @@ import type {
   DrawVertex,
   GapId,
   LatLon,
+  PathStyle,
   PointId,
   Reconstruction,
   VertexId,
@@ -100,7 +101,20 @@ export type DrawCommand =
   | { kind: "insert-vertex"; index: number; vertex: DrawVertex }
   | { kind: "move-vertex"; vertexId: VertexId; from: VertexPosition; to: VertexPosition }
   | { kind: "delete-vertex"; index: number; vertex: DrawVertex }
-  | { kind: "set-vertices"; previous: readonly DrawVertex[]; next: readonly DrawVertex[] };
+  | { kind: "set-vertices"; previous: readonly DrawVertex[]; next: readonly DrawVertex[] }
+  | {
+      /** §EE 17.3 — the snap apply: geometry AND style, one undo step. */
+      kind: "set-line";
+      previous: LineSnapshot;
+      next: LineSnapshot;
+    };
+
+/** The full editable essence of a drawn line (the snap command's unit). */
+export interface LineSnapshot {
+  vertices: readonly DrawVertex[];
+  /** The line's path style (`undefined` = the pre-Task-47 default). */
+  pathStyle?: PathStyle;
+}
 
 /** The exact inverse of a command (undo applies this). */
 export function invertDrawCommand(command: DrawCommand): DrawCommand {
@@ -119,6 +133,12 @@ export function invertDrawCommand(command: DrawCommand): DrawCommand {
     case "set-vertices":
       return {
         kind: "set-vertices",
+        previous: command.next,
+        next: command.previous,
+      };
+    case "set-line":
+      return {
+        kind: "set-line",
         previous: command.next,
         next: command.previous,
       };
@@ -226,6 +246,29 @@ export function applyDrawCommand(
         geometryRevision: reconstruction.geometryRevision + 1,
       };
     }
+    case "set-line": {
+      if (command.next.vertices.length > MAX_VERTICES) return reconstruction;
+      const sameGeometry =
+        command.next.vertices.length === vertices.length &&
+        command.next.vertices.every((v, i) => v === vertices[i]);
+      if (sameGeometry && command.next.pathStyle === reconstruction.pathStyle) {
+        return reconstruction;
+      }
+      // The snapshot IS the full style state: an absent style clears
+      // the field (strict inversion — an undo of a snap on a
+      // never-styled line returns it to "no style", not "car").
+      const applied: Reconstruction = {
+        ...reconstruction,
+        vertices: [...command.next.vertices],
+        geometryRevision: reconstruction.geometryRevision + 1,
+      };
+      if (command.next.pathStyle !== undefined) {
+        applied.pathStyle = command.next.pathStyle;
+      } else {
+        delete applied.pathStyle;
+      }
+      return applied;
+    }
   }
 }
 
@@ -316,6 +359,38 @@ export function clearVerticesCommand(
     kind: "set-vertices",
     previous: reconstruction.vertices,
     next: [],
+  };
+}
+
+/**
+ * §EE 17.3 — the snap apply command: replace the line's vertices AND
+ * its path style in ONE undoable step. Strictly invertible (the
+ * inverse swaps the snapshots); `null` on a no-op or an oversized
+ * result (the domain refuses the data — the UI surfaces the cap).
+ */
+export function setLineCommand(
+  reconstruction: Reconstruction,
+  next: LineSnapshot,
+): DrawCommand | null {
+  if (next.vertices.length > MAX_VERTICES) return null;
+  const sameGeometry =
+    next.vertices.length === reconstruction.vertices.length &&
+    next.vertices.every((v, i) => v === reconstruction.vertices[i]);
+  if (sameGeometry && next.pathStyle === reconstruction.pathStyle) {
+    return null;
+  }
+  return {
+    kind: "set-line",
+    previous: {
+      vertices: reconstruction.vertices,
+      ...(reconstruction.pathStyle !== undefined
+        ? { pathStyle: reconstruction.pathStyle }
+        : {}),
+    },
+    next: {
+      vertices: next.vertices,
+      ...(next.pathStyle !== undefined ? { pathStyle: next.pathStyle } : {}),
+    },
   };
 }
 

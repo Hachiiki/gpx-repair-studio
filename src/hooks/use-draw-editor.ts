@@ -44,7 +44,6 @@ import {
   isStraightLinePath,
   joinCurveChain,
   joinDrawChain,
-  RoadFollowRouter,
 } from "@/features/reconstruction/roadFollow";
 import { isUsableStatsPoint } from "@/features/statistics/distance";
 import { simplifyStroke } from "@/features/reconstruction/stroke";
@@ -64,7 +63,16 @@ import {
   type GapStatus,
   type PickMode,
 } from "@/state/editor-store";
-import { useUiStore } from "@/state/ui-store";
+import { useUiStore, type RouterConsent } from "@/state/ui-store";
+import { getRoadRouter, requestRouterConsent } from "@/hooks/road-router";
+import { useOnlineStatus } from "@/hooks/use-online-status";
+import { useRoadSnap } from "@/hooks/use-road-snap";
+import type {
+  RoadSnapPreviewNumbers,
+  RoadSnapState,
+} from "@/hooks/use-road-snap";
+import { setLineCommand } from "@/features/reconstruction/drawModel";
+import type { RoutableRoadMode } from "@/features/reconstruction/roadFollow";
 import { announce } from "@/lib/announcements";
 import type { NudgeStepM } from "@/features/reconstruction/coordEntry";
 import type {
@@ -84,6 +92,7 @@ import type {
 } from "@/types/domain";
 import type { GapRow, GpxSession } from "@/hooks/use-gpx-session";
 import type { MapBinding } from "@/hooks/use-map-controller";
+import { vertexId } from "@/types/ids";
 
 // Domain result types re-exported as the app-layer facade: components
 // may not import feature internals (ESLint boundary, §F), so everything
@@ -100,22 +109,13 @@ export {
 export type { NudgeStepM } from "@/features/reconstruction/coordEntry";
 
 /**
- * The road-follow router (app layer owns the network): one shared
- * instance per page — its cache makes undo/redo and vertex re-drags of the
- * same leg instant. The browser `fetch` is injected (features/** must stay
- * fetch-free). Exported since Task 26: the Gap Recovery section's draw
- * hook shares this instance (and its cache) — one router per page, not
- * per section.
+ * The road-follow router (§EE 17.1/17.2): the shared instance now
+ * lives in `hooks/road-router.ts` — its fetch is consent-gated and
+ * its endpoints resolve from the live provider configuration. The
+ * export stays here for the historical import sites (the recovery,
+ * create, and plan draw hooks).
  */
-let sharedRoadRouter: RoadFollowRouter | null = null;
-export function getRoadRouter(): RoadFollowRouter {
-  if (!sharedRoadRouter) {
-    sharedRoadRouter = new RoadFollowRouter({
-      fetch: (input, init) => fetch(input, init),
-    });
-  }
-  return sharedRoadRouter;
-}
+export { getRoadRouter } from "@/hooks/road-router";
 
 /**
  * The joined time statistics of every COMMITTED repair (Phase 5): the
@@ -193,6 +193,21 @@ export interface DrawEditorBinding {
   routingPending: boolean;
   /** The latest road request failed (straight lines until it recovers). */
   routingFailed: boolean;
+  /** §EE 17.2: routing is on but this session has not consented yet. */
+  routingNeedsConsent: boolean;
+  /** §EE 17.2: the session's consent state (never persisted). */
+  routerConsent: RouterConsent;
+  /** §EE 17.2: open the consent dialog (the enable notice's button). */
+  requestRoadConsent: () => void;
+  /** §EE 17.4: the network is up (the snap control's offline gate). */
+  online: boolean;
+  /** §EE 17.3: the one-shot whole-line snap (state + preview + intents). */
+  snapState: RoadSnapState;
+  snapPreviewNumbers: RoadSnapPreviewNumbers | null;
+  snapCanRun: boolean;
+  startRoadSnap: (profile?: RoutableRoadMode) => void;
+  cancelRoadSnap: () => void;
+  applyRoadSnap: () => void;
   /** The authoritative vertices of the active reconstruction. */
   vertices: readonly DrawVertex[];
   vertexCount: number;
@@ -306,6 +321,9 @@ export function useDrawEditor(
   const history = useEditorStore((s) => s.history);
   const manualSpans = useEditorStore((s) => s.manualSpans);
   const pickMode = useEditorStore((s) => s.pickMode);
+  // §EE 17.2/17.4: the session's consent (transient) + the network.
+  const routerConsent = useUiStore((s) => s.routerConsent);
+  const online = useOnlineStatus();
 
   const gapRows = session.gapRows;
   const mapReady = map.status === "ready";
@@ -708,6 +726,27 @@ export function useDrawEditor(
       resetRouting();
       return;
     }
+    /*
+     * §EE 17.2 — the honest consent gate, BEFORE any request: cached
+     * legs (a session restore, a snap apply) still render, but no
+     * network call is even attempted until this session says yes.
+     * The panels surface the enable notice from `routerConsent`.
+     */
+    if (useUiStore.getState().routerConsent !== "granted") {
+      const nodes = [
+        { lat: nearAnchor.lat, lon: nearAnchor.lon },
+        ...vertices,
+        ...(farAnchor ? [{ lat: farAnchor.lat, lon: farAnchor.lon }] : []),
+      ];
+      const resolved: RoadLeg[] = [];
+      for (let i = 0; i + 1 < nodes.length; i += 1) {
+        const leg = getRoadRouter().cached(pathStyle, nodes[i], nodes[i + 1]);
+        if (leg) resolved.push(leg);
+      }
+      useEditorStore.getState().setRoadLegs(gapId, resolved);
+      resetRouting();
+      return;
+    }
     const nodes: LatLon[] = [
       { lat: nearAnchor.lat, lon: nearAnchor.lon },
       ...vertices,
@@ -752,7 +791,7 @@ export function useDrawEditor(
     // vertices identity changes per command; activeGap/nearAnchor/farAnchor
     // are stable per session — the effect re-runs on every edit, which is
     // exactly when the wanted leg set changes.
-  }, [activeGap, nearAnchor, farAnchor, vertices, pathStyle]);
+  }, [activeGap, nearAnchor, farAnchor, vertices, pathStyle, routerConsent]);
 
   // Pointer mode (Draw / Move / Pan — Task 45) and the pen (user pass
   // 48) → controller handlers.
@@ -1119,6 +1158,89 @@ export function useDrawEditor(
     useUiStore.getState().setNudgeStepM(step);
   }, []);
 
+  /*
+   * §EE 17.3 — the one-shot whole-line snap (the shared machine; this
+   * section's adapter is the editor store's command surface). The
+   * preview rides the roadLegs side table; the apply is ONE set-line
+   * command plus cache-seeded legs (zero re-requests, one undo step).
+   */
+  const snap = useRoadSnap({
+    chain: () =>
+      activeGap && nearAnchor
+        ? {
+            gapId: activeGap.id,
+            nodes: [
+              { lat: nearAnchor.lat, lon: nearAnchor.lon },
+              ...vertices,
+              ...(farAnchor
+                ? [{ lat: farAnchor.lat, lon: farAnchor.lon }]
+                : []),
+            ],
+            // The store's vertices array — referentially stable between
+            // commands, so the machine can detect a moved-on chain.
+            token: vertices,
+          }
+        : null,
+    currentLegs: (gapId) =>
+      useEditorStore.getState().roadLegs[gapId] ?? [],
+    setLegs: (gapId, legs) =>
+      useEditorStore.getState().setRoadLegs(gapId, legs),
+    apply: (waypoints, legs, profile) => {
+      const state = useEditorStore.getState();
+      const current = activeReconstruction(state);
+      if (!current) return false;
+      let seq = state.vertexSeq;
+      const nextVertices = waypoints.map((point) => {
+        seq += 1;
+        return { id: vertexId(seq), lat: point.lat, lon: point.lon };
+      });
+      const command = setLineCommand(current, {
+        vertices: nextVertices,
+        pathStyle: profile,
+      });
+      if (!command) return false;
+      state.submitCommand(command);
+      useEditorStore.setState({ vertexSeq: seq });
+      /*
+       * The seeded legs must cover EVERY pair the leg effect will
+       * look up — including the two anchor connections. The routed
+       * geometry starts/ends at the provider-snapped anchors, so the
+       * stubs are the honest few-meter stitches (the same WYSIWYG
+       * contract every road leg follows), and no request re-fires.
+       */
+      const chainLegs: RoadLeg[] = [];
+      if (nearAnchor && nextVertices.length > 0) {
+        const first = nextVertices[0];
+        chainLegs.push({
+          a: { lat: nearAnchor.lat, lon: nearAnchor.lon },
+          b: { lat: first.lat, lon: first.lon },
+          coordinates: [
+            [nearAnchor.lon, nearAnchor.lat],
+            [first.lon, first.lat],
+          ],
+          routeDistanceM: 0,
+        });
+      }
+      chainLegs.push(...legs);
+      if (farAnchor && nextVertices.length > 0) {
+        const last = nextVertices[nextVertices.length - 1];
+        chainLegs.push({
+          a: { lat: last.lat, lon: last.lon },
+          b: { lat: farAnchor.lat, lon: farAnchor.lon },
+          coordinates: [
+            [last.lon, last.lat],
+            [farAnchor.lon, farAnchor.lat],
+          ],
+          routeDistanceM: 0,
+        });
+      }
+      useEditorStore.getState().setRoadLegs(current.gapId, chainLegs);
+      getRoadRouter().seedCache(profile, chainLegs);
+      return true;
+    },
+    requestConsent: requestRouterConsent,
+  });
+
   return {
     active: activeGap !== null,
     activeGap,
@@ -1128,6 +1250,18 @@ export function useDrawEditor(
     pathStyle,
     routingPending: roadRouting.pending > 0,
     routingFailed: roadRouting.failed && pathStyle !== "off" && pathStyle !== "curve",
+    routingNeedsConsent:
+      (pathStyle === "car" || pathStyle === "foot") &&
+      routerConsent !== "granted",
+    routerConsent,
+    requestRoadConsent: requestRouterConsent,
+    online,
+    snapState: snap.snapState,
+    snapPreviewNumbers: snap.snapPreviewNumbers,
+    snapCanRun: activeGap !== null && vertices.length >= 1,
+    startRoadSnap: snap.startRoadSnap,
+    cancelRoadSnap: snap.cancelRoadSnap,
+    applyRoadSnap: snap.applyRoadSnap,
     vertices,
     vertexCount: vertices.length,
     maxVertices: MAX_VERTICES,

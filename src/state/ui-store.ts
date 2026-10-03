@@ -28,10 +28,16 @@
  *     gap.
  *   - Task 42: `landingView` — which landing page is showing: the tool
  *     cards ("home") or the selected tool's detail page ("tool").
- *     Never persisted: a fresh load always opens on the cards, while a
- *     section reset keeps the tool page (the remembered-intent contract
- *     the tab used to carry — "New file" returns to the same tool's
- *     intake).
+ *   - Phase 17 (§EE 17.2): `routerConsent` — the road-snapping opt-in.
+ *     NEVER persisted, never default-on: a fresh page load starts
+ *     "unknown" and the consent dialog is re-asked each session. The
+ *     accompanying dialog's open flag is transient for the same reason.
+ *
+ * Phase 17 also adds one PERSISTED preference (a setting, not consent):
+ *   - `customRouterUrl` — the user's own OSRM-compatible routing server
+ *     (§EE 17.1). Persisting a URL the user typed is what a preference
+ *     IS; the consent to CONTACT any router stays separate and
+ *     session-scoped above.
  *
  * `skipHydration` keeps SSR/prerender and the first client render identical
  * (defaults); `AppShell` rehydrates after mount.
@@ -102,6 +108,14 @@ export type LandingMode =
   | "merge"
   | "plan";
 
+/**
+ * The road-snapping consent state (§EE 17.2): "unknown" until the
+ * user answers the dialog this session; "granted" while road
+ * snapping is enabled; "declined" after an explicit "keep lines
+ * local". Never persisted — every fresh page load re-asks.
+ */
+export type RouterConsent = "unknown" | "granted" | "declined";
+
 interface UiState {
   gapThresholds: GapThresholds;
   tileProvider: TileProviderId;
@@ -119,6 +133,12 @@ interface UiState {
    * deep-check thresholds which are per-file investigative tools).
    */
   nudgeStepM: NudgeStepM;
+  /** Phase 17 (§EE 17.1): the user's own OSRM-compatible router, if any. */
+  customRouterUrl: string | null;
+  /** Phase 17 (§EE 17.2): the road-snapping opt-in. Transient — never persisted. */
+  routerConsent: RouterConsent;
+  /** Phase 17: the consent dialog's open flag. Transient. */
+  routerConsentDialogOpen: boolean;
   /** Landing-page tool (Task 20 + Task 42): what the next upload opens into. */
   landingMode: LandingMode;
   /** Landing page (Task 42): the tool cards, or the tool's detail page. Transient. */
@@ -134,6 +154,12 @@ interface UiState {
   setExportPrettyPrint: (pretty: boolean) => void;
   setExportFormat: (format: ExportFormat) => void;
   setNudgeStepM: (step: NudgeStepM) => void;
+  /** Phase 17: set the custom router base URL (already validated; `null` clears). */
+  setCustomRouterUrl: (url: string | null) => void;
+  /** Phase 17: answer the consent dialog (grant / decline / revoke). */
+  setRouterConsent: (consent: RouterConsent) => void;
+  /** Phase 17: open / close the consent dialog. */
+  setRouterConsentDialogOpen: (open: boolean) => void;
   setLandingMode: (mode: LandingMode) => void;
   /** Task 42: open a tool's detail page (also becomes the remembered intent). */
   openLandingTool: (mode: LandingMode) => void;
@@ -152,6 +178,9 @@ export const useUiStore = create<UiState>()(
       exportPrettyPrint: false,
       exportFormat: "gpx" as ExportFormat,
       nudgeStepM: 10 as NudgeStepM,
+      customRouterUrl: null,
+      routerConsent: "unknown" as RouterConsent,
+      routerConsentDialogOpen: false,
       landingMode: "repair" as LandingMode,
       landingView: "home" as LandingView,
       selectedGapId: null,
@@ -165,6 +194,11 @@ export const useUiStore = create<UiState>()(
       setExportPrettyPrint: (exportPrettyPrint) => set({ exportPrettyPrint }),
       setExportFormat: (exportFormat) => set({ exportFormat }),
       setNudgeStepM: (nudgeStepM) => set({ nudgeStepM }),
+      setCustomRouterUrl: (customRouterUrl) => set({ customRouterUrl }),
+      setRouterConsent: (routerConsent) =>
+        set({ routerConsent, routerConsentDialogOpen: false }),
+      setRouterConsentDialogOpen: (routerConsentDialogOpen) =>
+        set({ routerConsentDialogOpen }),
       setLandingMode: (landingMode) => set({ landingMode }),
       // Task 42 — the cards home: one action keeps the open tool page
       // and the remembered upload intent the same value.
@@ -186,6 +220,7 @@ export const useUiStore = create<UiState>()(
         exportPrettyPrint: state.exportPrettyPrint,
         exportFormat: state.exportFormat,
         nudgeStepM: state.nudgeStepM,
+        customRouterUrl: state.customRouterUrl,
         landingMode: state.landingMode,
       }),
       // Avoid SSR/prerender hydration mismatches; AppShell rehydrates on

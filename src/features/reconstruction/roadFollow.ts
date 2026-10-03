@@ -29,6 +29,11 @@
 
 import { STRAIGHT_LINE_MAX_DEVIATION_M } from "./drawModel";
 import {
+  DEFAULT_VALHALLA_URL,
+  resolveRouterEndpoints,
+  type ResolvedRouterEndpoints,
+} from "./routerConfig";
+import {
   crossTrackDistanceMeters,
   geodesicDistanceMeters,
   interpolateLatLon,
@@ -45,9 +50,24 @@ export const MIN_ROAD_LEG_M = 10;
 /** Per-request timeout; a timed-out leg falls back to a straight line. */
 export const ROAD_ROUTE_TIMEOUT_MS = 6000;
 
-/** Public routing endpoints (keyless, CORS-enabled, best-effort). */
-const OSRM_ROUTE_URL = "https://router.project-osrm.org/route/v1/driving";
-const VALHALLA_ROUTE_URL = "https://valhalla1.openstreetmap.de/route";
+/**
+ * Upper bound on waypoints per whole-polyline snap request (§EE 17.3):
+ * the chain's nodes are Douglas-Peucker-reduced to this before the
+ * request — the public demo servers are best-effort and long URL
+ * paths are fragile; the shape survives the reduction (endpoints
+ * kept, tolerance escalated only as far as needed).
+ */
+export const SNAP_MAX_WAYPOINTS = 48;
+
+/**
+ * The result of one whole-polyline route: the provider's geometry
+ * through every requested waypoint (lon/lat pairs, like every
+ * provider here) plus the provider's own distance when it sent one.
+ */
+export interface RoutedPolyline {
+  coordinates: [number, number][];
+  routeDistanceM: number;
+}
 
 // ---------------------------------------------------------------------------
 // Leg keying + lookup (pure)
@@ -55,6 +75,20 @@ const VALHALLA_ROUTE_URL = "https://valhalla1.openstreetmap.de/route";
 
 /** Round to ~0.1 m — a dragged-back vertex re-hits the same key. */
 const r6 = (value: number): string => value.toFixed(6);
+
+/**
+ * The rounded-polyline hash the snap cache is keyed by (§EE 17.3):
+ * every node rounded to ~0.1 m (the same `r6` the leg cache uses)
+ * plus the mode. A dragged-back line re-hits the same key; a one-node
+ * difference is a different key. In-memory only — persistence joins
+ * Phase 22.
+ */
+export function snapPolylineKey(
+  mode: RoutableRoadMode,
+  nodes: readonly LatLon[],
+): string {
+  return `${mode}|${nodes.map((n) => `${r6(n.lat)},${r6(n.lon)}`).join(">")}`;
+}
 
 /** Directed cache key for one leg (a→b; the reverse leg is distinct). */
 export function legKey(a: LatLon, b: LatLon): string {
@@ -378,28 +412,47 @@ const isLonLat = (candidate: unknown): candidate is [number, number] =>
   Number.isFinite(candidate[1]);
 
 /**
- * Road-leg resolver: cache + in-flight dedup + timeout around the two
- * public providers. Any failure resolves `null` — the caller renders the
- * straight leg (WYSIWYG: a missing road is honestly straight, never a
- * silent detour).
+ * Road-leg resolver: cache + in-flight dedup + timeout around the
+ * routing providers (§EE 17.1: the endpoints resolve through the
+ * provider abstraction — the public demo servers by default, the
+ * user's own OSRM-compatible server when one is configured; the
+ * configuration signature joins every cache key so a server switch
+ * can never serve another server's answers). Any failure resolves
+ * `null` — the caller renders the straight leg (WYSIWYG: a missing
+ * road is honestly straight, never a silent detour).
  */
 export class RoadFollowRouter {
   readonly #fetchImpl: RoadFetch;
+  readonly #getConfig: () => ResolvedRouterEndpoints;
   readonly #cache = new Map<string, RoadLeg>();
   readonly #inFlight = new Map<string, Promise<RoadLeg | null>>();
+  /** §EE 17.3: the whole-polyline snap cache (rounded-polyline hash). */
+  readonly #snapCache = new Map<string, RoutedPolyline>();
+  readonly #snapInFlight = new Map<string, Promise<RoutedPolyline | null>>();
 
-  constructor(options: { fetch: RoadFetch }) {
+  constructor(options: {
+    fetch: RoadFetch;
+    /** Live endpoint configuration (defaults to the public servers). */
+    config?: () => ResolvedRouterEndpoints;
+  }) {
     this.#fetchImpl = options.fetch;
+    this.#getConfig = options.config ?? (() => resolveRouterEndpoints(null));
+  }
+
+  /** The endpoints a request would use right now (footer/dialog copy). */
+  endpoints(): ResolvedRouterEndpoints {
+    return this.#getConfig();
   }
 
   /** Synchronous cache probe (optimistic first paint, no request). */
   cached(mode: RoutableRoadMode, a: LatLon, b: LatLon): RoadLeg | null {
-    return this.#cache.get(routerKey(mode, a, b)) ?? null;
+    return this.#cache.get(this.#routerKey(mode, a, b)) ?? null;
   }
 
   /** Drop every cached leg (mode switches keep entries; tests clear). */
   clearCache(): void {
     this.#cache.clear();
+    this.#snapCache.clear();
   }
 
   /**
@@ -419,7 +472,7 @@ export class RoadFollowRouter {
       ) {
         continue;
       }
-      this.#cache.set(routerKey(mode, leg.a, leg.b), leg);
+      this.#cache.set(this.#routerKey(mode, leg.a, leg.b), leg);
     }
   }
 
@@ -435,7 +488,7 @@ export class RoadFollowRouter {
     if (geodesicDistanceMeters(a, b) < MIN_ROAD_LEG_M) {
       return Promise.resolve(null);
     }
-    const key = routerKey(mode, a, b);
+    const key = this.#routerKey(mode, a, b);
     const hit = this.#cache.get(key);
     if (hit) return Promise.resolve(hit);
     const pending = this.#inFlight.get(key);
@@ -453,30 +506,98 @@ export class RoadFollowRouter {
     return request;
   }
 
+  /**
+   * Synchronous snap-cache probe — a repeated snap of the same rounded
+   * polyline costs nothing (§EE 17.3's in-memory cache; persistence
+   * joins Phase 22).
+   */
+  cachedPolyline(
+    mode: RoutableRoadMode,
+    nodes: readonly LatLon[],
+  ): RoutedPolyline | null {
+    return this.#snapCache.get(snapPolylineKey(mode, nodes)) ?? null;
+  }
+
+  /** Seed a resolved snap into the cache (re-snaps cost nothing). */
+  seedPolyline(
+    mode: RoutableRoadMode,
+    nodes: readonly LatLon[],
+    result: RoutedPolyline,
+  ): void {
+    this.#snapCache.set(snapPolylineKey(mode, nodes), result);
+  }
+
+  /**
+   * §EE 17.3 — route the WHOLE drawn polyline through the provider in
+   * ONE request: every node is a waypoint, the provider snaps each to
+   * its road network and returns the through-path. Same-key calls
+   * share one request; every failure path resolves `null`.
+   */
+  routePolyline(
+    mode: RoutableRoadMode,
+    nodes: readonly LatLon[],
+  ): Promise<RoutedPolyline | null> {
+    const usable = nodes.filter(
+      (n) => Number.isFinite(n.lat) && Number.isFinite(n.lon),
+    );
+    if (usable.length < 2) return Promise.resolve(null);
+    const key = snapPolylineKey(mode, usable);
+    const hit = this.#snapCache.get(key);
+    if (hit) return Promise.resolve(hit);
+    const pending = this.#snapInFlight.get(key);
+    if (pending) return pending;
+    const request = this.#providerRoute(mode, usable, makeTimeoutSignal())
+      .then((path) => {
+        if (path) this.#snapCache.set(key, path);
+        return path;
+      })
+      .catch(() => null)
+      .finally(() => {
+        this.#snapInFlight.delete(key);
+      });
+    this.#snapInFlight.set(key, request);
+    return request;
+  }
+
   async #route(
     mode: RoutableRoadMode,
     a: LatLon,
     b: LatLon,
   ): Promise<RoadLeg | null> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), ROAD_ROUTE_TIMEOUT_MS);
     try {
-      const path =
-        mode === "car"
-          ? await this.#osrm(a, b, controller.signal)
-          : await this.#valhalla(a, b, controller.signal);
+      const path = await this.#providerRoute(mode, [a, b], makeTimeoutSignal());
       if (!path) return null;
       return { a, b, coordinates: path.coordinates, routeDistanceM: path.routeDistanceM };
     } catch {
       return null;
-    } finally {
-      clearTimeout(timer);
     }
   }
 
-  async #osrm(a: LatLon, b: LatLon, signal: AbortSignal): Promise<ProviderPath | null> {
-    const url = `${OSRM_ROUTE_URL}/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson`;
-    const response = await this.#fetchImpl(url, { signal });
+  /** One provider request for a node list (2 for a leg, N for a snap). */
+  async #providerRoute(
+    mode: RoutableRoadMode,
+    nodes: readonly LatLon[],
+    signal: AbortSignal,
+  ): Promise<RoutedPolyline | null> {
+    const config = this.#getConfig();
+    if (mode === "foot" && config.foot.kind === "valhalla") {
+      return await this.#valhalla(config, nodes, signal);
+    }
+    const url =
+      mode === "car" ? config.carUrl : config.foot.kind === "osrm" ? config.foot.url : config.carUrl;
+    return await this.#osrm(url, nodes, signal);
+  }
+
+  async #osrm(
+    url: string,
+    nodes: readonly LatLon[],
+    signal: AbortSignal,
+  ): Promise<RoutedPolyline | null> {
+    const waypoints = nodes.map((n) => `${n.lon},${n.lat}`).join(";");
+    const response = await this.#fetchImpl(
+      `${url}/${waypoints}?overview=full&geometries=geojson`,
+      { signal },
+    );
     if (!response.ok) return null;
     const body: unknown = await response.json();
     const route = (body as { routes?: unknown[] } | null)?.routes?.[0] as
@@ -513,15 +634,17 @@ export class RoadFollowRouter {
     return parsed.length >= 2 ? parsed : null;
   }
 
-  async #valhalla(a: LatLon, b: LatLon, signal: AbortSignal): Promise<ProviderPath | null> {
-    const response = await this.#fetchImpl(VALHALLA_ROUTE_URL, {
+  async #valhalla(
+    config: ResolvedRouterEndpoints,
+    nodes: readonly LatLon[],
+    signal: AbortSignal,
+  ): Promise<RoutedPolyline | null> {
+    const url = config.foot.kind === "valhalla" ? config.foot.url : DEFAULT_VALHALLA_URL;
+    const response = await this.#fetchImpl(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        locations: [
-          { lat: a.lat, lon: a.lon },
-          { lat: b.lat, lon: b.lon },
-        ],
+        locations: nodes.map((n) => ({ lat: n.lat, lon: n.lon })),
         costing: "pedestrian",
         shape_format: "geojson",
       }),
@@ -542,8 +665,19 @@ export class RoadFollowRouter {
         typeof km === "number" && Number.isFinite(km) ? km * 1000 : 0,
     };
   }
+
+  /** Cache key for one leg under the LIVE configuration. */
+  #routerKey(mode: RoutableRoadMode, a: LatLon, b: LatLon): string {
+    return `${this.#getConfig().configKey}|${mode}|${legKey(a, b)}`;
+  }
 }
 
-function routerKey(mode: RoutableRoadMode, a: LatLon, b: LatLon): string {
-  return `${mode}|${legKey(a, b)}`;
+/**
+ * An abort signal that fires at the routing timeout (shared by the
+ * per-leg and whole-polyline requests).
+ */
+function makeTimeoutSignal(): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ROAD_ROUTE_TIMEOUT_MS);
+  return controller.signal;
 }

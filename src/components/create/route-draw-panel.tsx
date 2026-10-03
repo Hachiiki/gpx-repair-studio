@@ -325,6 +325,52 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
                     : "Switch to Move (M) to drag a point — the road re-finds itself."}
             </p>
           )}
+          {
+            /*
+             * §EE 17.2 — the consent gate's face in the draw tools (the
+             * repair editor's twin): straight lines draw meanwhile, and
+             * the enable button opens the plain-notice dialog — never a
+             * silent request.
+             */
+          }
+          {draw.routingNeedsConsent && (
+            <div
+              className="grid gap-1.5 rounded-md border border-signal/40 bg-signal/[0.05] px-2.5 py-2"
+              data-testid="road-consent-notice"
+            >
+              <p className="text-[11.5px] leading-snug text-ink">
+                Road snapping sends the points you draw to a public
+                routing service — never your file. It is off until you
+                enable it.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 w-fit text-[12px]"
+                data-testid="road-consent-enable"
+                onClick={draw.requestRoadConsent}
+              >
+                Enable road snapping…
+              </Button>
+            </div>
+          )}
+          {(draw.pathStyle === "car" || draw.pathStyle === "foot") &&
+            draw.routerConsent === "granted" && (
+              <p
+                className="text-[11px] leading-snug text-muted-foreground"
+                data-testid="road-consent-on-note"
+              >
+                Road snapping is on for this session —{" "}
+                <button
+                  type="button"
+                  className="font-semibold text-foreground underline decoration-ink/25 underline-offset-2 hover:decoration-ink"
+                  onClick={draw.requestRoadConsent}
+                >
+                  turn it off
+                </button>{" "}
+                any time.
+              </p>
+            )}
         </div>
 
         {/* Live stats: drawn distance vs the recorded target. */}

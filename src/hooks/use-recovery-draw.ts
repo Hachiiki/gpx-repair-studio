@@ -65,6 +65,11 @@ import {
 import { useRecoveryStore } from "@/state/recovery-store";
 import { activeRecoveryReconstruction } from "@/state/recovery-store";
 import { useUiStore } from "@/state/ui-store";
+import { requestRouterConsent } from "@/hooks/road-router";
+import { useOnlineStatus } from "@/hooks/use-online-status";
+import { useRoadSnap } from "@/hooks/use-road-snap";
+import { setLineCommand } from "@/features/reconstruction/drawModel";
+import { vertexId } from "@/types/ids";
 import type { NudgeStepM } from "@/features/reconstruction/coordEntry";
 import type {
   GapId,
@@ -82,7 +87,7 @@ import type {
 } from "@/types/domain";
 import type { RecoverySession } from "@/hooks/use-recovery-session";
 import type { DrawEditorBinding, RepairRow, RepairTimeStats } from "@/hooks/use-draw-editor";
-import { getRoadRouter } from "@/hooks/use-draw-editor";
+import { getRoadRouter } from "@/hooks/road-router";
 import type { MapBinding } from "@/hooks/use-map-controller";
 
 export type { GapTimePlan };
@@ -104,6 +109,8 @@ export function useRecoveryDraw(
   const reconstructions = useRecoveryStore((s) => s.reconstructions);
   const skippedGapIds = useRecoveryStore((s) => s.skippedGapIds);
   const history = useRecoveryStore((s) => s.history);
+  // §EE 17.2 — the session's consent (re-runs the leg effect on grant).
+  const routerConsent = useUiStore((s) => s.routerConsent);
   const fileTiming = useRecoveryStore((s) => s.fileTiming);
   const manualSpans = useRecoveryStore((s) => s.manualSpans);
   const pickMode = useRecoveryStore((s) => s.pickMode);
@@ -494,6 +501,22 @@ export function useRecoveryDraw(
       resetRouting();
       return;
     }
+    /* §EE 17.2 — the honest consent gate (the editor hook's twin). */
+    if (useUiStore.getState().routerConsent !== "granted") {
+      const gatedNodes = [
+        { lat: nearAnchor.lat, lon: nearAnchor.lon },
+        ...vertices,
+        ...(farAnchor ? [{ lat: farAnchor.lat, lon: farAnchor.lon }] : []),
+      ];
+      const resolved: RoadLeg[] = [];
+      for (let i = 0; i + 1 < gatedNodes.length; i += 1) {
+        const leg = getRoadRouter().cached(pathStyle, gatedNodes[i], gatedNodes[i + 1]);
+        if (leg) resolved.push(leg);
+      }
+      useRecoveryStore.getState().setRoadLegs(gapId, resolved);
+      resetRouting();
+      return;
+    }
     const nodes: LatLon[] = [
       { lat: nearAnchor.lat, lon: nearAnchor.lon },
       ...vertices,
@@ -535,7 +558,7 @@ export function useRecoveryDraw(
         }
       });
     }
-  }, [activeGap, nearAnchor, farAnchor, vertices, pathStyle]);
+  }, [activeGap, nearAnchor, farAnchor, vertices, pathStyle, routerConsent]);
 
   // Pointer mode (Draw / Move / Pan — Task 45) and the pen (user pass
   // 48) → controller handlers.
@@ -889,6 +912,83 @@ export function useRecoveryDraw(
     [],
   );
 
+  /* §EE 17.2/17.3/17.4 — consent, network, and the whole-line snap
+   * (the editor hook's twin, bound to the recovery store). The
+   * subscription sits with the others, above its consumers. */
+  const online = useOnlineStatus();
+  const snap = useRoadSnap({
+    chain: () =>
+      activeGap && nearAnchor
+        ? {
+            gapId: activeGap.id,
+            nodes: [
+              { lat: nearAnchor.lat, lon: nearAnchor.lon },
+              ...vertices,
+              ...(farAnchor
+                ? [{ lat: farAnchor.lat, lon: farAnchor.lon }]
+                : []),
+            ],
+            token: vertices,
+          }
+        : null,
+    currentLegs: (gapId) =>
+      useRecoveryStore.getState().roadLegs[gapId] ?? [],
+    setLegs: (gapId, legs) =>
+      useRecoveryStore.getState().setRoadLegs(gapId, legs),
+    apply: (waypoints, legs, profile) => {
+      const state = useRecoveryStore.getState();
+      const current = activeRecoveryReconstruction(state);
+      if (!current) return false;
+      let seq = state.vertexSeq;
+      const nextVertices = waypoints.map((point) => {
+        seq += 1;
+        return { id: vertexId(seq), lat: point.lat, lon: point.lon };
+      });
+      const command = setLineCommand(current, {
+        vertices: nextVertices,
+        pathStyle: profile,
+      });
+      if (!command) return false;
+      state.submitCommand(command);
+      useRecoveryStore.setState({ vertexSeq: seq });
+      // The anchor stubs + the waypoint slices: every pair the leg
+      // effect will look up is seeded — zero re-requests (the editor
+      // hook's twin).
+      const chainLegs: RoadLeg[] = [];
+      if (nearAnchor && nextVertices.length > 0) {
+        const first = nextVertices[0];
+        chainLegs.push({
+          a: { lat: nearAnchor.lat, lon: nearAnchor.lon },
+          b: { lat: first.lat, lon: first.lon },
+          coordinates: [
+            [nearAnchor.lon, nearAnchor.lat],
+            [first.lon, first.lat],
+          ],
+          routeDistanceM: 0,
+        });
+      }
+      chainLegs.push(...legs);
+      if (farAnchor && nextVertices.length > 0) {
+        const last = nextVertices[nextVertices.length - 1];
+        chainLegs.push({
+          a: { lat: last.lat, lon: last.lon },
+          b: { lat: farAnchor.lat, lon: farAnchor.lon },
+          coordinates: [
+            [last.lon, last.lat],
+            [farAnchor.lon, farAnchor.lat],
+          ],
+          routeDistanceM: 0,
+        });
+      }
+      useRecoveryStore
+        .getState()
+        .setRoadLegs(current.gapId, chainLegs);
+      getRoadRouter().seedCache(profile, chainLegs);
+      return true;
+    },
+    requestConsent: requestRouterConsent,
+  });
+
   const setPenMode = useCallback((pen: PenMode) => {
     useRecoveryStore.getState().setPenMode(pen);
   }, []);
@@ -902,6 +1002,18 @@ export function useRecoveryDraw(
     pathStyle,
     routingPending: roadRouting.pending > 0,
     routingFailed: roadRouting.failed && pathStyle !== "off" && pathStyle !== "curve",
+    routingNeedsConsent:
+      (pathStyle === "car" || pathStyle === "foot") &&
+      routerConsent !== "granted",
+    routerConsent,
+    requestRoadConsent: requestRouterConsent,
+    online,
+    snapState: snap.snapState,
+    snapPreviewNumbers: snap.snapPreviewNumbers,
+    snapCanRun: activeGap !== null && vertices.length >= 1,
+    startRoadSnap: snap.startRoadSnap,
+    cancelRoadSnap: snap.cancelRoadSnap,
+    applyRoadSnap: snap.applyRoadSnap,
     vertices,
     vertexCount: vertices.length,
     maxVertices: MAX_VERTICES,

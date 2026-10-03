@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 /**
  * Road-follow E2E helpers — deterministic routing-network control.
@@ -166,6 +166,75 @@ export async function mockValhallaBulge(
             },
           ],
         },
+      },
+    });
+  });
+}
+
+/**
+ * §EE 17.2 — grant road-snapping consent through the REAL UI, for the
+ * specs that assert routing behavior. Requires a draw editor (or any
+ * draw panel) to be open with its enable notice visible; clicks the
+ * notice's button, then the dialog's grant. No test-only shortcuts:
+ * the flow is exactly what a user does.
+ */
+export async function grantRoadConsent(page: Page): Promise<void> {
+  const enable = page.getByTestId("road-consent-enable");
+  if (await enable.isVisible().catch(() => false)) {
+    await enable.click();
+    await page.getByTestId("router-consent-grant").click();
+    await expect(page.getByTestId("router-consent-dialog")).toBeHidden();
+  }
+}
+
+/**
+ * §EE 17.3 — answer OSRM whole-polyline (snap) requests: ANY waypoint
+ * count (>= 2), the route passing through every requested waypoint
+ * with a mid-point bulged north between each consecutive pair. The
+ * snap engine's one request therefore returns real interior points
+ * per pair — assertable on the rendered chain.
+ */
+export async function mockOsrmPolyline(
+  page: Page,
+  options: { offsetLat?: number; log?: OsrmCallLog } = {},
+): Promise<void> {
+  const offsetLat = options.offsetLat ?? 0.0004;
+  await page.route(/router\.project-osrm\.org/, async (route) => {
+    const url = new URL(route.request().url());
+    const waypointPart = url.pathname.split("/").pop() ?? "";
+    const pairs = waypointPart
+      .split(";")
+      .map((pair) => pair.split(",").map(Number))
+      .map(([lon, lat]) => ({ lat, lon }));
+    if (
+      pairs.length < 2 ||
+      pairs.some((p) => !Number.isFinite(p.lat) || !Number.isFinite(p.lon))
+    ) {
+      await route.fulfill({ json: { code: "InvalidUrl", routes: [] } });
+      return;
+    }
+    if (options.log) options.log.count += 1;
+    const coordinates: [number, number][] = [[pairs[0].lon, pairs[0].lat]];
+    let distance = 0;
+    for (let i = 1; i < pairs.length; i += 1) {
+      const a = pairs[i - 1];
+      const b = pairs[i];
+      coordinates.push([
+        (a.lon + b.lon) / 2,
+        (a.lat + b.lat) / 2 + offsetLat,
+      ]);
+      coordinates.push([b.lon, b.lat]);
+      distance += haversineM(a, b) * 1.2;
+    }
+    await route.fulfill({
+      json: {
+        code: "Ok",
+        routes: [
+          {
+            distance,
+            geometry: { coordinates },
+          },
+        ],
       },
     });
   });

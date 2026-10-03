@@ -28,6 +28,7 @@ import {
   type RoadFetch,
 } from "@/features/reconstruction/roadFollow";
 import { geodesicDistanceMeters } from "@/lib/geo/geodesy";
+import { resolveRouterEndpoints } from "@/features/reconstruction/routerConfig";
 import type { RoadLeg } from "@/types/domain";
 
 const A = { lat: 52.52, lon: 13.405 };
@@ -396,3 +397,193 @@ describe("RoadFollowRouter (fetch injected)", () => {
     expect(router.cached("car", broken.a, B)).toBeNull();
   });
 });
+
+describe("Phase 17 — routePolyline (the whole-line snap request)", () => {
+  const P1 = { lat: 52.52, lon: 13.405 };
+  const P2 = { lat: 52.527, lon: 13.414 };
+  const P3 = { lat: 52.53, lon: 13.425 };
+
+  function osrmResponse(coordinates: [number, number][]): unknown {
+    return {
+      code: "Ok",
+      routes: [
+        {
+          distance: 1500,
+          geometry: { coordinates },
+        },
+      ],
+    };
+  }
+
+  it("sends EVERY waypoint in ONE request (the URL carries all pairs)", async () => {
+    const fetchMock = vi.fn<RoadFetch>().mockResolvedValue(
+      jsonResponse(osrmResponse([[13.405, 52.52], [13.41, 52.525], [13.425, 52.53]])),
+    );
+    const router = new RoadFollowRouter({ fetch: fetchMock });
+    const result = await router.routePolyline("car", [P1, P2, P3]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = fetchMock.mock.calls[0][0];
+    expect(url).toContain(`${P1.lon},${P1.lat};${P2.lon},${P2.lat};${P3.lon},${P3.lat}`);
+    expect(url).toContain("overview=full");
+    expect(result?.coordinates).toHaveLength(3);
+    expect(result?.routeDistanceM).toBe(1500);
+  });
+
+  it("caches by the rounded-polyline hash — a repeat costs nothing", async () => {
+    const fetchMock = vi.fn<RoadFetch>().mockResolvedValue(
+      jsonResponse(osrmResponse([[13.405, 52.52], [13.425, 52.53]])),
+    );
+    const router = new RoadFollowRouter({ fetch: fetchMock });
+    await router.routePolyline("car", [P1, P3]);
+    // The same nodes rounded to 6 decimals hit the cache.
+    await router.routePolyline("car", [
+      { lat: P1.lat + 1e-9, lon: P1.lon },
+      { lat: P3.lat, lon: P3.lon + 1e-9 },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // A one-node difference is a different key.
+    await router.routePolyline("car", [P1, P2, P3]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("foot routes through Valhalla with every waypoint as a location", async () => {
+    const fetchMock = vi.fn<RoadFetch>().mockResolvedValue(
+      jsonResponse({
+        trip: {
+          legs: [
+            {
+              shape: encodePolyline6ForTest([[13.405, 52.52], [13.425, 52.53]]),
+              summary: { length: 1.5 },
+            },
+          ],
+        },
+      }),
+    );
+    const router = new RoadFollowRouter({ fetch: fetchMock });
+    const result = await router.routePolyline("foot", [P1, P3]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("valhalla1.openstreetmap.de");
+    const body = JSON.parse(String(init?.body)) as { locations: unknown[] };
+    expect(body.locations).toHaveLength(2);
+    expect(result?.routeDistanceM).toBe(1500);
+  });
+
+  it("refuses degenerate chains without a request", async () => {
+    const fetchMock = vi.fn<RoadFetch>();
+    const router = new RoadFollowRouter({ fetch: fetchMock });
+    expect(await router.routePolyline("car", [])).toBeNull();
+    expect(await router.routePolyline("car", [P1])).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("every failure path resolves null (never a silent detour)", async () => {
+    const fetchMock = vi
+      .fn<RoadFetch>()
+      .mockResolvedValueOnce(jsonResponse({ code: "NoRoute", routes: [] }, false));
+    const router = new RoadFollowRouter({ fetch: fetchMock });
+    expect(await router.routePolyline("car", [P1, P3])).toBeNull();
+  });
+
+  it("seedPolyline adopts a resolved snap; cachedPolyline reads it back", async () => {
+    const fetchMock = vi.fn<RoadFetch>();
+    const router = new RoadFollowRouter({ fetch: fetchMock });
+    const seeded = { coordinates: [[13.4, 52.52]] as [number, number][], routeDistanceM: 10 };
+    router.seedPolyline("car", [P1, P3], seeded);
+    expect(router.cachedPolyline("car", [P1, P3])).toBe(seeded);
+    const result = await router.routePolyline("car", [P1, P3]);
+    expect(result).toBe(seeded);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("Phase 17 — the configurable endpoints (§EE 17.1)", () => {
+  const A = { lat: 52.52, lon: 13.405 };
+  const B = { lat: 52.527, lon: 13.414 };
+
+  it("a custom base URL serves BOTH profiles (OSRM-compatible)", async () => {
+    const fetchMock = vi.fn<RoadFetch>().mockResolvedValue(
+      jsonResponse({
+        code: "Ok",
+        routes: [
+          { distance: 1, geometry: { coordinates: [[13.405, 52.52], [13.414, 52.527]] } },
+        ],
+      }),
+    );
+    const router = new RoadFollowRouter({
+      fetch: fetchMock,
+      config: () => resolveRouterEndpoints("https://osrm.example.com"),
+    });
+    await router.segment("car", A, B);
+    await router.segment("foot", A, B);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toMatch(
+      /^https:\/\/osrm\.example\.com\/route\/v1\/driving\//,
+    );
+    expect(fetchMock.mock.calls[1][0]).toMatch(
+      /^https:\/\/osrm\.example\.com\/route\/v1\/foot\//,
+    );
+  });
+
+  it("a server switch never serves the old server's cache", async () => {
+    const fetchMock = vi.fn<RoadFetch>().mockResolvedValue(
+      jsonResponse({
+        code: "Ok",
+        routes: [
+          { distance: 1, geometry: { coordinates: [[13.405, 52.52], [13.414, 52.527]] } },
+        ],
+      }),
+    );
+    let custom: string | null = null;
+    const router = new RoadFollowRouter({
+      fetch: fetchMock,
+      config: () => resolveRouterEndpoints(custom),
+    });
+    await router.segment("car", A, B); // public server
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain("router.project-osrm.org");
+
+    custom = "https://osrm.example.com";
+    await router.segment("car", A, B); // same pair, new server → new request
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toContain("osrm.example.com");
+  });
+
+  it("endpoints() reflects the live configuration", () => {
+    const router = new RoadFollowRouter({
+      fetch: vi.fn<RoadFetch>(),
+      config: () => resolveRouterEndpoints("https://osrm.example.com"),
+    });
+    expect(router.endpoints().foot).toEqual({
+      kind: "osrm",
+      url: "https://osrm.example.com/route/v1/foot",
+    });
+  });
+});
+
+/** Encode [lon, lat] pairs as polyline6 (the test helper's twin). */
+function encodePolyline6ForTest(
+  coordinates: [number, number][],
+): string {
+  let encoded = "";
+  let prevLat = 0;
+  let prevLon = 0;
+  for (const [lon, lat] of coordinates) {
+    for (const [current, previous] of [
+      [lat, prevLat],
+      [lon, prevLon],
+    ] as const) {
+      const delta = Math.round(current * 1e6) - Math.round(previous * 1e6);
+      let value = delta < 0 ? ~(delta << 1) : delta << 1;
+      do {
+        let chunk = value & 0x1f;
+        value >>>= 5;
+        if (value > 0) chunk |= 0x20;
+        encoded += String.fromCharCode(chunk + 63);
+      } while (value > 0);
+    }
+    prevLat = lat;
+    prevLon = lon;
+  }
+  return encoded;
+}

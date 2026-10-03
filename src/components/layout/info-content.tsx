@@ -20,7 +20,10 @@
 
 "use client";
 
+import { useState } from "react";
 import { APP_VERSION } from "@/components/layout/app-version";
+import { Button } from "@/components/ui/button";
+import { useRouterSettings } from "@/hooks/road-router";
 
 /* ------------------------------------------------------------------ */
 /* Privacy & Data                                                      */
@@ -50,11 +53,13 @@ export const EGRESS_ROWS: readonly EgressRow[] = [
       "Tile coordinates (x/y/z) for the visible area, plus the standard metadata any web request carries (IP address, user agent). Tile-level only — roughly kilometers at low zoom. Never your GPX, never precise positions.",
   },
   {
-    trigger: "You draw with the Roads or Footpaths path style",
-    destination: "Public routing services — OSRM (roads) and Valhalla (footpaths)",
+    trigger:
+      "You enable road snapping (Roads / Footpaths / Snap to road — off until you say yes, re-asked every session)",
+    destination:
+      "Public routing services — OSRM (roads) and Valhalla (footpaths), or your own OSRM-compatible server",
     hosts: "router.project-osrm.org · valhalla1.openstreetmap.de",
     payload:
-      "Only the two endpoints of each line segment you place, to find the road between them. Never the file, never recorded points. The Curve pen and Straight lines are fully local — no request at all.",
+      "The points of the lines you draw — per-segment endpoints for the path styles, the drawn line's points for Snap to road. Never the file, never recorded points. Nothing is sent until you enable it; the footer says so while it is on, and Straight lines and the Curve pen are fully local — no request at all.",
   },
   {
     trigger: "You opt in to an elevation lookup (per reconstruction, after a disclosure)",
@@ -141,7 +146,9 @@ export function PrivacyPane() {
           with Straight or Curve lines, time reconstruction, statistics,
           merge, export, share card — makes no requests at all, and an
           automated test runs that flow with a strict network allow-list
-          and fails if anything else is ever contacted.
+          and fails if anything else is ever contacted. Road snapping
+          is the one row you switch on yourself: it stays off, sends
+          nothing, until you enable it for a session.
         </p>
       </section>
 
@@ -182,10 +189,14 @@ export function PrivacyPane() {
             <span className="font-semibold text-foreground">
               Road-following:
             </span>{" "}
-            OSRM serves the Roads path style and Valhalla serves
-            Footpaths — public demo servers, best-effort by design. When
-            one is unreachable the line falls back to straight segments
-            until it recovers, and the editor says so.
+            off until you enable it — the draw tools ask first, the
+            footer says so while it is on, and every fresh page load
+            asks again. OSRM serves the Roads path style and Valhalla
+            serves Footpaths by default — public demo servers,
+            best-effort by design. When one is unreachable the line
+            falls back to straight segments until it recovers, and the
+            editor says so. You can also point both styles — and the
+            Snap-to-road command — at your own server:
           </li>
           <li className="text-[13.5px] leading-relaxed text-muted-foreground">
             <span className="font-semibold text-foreground">Elevation:</span>{" "}
@@ -194,6 +205,13 @@ export function PrivacyPane() {
             with the exact point count is shown before anything is sent.
           </li>
         </ul>
+        {/*
+         * §EE 17.1 — the routing provider setting itself: one URL,
+         * validated honestly, applied/reset right here where the
+         * disclosure lives. Remembered as a preference; consent stays
+         * separate and per-session.
+         */}
+        <RouterSettingsControl />
       </section>
 
       {/* Storage on this device — the Phase 10 disclosure in full. */}
@@ -341,6 +359,124 @@ export function AboutPane() {
         data-testid="about-version"
       >
         Version {APP_VERSION} · local-first · no tracking
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Router settings (§EE 17.1)                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * RouterSettingsControl — the routing provider setting, one URL.
+ *
+ * Point it at any OSRM-compatible routing server (a self-hosted
+ * osrm-routed, or any service speaking the same /route/v1 API) and
+ * BOTH path styles plus Snap-to-road route there instead of the public
+ * demo servers. The URL is a preference (remembered); the consent to
+ * contact ANY router stays per-session and separate — this control
+ * never enables anything by itself.
+ *
+ * The self-hosting pointer stays one line here; the README carries
+ * the full instructions.
+ */
+function RouterSettingsControl() {
+  const settings = useRouterSettings();
+  const [draft, setDraft] = useState(settings.current ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const dirty = (settings.current ?? "") !== draft.trim();
+
+  return (
+    <div
+      className="mt-2 grid gap-2 rounded-[10px] border-[1.5px] border-ink/15 bg-ink/[0.02] p-3"
+      data-testid="router-settings"
+    >
+      <p className="text-[12.5px] font-semibold text-foreground">
+        Your own routing server (optional)
+      </p>
+      <label className="grid gap-1 text-[12px] text-muted-foreground">
+        OSRM-compatible base URL — e.g. https://osrm.example.com
+        <input
+          type="url"
+          inputMode="url"
+          spellCheck={false}
+          className="h-8 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2.5 font-mono text-[11.5px] text-foreground transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
+          data-testid="router-url-input"
+          placeholder="https://osrm.example.com"
+          value={draft}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setError(null);
+            setSaved(false);
+          }}
+        />
+      </label>
+      {error && (
+        <p
+          className="text-[11.5px] font-medium text-destructive"
+          data-testid="router-url-error"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
+      {saved && !error && (
+        <p
+          className="text-[11.5px] font-medium text-muted-foreground"
+          data-testid="router-url-saved"
+          role="status"
+        >
+          Saved — routing now goes to your server (once road snapping
+          is enabled).
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          className="h-7 text-[12px]"
+          data-testid="router-url-apply"
+          disabled={!dirty}
+          onClick={() => {
+            const verdict = settings.validate(draft);
+            if (!verdict.ok) {
+              setError(verdict.reason);
+              return;
+            }
+            settings.apply(draft);
+            setDraft(verdict.value ?? "");
+            setError(null);
+            setSaved(true);
+          }}
+        >
+          Save URL
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 text-[12px] text-muted-foreground"
+          data-testid="router-url-reset"
+          disabled={settings.current === null && draft.trim() === ""}
+          onClick={() => {
+            settings.reset();
+            setDraft("");
+            setError(null);
+            setSaved(false);
+          }}
+        >
+          Use public servers
+        </Button>
+      </div>
+      <p className="text-[11.5px] leading-snug text-muted-foreground">
+        An OSRM-compatible server answers the same route API the demo
+        servers do — a self-hosted osrm-routed serves whichever profile
+        it was built with, so both Roads and Footpaths follow it. The
+        README&apos;s self-hosting section has the full instructions;
+        with no URL here, the public demo servers above are used.
       </p>
     </div>
   );

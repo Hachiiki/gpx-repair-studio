@@ -26,7 +26,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { HintTip } from "@/components/shared/hint-tip";
-import { Crosshair, Trash2, TriangleAlert, X } from "lucide-react";
+import { Crosshair, Milestone, Trash2, TriangleAlert, X } from "lucide-react";
 import { TOOLS_REVEAL_EVENT } from "@/components/layout/workspace-tools-column";
 import {
   GAP_KIND_LABELS,
@@ -45,6 +45,14 @@ import {
   formatDistanceMeters,
   formatLatLon,
 } from "@/lib/utils/format";
+
+/** A signed, compact delta ("+630 m" / "−12 m" / "±0 m"). */
+function formatDeltaMeters(meters: number): string {
+  if (!Number.isFinite(meters)) return "—";
+  const rounded = Math.round(meters);
+  if (rounded === 0) return "±0 m";
+  return `${rounded > 0 ? "+" : "−"}${formatDistanceMeters(Math.abs(rounded))}`;
+}
 
 /** Selectable resample spacings shown in the settings row. */
 const SPACING_CHOICES: readonly { value: string; label: string }[] = [
@@ -118,6 +126,24 @@ export function DrawEditorPanel({
   // User pass 52: the pen only lives in Draw mode — Move drags points,
   // Pan navigates. Outside Draw the pen group renders inert.
   const penLive = draw.pointerMode === "draw";
+  /*
+   * §EE 17.3 (the VLM probe's confirmed claim): when the snap preview
+   * lands, its Apply/Cancel row must reach the user — on mobile the
+   * tools sheet may hold it below the fold. The same discipline the
+   * editor's own opening follows (VLM-measured: applyBottom 870 > 844):
+   * reveal the sheet, then scroll the preview box into the column.
+   */
+  const previewLive = draw.snapState === "preview";
+  useEffect(() => {
+    if (!previewLive) return;
+    window.dispatchEvent(new CustomEvent(TOOLS_REVEAL_EVENT));
+    const box = document.querySelector<HTMLElement>(
+      "[data-testid='snap-preview-box']",
+    );
+    if (box && typeof box.scrollIntoView === "function") {
+      box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [previewLive]);
 
   /*
    * User pass 49 — the editor must be SEEN when it opens. In the repair
@@ -406,6 +432,157 @@ export function DrawEditorPanel({
                     : "Switch to Move (M) to drag a point — the road re-finds itself."}
             </p>
           )}
+          {/*
+           * §EE 17.2 — the consent gate's face in the draw tools: a
+           * routable style is on but this session has not said yes.
+           * Straight lines draw meanwhile (the cached legs a restore
+           * brought back still render), and the enable button opens
+           * the plain-notice dialog — never a silent request.
+           */}
+          {draw.routingNeedsConsent && (
+            <div
+              className="grid gap-1.5 rounded-md border border-signal/40 bg-signal/[0.05] px-2.5 py-2"
+              data-testid="road-consent-notice"
+            >
+              <p className="text-[11.5px] leading-snug text-ink">
+                Road snapping sends the points you draw to a public
+                routing service — never your file. It is off until you
+                enable it.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 w-fit text-[12px]"
+                data-testid="road-consent-enable"
+                onClick={draw.requestRoadConsent}
+              >
+                Enable road snapping…
+              </Button>
+            </div>
+          )}
+          {(draw.pathStyle === "car" || draw.pathStyle === "foot") &&
+            draw.routerConsent === "granted" && (
+              <p
+                className="text-[11px] leading-snug text-muted-foreground"
+                data-testid="road-consent-on-note"
+              >
+                Road snapping is on for this session —{" "}
+                <button
+                  type="button"
+                  className="font-semibold text-foreground underline decoration-ink/25 underline-offset-2 hover:decoration-ink"
+                  onClick={draw.requestRoadConsent}
+                >
+                  turn it off
+                </button>{" "}
+                any time.
+              </p>
+            )}
+          {/*
+           * §EE 17.3 — the one-shot whole-line snap. The preview
+           * rides the same line the map renders (the road path IS the
+           * preview); this box carries the honest numbers and the
+           * apply/cancel intents — one undo step either way.
+           * §EE 17.4: offline the control disables WITH an
+           * explanation; freehand drawing never stops.
+           */}
+          <div
+            className="grid gap-1.5"
+            data-testid="road-snap-control"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 border-[1.25px] text-[12px]"
+                data-testid="snap-to-road-button"
+                disabled={
+                  !draw.online ||
+                  !draw.snapCanRun ||
+                  draw.snapState === "pending" ||
+                  draw.snapState === "preview"
+                }
+                onClick={() => draw.startRoadSnap()}
+              >
+                <Milestone className="size-3.5" aria-hidden="true" />
+                Snap to road
+              </Button>
+              <p
+                className="text-[11px] leading-snug text-muted-foreground"
+                role="status"
+                data-testid="snap-status"
+              >
+                {!draw.online
+                  ? "Offline — road snapping needs the network; straight and curve lines keep working."
+                  : !draw.snapCanRun
+                    ? "Draw at least one point, then snap the whole line onto roads."
+                    : draw.snapState === "pending"
+                      ? "Finding the road…"
+                      : draw.snapState === "failed"
+                        ? "Could not match this line to a road — it stays as drawn."
+                        : "Match the whole line onto roads in one go — preview first, undo after."}
+              </p>
+            </div>
+            {draw.snapState === "preview" && draw.snapPreviewNumbers && (
+              <div
+                className="grid gap-2 rounded-md border-[1.5px] border-signal/50 bg-signal/[0.06] px-3 py-2.5"
+                data-testid="snap-preview-box"
+              >
+                <p className="text-[12px] font-bold text-ink">
+                  Road preview
+                </p>
+                <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-0.5 text-[12px] tabular-nums">
+                  <dt className="text-muted-foreground">Your line</dt>
+                  <dd className="font-semibold">
+                    {formatDistanceMeters(
+                      draw.snapPreviewNumbers.drawnDistanceM,
+                    )}
+                  </dd>
+                  <dt className="text-muted-foreground">On the road</dt>
+                  <dd className="font-semibold">
+                    {formatDistanceMeters(
+                      draw.snapPreviewNumbers.routedDistanceM,
+                    )}{" "}
+                    <span
+                      className={
+                        draw.snapPreviewNumbers.deltaM >= 0
+                          ? "font-normal text-muted-foreground"
+                          : "font-normal text-muted-foreground"
+                      }
+                    >
+                      ({formatDeltaMeters(draw.snapPreviewNumbers.deltaM)})
+                    </span>
+                  </dd>
+                </dl>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7"
+                    data-testid="snap-apply-button"
+                    onClick={draw.applyRoadSnap}
+                  >
+                    Apply — keep the road line
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-muted-foreground"
+                    data-testid="snap-cancel-button"
+                    onClick={draw.cancelRoadSnap}
+                  >
+                    Keep my drawing
+                  </Button>
+                </div>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  The line you see is the line you get. Applying replaces
+                  your drawn points with road waypoints — one undo step
+                  brings your drawing back.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Phase 5: the §J-1 time plan for this gap (strategy, duration,

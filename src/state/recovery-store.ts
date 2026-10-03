@@ -182,6 +182,8 @@ interface RecoveryState {
   /** Replace the resolved road legs of one gap (no-op when unchanged). */
   setRoadLegs: (gapId: GapId, legs: readonly RoadLeg[]) => void;
   setRoadRouting: (status: { pending: number; failed: boolean }) => void;
+  /** Phase 17 — commit a prepared command (the snap apply's set-line). */
+  submitCommand: (command: DrawCommand | null) => void;
   setFileTiming: (patch: Partial<FileTimingContext>) => void;
 
   addVertex: (position: VertexPosition) => void;
@@ -257,6 +259,22 @@ export function activeRecoveryReconstruction(
   return state.activeGapId === null
     ? null
     : (state.reconstructions[state.activeGapId] ?? null);
+}
+
+/**
+ * Phase 17 — the editor store's `styleSyncPatch` twin: a `set-line`
+ * command (the snap apply) moves the line's path style with its
+ * geometry, and the ACTIVE chip state follows the reconstruction so
+ * the panel never shows a style the line does not have.
+ */
+function styleSyncPatch(
+  state: RecoveryState,
+  gapId: GapId,
+  reconstruction: Reconstruction,
+): Partial<RecoveryState> {
+  if (state.activeGapId !== gapId) return {};
+  const style = reconstruction.pathStyle ?? "off";
+  return state.pathStyle === style ? {} : { pathStyle: style };
 }
 
 export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
@@ -495,6 +513,31 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
 
   setRoadRouting: (roadRouting) => set({ roadRouting }),
 
+  /**
+   * Phase 17 — commit a prepared command for the active gap (the
+   * snap apply's `set-line` arrives here; the editor store's twin of
+   * this action has served every command family since Phase 4).
+   */
+  submitCommand: (command) => {
+    const state = get();
+    const current = activeRecoveryReconstruction(state);
+    if (!current || !command) return;
+    const next = commitCommand(
+      { reconstruction: current, history: state.history },
+      command,
+    );
+    set({
+      reconstructions: {
+        ...state.reconstructions,
+        [current.gapId]: next.reconstruction,
+      },
+      history: next.history,
+      ...(command.kind === "set-line"
+        ? styleSyncPatch(state, current.gapId, next.reconstruction)
+        : {}),
+    });
+  },
+
   setFileTiming: (patch) =>
     set((state) => ({
       fileTiming: { ...state.fileTiming, ...patch },
@@ -678,6 +721,7 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
     const state = get();
     const current = activeRecoveryReconstruction(state);
     if (!current) return;
+    const popped = state.history.undo[state.history.undo.length - 1];
     const next = undoCommand({
       reconstruction: current,
       history: state.history,
@@ -688,6 +732,11 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
         [current.gapId]: next.reconstruction,
       },
       history: next.history,
+      // §EE 17.3: undoing a snap restores the line's style with its
+      // geometry — the chips show what the line IS again.
+      ...(popped?.kind === "set-line"
+        ? styleSyncPatch(state, current.gapId, next.reconstruction)
+        : {}),
     });
   },
 
@@ -695,6 +744,7 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
     const state = get();
     const current = activeRecoveryReconstruction(state);
     if (!current) return;
+    const popped = state.history.redo[state.history.redo.length - 1];
     const next = redoCommand({
       reconstruction: current,
       history: state.history,
@@ -705,6 +755,9 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
         [current.gapId]: next.reconstruction,
       },
       history: next.history,
+      ...(popped?.kind === "set-line"
+        ? styleSyncPatch(state, current.gapId, next.reconstruction)
+        : {}),
     });
   },
 

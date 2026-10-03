@@ -29,11 +29,48 @@ The design principle underneath all six: **recorded data and reconstructed data 
 
 **Keyboard-only drawing:** the draw editor's point list is now the canvas's full keyboard twin — add points by typing lat/lng, edit any point's coordinates in place, insert between two points (prefilled with the geodesic midpoint), and **nudge a focused point with the arrow keys** at a 1/10/100 m step (Shift = ×10; a whole nudge run is one undo). A complete gap repair can be finished without touching the mouse — the v1 limitation ("drawing required a pointing device") is closed. Typed coordinates are validated honestly: bounds are named, over-precise values round to 7 decimals (~1 cm) with a note, and DMS or scientific notation is refused with the expectation.
 
+**Road snapping, opt-in (consent-gated):** every routing request is now behind an explicit per-session opt-in — nothing is sent until you enable road snapping, the footer states the on state with the exact hosts, and every fresh page load asks again. The one-shot **Snap to road** command matches a whole drawn line onto the road network in a single request, previews it on the line itself with an honest distance delta, and applies as ONE undo step (geometry and path style together). Offline, the snap control disables with an explanation; straight and curve lines never stop working.
+
 ---
 
 ## Privacy in one paragraph
 
-Uploading, parsing, gap detection, drawing, geodesy, timestamp reconstruction, statistics, merging, export, and the share card all run client-side. The only network requests are: **map tiles** (OpenFreeMap by default, OSM raster optional, switchable in the map toolbar), **road-follow lookups** when you draw with the Roads or Footpaths pen (only the two endpoints of a segment go to public OSRM/Valhalla demo servers), and **opt-in elevation lookups** (Open-Meteo / Copernicus DEM, per reconstruction, with a disclosure first). Unfinished work is autosaved to IndexedDB on your device and offered back on your next visit; settings live in localStorage. Full disclosure in the app: footer → **Privacy & data**.
+Uploading, parsing, gap detection, drawing, geodesy, timestamp reconstruction, statistics, merging, export, and the share card all run client-side. The only network requests are: **map tiles** (OpenFreeMap by default, OSM raster optional, switchable in the map toolbar), **road-follow and snap-to-road lookups** — only after you enable road snapping for the session (the points of the lines you draw go to public OSRM/Valhalla demo servers, or to your own router when one is configured; never the file, never recorded points; the footer says so while it is on), and **opt-in elevation lookups** (Open-Meteo / Copernicus DEM, per reconstruction, with a disclosure first). Unfinished work is autosaved to IndexedDB on your device and offered back on your next visit; settings live in localStorage. Full disclosure in the app: footer → **Privacy & data**.
+
+---
+
+## Self-hosting the router (your roads, your server)
+
+Road snapping can run entirely against a routing server you control.
+The app speaks the standard **OSRM** route API, so any
+`osrm-routed`-compatible service works:
+
+1. **Prepare the data** — download an OSM extract (e.g. from
+   [Geofabrik](https://download.geofabrik.de/)) for your region.
+2. **Build the network** — with the OSRM toolchain:
+   ```sh
+   osrm-extract -p car your-region.osm.pbf
+   osrm-partition your-region.osrm
+   osrm-customize your-region.osrm
+   ```
+   A `foot` profile (the `osrm-foot.lua` / pedestrian profiles in the
+   OSRM backend) gives you true footpaths for the Footpaths style.
+3. **Serve it** — `osrm-routed --algorithm mld your-region.osrm` on
+   the host and port you want; put HTTPS in front of it (any reverse
+   proxy) — the app only accepts `https://` URLs (`http://` works for
+   local testing).
+4. **Point the app at it** — footer → **Privacy & data** → *Your own
+   routing server*: paste the base URL (e.g.
+   `https://osrm.example.com`) and Save. Both the Roads and Footpaths
+   styles — and Snap to road — now route there; an OSRM server serves
+   whichever profile it was built with, so build one per profile (or
+   run two) if you want both to be exact. Nothing else changes: the
+   opt-in still applies, the footer names your host, and the public
+   demo servers are not contacted.
+
+With no URL set, the public demo servers (`router.project-osrm.org`,
+`valhalla1.openstreetmap.de`) serve best-effort routing — fine for
+trying the feature, not a service-level guarantee.
 
 ---
 

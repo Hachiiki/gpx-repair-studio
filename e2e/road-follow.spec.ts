@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { enterRepairTool } from "./helpers/landing";
 import {
   abortRoadRouting,
+  grantRoadConsent,
   haversineM,
   mockOsrmBulge,
   mockValhallaBulge,
@@ -187,6 +188,9 @@ test.describe("road follow — clicks trace the road between them", () => {
     await mockOsrmBulge(page, { offsetLat: 0.0004, log });
 
     const { tail, editor } = await openTailEditor(page);
+    // §EE 17.2: the routing below is consent-gated — grant it through
+    // the real dialog before the first leg resolves.
+    await grantRoadConsent(page);
 
     // Two clicks, far apart, BEFORE and AFTER a (mocked) curve.
     const box = await canvasBox(page);
@@ -268,6 +272,7 @@ test.describe("road follow — clicks trace the road between them", () => {
     await mockOsrmBulge(page, { offsetLat: 0.0004, log });
 
     const { tail } = await openTailEditor(page);
+    await grantRoadConsent(page);
     const box = await canvasBox(page);
     const v1 = { lat: tail.lat + 0.0012, lon: tail.lon + 0.0012 };
     const v2 = { lat: tail.lat + 0.003, lon: tail.lon + 0.0031 };
@@ -365,6 +370,9 @@ test.describe("road follow — clicks trace the road between them", () => {
     await abortRoadRouting(page);
 
     const { tail } = await openTailEditor(page);
+    // Grant first: the failures below must be real requests dying, not
+    // the consent gate (§EE 17.2) holding them back.
+    await grantRoadConsent(page);
     const box = await canvasBox(page);
     const v1 = { lat: tail.lat + 0.0012, lon: tail.lon + 0.0012 };
     const v2 = { lat: tail.lat + 0.003, lon: tail.lon + 0.0031 };
@@ -401,6 +409,7 @@ test.describe("road follow — clicks trace the road between them", () => {
     await mockValhallaBulge(page, { offsetLat: 0.0004, log });
 
     const { tail } = await openTailEditor(page);
+    await grantRoadConsent(page);
     await page.getByTestId("road-follow-foot").click();
 
     const box = await canvasBox(page);

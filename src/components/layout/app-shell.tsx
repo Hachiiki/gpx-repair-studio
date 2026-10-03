@@ -85,6 +85,8 @@ import { OnboardingTour } from "@/components/layout/onboarding-tour";
 import { InfoDialog, type InfoPane } from "@/components/layout/info-dialog";
 import { HelpDialog } from "@/components/layout/help-dialog";
 import { SiteFooter } from "@/components/layout/site-footer";
+import { RouterConsentDialog } from "@/components/shared/router-consent-dialog";
+import { useRouterHostsLabel } from "@/hooks/road-router";
 import { makeSampleFile } from "@/samples";
 import { parsePointIdRef } from "@/types/ids";
 import type { PointRef } from "@/types/domain";
@@ -228,6 +230,23 @@ export function AppShell() {
    */
   const [infoPane, setInfoPane] = useState<InfoPane | null>(null);
   const openInfo = (pane: InfoPane) => setInfoPane(pane);
+
+  /*
+   * Phase 17 (§EE 17.2) — the road-snapping consent dialog: opened
+   * from any draw tool's enable notice and the footer chip while
+   * granted. The state is the ui-store's transient consent + open
+   * flag (never persisted — every fresh load re-asks).
+   */
+  const routerConsent = useUiStore((s) => s.routerConsent);
+  const routerConsentDialogOpen = useUiStore((s) => s.routerConsentDialogOpen);
+  const { hostsLabel: routerHosts, custom: customRouter } =
+    useRouterHostsLabel();
+  const openRouterConsent = () =>
+    useUiStore.getState().setRouterConsentDialogOpen(true);
+  const closeRouterConsent = () =>
+    useUiStore.getState().setRouterConsentDialogOpen(false);
+  const answerRouterConsent = (consent: "granted" | "declined") =>
+    useUiStore.getState().setRouterConsent(consent);
 
   /*
    * Phase 12 — the shortcuts & help dialog: the footer button and the
@@ -694,7 +713,13 @@ export function AppShell() {
        * click away in every app state). Phase 12 adds the theme toggle
        * and the Shortcuts & help door.
        */}
-      <SiteFooter onOpenInfo={openInfo} onOpenHelp={() => setHelpOpen(true)} />
+      <SiteFooter
+        onOpenInfo={openInfo}
+        onOpenHelp={() => setHelpOpen(true)}
+        routerConsent={routerConsent}
+        routerHostsLabel={routerHosts}
+        onOpenRouterConsent={openRouterConsent}
+      />
 
       {/* Phase 11 — the first-run tour and the info dialog, mounted at
        * the shell level so they sit above every view. Phase 12 adds
@@ -706,6 +731,25 @@ export function AppShell() {
         onClose={() => setInfoPane(null)}
       />
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+      {/*
+       * Phase 17 — the consent dialog, above every view like the info
+       * and help dialogs; opening the privacy pane from it closes it
+       * first (one dialog at a time, the "?"-key rule's discipline).
+       */}
+      <RouterConsentDialog
+        open={routerConsentDialogOpen}
+        consent={routerConsent}
+        hostsLabel={routerHosts}
+        customRouter={customRouter}
+        onGrant={() => answerRouterConsent("granted")}
+        onDecline={() => answerRouterConsent("declined")}
+        onRevoke={() => answerRouterConsent("declined")}
+        onClose={closeRouterConsent}
+        onOpenPrivacy={() => {
+          closeRouterConsent();
+          openInfo("privacy");
+        }}
+      />
     </div>
   );
 }

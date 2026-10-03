@@ -23,7 +23,9 @@ import { joinCurveChain, joinDrawChain } from "@/features/reconstruction/roadFol
 import { simplifyStroke } from "@/features/reconstruction/stroke";
 import { planJoin } from "@/features/plan/estimate";
 import type { MapController } from "@/lib/map/mapController";
-import { getRoadRouter } from "@/hooks/use-draw-editor";
+import { getRoadRouter } from "@/hooks/road-router";
+import { requestRouterConsent } from "@/hooks/road-router";
+import { useUiStore, type RouterConsent } from "@/state/ui-store";
 import { usePlanStore } from "@/state/plan-store";
 import type {
   DrawVertex,
@@ -64,6 +66,12 @@ export interface PlanDrawBinding {
   routingPending: boolean;
   /** The latest road request failed (straight lines until it recovers). */
   routingFailed: boolean;
+  /** §EE 17.2: routing is on but this session has not consented yet. */
+  routingNeedsConsent: boolean;
+  /** §EE 17.2: the session's consent state (never persisted). */
+  routerConsent: RouterConsent;
+  /** §EE 17.2: open the consent dialog (the enable notice's button). */
+  requestRoadConsent: () => void;
 
   setPathStyle: (mode: PathStyle) => void;
   undo: () => void;
@@ -81,6 +89,8 @@ export function usePlanDraw(map: PlanMapBinding): PlanDrawBinding {
   const roadRouting = usePlanStore((s) => s.roadRouting);
   const vertices = usePlanStore((s) => s.reconstruction.vertices);
   const history = usePlanStore((s) => s.history);
+  // §EE 17.2 — the consent state re-runs the leg effect on grant.
+  const routerConsent = useUiStore((s) => s.routerConsent);
 
   const mapReady = map.status === "ready";
   const active = phase === "studio";
@@ -174,6 +184,25 @@ export function usePlanDraw(map: PlanMapBinding): PlanDrawBinding {
       resetRouting();
       return;
     }
+    /* §EE 17.2 — the honest consent gate (the editor hook's twin). */
+    if (useUiStore.getState().routerConsent !== "granted") {
+      const gatedNodes: LatLon[] = vertices.map((vertex) => ({
+        lat: vertex.lat,
+        lon: vertex.lon,
+      }));
+      const resolved: RoadLeg[] = [];
+      for (let i = 0; i + 1 < gatedNodes.length; i += 1) {
+        const leg = getRoadRouter().cached(
+          pathStyle,
+          gatedNodes[i],
+          gatedNodes[i + 1],
+        );
+        if (leg) resolved.push(leg);
+      }
+      usePlanStore.getState().setRoadLegs(resolved);
+      resetRouting();
+      return;
+    }
     const nodes: LatLon[] = vertices.map((vertex) => ({
       lat: vertex.lat,
       lon: vertex.lon,
@@ -214,7 +243,7 @@ export function usePlanDraw(map: PlanMapBinding): PlanDrawBinding {
         }
       });
     }
-  }, [active, vertices, pathStyle]);
+  }, [active, vertices, pathStyle, routerConsent]);
 
   // Pointer mode (Draw / Move / Pan — Task 45) and the pen (user pass
   // 48) → controller handlers.
@@ -321,6 +350,11 @@ export function usePlanDraw(map: PlanMapBinding): PlanDrawBinding {
     pathStyle,
     routingPending: roadRouting.pending > 0,
     routingFailed: roadRouting.failed && pathStyle !== "off" && pathStyle !== "curve",
+    routingNeedsConsent:
+      (pathStyle === "car" || pathStyle === "foot") &&
+      routerConsent !== "granted",
+    routerConsent,
+    requestRoadConsent: requestRouterConsent,
     setPathStyle,
     undo,
     redo,

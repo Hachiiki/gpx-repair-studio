@@ -99,14 +99,30 @@ describe("ThemeToggle", () => {
 
 describe("SiteFooter (Phase 12 doors)", () => {
   it("carries the theme toggle and the shortcuts & help door", () => {
-    render(<SiteFooter onOpenInfo={vi.fn()} onOpenHelp={vi.fn()} />);
+    render(
+        <SiteFooter
+          onOpenInfo={vi.fn()}
+          onOpenHelp={vi.fn()}
+          routerConsent="unknown"
+          routerHostsLabel="router.project-osrm.org"
+          onOpenRouterConsent={vi.fn()}
+        />,
+      );
     expect(screen.getByTestId("theme-toggle")).toBeInTheDocument();
     expect(screen.getByTestId("footer-help")).toBeInTheDocument();
   });
 
   it("dispatches the help intent", () => {
     const onOpenHelp = vi.fn();
-    render(<SiteFooter onOpenInfo={vi.fn()} onOpenHelp={onOpenHelp} />);
+    render(
+        <SiteFooter
+          onOpenInfo={vi.fn()}
+          onOpenHelp={onOpenHelp}
+          routerConsent="unknown"
+          routerHostsLabel="router.project-osrm.org"
+          onOpenRouterConsent={vi.fn()}
+        />,
+      );
     fireEvent.click(screen.getByTestId("footer-help"));
     expect(onOpenHelp).toHaveBeenCalledTimes(1);
   });
