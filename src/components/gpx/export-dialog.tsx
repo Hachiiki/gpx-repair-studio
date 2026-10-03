@@ -149,14 +149,26 @@ export function ExportDialog({
             )}
             {(summary.workingDeletedPoints > 0 ||
               summary.workingSortedSegments > 0 ||
-              summary.workingSmoothedElevations > 0) && (
+              summary.workingSmoothedElevations > 0 ||
+              summary.workingSplitSegments > 0 ||
+              summary.workingDuplicatedSegments > 0 ||
+              summary.workingReorderedSegments > 0) && (
               <li className="flex items-start gap-2" data-testid="export-working-note">
                 <span aria-hidden="true" className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
                 <span>
-                  Deep-validation fixes ride along:{" "}
+                  Working-copy edits ride along:{" "}
                   {[
                     summary.workingDeletedPoints > 0
                       ? `${summary.workingDeletedPoints} point${summary.workingDeletedPoints === 1 ? "" : "s"} removed`
+                      : null,
+                    summary.workingSplitSegments > 0
+                      ? `${summary.workingSplitSegments} segment${summary.workingSplitSegments === 1 ? "" : "s"} split`
+                      : null,
+                    summary.workingDuplicatedSegments > 0
+                      ? `${summary.workingDuplicatedSegments} cop${summary.workingDuplicatedSegments === 1 ? "y" : "ies"} inserted`
+                      : null,
+                    summary.workingReorderedSegments > 0
+                      ? `${summary.workingReorderedSegments} manual reorder${summary.workingReorderedSegments === 1 ? "" : "s"}`
                       : null,
                     summary.workingSortedSegments > 0
                       ? `${summary.workingSortedSegments} segment${summary.workingSortedSegments === 1 ? "" : "s"} sorted by time`

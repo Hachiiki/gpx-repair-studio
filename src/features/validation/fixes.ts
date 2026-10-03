@@ -33,6 +33,7 @@ import type {
 } from "@/types/domain";
 import { deepValidate, type DeepValidateOptions } from "./deepValidate";
 import { applyWorkingEdits } from "./workingCopy";
+import { isSurgeryKind, reasonOfSurgeryKind } from "./surgery";
 
 /** Extra parameters individual fixes accept (beyond detector options). */
 export interface FixExtras {
@@ -330,17 +331,21 @@ export function reasonOfFix(kind: FixKind): FixReason {
 /**
  * Build the store's `WorkingEdit` from a confirmed plan. Id and time
  * are stamped by the caller (the store) so undo ordering and the log
- * stay authoritative there.
+ * stay authoritative there. Surgery plans (Phase 16) map through
+ * their own reason vocabulary.
  */
 export function editFromPlan(
   plan: FixPlan,
   id: string,
   appliedAt: number,
 ): WorkingEdit {
+  const reason: FixReason = isSurgeryKind(plan.kind)
+    ? reasonOfSurgeryKind(plan.kind)
+    : reasonOfFix(plan.kind as FixKind);
   return {
     id,
     label: plan.label,
-    reason: reasonOfFix(plan.kind as FixKind),
+    reason,
     appliedAt,
     entries: plan.entries,
   };

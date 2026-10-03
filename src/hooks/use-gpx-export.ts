@@ -94,6 +94,16 @@ export interface ExportSummary {
   workingSortedSegments: number;
   /** Elevations replaced by interpolation. */
   workingSmoothedElevations: number;
+  /*
+   * Phase 16 — the surgery share: structural working-copy edits the
+   * export will carry (splits, copies, manual reorder).
+   */
+  /** Segments cut in two. */
+  workingSplitSegments: number;
+  /** Segment copies inserted. */
+  workingDuplicatedSegments: number;
+  /** Manual segment rearrangements. */
+  workingReorderedSegments: number;
 }
 
 /** App-layer facade for the export card + dialog. */
@@ -262,6 +272,9 @@ export function useGpxExport(
       workingDeletedPoints: working?.deletedPointCount ?? 0,
       workingSortedSegments: working?.sortedSegmentIds.length ?? 0,
       workingSmoothedElevations: working?.overriddenEleCount ?? 0,
+      workingSplitSegments: working?.splitCount ?? 0,
+      workingDuplicatedSegments: working?.duplicatedSegmentCount ?? 0,
+      workingReorderedSegments: working?.reorderedSegmentCount ?? 0,
     };
   }, [
     data,

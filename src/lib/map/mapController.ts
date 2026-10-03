@@ -134,7 +134,7 @@ export interface MapTestState {
   /** The active draw session (null when no editor is open). */
   drawSession: DrawSessionTestState | null;
   /** The active span-pick session (null when not picking). */
-  pickSession: { active: boolean; mode: "anchor" | "pair"; hasAnchor: boolean } | null;
+  pickSession: { active: boolean; mode: "anchor" | "pair" | "point"; hasAnchor: boolean } | null;
   /** Phase 8 touch-gesture snapshot (null state on desktop/mouse). */
   touch: {
     /** Coarse-pointer device detected — hit targets are enlarged. */
@@ -499,8 +499,10 @@ export interface PickTarget {
 
 export interface PickSessionOptions {
   /** "anchor": ONE click starts an open add-missing-route session.
-   *  "pair": two clicks bound a stretch to redraw (classic mode). */
-  mode: "anchor" | "pair";
+   *  "pair": two clicks bound a stretch to redraw (classic mode).
+   *  "point" (Phase 16): one click on ANY recorded point — surgery's
+   *  split/range selection. Same 16 px radius + near-tie rule. */
+  mode: "anchor" | "pair" | "point";
   targets: readonly PickTarget[];
   callbacks: {
     /** Both anchors picked (pair mode). Document-order fixing is the hook's job. */
@@ -509,6 +511,8 @@ export interface PickSessionOptions {
      * endpoint; `role` says which end (start = missing head,
      * end = missing tail). */
     onAnchorPicked: (pointId: PointId, role: "start" | "end") => void;
+    /** The single point picked (point mode) — any recorded point. */
+    onPointPicked?: (pointId: PointId) => void;
     /** The user cancelled (Esc or mode left). */
     onCancel: () => void;
   };
@@ -1176,6 +1180,17 @@ export class MapController {
           { padding: 128, maxZoom: 16.5, action: "fit-anchor-pick" },
         );
       }
+      return;
+    }
+    if (session.options.mode === "point") {
+      // Phase 16 — surgery selection: ONE click on any recorded point
+      // (the classic 16 px radius + endpoint near-tie rule). A click in
+      // empty space keeps waiting; the hook re-arms for the range's
+      // second pick.
+      const target = this.#nearestPickTarget(e.point);
+      if (!target) return;
+      session.options.callbacks.onPointPicked?.(target.pointId);
+      this.endPickSession();
       return;
     }
     const target = this.#nearestPickTarget(e.point);

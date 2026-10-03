@@ -74,9 +74,27 @@ export function formatProvenanceSummary(
     const sentences: string[] = [];
     if (working.deletedPointCount > 0) {
       sentences.push(
-        `${working.deletedPointCount} damaged point` +
+        `${working.deletedPointCount} point` +
           `${working.deletedPointCount === 1 ? " was" : "s were"} removed ` +
-          `(spikes, duplicates, or GPS drift)`,
+          `(by fixes or manual range deletions)`,
+      );
+    }
+    if (working.splitCount > 0) {
+      sentences.push(
+        `${working.splitCount} segment` +
+          `${working.splitCount === 1 ? " was" : "s were"} split in two`,
+      );
+    }
+    if (working.duplicatedSegmentCount > 0) {
+      sentences.push(
+        `${working.duplicatedSegmentCount} segment cop` +
+          `${working.duplicatedSegmentCount === 1 ? "y was" : "ies were"} ` +
+          `inserted`,
+      );
+    }
+    if (working.reorderedSegmentCount > 0) {
+      sentences.push(
+        `segments were rearranged manually`,
       );
     }
     if (working.sortedSegmentIds.length > 0) {

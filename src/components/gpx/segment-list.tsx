@@ -58,6 +58,7 @@ export function SegmentList({ rows }: { rows: readonly SegmentRow[] }) {
                 {group.rows.map((row) => (
                   <div
                     key={row.segmentId}
+                    data-seg-id={row.segmentId}
                     className="flex items-center justify-between gap-3 rounded-lg border border-ink/15 px-3 py-2.5 text-[13px]"
                   >
                     <div className="grid gap-0.5">

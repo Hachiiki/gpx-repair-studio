@@ -92,7 +92,7 @@ describe("export with working-copy fixes", () => {
     ]);
     const xml = serialize(view);
     expect(xml).toContain("Working copy:");
-    expect(xml).toContain("2 damaged points were removed");
+    expect(xml).toContain("2 points were removed (by fixes or manual range deletions)");
     expect(xml).toContain("1 segment was reordered by timestamp");
     expect(xml).toContain("1 elevation was smoothed");
   });

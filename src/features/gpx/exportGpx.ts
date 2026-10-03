@@ -375,14 +375,35 @@ function repairNote(
    * Phase 13 — the working copy's sentences: what the deep-validation
    * fixes changed, in the same honest voice. Sorted segments mark the
    * file's ORDER as estimated (§EE 13.4 "marks the file estimated").
+   * Phase 16 adds the surgery sentences (splits, copies, manual
+   * reorder) and names manual range deletions in the removal line.
    */
   if (working?.hasEdits) {
     const sentences: string[] = [];
     if (working.deletedPointCount > 0) {
       sentences.push(
-        `${working.deletedPointCount} damaged point` +
+        `${working.deletedPointCount} point` +
           `${working.deletedPointCount === 1 ? " was" : "s were"} removed ` +
-          `(spikes, duplicates, or GPS drift)`,
+          `(by fixes or manual range deletions)`,
+      );
+    }
+    if (working.splitCount > 0) {
+      sentences.push(
+        `${working.splitCount} segment` +
+          `${working.splitCount === 1 ? " was" : "s were"} split in two`,
+      );
+    }
+    if (working.duplicatedSegmentCount > 0) {
+      sentences.push(
+        `${working.duplicatedSegmentCount} segment cop` +
+          `${working.duplicatedSegmentCount === 1 ? "y was" : "ies were"} ` +
+          `inserted`,
+      );
+    }
+    if (working.reorderedSegmentCount > 0) {
+      sentences.push(
+        `segments were rearranged manually (${working.reorderedSegmentCount} rearrangement` +
+          `${working.reorderedSegmentCount === 1 ? "" : "s"})`,
       );
     }
     if (working.sortedSegmentIds.length > 0) {

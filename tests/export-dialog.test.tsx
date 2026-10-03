@@ -47,6 +47,9 @@ function summary(
     workingDeletedPoints: 0,
     workingSortedSegments: 0,
     workingSmoothedElevations: 0,
+    workingSplitSegments: 0,
+    workingDuplicatedSegments: 0,
+    workingReorderedSegments: 0,
     ...overrides,
   };
 }

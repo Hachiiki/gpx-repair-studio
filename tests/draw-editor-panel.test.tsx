@@ -22,6 +22,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import type { DrawEditorBinding, RepairRow } from "@/hooks/use-draw-editor";
+import type { NudgeStepM } from "@/features/reconstruction/coordEntry";
 import { resolveGapTimePlan } from "@/features/reconstruction/timestamps";
 import { useEditorStore } from "@/state/editor-store";
 import { useUiStore } from "@/state/ui-store";
@@ -110,6 +111,12 @@ function makeBinding(
     setFileTiming: () => {},
     toggleSkip: () => {},
     deleteVertex: (_vertexId: VertexId) => {},
+    addVertexAt: (_lat: number, _lon: number) => {},
+    insertVertexAt: (_index: number, _lat: number, _lon: number) => {},
+    moveVertexTo: (_vertexId: VertexId, _lat: number, _lon: number) => {},
+    nudgeVertex: (_vertexId: VertexId, _dLat: number, _dLon: number) => {},
+    nudgeStepM: 10,
+    setNudgeStepM: (_step: NudgeStepM) => {},
     ...overrides,
   };
 }
@@ -258,7 +265,12 @@ describe("DrawEditorPanel — vertex rows", () => {
     );
     const rows = screen.getAllByTestId("vertex-row");
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toHaveTextContent("52.52050, 13.40550");
+    // Phase 16 — the coordinates live in editable inputs now (the
+    // numeric-entry surface), values instead of static text.
+    const latInputs = screen.getAllByTestId("vertex-lat-input");
+    const lonInputs = screen.getAllByTestId("vertex-lon-input");
+    expect(latInputs[0]).toHaveValue("52.5205");
+    expect(lonInputs[0]).toHaveValue("13.4055");
     expect(rows[1]).toHaveTextContent("snapped");
 
     const buttons = screen.getAllByTestId("delete-vertex-button");
@@ -493,7 +505,7 @@ describe("DrawEditorPanel — road follow (snap to road)", () => {
     expect(screen.queryByTestId("road-follow-status")).toBeNull();
   });
 
-  it("the drawn-points header teaches Move-mode dragging and double-click editing", () => {
+  it("the drawn-points header teaches both input worlds (map + keyboard)", () => {
     render(
       <DrawEditorPanel
         draw={makeBinding({
@@ -502,7 +514,7 @@ describe("DrawEditorPanel — road follow (snap to road)", () => {
         })}
       />,
     );
-    expect(screen.getByText(/switch to Move \(M\) and drag/i)).toBeVisible();
+    expect(screen.getByText(/drag them on the map, or type/i)).toBeVisible();
   });
 });
 

@@ -47,6 +47,7 @@ import {
 } from "@/features/gpx/detectGaps";
 import type { ExportMode } from "@/features/gpx/exportGpx";
 import type { ExportFormat } from "@/features/formats/export-formats";
+import type { NudgeStepM } from "@/features/reconstruction/coordEntry";
 import {
   DEFAULT_TILE_PROVIDER,
   type TileProviderId,
@@ -112,6 +113,12 @@ interface UiState {
   exportPrettyPrint: boolean;
   /** Export format (§EE 14.4): GPX full-fidelity default. Phase 14. */
   exportFormat: ExportFormat;
+  /**
+   * Phase 16 — the arrow-key nudge step for drawn points, meters (a
+   * preference: persisted like paceUnit, unlike the session-scoped
+   * deep-check thresholds which are per-file investigative tools).
+   */
+  nudgeStepM: NudgeStepM;
   /** Landing-page tool (Task 20 + Task 42): what the next upload opens into. */
   landingMode: LandingMode;
   /** Landing page (Task 42): the tool cards, or the tool's detail page. Transient. */
@@ -126,6 +133,7 @@ interface UiState {
   setExportMode: (mode: ExportMode) => void;
   setExportPrettyPrint: (pretty: boolean) => void;
   setExportFormat: (format: ExportFormat) => void;
+  setNudgeStepM: (step: NudgeStepM) => void;
   setLandingMode: (mode: LandingMode) => void;
   /** Task 42: open a tool's detail page (also becomes the remembered intent). */
   openLandingTool: (mode: LandingMode) => void;
@@ -143,6 +151,7 @@ export const useUiStore = create<UiState>()(
       exportMode: "structure-preserving" as ExportMode,
       exportPrettyPrint: false,
       exportFormat: "gpx" as ExportFormat,
+      nudgeStepM: 10 as NudgeStepM,
       landingMode: "repair" as LandingMode,
       landingView: "home" as LandingView,
       selectedGapId: null,
@@ -155,6 +164,7 @@ export const useUiStore = create<UiState>()(
       setExportMode: (exportMode) => set({ exportMode }),
       setExportPrettyPrint: (exportPrettyPrint) => set({ exportPrettyPrint }),
       setExportFormat: (exportFormat) => set({ exportFormat }),
+      setNudgeStepM: (nudgeStepM) => set({ nudgeStepM }),
       setLandingMode: (landingMode) => set({ landingMode }),
       // Task 42 — the cards home: one action keeps the open tool page
       // and the remembered upload intent the same value.
@@ -175,6 +185,7 @@ export const useUiStore = create<UiState>()(
         exportMode: state.exportMode,
         exportPrettyPrint: state.exportPrettyPrint,
         exportFormat: state.exportFormat,
+        nudgeStepM: state.nudgeStepM,
         landingMode: state.landingMode,
       }),
       // Avoid SSR/prerender hydration mismatches; AppShell rehydrates on

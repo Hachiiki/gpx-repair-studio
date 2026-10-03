@@ -59,6 +59,8 @@ import { TimeInMotionCard } from "@/components/statistics/time-in-motion-card";
 import { useDrawEditor } from "@/hooks/use-draw-editor";
 import { useRepairAnnouncements } from "@/hooks/use-repair-announcements";
 import { useDeepValidation } from "@/hooks/use-deep-validation";
+import { useSurgery } from "@/hooks/use-surgery";
+import { SurgeryCard } from "@/components/gpx/surgery-card";
 import { useElevation, useElevationStats } from "@/hooks/use-elevation";
 import { useGpxExport } from "@/hooks/use-gpx-export";
 import { useGpxSession } from "@/hooks/use-gpx-session";
@@ -99,6 +101,13 @@ export function AppShell() {
    * export (the export reads the same working view via the session).
    */
   const deep = useDeepValidation(session);
+  /*
+   * Phase 16 — the track-surgery binding (§EE 16.1): map picks for
+   * split/range selection, the pure planners, and the apply intent.
+   * Mounted after the deep validation (its edits land in the same
+   * log the deep card's change list renders) and before the export.
+   */
+  const surgery = useSurgery(session, map);
   const elevation = useElevation(session, draw);
   const exporter = useGpxExport(session, draw, elevation.attachment);
   const elevationStats = useElevationStats(exporter.merge);
@@ -259,8 +268,11 @@ export function AppShell() {
   /*
    * Phase 13 — point-id resolution for the deep-validation surfaces
    * (jump labels, textual lists, preview dialogs). Resolved against
-   * the ORIGINAL model: fixes never move points, so original
-   * coordinates are exact; the map focuses the same spot either way.
+   * the ORIGINAL model first (fixes never move points, so original
+   * coordinates are exact); Phase 16 adds the working-view fallback
+   * so points that only exist there (a split piece's tail, a
+   * duplicated segment's copies) resolve too — the same honest
+   * treatment, one more place to look.
    */
   const resolvePreviewPoint = useCallback(
     (pointId: string): PreviewPointInfo | null => {
@@ -270,17 +282,43 @@ export function AppShell() {
       if (ref === null) return null;
       const segment = data.segments.find((s) => s.id === ref.segmentId);
       const point = segment?.points[ref.index];
-      if (!point) return null;
-      return {
-        pointId: point.id,
-        segmentId: ref.segmentId,
-        lat: point.lat,
-        lon: point.lon,
-        ...(point.ele !== undefined ? { ele: point.ele } : {}),
-        ...(point.time !== undefined ? { time: point.time } : {}),
-      };
+      if (point) {
+        return {
+          pointId: point.id,
+          segmentId: ref.segmentId,
+          lat: point.lat,
+          lon: point.lon,
+          ...(point.ele !== undefined ? { ele: point.ele } : {}),
+          ...(point.time !== undefined ? { time: point.time } : {}),
+        };
+      }
+      // Phase 16 — derived ids (split tails keep original ids, but a
+      // duplicate's rewritten `{derived}:{i}` only exists in the
+      // working view). Walk it before giving up.
+      const working = session.workingData;
+      if (!working) return null;
+      for (const workingSegment of working.segments) {
+        const workingPoint = workingSegment.points.find(
+          (p) => p.id === pointId,
+        );
+        if (workingPoint) {
+          return {
+            pointId: workingPoint.id,
+            segmentId: workingSegment.id,
+            lat: workingPoint.lat,
+            lon: workingPoint.lon,
+            ...(workingPoint.ele !== undefined
+              ? { ele: workingPoint.ele }
+              : {}),
+            ...(workingPoint.time !== undefined
+              ? { time: workingPoint.time }
+              : {}),
+          };
+        }
+      }
+      return null;
     },
-    [session.data],
+    [session.data, session.workingData],
   );
 
   /* Phase 13 — jump-to-map: resolve the issue point, focus the camera. */
@@ -467,6 +505,16 @@ export function AppShell() {
                  */}
                 <DeepValidationCard
                   deep={deep}
+                  onJumpToPoint={jumpToPoint}
+                  resolvePoint={resolvePreviewPoint}
+                />
+                {/*
+                 * Phase 16 — track surgery: manual geometry control on
+                 * the same working copy (find problems, then reshape).
+                 */}
+                <SurgeryCard
+                  surgery={surgery}
+                  rows={session.segmentRows}
                   onJumpToPoint={jumpToPoint}
                   resolvePoint={resolvePreviewPoint}
                 />

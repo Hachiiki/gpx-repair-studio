@@ -165,6 +165,118 @@ describe("file session round-trip (repair + recovery)", () => {
   });
 });
 
+
+describe("file session — surgery edits in the log (Phase 16)", () => {
+  const SURGERY_LOG = [
+    {
+      id: "fix/2",
+      label: "Split t0s0 after point #2",
+      reason: "split" as const,
+      appliedAt: 1_700_000_002_000,
+      entries: [
+        { kind: "segment-split" as const, segmentId: SEG, atPointId: pointId(SEG, 1) },
+      ],
+    },
+    {
+      id: "fix/3",
+      label: "Duplicate t0s1 (12 points)",
+      reason: "copy" as const,
+      appliedAt: 1_700_000_003_000,
+      entries: [{ kind: "segment-duplicate" as const, segmentId: segmentId(0, 1) }],
+    },
+    {
+      id: "fix/4",
+      label: "Reorder segments (2 move)",
+      reason: "reorder" as const,
+      appliedAt: 1_700_000_004_000,
+      entries: [
+        {
+          kind: "segment-order" as const,
+          order: [segmentId(0, 1), SEG],
+        },
+      ],
+    },
+    {
+      id: "fix/5",
+      label: "Delete 3 points from t0s0",
+      reason: "range" as const,
+      appliedAt: 1_700_000_005_000,
+      entries: [
+        { kind: "point-deletion" as const, pointId: pointId(SEG, 4) },
+        { kind: "point-deletion" as const, pointId: pointId(SEG, 5) },
+      ],
+    },
+  ];
+
+  it("round-trips every surgery entry kind verbatim", () => {
+    const record = captureFileSession(
+      { ...BASE_FILE_STATE, workingEdits: [...BASE_FILE_STATE.workingEdits, ...SURGERY_LOG] },
+      321,
+    );
+    const read = readSessionRecord(record);
+    expect(read).not.toBeNull();
+    expect(read?.kind).toBe("file");
+    if (read?.kind !== "file") return;
+    expect(read.workingEdits).toHaveLength(5);
+    expect(read.workingEdits[1].entries[0]).toEqual({
+      kind: "segment-split",
+      segmentId: SEG,
+      atPointId: pointId(SEG, 1),
+    });
+    expect(read.workingEdits[2].reason).toBe("copy");
+    expect(read.workingEdits[3].entries[0]).toEqual({
+      kind: "segment-order",
+      order: [segmentId(0, 1), SEG],
+    });
+  });
+
+  it("a malformed surgery entry rejects the whole record (discard, never guess)", () => {
+    const bad = {
+      ...captureFileSession(BASE_FILE_STATE, 1),
+      workingEdits: [
+        {
+          id: "fix/9",
+          label: "bad",
+          reason: "split",
+          appliedAt: 1,
+          entries: [{ kind: "segment-split", segmentId: SEG /* atPointId missing */ }],
+        },
+      ],
+    };
+    expect(readSessionRecord(bad)).toBeNull();
+  });
+
+  it("an empty order array and unknown reasons are rejected", () => {
+    const emptyOrder = {
+      ...captureFileSession(BASE_FILE_STATE, 1),
+      workingEdits: [
+        {
+          id: "fix/9",
+          label: "bad",
+          reason: "reorder",
+          appliedAt: 1,
+          entries: [{ kind: "segment-order", order: [] }],
+        },
+      ],
+    };
+    expect(readSessionRecord(emptyOrder)).toBeNull();
+
+    const badReason = {
+      ...captureFileSession(BASE_FILE_STATE, 1),
+      workingEdits: [
+        {
+          id: "fix/9",
+          label: "bad",
+          reason: "teleport",
+          appliedAt: 1,
+          entries: [{ kind: "point-deletion", pointId: pointId(SEG, 1) }],
+        },
+      ],
+    };
+    expect(readSessionRecord(badReason)).toBeNull();
+  });
+});
+
 describe("create session round-trip", () => {
   it("captures and hydrates stats, route, and settings", () => {
     const record = captureCreateSession(

@@ -102,6 +102,10 @@ const REASON_LABELS: Record<WorkingEdit["reason"], string> = {
   sort: "time sort",
   elevation: "elevation smoothing",
   thin: "thinning",
+  split: "segment split",
+  range: "range deletion",
+  reorder: "manual reorder",
+  copy: "segment copy",
 };
 
 /** The point list cap per issue — the disclosure lists 12, then counts. */

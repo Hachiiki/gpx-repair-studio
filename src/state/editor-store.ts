@@ -51,6 +51,7 @@ import {
   type DrawHistory,
   type VertexPosition,
 } from "@/features/reconstruction/drawModel";
+import { nudgeInBounds } from "@/features/reconstruction/coordEntry";
 import type { FileSessionHydration } from "@/lib/storage/session-record";
 import type { FileTimingContext } from "@/features/reconstruction/timestamps";
 import type {
@@ -161,6 +162,13 @@ interface EditorState {
   addVertex: (position: VertexPosition) => void;
   insertVertex: (index: number, position: VertexPosition) => void;
   moveVertex: (vertexId: VertexId, to: VertexPosition) => void;
+  /**
+   * Phase 16 — nudge a vertex by a degree delta (arrow keys). Commits
+   * a COALESCING move: a run of nudges on the same vertex is one undo
+   * step (the run's start is kept). Bounds-checked — a nudge that
+   * would leave the lat/lon ranges is a no-op.
+   */
+  nudgeVertex: (vertexId: VertexId, dLat: number, dLon: number) => void;
   deleteVertex: (vertexId: VertexId) => void;
   /**
    * Commit one freehand stroke (Curve pen, user pass 48): append the
@@ -473,6 +481,37 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     if (!current) return;
     const command = moveVertexCommand(current, vertexId, to);
     get().submitCommand(command);
+  },
+
+  nudgeVertex: (vertexId, dLat, dLon) => {
+    const state = get();
+    const current = activeReconstruction(state);
+    if (!current) return;
+    const vertex = current.vertices.find((v) => v.id === vertexId);
+    if (!vertex) return;
+    // The honest bounds gate — a long arrow-key run can never walk a
+    // point off the world (16.3).
+    if (!nudgeInBounds(vertex.lat, vertex.lon, dLat, dLon)) return;
+    // A nudged vertex is no longer exactly on the recorded point it
+    // may have snapped to — the snap provenance drops with the move.
+    const command = moveVertexCommand(current, vertexId, {
+      lat: vertex.lat + dLat,
+      lon: vertex.lon + dLon,
+    });
+    if (!command) return;
+    const next = commitCommand(
+      { reconstruction: current, history: state.history },
+      command,
+      { coalesce: true },
+    );
+    if (next.reconstruction === current) return;
+    set({
+      reconstructions: {
+        ...state.reconstructions,
+        [current.gapId]: next.reconstruction,
+      },
+      history: next.history,
+    });
   },
 
   deleteVertex: (vertexId) => {

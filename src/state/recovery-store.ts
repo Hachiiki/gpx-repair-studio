@@ -54,6 +54,7 @@ import {
   type DrawHistory,
   type VertexPosition,
 } from "@/features/reconstruction/drawModel";
+import { nudgeInBounds } from "@/features/reconstruction/coordEntry";
 import type { FileTimingContext } from "@/features/reconstruction/timestamps";
 import type {
   DetectedGap,
@@ -186,6 +187,8 @@ interface RecoveryState {
   addVertex: (position: VertexPosition) => void;
   insertVertex: (index: number, position: VertexPosition) => void;
   moveVertex: (vertexId: VertexId, to: VertexPosition) => void;
+  /** Phase 16 — coalescing arrow-key nudge (the editor store's twin). */
+  nudgeVertex: (vertexId: VertexId, dLat: number, dLon: number) => void;
   deleteVertex: (vertexId: VertexId) => void;
   /**
    * Commit one freehand stroke (Curve pen, user pass 48): append the
@@ -556,6 +559,33 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       { reconstruction: current, history: state.history },
       command,
     );
+    set({
+      reconstructions: {
+        ...state.reconstructions,
+        [current.gapId]: next.reconstruction,
+      },
+      history: next.history,
+    });
+  },
+
+  nudgeVertex: (vertexId, dLat, dLon) => {
+    const state = get();
+    const current = activeRecoveryReconstruction(state);
+    if (!current) return;
+    const vertex = current.vertices.find((v) => v.id === vertexId);
+    if (!vertex) return;
+    if (!nudgeInBounds(vertex.lat, vertex.lon, dLat, dLon)) return;
+    const command: DrawCommand | null = moveVertexCommand(current, vertexId, {
+      lat: vertex.lat + dLat,
+      lon: vertex.lon + dLon,
+    });
+    if (!command) return;
+    const next = commitCommand(
+      { reconstruction: current, history: state.history },
+      command,
+      { coalesce: true },
+    );
+    if (next.reconstruction === current) return;
     set({
       reconstructions: {
         ...state.reconstructions,

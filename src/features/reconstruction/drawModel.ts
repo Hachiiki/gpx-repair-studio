@@ -337,14 +337,43 @@ export interface DrawState {
   history: DrawHistory;
 }
 
-/** Commit a command: apply, push undo, clear redo. `null` → unchanged. */
+/** Commit a command: apply, push undo, clear redo. `null` → unchanged.
+ *
+ * `options.coalesce` (Phase 16 nudge): a `move-vertex` lands on a
+ * same-vertex `move-vertex` at the top of the undo stack — the two
+ * merge into ONE step (the kept `from` is the run's start), so a long
+ * arrow-key nudge walk is undone in one press. Typed commits never
+ * coalesce: every deliberate edit keeps its own step. */
 export function commitCommand(
   state: DrawState,
   command: DrawCommand | null,
+  options: { coalesce?: boolean } = {},
 ): DrawState {
   if (!command) return state;
   const reconstruction = applyDrawCommand(state.reconstruction, command);
   if (reconstruction === state.reconstruction) return state;
+  if (
+    options.coalesce === true &&
+    command.kind === "move-vertex" &&
+    state.history.undo.length > 0
+  ) {
+    const top = state.history.undo[state.history.undo.length - 1];
+    if (top.kind === "move-vertex" && top.vertexId === command.vertexId) {
+      const merged: DrawCommand = {
+        kind: "move-vertex",
+        vertexId: command.vertexId,
+        from: top.from, // the run's start — undo returns there
+        to: command.to,
+      };
+      return {
+        reconstruction,
+        history: {
+          undo: [...state.history.undo.slice(0, -1), merged],
+          redo: [],
+        },
+      };
+    }
+  }
   return {
     reconstruction,
     history: {

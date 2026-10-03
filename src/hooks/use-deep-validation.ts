@@ -116,7 +116,15 @@ export function useDeepValidation(session: GpxSession): DeepValidationBinding {
     () =>
       session.status === "parsed" && session.data
         ? workingMetaOf(edits)
-        : { deletedPointCount: 0, sortedSegmentIds: [], overriddenEleCount: 0, hasEdits: false },
+        : {
+            deletedPointCount: 0,
+            sortedSegmentIds: [],
+            overriddenEleCount: 0,
+            splitCount: 0,
+            duplicatedSegmentCount: 0,
+            reorderedSegmentCount: 0,
+            hasEdits: false,
+          },
     [edits, session.status, session.data],
   );
 

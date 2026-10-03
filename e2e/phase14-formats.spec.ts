@@ -99,7 +99,9 @@ test.describe("Phase 14 — formats in & out", () => {
     // Provenance labels + the working-copy disclosure.
     expect(kml.text).toContain('<Data name="recorded_points">');
     // The teleport is an out-and-back jump: BOTH damaged points leave.
-    expect(kml.text).toContain("2 damaged points were removed");
+    expect(kml.text).toContain(
+      "2 points were removed (by fixes or manual range deletions)",
+    );
     expect(kml.text).toContain("KML carries no per-point provenance");
     // The hr passthrough shows up as per-track aggregates.
     expect(kml.text).toContain('name="avg_heart_rate_bpm"');
@@ -131,7 +133,9 @@ test.describe("Phase 14 — formats in & out", () => {
     expect(gpx.text).toContain("<trkpt");
     // Deletions are disclosed in the note (points are simply absent);
     // the metrics passthrough rides the standard gpxtpx extension.
-    expect(gpx.text).toContain("2 damaged points were removed");
+    expect(gpx.text).toContain(
+      "2 points were removed (by fixes or manual range deletions)",
+    );
     expect(gpx.text).not.toContain("-37.89822"); // the teleport coordinate
     expect(gpx.text).toContain(
       '<extensions xmlns="http://www.topografix.com/GPX/1/1"><gpxtpx:TrackPointExtension',

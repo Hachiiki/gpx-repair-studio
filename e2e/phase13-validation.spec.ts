@@ -254,7 +254,9 @@ test.describe("stats + export carry the working copy", () => {
     expect(xml).not.toContain("<ele>118</ele>");
     // The metadata note discloses both changes.
     expect(xml).toContain("Working copy:");
-    expect(xml).toContain("2 damaged points were removed");
+    expect(xml).toContain(
+      "2 points were removed (by fixes or manual range deletions)",
+    );
     expect(xml).toContain("1 elevation was smoothed");
   });
 });

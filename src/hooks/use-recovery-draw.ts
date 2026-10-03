@@ -64,6 +64,8 @@ import {
 } from "@/state/editor-store";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { activeRecoveryReconstruction } from "@/state/recovery-store";
+import { useUiStore } from "@/state/ui-store";
+import type { NudgeStepM } from "@/features/reconstruction/coordEntry";
 import type {
   GapId,
   LatLon,
@@ -848,6 +850,45 @@ export function useRecoveryDraw(
     useRecoveryStore.getState().deleteVertex(vertexId);
   }, []);
 
+  /*
+   * Phase 16 — numeric entry (§EE 16.2): the recovery section's draw
+   * editor shares the panel, so it shares these intents too. The
+   * announcements stay in the repair-studio hook; the recovery
+   * studio's rows + readout are its feedback.
+   */
+  const addVertexAt = useCallback((lat: number, lon: number) => {
+    useRecoveryStore.getState().addVertex({ lat, lon });
+  }, []);
+
+  const insertVertexAt = useCallback(
+    (index: number, lat: number, lon: number) => {
+      useRecoveryStore.getState().insertVertex(index, { lat, lon });
+    },
+    [],
+  );
+
+  const moveVertexTo = useCallback(
+    (vertexId: VertexId, lat: number, lon: number) => {
+      useRecoveryStore.getState().moveVertex(vertexId, { lat, lon });
+    },
+    [],
+  );
+
+  const nudgeVertex = useCallback(
+    (vertexId: VertexId, dLat: number, dLon: number) => {
+      useRecoveryStore.getState().nudgeVertex(vertexId, dLat, dLon);
+    },
+    [],
+  );
+
+  // The persisted nudge step (a preference, shared with the repair
+  // studio — the same ui-store key).
+  const nudgeStepM = useUiStore((s) => s.nudgeStepM);
+  const setNudgeStepM = useCallback(
+    (step: NudgeStepM) => useUiStore.getState().setNudgeStepM(step),
+    [],
+  );
+
   const setPenMode = useCallback((pen: PenMode) => {
     useRecoveryStore.getState().setPenMode(pen);
   }, []);
@@ -899,5 +940,11 @@ export function useRecoveryDraw(
     setFileTiming,
     toggleSkip,
     deleteVertex,
+    addVertexAt,
+    insertVertexAt,
+    moveVertexTo,
+    nudgeVertex,
+    nudgeStepM,
+    setNudgeStepM,
   };
 }

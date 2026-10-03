@@ -350,6 +350,77 @@ describe("command stack invariants", () => {
   });
 });
 
+
+describe("commitCommand — coalescing (Phase 16 nudge)", () => {
+  it("a run of moves on the same vertex is ONE undo step that returns to the run's start", () => {
+    let state = stateWith([vertex(1)]);
+    const start = state.reconstruction.vertices[0];
+
+    // Three nudges, each coalescing.
+    for (let i = 1; i <= 3; i += 1) {
+      const command = moveVertexCommand(
+        state.reconstruction,
+        vertexId(1),
+        { lat: 52.52 + i * 0.0001, lon: 13.405 },
+      );
+      state = commitCommand(state, command, { coalesce: true });
+    }
+    expect(state.history.undo).toHaveLength(1);
+    expect(state.reconstruction.vertices[0].lat).toBeCloseTo(52.5203, 10);
+
+    // One undo returns to the position before the run began.
+    state = undoCommand(state);
+    expect(state.reconstruction.vertices[0].lat).toBe(start.lat);
+    expect(state.reconstruction.vertices[0].lon).toBe(start.lon);
+  });
+
+  it("coalescing never crosses a different vertex or a non-move command", () => {
+    let state = stateWith([vertex(1), vertex(2, 0.001)]);
+    state = commitCommand(
+      state,
+      moveVertexCommand(state.reconstruction, vertexId(1), { lat: 52.5201, lon: 13.405 }),
+      { coalesce: true },
+    );
+    // A different vertex's move does not merge with the previous.
+    state = commitCommand(
+      state,
+      moveVertexCommand(state.reconstruction, vertexId(2), { lat: 52.5211, lon: 13.405 }),
+      { coalesce: true },
+    );
+    expect(state.history.undo).toHaveLength(2);
+    // An insert between moves breaks the chain.
+    state = commitCommand(
+      state,
+      moveVertexCommand(state.reconstruction, vertexId(1), { lat: 52.5202, lon: 13.405 }),
+      { coalesce: true },
+    );
+    state = commitCommand(
+      state,
+      insertVertexCommand(state.reconstruction, 0, { lat: 52.5199, lon: 13.405 }, vertexId(3)),
+    );
+    state = commitCommand(
+      state,
+      moveVertexCommand(state.reconstruction, vertexId(1), { lat: 52.5203, lon: 13.405 }),
+      { coalesce: true },
+    );
+    // 2 opening moves + the v1 chain-breaker + the insert + the final
+    // move (its top is an insert, not a move — no merge).
+    expect(state.history.undo).toHaveLength(5);
+  });
+
+  it("typed commits (no coalesce) keep their own steps", () => {
+    let state = stateWith([vertex(1)]);
+    state = commitCommand(
+      state,
+      moveVertexCommand(state.reconstruction, vertexId(1), { lat: 52.5201, lon: 13.405 }),
+    );
+    state = commitCommand(
+      state,
+      moveVertexCommand(state.reconstruction, vertexId(1), { lat: 52.5202, lon: 13.405 }),
+    );
+    expect(state.history.undo).toHaveLength(2);
+  });
+});
 describe("geometry helpers", () => {
   it("distance includes both anchors (always connected)", () => {
     const onlyAnchors = reconstructionDistanceMeters(

@@ -168,6 +168,50 @@ describe("vertex commands through the store", () => {
   });
 });
 
+
+describe("nudgeVertex — the arrow-key move (Phase 16)", () => {
+  beforeEach(() => {
+    useEditorStore.getState().reset();
+  });
+
+  it("moves by the delta and drops the snap (the point left its anchor)", () => {
+    useEditorStore.getState().openEditor(gapA);
+    useEditorStore.getState().addVertex({ ...pos(52.52, 13.405), snappedTo: "t0s0:2" as never });
+    useEditorStore.getState().nudgeVertex(vertexId(1), 0.0001, 0.0002);
+
+    const vertices = useEditorStore.getState().reconstructions[gapA].vertices;
+    expect(vertices[0].lat).toBeCloseTo(52.5201, 12);
+    expect(vertices[0].lon).toBeCloseTo(13.4052, 12);
+    expect(vertices[0].snappedTo).toBeUndefined();
+  });
+
+  it("a run of nudges is ONE undo step returning to the run's start", () => {
+    useEditorStore.getState().openEditor(gapA);
+    useEditorStore.getState().addVertex(pos(52.52, 13.405));
+    for (let i = 1; i <= 4; i += 1) {
+      useEditorStore.getState().nudgeVertex(vertexId(1), 0.0001, 0);
+    }
+    const state = useEditorStore.getState();
+    expect(state.history.undo).toHaveLength(2); // the add + the whole nudge run
+    expect(state.reconstructions[gapA].vertices[0].lat).toBeCloseTo(52.5204, 12);
+
+    state.undo();
+    const after = useEditorStore.getState();
+    expect(after.reconstructions[gapA].vertices[0].lat).toBe(52.52);
+    expect(after.history.undo).toHaveLength(1); // the add survives
+  });
+
+  it("refuses a nudge that would leave the lat/lon bounds", () => {
+    useEditorStore.getState().openEditor(gapA);
+    useEditorStore.getState().addVertex(pos(89.9999, 13.405));
+    useEditorStore.getState().nudgeVertex(vertexId(1), 0.001, 0); // past the pole
+
+    const vertices = useEditorStore.getState().reconstructions[gapA].vertices;
+    expect(vertices[0].lat).toBe(89.9999); // unchanged — honestly refused
+    expect(useEditorStore.getState().history.undo).toHaveLength(1);
+  });
+});
+
 describe("commitStroke — the Curve pen's command (user pass 48)", () => {
   const STROKE = [
     pos(52.52, 13.405),

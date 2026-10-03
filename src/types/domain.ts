@@ -598,7 +598,8 @@ export interface MergedPointView {
 
 /**
  * Why a working-copy edit exists — the honesty trail every fix carries
- * into the export note and the change log.
+ * into the export note and the change log. Phase 16 adds the surgery
+ * reasons (manual geometry control, §EE 16.1).
  */
 export type FixReason =
   | "spike" // a teleport leg's point removed
@@ -606,7 +607,11 @@ export type FixReason =
   | "drift" // a stop-and-wander GPS-drift run collapsed
   | "sort" // a segment reordered by timestamp (order is estimated)
   | "elevation" // an outlying elevation replaced by interpolation
-  | "thin"; // a dense recording decimated to a minimum spacing
+  | "thin" // a dense recording decimated to a minimum spacing
+  | "split" // a segment cut in two at a picked point (Phase 16)
+  | "range" // a manual A–B stretch of points deleted (Phase 16)
+  | "reorder" // segments rearranged by hand (Phase 16)
+  | "copy"; // a segment duplicated (Phase 16)
 
 /**
  * One override of the immutable original (§EE 13.2). Entries are the
@@ -625,7 +630,23 @@ export type WorkingEditEntry =
       method: Estimated<number>["method"];
       /** The recorded elevation it replaces, when there was one. */
       originalEle?: number;
-    };
+    }
+  /** Phase 16 — split a segment AFTER this point: the following points
+   * move to a derived segment (`{segmentId}~s{n}`) in the same track;
+   * point ids stay original-parse-stable, so later edits and gap anchors
+   * keep resolving. No-op when the point is the segment's last. */
+  | { kind: "segment-split"; segmentId: SegmentId; atPointId: PointId }
+  /** Phase 16 — insert a copy of the segment right after it (same
+   * track). The copy's point ids are rewritten to `{derivedId}:{i}` so
+   * later edits can address them without aliasing the source points;
+   * segment extras (vendor children) are NOT copied — disclosed in the
+   * preview. */
+  | { kind: "segment-duplicate"; segmentId: SegmentId }
+  /** Phase 16 — the new segment order (a permutation of the ids that
+   * exist when this entry replays; within-track moves only — the track
+   * structure is never crossed). One entry = one rearrangement = one
+   * undo step. */
+  | { kind: "segment-order"; order: readonly SegmentId[] };
 
 /** One user-confirmed fix on the working copy — one undo step. */
 export interface WorkingEdit {
@@ -665,6 +686,12 @@ export interface WorkingMeta {
   sortedSegmentIds: readonly SegmentId[];
   /** Elevations replaced by interpolation. */
   overriddenEleCount: number;
+  /** Segments cut in two (Phase 16 surgery). */
+  splitCount: number;
+  /** Segment copies inserted (Phase 16 surgery). */
+  duplicatedSegmentCount: number;
+  /** Manual segment rearrangements applied (Phase 16 surgery). */
+  reorderedSegmentCount: number;
   /** True when at least one edit exists. */
   hasEdits: boolean;
 }
@@ -725,10 +752,17 @@ export type PresetId =
   | "resample-thin"
   | "spike-sweep";
 
+/** The manual surgery operations (§EE 16.1) — planned like fixes. */
+export type SurgeryKind =
+  | "split-segment"
+  | "delete-range"
+  | "duplicate-segment"
+  | "reorder-segments";
+
 /** A planned fix: what would change, before anything does. */
 export interface FixPlan {
-  /** Which fix / preset produced the plan. */
-  kind: FixKind | PresetId;
+  /** Which fix / preset / surgery op produced the plan. */
+  kind: FixKind | PresetId | SurgeryKind;
   label: string;
   /** The entries applying the plan would write. */
   entries: readonly WorkingEditEntry[];

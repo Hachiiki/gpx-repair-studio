@@ -77,6 +77,9 @@ describe("applyWorkingEdits — point deletions", () => {
       deletedPointCount: 1,
       sortedSegmentIds: [],
       overriddenEleCount: 0,
+      splitCount: 0,
+      duplicatedSegmentCount: 0,
+      reorderedSegmentCount: 0,
       hasEdits: true,
     });
   });

@@ -179,10 +179,14 @@ export function useRecoveryExport(
       repairsWithElevation: merge.elevatedRepairCount,
       staleElevationCount: elevation?.staleCount ?? 0,
       // Phase 13: the recovery section has no working copy — its
-      // deep-validation fields are honestly zero.
+      // deep-validation fields are honestly zero (Phase 16: the
+      // surgery fields too).
       workingDeletedPoints: 0,
       workingSortedSegments: 0,
       workingSmoothedElevations: 0,
+      workingSplitSegments: 0,
+      workingDuplicatedSegments: 0,
+      workingReorderedSegments: 0,
     };
   }, [
     data,

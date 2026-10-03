@@ -286,6 +286,15 @@ export function StatsPanel({
                 working.deletedPointCount > 0
                   ? `${working.deletedPointCount} point${working.deletedPointCount === 1 ? "" : "s"} removed`
                   : null,
+                working.splitCount > 0
+                  ? `${working.splitCount} segment${working.splitCount === 1 ? "" : "s"} split`
+                  : null,
+                working.duplicatedSegmentCount > 0
+                  ? `${working.duplicatedSegmentCount} cop${working.duplicatedSegmentCount === 1 ? "y" : "ies"} inserted`
+                  : null,
+                working.reorderedSegmentCount > 0
+                  ? `${working.reorderedSegmentCount} manual reorder${working.reorderedSegmentCount === 1 ? "" : "s"}`
+                  : null,
                 working.sortedSegmentIds.length > 0
                   ? `${working.sortedSegmentIds.length} segment${working.sortedSegmentIds.length === 1 ? "" : "s"} sorted by time`
                   : null,

@@ -534,9 +534,16 @@ const FIX_REASONS = new Set([
   "sort",
   "elevation",
   "thin",
+  "split",
+  "range",
+  "reorder",
+  "copy",
 ]);
 
-/** Structural check of one stored working-copy edit (Phase 13, v2). */
+/** Structural check of one stored working-copy edit (Phase 13 v2;
+ * Phase 16 adds the surgery entry kinds — an older build rejects
+ * them with the whole record, the documented "discard, never guess"
+ * downgrade rule). */
 function isWorkingEdit(value: unknown): value is StoredWorkingEdit {
   if (typeof value !== "object" || value === null) return false;
   const edit = value as Record<string, unknown>;
@@ -562,6 +569,24 @@ function isWorkingEdit(value: unknown): value is StoredWorkingEdit {
         e.pointId.length > 0 &&
         isFiniteNumber(e.ele) &&
         (e.originalEle === undefined || isFiniteNumber(e.originalEle))
+      );
+    }
+    if (e.kind === "segment-split") {
+      return (
+        typeof e.segmentId === "string" &&
+        e.segmentId.length > 0 &&
+        typeof e.atPointId === "string" &&
+        e.atPointId.length > 0
+      );
+    }
+    if (e.kind === "segment-duplicate") {
+      return typeof e.segmentId === "string" && e.segmentId.length > 0;
+    }
+    if (e.kind === "segment-order") {
+      return (
+        Array.isArray(e.order) &&
+        e.order.length > 0 &&
+        e.order.every((id) => typeof id === "string" && id.length > 0)
       );
     }
     return false;

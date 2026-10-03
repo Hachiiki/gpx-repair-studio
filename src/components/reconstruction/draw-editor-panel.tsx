@@ -36,6 +36,7 @@ import {
 import { UndoRedoBar } from "@/components/reconstruction/undo-redo-bar";
 import { TimeStrategyControls } from "@/components/reconstruction/time-strategy-controls";
 import { ElevationControls } from "@/components/reconstruction/elevation-controls";
+import { VertexEntryList } from "@/components/reconstruction/vertex-entry-list";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
 import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
 import type { ElevationControlsBinding } from "@/hooks/use-elevation";
@@ -103,49 +104,6 @@ const PATH_STYLE_CHOICES: readonly {
     hint: "No road snapping — the line connects your points directly. Nothing leaves the browser. Lines drawn with the Curve pen stay smooth until redrawn.",
   },
 ];
-
-function VertexRow({
-  vertex,
-  index,
-  onDelete,
-}: {
-  vertex: DrawVertex;
-  index: number;
-  onDelete: (vertexId: DrawVertex["id"]) => void;
-}) {
-  return (
-    <li
-      className="flex items-center gap-2 rounded-[6px] border border-ink/10 bg-card px-2 py-1.5 text-xs transition-colors hover:bg-ink/[0.04]"
-      data-testid="vertex-row"
-    >
-      <span className="grid size-[18px] shrink-0 place-items-center rounded-[4px] bg-ink/[0.06] text-[10px] font-bold text-shade">
-        {index + 1}
-      </span>
-      <span className="font-mono text-[11px] text-ink/70">
-        {formatLatLon(vertex.lat, vertex.lon)}
-      </span>
-      {vertex.snappedTo !== undefined && (
-        <span
-          className="rounded-[3px] border-[1.25px] border-signal bg-signal/10 px-1.5 py-px text-[10px] font-semibold text-ink"
-          title={`Snapped to recorded point ${vertex.snappedTo}`}
-        >
-          snapped
-        </span>
-      )}
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="ml-auto size-5 shrink-0 rounded-[4px] p-0 text-shade hover:bg-inkplus hover:text-paper"
-        aria-label={`Delete point ${index + 1}`}
-        data-testid="delete-vertex-button"
-        onClick={() => onDelete(vertex.id)}
-      >
-        <X className="size-3.5" aria-hidden="true" />
-      </Button>
-    </li>
-  );
-}
 
 export function DrawEditorPanel({
   draw,
@@ -554,28 +512,15 @@ export function DrawEditorPanel({
           </label>
         </div>
 
-        {/* Vertex list: the accessible delete path. */}
-        {draw.vertexCount > 0 && (
-          <div className="grid gap-1.5">
-            <p className="text-xs font-medium text-muted-foreground">
-              Drawn points — switch to Move (M) and drag any of them on the
-              map, double-click to remove. Drawing (D) adds points only —
-              the pencil never drags.
-            </p>
-            <ScrollArea className="max-h-40 -mx-2">
-              <ul className="grid gap-0.5 px-2">
-                {draw.vertices.map((vertex, index) => (
-                  <VertexRow
-                    key={vertex.id}
-                    vertex={vertex}
-                    index={index}
-                    onDelete={draw.deleteVertex}
-                  />
-                ))}
-              </ul>
-            </ScrollArea>
-          </div>
-        )}
+        {/*
+         * Vertex list (Phase 16 — §EE 16.2): the numeric-entry surface.
+         * Every canvas edit's keyboard twin, in rows you can tab into:
+         * typed lat/lng, insert-after with a midpoint prefill, and
+         * arrow-key nudge at a configurable step. The append form
+         * shows even with zero points — the first point can be typed;
+         * the component itself swaps in the honest cap notice.
+         */}
+        <VertexEntryList entry={draw} />
 
         <div className="flex items-center justify-between gap-2 border-t border-ink/10 pt-3">
           {isManual ? (

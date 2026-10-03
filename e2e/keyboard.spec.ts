@@ -54,7 +54,11 @@ async function pollBridge(
 async function tabUntil(
   page: Page,
   isMatch: string,
-  max = 60,
+  // Phase 16 raised the budget: the surgery card and the vertex-entry
+  // forms added legitimate keyboard stops to the tools column, so the
+  // wrap-around journey to the editor's pen chips grew past 60 — the
+  // test's contract is reachability, not brevity.
+  max = 120,
 ): Promise<void> {
   for (let i = 0; i < max; i += 1) {
     await page.keyboard.press("Tab");

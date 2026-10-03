@@ -65,6 +65,8 @@ import {
   type PickMode,
 } from "@/state/editor-store";
 import { useUiStore } from "@/state/ui-store";
+import { announce } from "@/lib/announcements";
+import type { NudgeStepM } from "@/features/reconstruction/coordEntry";
 import type {
   DrawVertex,
   GapId,
@@ -88,6 +90,14 @@ import type { MapBinding } from "@/hooks/use-map-controller";
 // they need to type draw props flows through this module.
 export type { GapTimePlan } from "@/features/reconstruction/timestamps";
 export type { PaceRow } from "@/features/statistics/pace";
+// Phase 16 — the numeric-entry vocabulary (§EE 16.2/16.3), same rule.
+export {
+  NUDGE_STEP_CHOICES,
+  nudgeDelta,
+  parseLatitude,
+  parseLongitude,
+} from "@/features/reconstruction/coordEntry";
+export type { NudgeStepM } from "@/features/reconstruction/coordEntry";
 
 /**
  * The road-follow router (app layer owns the network): one shared
@@ -251,6 +261,22 @@ export interface DrawEditorBinding {
   /** Toggle the skip mark of the ACTIVE gap. */
   toggleSkip: () => void;
   deleteVertex: (vertexId: VertexId) => void;
+  /*
+   * Phase 16 — numeric entry (§EE 16.2): the keyboard-only repair.
+   * Add/insert/move by typing, and arrow-key nudge with a persisted,
+   * configurable step. All commands — every one undoable.
+   */
+  /** Append a vertex at typed coordinates (the "Add point" form). */
+  addVertexAt: (lat: number, lon: number) => void;
+  /** Insert a vertex at a list position (the "insert after" forms). */
+  insertVertexAt: (index: number, lat: number, lon: number) => void;
+  /** Move a vertex to typed coordinates (the row inputs' commit). */
+  moveVertexTo: (vertexId: VertexId, lat: number, lon: number) => void;
+  /** Nudge a vertex by a degree delta (arrow keys — coalescing undo). */
+  nudgeVertex: (vertexId: VertexId, dLat: number, dLon: number) => void;
+  /** The nudge step, meters (persisted preference). */
+  nudgeStepM: NudgeStepM;
+  setNudgeStepM: (step: NudgeStepM) => void;
 }
 
 /**
@@ -1040,9 +1066,57 @@ export function useDrawEditor(
     if (gapId === null) return;
     useEditorStore.getState().toggleSkip(gapId);
   }, []);
-
   const deleteVertex = useCallback((vertexId: VertexId) => {
     useEditorStore.getState().deleteVertex(vertexId);
+  }, []);
+
+  /*
+   * Phase 16 — numeric entry intents (§EE 16.2). Thin store wrappers:
+   * the panel validates the typed text (coordEntry) and calls these
+   * with clean numbers; the store's command constructors guard
+   * finiteness and the hard cap as always.
+   */
+  const addVertexAt = useCallback((lat: number, lon: number) => {
+    useEditorStore.getState().addVertex({ lat, lon });
+    // The typed path's confirmation — the map's clicks have the line
+    // itself as feedback; a form submission has only this (Phase 8
+    // pattern: the aria-live region speaks the outcome).
+    const current = activeReconstruction(useEditorStore.getState());
+    if (current) {
+      announce(
+        `Point added by coordinates — the line now holds ${current.vertices.length} points.`,
+      );
+    }
+  }, []);
+
+  const insertVertexAt = useCallback(
+    (index: number, lat: number, lon: number) => {
+      useEditorStore.getState().insertVertex(index, { lat, lon });
+      announce("Point inserted by coordinates.");
+    },
+    [],
+  );
+
+  const moveVertexTo = useCallback(
+    (vertexId: VertexId, lat: number, lon: number) => {
+      // A typed move is deliberate — the snap provenance (if any) drops
+      // with the position, same as a drag.
+      useEditorStore.getState().moveVertex(vertexId, { lat, lon });
+    },
+    [],
+  );
+
+  const nudgeVertex = useCallback(
+    (vertexId: VertexId, dLat: number, dLon: number) => {
+      useEditorStore.getState().nudgeVertex(vertexId, dLat, dLon);
+    },
+    [],
+  );
+
+  // The persisted nudge step (a preference, not repair state).
+  const nudgeStepM = useUiStore((s) => s.nudgeStepM);
+  const setNudgeStepM = useCallback((step: NudgeStepM) => {
+    useUiStore.getState().setNudgeStepM(step);
   }, []);
 
   return {
@@ -1092,5 +1166,11 @@ export function useDrawEditor(
     setFileTiming,
     toggleSkip,
     deleteVertex,
+    addVertexAt,
+    insertVertexAt,
+    moveVertexTo,
+    nudgeVertex,
+    nudgeStepM,
+    setNudgeStepM,
   };
 }

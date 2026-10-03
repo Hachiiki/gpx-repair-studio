@@ -22,6 +22,7 @@ import { MapLegend } from "@/components/map/map-legend";
 import { MapToolbar } from "@/components/map/map-toolbar";
 import { GapList } from "@/components/reconstruction/gap-list";
 import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
+import type { NudgeStepM } from "@/features/reconstruction/coordEntry";
 import type { MapBinding } from "@/hooks/use-map-controller";
 import type { GapRow, GapThresholds } from "@/hooks/use-gpx-session";
 import { USER_TILE_PROVIDER_OPTIONS } from "@/lib/map/styles";
@@ -134,6 +135,12 @@ function makeDrawBinding(
     setFileTiming: () => {},
     toggleSkip: () => {},
     deleteVertex: (_vertexId: VertexId) => {},
+    addVertexAt: (_lat: number, _lon: number) => {},
+    insertVertexAt: (_index: number, _lat: number, _lon: number) => {},
+    moveVertexTo: (_vertexId: VertexId, _lat: number, _lon: number) => {},
+    nudgeVertex: (_vertexId: VertexId, _dLat: number, _dLon: number) => {},
+    nudgeStepM: 10,
+    setNudgeStepM: (_step: NudgeStepM) => {},
     ...overrides,
   };
 }
