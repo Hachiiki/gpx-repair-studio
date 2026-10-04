@@ -16,9 +16,23 @@ function ScrollArea({
       className={cn("relative", className)}
       {...props}
     >
+      {/*
+       * `max-h-[inherit]` — the viewport must clamp ITSELF to whatever
+       * max-height the caller put on the Root. The viewport's `size-full`
+       * (`height: 100%`) only resolves when the Root has a *definite*
+       * height: inside grid/flex-stretched parents it does (and the
+       * percentage clamps the list), but under a plain block parent —
+       * e.g. the default `CardContent` — a Root with only `max-h-*`
+       * leaves the percentage unresolved ("auto"), so the viewport grows
+       * to full content height and the rows PAINT over the cards below
+       * (the repair studio's detected-gaps list overlapping the export
+       * card). Inheriting the Root's max-height makes the viewport clamp
+       * and scroll internally whatever the ancestor layout is — block,
+       * grid, flex, or a dialog — with no change to the callers.
+       */}
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1"
+        className="focus-visible:ring-ring/50 size-full max-h-[inherit] rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1"
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

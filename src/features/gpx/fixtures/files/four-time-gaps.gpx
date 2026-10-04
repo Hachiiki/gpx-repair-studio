@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Paused Watch" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Four Pause Walk</name>
+    <trkseg>
+      <trkpt lat="52.520006" lon="13.404954"><ele>41.6</ele><time>2024-05-01T07:00:00Z</time></trkpt>
+      <trkpt lat="52.520051" lon="13.405024"><ele>41.7</ele><time>2024-05-01T07:00:03Z</time></trkpt>
+      <trkpt lat="52.520096" lon="13.405094"><ele>41.9</ele><time>2024-05-01T07:00:06Z</time></trkpt>
+      <trkpt lat="52.520141" lon="13.405164"><ele>42.0</ele><time>2024-05-01T07:00:09Z</time></trkpt>
+      <trkpt lat="52.520186" lon="13.405234"><ele>42.1</ele><time>2024-05-01T07:05:09Z</time></trkpt>
+      <trkpt lat="52.520231" lon="13.405304"><ele>42.3</ele><time>2024-05-01T07:05:12Z</time></trkpt>
+      <trkpt lat="52.520276" lon="13.405374"><ele>42.4</ele><time>2024-05-01T07:05:15Z</time></trkpt>
+      <trkpt lat="52.520321" lon="13.405444"><ele>42.5</ele><time>2024-05-01T07:05:18Z</time></trkpt>
+      <trkpt lat="52.520366" lon="13.405514"><ele>42.6</ele><time>2024-05-01T07:10:18Z</time></trkpt>
+      <trkpt lat="52.520411" lon="13.405584"><ele>42.7</ele><time>2024-05-01T07:10:21Z</time></trkpt>
+      <trkpt lat="52.520456" lon="13.405654"><ele>42.8</ele><time>2024-05-01T07:10:24Z</time></trkpt>
+      <trkpt lat="52.520501" lon="13.405724"><ele>42.9</ele><time>2024-05-01T07:10:27Z</time></trkpt>
+      <trkpt lat="52.520546" lon="13.405794"><ele>43.0</ele><time>2024-05-01T07:15:27Z</time></trkpt>
+      <trkpt lat="52.520591" lon="13.405864"><ele>43.1</ele><time>2024-05-01T07:15:30Z</time></trkpt>
+      <trkpt lat="52.520636" lon="13.405934"><ele>43.2</ele><time>2024-05-01T07:15:33Z</time></trkpt>
+      <trkpt lat="52.520681" lon="13.406004"><ele>43.3</ele><time>2024-05-01T07:15:36Z</time></trkpt>
+      <trkpt lat="52.520726" lon="13.406074"><ele>43.4</ele><time>2024-05-01T07:20:36Z</time></trkpt>
+      <trkpt lat="52.520771" lon="13.406144"><ele>43.5</ele><time>2024-05-01T07:20:39Z</time></trkpt>
+      <trkpt lat="52.520816" lon="13.406214"><ele>43.6</ele><time>2024-05-01T07:20:42Z</time></trkpt>
+      <trkpt lat="52.520861" lon="13.406284"><ele>43.7</ele><time>2024-05-01T07:20:45Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
