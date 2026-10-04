@@ -186,6 +186,9 @@ describe("recovery store: the submitCommand twin", () => {
   it("commits a set-line for the active gap with the style sync", () => {
     const store = useRecoveryStore.getState();
     store.openEditor(SNAP_ID);
+    // A straight pre-snap line (the per-segment contract: the chip only
+    // styles the NEXT segment — the placed one is "off").
+    useRecoveryStore.getState().setPathStyle("off");
     useRecoveryStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
 
     const state = useRecoveryStore.getState();

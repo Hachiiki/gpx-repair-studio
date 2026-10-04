@@ -414,7 +414,7 @@ describe("DrawEditorPanel — road follow (snap to road)", () => {
   it("renders the mode group with the active choice pressed (user pass 48: no Curves chip)", () => {
     render(<DrawEditorPanel draw={makeBinding({ pathStyle: "car" })} />);
     const group = screen.getByTestId("road-follow-group");
-    expect(group).toHaveTextContent("Between points, follow");
+    expect(group).toHaveTextContent("New points follow");
     expect(screen.getByTestId("road-follow-car")).toHaveAttribute(
       "aria-pressed",
       "true",

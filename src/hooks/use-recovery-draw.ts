@@ -46,8 +46,10 @@ import {
 import {
   closingLegCoordinates,
   isStraightLinePath,
-  joinCurveChain,
   joinDrawChain,
+  joinStyledChain,
+  routableOf,
+  type RoutableRoadMode,
 } from "@/features/reconstruction/roadFollow";
 import { simplifyStroke } from "@/features/reconstruction/stroke";
 import {
@@ -402,17 +404,38 @@ export function useRecoveryDraw(
 
   // -- controller draw-session driving ----------------------------------------
 
+  /*
+   * The joins the controller renders with — STABLE identity (the
+   * editor hook's twin): the inputs that change (the legs, the line's
+   * fallback style, the whole-line snap preview) are read from the
+   * store at CALL time, never captured. A path-style chip switch
+   * rebuilds NOTHING — the draw session lives across mode switches
+   * and the placed line never flickers, resets, or re-resolves (the
+   * per-segment mode contract).
+   */
   const makeJoins = useCallback(
     (legs: readonly RoadLeg[]) => ({
-      // Task 46: the curve style joins through the local spline.
-      chainJoin: (nodes: readonly LatLon[]) =>
-        pathStyle === "curve"
-          ? joinCurveChain(nodes)
-          : joinDrawChain(nodes, legs),
-      closingJoin: (from: LatLon, to: LatLon) =>
-        closingLegCoordinates(from, to, legs),
+      chainJoin: (nodes: readonly (LatLon & { legStyle?: PathStyle })[]) => {
+        if (useRecoveryStore.getState().snapPreviewActive) {
+          // §EE 17.3 — the one-shot whole-line snap preview replaces
+          // the rendering: routed slices for EVERY pair, regardless of
+          // the styles the placed segments carry.
+          return joinDrawChain(nodes, legs);
+        }
+        return joinStyledChain(
+          nodes,
+          legs,
+          activeRecoveryReconstruction(useRecoveryStore.getState())?.pathStyle ??
+            "off",
+        );
+      },
+      closingJoin: (
+        from: LatLon,
+        to: LatLon,
+        style?: PathStyle,
+      ) => closingLegCoordinates(from, to, legs, style),
     }),
-    [pathStyle],
+    [],
   );
 
   // Open/switch/close the controller session when the active section
@@ -481,6 +504,12 @@ export function useRecoveryDraw(
 
   // -- road-follow leg resolution (snap to road) --------------------------------
 
+  /*
+   * The editor hook's twin, under the per-segment mode contract: each
+   * pair asks under the profile of the segment it belongs to; a chip
+   * switch never re-runs this effect (placed segments keep their
+   * resolved legs).
+   */
   const roadGeneration = useRef(0);
 
   useEffect(() => {
@@ -495,42 +524,54 @@ export function useRecoveryDraw(
       return;
     }
     const gapId = activeGap.id;
-    if (pathStyle !== "car" && pathStyle !== "foot") {
+    const lineStyle =
+      useRecoveryStore.getState().reconstructions[gapId]?.pathStyle ?? "off";
+    // Every routable pair, with its OWN asking profile.
+    const pairs: { a: LatLon; b: LatLon; mode: RoutableRoadMode }[] = [];
+    const ask = (a: LatLon, b: LatLon, style: PathStyle) => {
+      const mode = routableOf(style);
+      if (mode) pairs.push({ a, b, mode });
+    };
+    let previous: LatLon | null = null;
+    for (const vertex of vertices) {
+      const point = { lat: vertex.lat, lon: vertex.lon };
+      if (previous !== null) {
+        ask(previous, point, vertex.legStyle ?? lineStyle);
+      } else {
+        ask({ lat: nearAnchor.lat, lon: nearAnchor.lon }, point, vertex.legStyle ?? lineStyle);
+      }
+      previous = point;
+    }
+    if (farAnchor && previous !== null) {
+      const last = vertices[vertices.length - 1];
+      ask(
+        previous,
+        { lat: farAnchor.lat, lon: farAnchor.lon },
+        last.legStyle ?? lineStyle,
+      );
+    }
+    if (pairs.length === 0) {
       const legs = useRecoveryStore.getState().roadLegs[gapId] ?? [];
       if (legs.length > 0) useRecoveryStore.getState().setRoadLegs(gapId, []);
       resetRouting();
       return;
     }
     /* §EE 17.2 — the honest consent gate (the editor hook's twin). */
+    const router = getRoadRouter();
     if (useUiStore.getState().routerConsent !== "granted") {
-      const gatedNodes = [
-        { lat: nearAnchor.lat, lon: nearAnchor.lon },
-        ...vertices,
-        ...(farAnchor ? [{ lat: farAnchor.lat, lon: farAnchor.lon }] : []),
-      ];
       const resolved: RoadLeg[] = [];
-      for (let i = 0; i + 1 < gatedNodes.length; i += 1) {
-        const leg = getRoadRouter().cached(pathStyle, gatedNodes[i], gatedNodes[i + 1]);
+      for (const pair of pairs) {
+        const leg = router.cached(pair.mode, pair.a, pair.b);
         if (leg) resolved.push(leg);
       }
       useRecoveryStore.getState().setRoadLegs(gapId, resolved);
       resetRouting();
       return;
     }
-    const nodes: LatLon[] = [
-      { lat: nearAnchor.lat, lon: nearAnchor.lon },
-      ...vertices,
-      ...(farAnchor ? [{ lat: farAnchor.lat, lon: farAnchor.lon }] : []),
-    ];
-    const pairs: { a: LatLon; b: LatLon }[] = [];
-    for (let i = 0; i + 1 < nodes.length; i += 1) {
-      pairs.push({ a: nodes[i], b: nodes[i + 1] });
-    }
-    const router = getRoadRouter();
     const resolved: RoadLeg[] = [];
-    const missing: { a: LatLon; b: LatLon }[] = [];
+    const missing: typeof pairs = [];
     for (const pair of pairs) {
-      const leg = router.cached(pathStyle, pair.a, pair.b);
+      const leg = router.cached(pair.mode, pair.a, pair.b);
       if (leg) resolved.push(leg);
       else missing.push(pair);
     }
@@ -543,10 +584,12 @@ export function useRecoveryDraw(
     const generation = (roadGeneration.current += 1);
     let pending = missing.length;
     for (const pair of missing) {
-      void router.segment(pathStyle, pair.a, pair.b).then((leg) => {
+      void router.segment(pair.mode, pair.a, pair.b).then((leg) => {
         if (roadGeneration.current !== generation) return; // stale
         const state = useRecoveryStore.getState();
-        if (state.activeGapId !== gapId || state.pathStyle !== pathStyle) {
+        // A gap switch invalidates; a STYLE SWITCH DOES NOT — the leg
+        // belongs to its own segment, whichever chip is active now.
+        if (state.activeGapId !== gapId) {
           return;
         }
         pending -= 1;
@@ -558,7 +601,7 @@ export function useRecoveryDraw(
         }
       });
     }
-  }, [activeGap, nearAnchor, farAnchor, vertices, pathStyle, routerConsent]);
+  }, [activeGap, nearAnchor, farAnchor, vertices, routerConsent]);
 
   // Pointer mode (Draw / Move / Pan — Task 45) and the pen (user pass
   // 48) → controller handlers.
@@ -935,6 +978,11 @@ export function useRecoveryDraw(
       useRecoveryStore.getState().roadLegs[gapId] ?? [],
     setLegs: (gapId, legs) =>
       useRecoveryStore.getState().setRoadLegs(gapId, legs),
+    setPreviewActive: (active) => {
+      if (useRecoveryStore.getState().snapPreviewActive !== active) {
+        useRecoveryStore.setState({ snapPreviewActive: active });
+      }
+    },
     apply: (waypoints, legs, profile) => {
       const state = useRecoveryStore.getState();
       const current = activeRecoveryReconstruction(state);
@@ -942,7 +990,14 @@ export function useRecoveryDraw(
       let seq = state.vertexSeq;
       const nextVertices = waypoints.map((point) => {
         seq += 1;
-        return { id: vertexId(seq), lat: point.lat, lon: point.lon };
+        // The applied line IS the profile — every segment carries it
+        // as its own legStyle (the whole-line operation's contract).
+        return {
+          id: vertexId(seq),
+          lat: point.lat,
+          lon: point.lon,
+          legStyle: profile as PathStyle,
+        };
       });
       const command = setLineCommand(current, {
         vertices: nextVertices,
@@ -952,8 +1007,9 @@ export function useRecoveryDraw(
       state.submitCommand(command);
       useRecoveryStore.setState({ vertexSeq: seq });
       // The anchor stubs + the waypoint slices: every pair the leg
-      // effect will look up is seeded — zero re-requests (the editor
-      // hook's twin).
+      // effect will look up is seeded — mode-tagged for the
+      // per-segment lookups — zero re-requests (the editor hook's
+      // twin).
       const chainLegs: RoadLeg[] = [];
       if (nearAnchor && nextVertices.length > 0) {
         const first = nextVertices[0];
@@ -965,9 +1021,12 @@ export function useRecoveryDraw(
             [first.lon, first.lat],
           ],
           routeDistanceM: 0,
+          mode: profile,
         });
       }
-      chainLegs.push(...legs);
+      chainLegs.push(
+        ...legs.map((leg) => ({ ...leg, mode: profile })),
+      );
       if (farAnchor && nextVertices.length > 0) {
         const last = nextVertices[nextVertices.length - 1];
         chainLegs.push({
@@ -978,6 +1037,7 @@ export function useRecoveryDraw(
             [farAnchor.lon, farAnchor.lat],
           ],
           routeDistanceM: 0,
+          mode: profile,
         });
       }
       useRecoveryStore
@@ -1001,10 +1061,16 @@ export function useRecoveryDraw(
     snapEnabled,
     pathStyle,
     routingPending: roadRouting.pending > 0,
-    routingFailed: roadRouting.failed && pathStyle !== "off" && pathStyle !== "curve",
+    routingFailed: roadRouting.failed,
     routingNeedsConsent:
-      (pathStyle === "car" || pathStyle === "foot") &&
-      routerConsent !== "granted",
+      routerConsent !== "granted" &&
+      (routableOf(pathStyle) !== null ||
+        vertices.some(
+          (vertex) =>
+            routableOf(
+              vertex.legStyle ?? activeRecon?.pathStyle ?? "off",
+            ) !== null,
+        )),
     routerConsent,
     requestRoadConsent: requestRouterConsent,
     online,

@@ -110,7 +110,10 @@ export function readFreshCreateElevation(): CreateElevationAttachment | null {
     roadLegs: create.roadLegs,
     spacingM: create.spacingM,
     matchDistance: create.matchDistance,
-    pathStyle: create.pathStyle,
+    // The line's remembered style — the resample fallback. The ACTIVE
+    // chip state never redraws the placed route (the per-segment
+    // contract), so it must not change the track or stale the record.
+    pathStyle: create.reconstruction.pathStyle,
   });
   if (!track) return null;
   if (record.fetchedAtRevision !== create.reconstruction.geometryRevision) {
@@ -214,7 +217,7 @@ export function useCreateElevation(track: CreateTrack | null): {
       roadLegs: store.roadLegs,
       spacingM: store.spacingM,
       matchDistance: store.matchDistance,
-      pathStyle: store.pathStyle,
+      pathStyle: store.reconstruction.pathStyle,
     });
     if (!freshTrack || freshTrack.path.length === 0) return;
 

@@ -35,7 +35,11 @@
  */
 
 import { geodesicDistanceMeters, interpolateLatLon } from "@/lib/geo/geodesy";
-import { curveLegInterior, findLeg } from "@/features/reconstruction/roadFollow";
+import {
+  curveLegInterior,
+  findLeg,
+  routableOf,
+} from "@/features/reconstruction/roadFollow";
 import type {
   DrawVertex,
   LatLon,
@@ -89,6 +93,15 @@ export type ResampleSpacing = (typeof RESAMPLE_SPACING_OPTIONS)[number] | "off";
  * committed/exported shape is exactly the line the user saw. Like road
  * legs, spline legs are never re-densified by spacing; spacing keeps
  * applying to straight legs only.
+ *
+ * Per-segment styles (the Phase 20 mode-switching fix): every VERTEX may
+ * carry its own `legStyle` — the style of the segment ending at it — and
+ * the `pathStyle` argument is the whole-line FALLBACK (pre-fix lines and
+ * restored sessions whose vertices carry no styles of their own). A
+ * mixed line therefore bakes each segment under the mode it was drawn
+ * with: road geometry where the user drew roads, spline where they drew
+ * curves, straight chords where they drew straight — one path, many
+ * modes, WYSIWYG for all of them.
  */
 export function resamplePath(
   before: LatLon | null | undefined,
@@ -98,18 +111,33 @@ export function resamplePath(
   roadLegs: readonly RoadLeg[] = [],
   pathStyle: PathStyle = "off",
 ): PathPoint[] {
-  const nodes: { point: LatLon; role: PathPoint["role"]; vertexId?: VertexId }[] =
-    [
-      ...(before
-        ? [{ point: before, role: "before-anchor" as const }]
-        : []),
-      ...vertices.map((vertex) => ({
-        point: vertex as LatLon,
-        role: "vertex" as const,
-        vertexId: vertex.id,
-      })),
-      ...(after ? [{ point: after, role: "after-anchor" as const }] : []),
-    ];
+  const nodes: {
+    point: LatLon;
+    role: PathPoint["role"];
+    vertexId?: VertexId;
+    legStyle?: PathStyle;
+  }[] = [
+    ...(before
+      ? [{ point: before, role: "before-anchor" as const }]
+      : []),
+    ...vertices.map((vertex) => ({
+      point: vertex as LatLon,
+      role: "vertex" as const,
+      vertexId: vertex.id,
+      ...(vertex.legStyle !== undefined
+        ? { legStyle: vertex.legStyle }
+        : {}),
+    })),
+    ...(after ? [{ point: after, role: "after-anchor" as const }] : []),
+  ];
+  // The closing leg (last vertex → far anchor) follows the LAST
+  // vertex's style — the mode the route was last drawn with continues
+  // into its closing segment (road legs only; the closing leg is never
+  // a spline — the same contract the dashed preview renders).
+  const closingStyle: PathStyle | undefined =
+    after && vertices.length > 0
+      ? (vertices[vertices.length - 1].legStyle ?? pathStyle)
+      : undefined;
 
   const path: PathPoint[] = [];
   let cumulative = 0;
@@ -143,7 +171,24 @@ export function resamplePath(
 
   for (const node of nodes) {
     if (previous !== null) {
-      const roadLeg = findLeg(roadLegs, previous, node.point);
+      // The asking style: the segment ending at THIS node — the
+      // after-anchor asks with the last vertex's style (see above).
+      // EXPLICIT per-segment styles ask under their own profile; a
+      // node with NO legStyle (pre-fix / restored legacy) asks
+      // UNFILTERED, exactly as the whole-line path builder always
+      // did, so restored sessions bake unchanged.
+      const explicit = node.legStyle;
+      const askingStyle =
+        node.role === "after-anchor"
+          ? closingStyle
+          : (explicit ?? pathStyle);
+      const mode = askingStyle !== undefined ? routableOf(askingStyle) : null;
+      const roadLeg =
+        explicit !== undefined
+          ? mode
+            ? findLeg(roadLegs, previous, node.point, mode)
+            : null
+          : findLeg(roadLegs, previous, node.point);
       if (roadLeg && roadLeg.coordinates.length >= 2) {
         // Road-followed leg: the provider geometry IS the path. The exact
         // nodes bracket the interior (the provider snaps waypoints onto
@@ -155,7 +200,7 @@ export function resamplePath(
           }
         }
       } else if (
-        pathStyle === "curve" &&
+        askingStyle === "curve" &&
         nodes.length >= 3 &&
         // The closing leg into the far anchor stays straight — the same
         // leg the draft preview renders as the dashed "closes on finish"

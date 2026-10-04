@@ -189,20 +189,7 @@ export const usePlanStore = create<PlanState>()((set, get) => ({
   setPointerMode: (pointerMode) => set({ pointerMode }),
   setPenMode: (pen) => set({ pen }),
 
-  setPathStyle: (pathStyle) =>
-    set((state) => {
-      // The drawn route remembers its style (a settings change — the
-      // geometryRevision and so the elevation signature inputs stay
-      // covered by the style the signature carries).
-      const recon = state.reconstruction;
-      if (recon.pathStyle === pathStyle) {
-        return state.pathStyle === pathStyle ? state : { pathStyle };
-      }
-      return {
-        pathStyle,
-        reconstruction: { ...recon, pathStyle },
-      };
-    }),
+  setPathStyle: (pathStyle) => set({ pathStyle }),
 
   setRoadLegs: (legs) =>
     set((state) => {
@@ -219,10 +206,14 @@ export const usePlanStore = create<PlanState>()((set, get) => ({
   addVertex: (position) => {
     const state = get();
     const seq = state.vertexSeq + 1;
+    // The placed segment's mode is decided HERE — the chip state at
+    // click time becomes the segment's legStyle, permanently.
+    const style = state.pathStyle;
     const command = addVertexCommand(
       state.reconstruction,
       position,
       vertexId(seq),
+      style,
     );
     if (!command) return;
     const next = commitCommand(
@@ -231,7 +222,8 @@ export const usePlanStore = create<PlanState>()((set, get) => ({
     );
     set({
       vertexSeq: seq,
-      reconstruction: next.reconstruction,
+      // The route's remembered style = the last placed segment's style.
+      reconstruction: withLineStyle(next.reconstruction, style),
       history: next.history,
     });
   },
@@ -239,11 +231,16 @@ export const usePlanStore = create<PlanState>()((set, get) => ({
   insertVertex: (index, position) => {
     const state = get();
     const seq = state.vertexSeq + 1;
+    // Mid-list inserts inherit the split leg's style; an APPEND takes
+    // the chip state, like addVertex.
+    const appending = index >= state.reconstruction.vertices.length;
+    const style = state.pathStyle;
     const command = insertVertexCommand(
       state.reconstruction,
       index,
       position,
       vertexId(seq),
+      style,
     );
     if (!command) return;
     const next = commitCommand(
@@ -252,7 +249,9 @@ export const usePlanStore = create<PlanState>()((set, get) => ({
     );
     set({
       vertexSeq: seq,
-      reconstruction: next.reconstruction,
+      reconstruction: appending
+        ? withLineStyle(next.reconstruction, style)
+        : next.reconstruction,
       history: next.history,
     });
   },
@@ -285,6 +284,12 @@ export const usePlanStore = create<PlanState>()((set, get) => ({
     const current = state.reconstruction;
     const budget = MAX_VERTICES - current.vertices.length;
     if (budget < 2) return; // a stroke is a curve — it needs two nodes minimum
+    // The stroke's segment style: routed styles keep the router's
+    // geometry; a local (off/curve) stroke becomes a smooth CURVE
+    // segment — the per-segment form of the Task-46 flip.
+    const active = state.pathStyle;
+    const strokeStyle: PathStyle =
+      active === "car" || active === "foot" ? active : "curve";
     let seq = state.vertexSeq;
     const added = points.slice(0, budget).map((point) => {
       seq += 1;
@@ -292,6 +297,7 @@ export const usePlanStore = create<PlanState>()((set, get) => ({
         id: vertexId(seq),
         lat: point.lat,
         lon: point.lon,
+        legStyle: strokeStyle,
       };
     });
     const command: DrawCommand = {
@@ -306,14 +312,15 @@ export const usePlanStore = create<PlanState>()((set, get) => ({
     if (next.reconstruction === current) return;
     set({
       vertexSeq: seq,
-      reconstruction: next.reconstruction,
+      reconstruction: withLineStyle(next.reconstruction, strokeStyle),
       history: next.history,
     });
-    // The curve pen's signature: a local straight route becomes a smooth
-    // curve route (the spline). Routed styles keep the router's geometry.
-    const style = next.reconstruction.pathStyle;
-    if (style === undefined || style === "off") {
-      get().setPathStyle("curve");
+    // The curve pen's chip continuity (Task 46): a LOCAL stroke moves
+    // the active style to "curve" — the panel renders it as the
+    // Straight chip pressed, and the next segment continues smoothly.
+    // Routed styles keep the router's geometry.
+    if (strokeStyle !== active) {
+      get().setPathStyle(strokeStyle);
     }
   },
 
@@ -352,4 +359,19 @@ export function planVertices(
   state: Pick<PlanState, "reconstruction">,
 ): readonly DrawVertex[] {
   return state.reconstruction.vertices;
+}
+
+/**
+ * The per-segment fix's line-style tracking: the route's remembered
+ * style becomes the style of the most recently PLACED segment — the
+ * style the chips re-adopt when the studio reopens. A pure settings
+ * patch; undo never restores it (§D-3.5).
+ */
+function withLineStyle(
+  reconstruction: PlanState["reconstruction"],
+  style: PathStyle,
+): PlanState["reconstruction"] {
+  return reconstruction.pathStyle === style
+    ? reconstruction
+    : { ...reconstruction, pathStyle: style };
 }

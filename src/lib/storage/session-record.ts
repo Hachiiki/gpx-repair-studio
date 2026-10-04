@@ -406,7 +406,17 @@ function isDrawVertex(value: unknown): value is DrawVertex {
   const vertex = value as Record<string, unknown>;
   if (typeof vertex.id !== "string" || !isFiniteLatLon(vertex)) return false;
   const snapped = vertex.snappedTo;
-  return snapped === undefined || typeof snapped === "string";
+  if (snapped !== undefined && typeof snapped !== "string") return false;
+  // The per-segment path style (Phase 20 fix): optional, one of the
+  // four shipped styles.
+  const legStyle = vertex.legStyle;
+  return (
+    legStyle === undefined ||
+    legStyle === "car" ||
+    legStyle === "foot" ||
+    legStyle === "off" ||
+    legStyle === "curve"
+  );
 }
 
 function isTimeStrategy(value: unknown): value is TimeStrategy {
@@ -463,7 +473,13 @@ function isRoadLeg(value: unknown): value is RoadLeg {
       return false;
     }
   }
-  return isFiniteNumber(leg.routeDistanceM) && leg.routeDistanceM >= 0;
+  if (!isFiniteNumber(leg.routeDistanceM) || leg.routeDistanceM < 0) {
+    return false;
+  }
+  // The profile the leg was resolved under (Phase 20 fix): optional —
+  // absent legs are pre-fix records that match any asking profile.
+  const mode = leg.mode;
+  return mode === undefined || mode === "car" || mode === "foot";
 }
 
 function isManualSpan(value: unknown): value is ManualSpan {

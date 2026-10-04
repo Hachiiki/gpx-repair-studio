@@ -220,21 +220,32 @@ describe("resamplePath curve baking (the export is the preview)", () => {
   });
 });
 
-describe("the stores' per-line path-style memory (Task 47)", () => {
-  it("the editor store: setPathStyle writes the ACTIVE line; reopen re-adopts", () => {
+describe("the stores' per-segment path-style memory (Task 47 + the fix)", () => {
+  it("the editor store: the line remembers the LAST PLACED segment's style; reopen re-adopts", () => {
     useEditorStore.getState().reset();
     const store = useEditorStore.getState();
     store.openEditor("g-gap-1" as never);
+    // A chip switch alone restyles nothing (the mode-switching fix):
+    // the style only decides how the NEXT segment generates.
     useEditorStore.getState().setPathStyle("curve");
+    expect(
+      useEditorStore.getState().reconstructions["g-gap-1"].pathStyle,
+    ).toBeUndefined();
 
-    // The active line remembers…
+    // The placed segment writes the line's remembered style — and
+    // carries its own legStyle forever.
+    useEditorStore.getState().addVertex({ lat: 52.52, lon: 13.4 });
     expect(useEditorStore.getState().reconstructions["g-gap-1"].pathStyle).toBe(
       "curve",
     );
+    expect(
+      useEditorStore.getState().reconstructions["g-gap-1"].vertices[0].legStyle,
+    ).toBe("curve");
 
-    // …a different line keeps its own (set while active)…
+    // …a different line keeps its own (placed while active)…
     useEditorStore.getState().openEditor("g-gap-2" as never);
     useEditorStore.getState().setPathStyle("foot");
+    useEditorStore.getState().addVertex({ lat: 52.53, lon: 13.41 });
     expect(useEditorStore.getState().reconstructions["g-gap-2"].pathStyle).toBe(
       "foot",
     );
@@ -246,7 +257,7 @@ describe("the stores' per-line path-style memory (Task 47)", () => {
     useEditorStore.getState().reset();
   });
 
-  it("the create store: the drawn route remembers its style", () => {
+  it("the create store: the drawn route remembers the style of its last placed segment", () => {
     useCreateStore.getState().reset();
     useCreateStore.getState().beginDrawing({
       distanceM: 5000,
@@ -256,7 +267,19 @@ describe("the stores' per-line path-style memory (Task 47)", () => {
     });
     useCreateStore.getState().setPathStyle("foot");
     expect(useCreateStore.getState().pathStyle).toBe("foot");
+    // No segment placed yet — the line remembers nothing.
+    expect(useCreateStore.getState().reconstruction.pathStyle).toBeUndefined();
+    // The placed segment is a foot segment, permanently.
+    useCreateStore.getState().addVertex({ lat: 52.52, lon: 13.4 });
     expect(useCreateStore.getState().reconstruction.pathStyle).toBe("foot");
+    expect(
+      useCreateStore.getState().reconstruction.vertices[0].legStyle,
+    ).toBe("foot");
+    // Switching to roads never redraws it.
+    useCreateStore.getState().setPathStyle("car");
+    expect(
+      useCreateStore.getState().reconstruction.vertices[0].legStyle,
+    ).toBe("foot");
     useCreateStore.getState().reset();
   });
 });

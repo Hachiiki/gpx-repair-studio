@@ -212,6 +212,12 @@ export function applyDrawCommand(
         id: current.id,
         lat: command.to.lat,
         lon: command.to.lon,
+        // The moved vertex keeps the style of the segment it ends — a
+        // drag re-routes that segment under ITS OWN mode (the Phase 20
+        // per-segment contract), never the chip's current mode.
+        ...(current.legStyle !== undefined
+          ? { legStyle: current.legStyle }
+          : {}),
         ...(command.to.snappedTo !== undefined
           ? { snappedTo: command.to.snappedTo }
           : {}),
@@ -278,7 +284,10 @@ export function applyDrawCommand(
 
 /**
  * Append a vertex at the end of the path (the "click on the map" edit) —
- * an `insert-vertex` at `vertices.length` (see the union's doc).
+ * an `insert-vertex` at `vertices.length` (see the union's doc). The
+ * appended vertex carries `legStyle` — the style of the NEW segment the
+ * click creates (the store passes the chip state at click time; the
+ * segment's mode is decided once, when it is drawn).
  * Returns `null` when the hard cap is reached — the UI surfaces the cap,
  * the domain refuses the data.
  */
@@ -286,30 +295,45 @@ export function addVertexCommand(
   reconstruction: Reconstruction,
   position: VertexPosition,
   id: VertexId,
+  legStyle?: PathStyle,
 ): DrawCommand | null {
   return insertVertexCommand(
     reconstruction,
     reconstruction.vertices.length,
     position,
     id,
+    legStyle,
   );
 }
 
 /**
  * Insert a vertex at `index` (the "click a midpoint handle" edit).
  * `index` is the position in the vertex list the new vertex will occupy.
+ *
+ * Mid-list inserts SPLIT an existing leg: the inserted vertex INHERITS
+ * the split leg's style (the leg ending at the current `vertices[index]`),
+ * so both halves keep the mode the segment was drawn in. An append
+ * (`index === length`) creates a NEW leg and uses the provided
+ * `legStyle` — the chip state at click time.
  */
 export function insertVertexCommand(
   reconstruction: Reconstruction,
   index: number,
   position: VertexPosition,
   id: VertexId,
+  legStyle?: PathStyle,
 ): DrawCommand | null {
   if (reconstruction.vertices.length >= MAX_VERTICES) return null;
   if (index < 0 || index > reconstruction.vertices.length) return null;
   if (!Number.isFinite(position.lat) || !Number.isFinite(position.lon)) {
     return null;
   }
+  // A split leg's halves keep the leg's own style; a new (appended)
+  // leg takes the style the user is drawing with right now.
+  const splitStyle =
+    index < reconstruction.vertices.length
+      ? reconstruction.vertices[index].legStyle
+      : legStyle;
   return {
     kind: "insert-vertex",
     index,
@@ -317,6 +341,7 @@ export function insertVertexCommand(
       id,
       lat: position.lat,
       lon: position.lon,
+      ...(splitStyle !== undefined ? { legStyle: splitStyle } : {}),
       ...(position.snappedTo !== undefined
         ? { snappedTo: position.snappedTo }
         : {}),

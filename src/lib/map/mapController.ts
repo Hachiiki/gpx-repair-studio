@@ -56,6 +56,7 @@ import {
 import { announce } from "@/lib/announcements";
 import type {
   LatLon,
+  PathStyle,
   PenMode,
   PointId,
   PointerMode,
@@ -457,11 +458,15 @@ export type DrawSnapFn = (
 /**
  * Road-follow chain join, injected by the hook (same pattern as DrawSnapFn:
  * no domain code runs inside the map adapter). Maps the chain NODES to the
- * rendered line points — straight geodesics when road-follow is off, road
- * geometry substituted between the nodes when legs resolved. Must return
- * one insertion midpoint per node leg (ordered by leg index).
+ * rendered line points. Each node carries the optional `legStyle` of the
+ * SEGMENT ending at it (the per-segment mode contract): the injected join
+ * renders every leg under the style it was drawn with — road geometry for
+ * car/foot legs, spline for curve legs, straight geodesics otherwise.
+ * Must return one insertion midpoint per node leg (ordered by leg index).
  */
-export type DrawChainJoinFn = (nodes: readonly LatLon[]) => {
+export type DrawChainJoinFn = (
+  nodes: readonly (LatLon & { legStyle?: PathStyle })[],
+) => {
   points: readonly LatLon[];
   midpoints: readonly LatLon[];
 };
@@ -469,8 +474,14 @@ export type DrawChainJoinFn = (nodes: readonly LatLon[]) => {
 /**
  * Road-follow closing join (injected): the geometry of the dashed closing
  * segment (last chain node → far anchor) — straight chord or road path.
+ * `style` is the last chain node's own segment style, so the closing
+ * segment continues in the mode the route was last drawn with.
  */
-export type DrawClosingJoinFn = (from: LatLon, to: LatLon) => [number, number][];
+export type DrawClosingJoinFn = (
+  from: LatLon,
+  to: LatLon,
+  style?: PathStyle,
+) => [number, number][];
 
 export interface DrawSessionOptions {
   gapId: string;
@@ -481,7 +492,13 @@ export interface DrawSessionOptions {
    * click IS the route's start point).
    */
   anchors: { before: LatLon | null; after: LatLon | null };
-  vertices: readonly { id: VertexId; lat: number; lon: number }[];
+  vertices: readonly {
+    id: VertexId;
+    lat: number;
+    lon: number;
+    /** The style of the SEGMENT ending at this vertex (per-segment modes). */
+    legStyle?: PathStyle;
+  }[];
   /** Snap magnet (null/undefined = snapping disabled). */
   snap?: DrawSnapFn | null;
   /** Road-follow joins (null/undefined = straight legs). */
@@ -555,7 +572,12 @@ interface PickSession {
 }
 
 interface DrawSession extends DrawSessionOptions {
-  vertices: { id: VertexId; lat: number; lon: number }[];
+  vertices: {
+    id: VertexId;
+    lat: number;
+    lon: number;
+    legStyle?: PathStyle;
+  }[];
   chainJoin: DrawChainJoinFn | null;
   closingJoin: DrawClosingJoinFn | null;
 }
@@ -1063,7 +1085,12 @@ export class MapController {
    * the current road-follow joins (fresh closures whenever legs resolve).
    */
   updateDrawSession(
-    vertices: readonly { id: VertexId; lat: number; lon: number }[],
+    vertices: readonly {
+      id: VertexId;
+      lat: number;
+      lon: number;
+      legStyle?: PathStyle;
+    }[],
     joins?: {
       chainJoin?: DrawChainJoinFn | null;
       closingJoin?: DrawClosingJoinFn | null;
@@ -2699,21 +2726,24 @@ export class MapController {
 
 
   /** The user-placed chain (drag override applied): before-anchor → vertices
-   *  (the anchor is absent for anchor-less sessions — vertices only). */
-  #draftChainPoints(): LatLon[] {
+   *  (the anchor is absent for anchor-less sessions — vertices only). Each
+   *  node carries the segment style that ends at it (per-segment modes). */
+  #draftChainPoints(): (LatLon & { legStyle?: PathStyle })[] {
     const session = this.#drawSession;
     if (!session) return [];
     const override = this.#handleDrag?.override ?? null;
     const overrideId = this.#handleDrag?.vertexId ?? null;
-    const points: LatLon[] = session.anchors.before
-      ? [session.anchors.before]
-      : [];
+    const points: (LatLon & { legStyle?: PathStyle })[] =
+      session.anchors.before ? [session.anchors.before] : [];
     for (const vertex of session.vertices) {
-      points.push(
-        override && vertex.id === overrideId
-          ? { lat: override.lat, lon: override.lon }
-          : { lat: vertex.lat, lon: vertex.lon },
-      );
+      const overridden = override && vertex.id === overrideId;
+      points.push({
+        lat: overridden ? override.lat : vertex.lat,
+        lon: overridden ? override.lon : vertex.lon,
+        // A dragged vertex keeps its segment's style — the drag re-routes
+        // under the mode the segment was drawn with, never the chip's.
+        ...(vertex.legStyle !== undefined ? { legStyle: vertex.legStyle } : {}),
+      });
     }
     return points;
   }
@@ -2766,7 +2796,9 @@ export class MapController {
     );
   }
 
-  /** The closing-segment coordinates: injected join over the far anchor. */
+  /** The closing-segment coordinates: injected join over the far anchor,
+   *  asked with the last node's own segment style (the mode the route was
+   *  last drawn with continues into the closing preview). */
   #renderedClosing(): [number, number][] {
     const session = this.#drawSession;
     if (!session) return [];
@@ -2774,7 +2806,9 @@ export class MapController {
     const chain = this.#draftChainPoints();
     const last = chain[chain.length - 1] ?? null;
     if (!after || !last) return [];
-    if (session.closingJoin) return session.closingJoin(last, after);
+    if (session.closingJoin) {
+      return session.closingJoin(last, after, last.legStyle);
+    }
     return [
       [last.lon, last.lat],
       [after.lon, after.lat],

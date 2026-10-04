@@ -19,6 +19,13 @@
  * the straight-line warning run over the same joined geometry, so the
  * number the user reads is the number the line draws.
  *
+ * Per-segment styles (the Phase 20 mode-switching fix): the path style is
+ * a property of each SEGMENT, stored on the vertex the segment ends at
+ * (`DrawVertex.legStyle`). Switching the style chips only changes how the
+ * NEXT segment generates — placed segments keep their own geometry, their
+ * own resolved legs (mode-tagged), and their own spline forever. The join
+ * every consumer runs is `joinStyledChain`.
+ *
  * Purity contract: this module is pure TypeScript. The router takes an
  * injected `fetch` (ESLint: no global fetch in features/**) — the React
  * binding hook supplies the browser implementation.
@@ -39,7 +46,12 @@ import {
   interpolateLatLon,
   polylineLengthMeters,
 } from "@/lib/geo/geodesy";
-import type { LatLon, RoadFollowMode, RoadLeg } from "@/types/domain";
+import type {
+  LatLon,
+  PathStyle,
+  RoadFollowMode,
+  RoadLeg,
+} from "@/types/domain";
 
 /** Routable modes ("off" resolves nothing). */
 export type RoutableRoadMode = Exclude<RoadFollowMode, "off">;
@@ -95,13 +107,21 @@ export function legKey(a: LatLon, b: LatLon): string {
   return `${r6(a.lat)},${r6(a.lon)}>${r6(b.lat)},${r6(b.lon)}`;
 }
 
-/** The leg matching the node pair exactly (rounded), or null. */
+/**
+ * The leg matching the node pair exactly (rounded). `mode` filters by
+ * the asking segment's own profile — a mixed line can hold car AND
+ * foot legs for one pair — with pre-fix legs (no mode) matching any.
+ */
 export function findLeg(
   legs: readonly RoadLeg[],
   a: LatLon,
   b: LatLon,
+  mode?: RoutableRoadMode,
 ): RoadLeg | null {
   for (const leg of legs) {
+    if (mode !== undefined && leg.mode !== undefined && leg.mode !== mode) {
+      continue;
+    }
     if (
       r6(leg.a.lat) === r6(a.lat) &&
       r6(leg.a.lon) === r6(a.lon) &&
@@ -159,6 +179,95 @@ export function joinDrawChain(
       }
     }
     points.push(...interior, b);
+    midpoints.push(legMidpoint(a, b, interior));
+  }
+  return { points, midpoints };
+}
+
+// ---------------------------------------------------------------------------
+// The per-segment styled join (the Phase 20 mode-switching fix)
+// ---------------------------------------------------------------------------
+
+/**
+ * One node of a drawn chain, carrying the style of the SEGMENT that
+ * ends at it (`legStyle`). Plain `LatLon` inputs are legal — their
+ * legs fall back to `fallbackStyle` (the legacy whole-line style), so
+ * every pre-fix caller and every restored session renders unchanged.
+ */
+export type ChainNode = LatLon & { legStyle?: PathStyle };
+
+/** The effective style of the leg ending at `node`. */
+export function legStyleOf(
+  node: ChainNode,
+  fallbackStyle: PathStyle = "off",
+): PathStyle {
+  return node.legStyle ?? fallbackStyle;
+}
+
+/** The routable profile of a style, or `null` for local styles. */
+export function routableOf(style: PathStyle): RoutableRoadMode | null {
+  return style === "car" || style === "foot" ? style : null;
+}
+
+/**
+ * The per-segment chain join — ONE line, MANY modes. Each leg renders
+ * under the style it was DRAWN with: "car"/"foot" legs substitute
+ * their mode-matched road geometry, "curve" legs contribute their
+ * Catmull-Rom spline interior (the same sampler joinCurveChain uses,
+ * so the styled join and the all-curve join agree leg for leg), and
+ * "off" legs stay straight — even when a leg for that pair happens to
+ * exist under another mode (a straight segment is straight by design,
+ * never silently re-routed). This is the single join every consumer
+ * (map draft, distance badge, estimates, export) runs — WYSIWYG for
+ * mixed lines by construction.
+ *
+ * Backward compatibility: a node with NO `legStyle` is a pre-fix
+ * (or restored legacy) node — it asks UNFILTERED, exactly as the
+ * whole-line join always did, so restored sessions render unchanged.
+ */
+export function joinStyledChain(
+  nodes: readonly ChainNode[],
+  legs: readonly RoadLeg[],
+  fallbackStyle: PathStyle = "off",
+): DrawChainGeometry {
+  const points: LatLon[] = [];
+  const midpoints: LatLon[] = [];
+  for (let i = 0; i < nodes.length; i += 1) {
+    if (i === 0) {
+      // Plain output points — the join's result carries no style
+      // baggage (consumers compare/render coordinates only).
+      points.push({ lat: nodes[0].lat, lon: nodes[0].lon });
+      continue;
+    }
+    const a = nodes[i - 1];
+    const b = nodes[i];
+    const explicit = nodes[i].legStyle;
+    const style = explicit ?? fallbackStyle;
+    const interior: LatLon[] = [];
+    if (style === "curve" && nodes.length >= 3) {
+      // The spline basis mirrors joinCurveChain exactly: p0 = the node
+      // before the leg's start (clamped), p3 = the node after its end.
+      const p0 = i >= 2 ? nodes[i - 2] : a;
+      const p3 = nodes[i + 1] ?? b;
+      interior.push(...curveLegInterior(p0, a, b, p3));
+    } else {
+      const mode = routableOf(style);
+      const leg =
+        explicit !== undefined
+          ? mode
+            ? findLeg(legs, a, b, mode)
+            : null
+          : findLeg(legs, a, b); // legacy node: any resolved leg applies
+      if (leg && leg.coordinates.length >= 2) {
+        for (let j = 1; j < leg.coordinates.length - 1; j += 1) {
+          const [lon, lat] = leg.coordinates[j];
+          if (Number.isFinite(lat) && Number.isFinite(lon)) {
+            interior.push({ lat, lon });
+          }
+        }
+      }
+    }
+    points.push(...interior, { lat: b.lat, lon: b.lon });
     midpoints.push(legMidpoint(a, b, interior));
   }
   return { points, midpoints };
@@ -309,15 +418,19 @@ export function joinCurveChain(
 
 /**
  * The closing-segment geometry (last chain node → far anchor): the road
- * path when a leg resolved, the straight chord otherwise. The dashed
+ * path when a leg resolved — filtered by the asking style's profile
+ * when given, so a closing segment continues in the mode the route was
+ * last drawn with — and the straight chord otherwise. The dashed
  * closing preview and the committed rendering use the same geometry.
  */
 export function closingLegCoordinates(
   from: LatLon,
   to: LatLon,
   legs: readonly RoadLeg[],
+  style?: PathStyle,
 ): [number, number][] {
-  const leg = findLeg(legs, from, to);
+  const mode = style !== undefined ? routableOf(style) : undefined;
+  const leg = findLeg(legs, from, to, mode ?? undefined);
   if (!leg || leg.coordinates.length < 2) {
     return [
       [from.lon, from.lat],
@@ -567,7 +680,9 @@ export class RoadFollowRouter {
     try {
       const path = await this.#providerRoute(mode, [a, b], makeTimeoutSignal());
       if (!path) return null;
-      return { a, b, coordinates: path.coordinates, routeDistanceM: path.routeDistanceM };
+      // The mode rides on the leg: a mixed line's lookups filter by the
+      // asking segment's own profile (the Phase 20 per-segment fix).
+      return { a, b, coordinates: path.coordinates, routeDistanceM: path.routeDistanceM, mode };
     } catch {
       return null;
     }

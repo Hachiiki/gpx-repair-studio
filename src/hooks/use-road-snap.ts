@@ -85,6 +85,13 @@ export interface RoadSnapAdapter {
     legs: readonly RoadLeg[],
     profile: RoutableRoadMode,
   ) => boolean;
+  /**
+   * §EE 17.3 + the per-segment fix: tell the section's store whether
+   * the whole-line preview is on screen — the joins render the routed
+   * slices for EVERY pair while it is (the preview replaces the
+   * line, overriding the placed segments' own styles).
+   */
+  setPreviewActive: (active: boolean) => void;
   /** Open the consent dialog (§EE 17.2 — never route without it). */
   requestConsent: () => void;
 }
@@ -142,6 +149,9 @@ export function useRoadSnap(adapter: RoadSnapAdapter): RoadSnapBinding {
     if (context) {
       adapterRef.current.setLegs(context.gapId, [...context.savedLegs]);
     }
+    // The whole-line rendering override leaves with the preview —
+    // placed segments render under their own styles again.
+    adapterRef.current.setPreviewActive(false);
   }, []);
 
   // The side-table half of invalidation: when the chain that produced
@@ -224,8 +234,12 @@ export function useRoadSnap(adapter: RoadSnapAdapter): RoadSnapBinding {
             profile: mode,
           };
           // The preview IS the side-table write: the rendered chain,
-          // the badge, and the closing preview all show the road path.
+          // the badge, and the closing preview all show the road path
+          // — for EVERY segment, whatever style it was drawn with
+          // (the whole-line override flag makes the styled join show
+          // the routed slices).
           live.setLegs(chain.gapId, legs);
+          live.setPreviewActive(true);
           setVisible({
             state: "preview",
             numbers: snapPreviewNumbers(chain.nodes, saved, legs),
@@ -273,6 +287,10 @@ export function useRoadSnap(adapter: RoadSnapAdapter): RoadSnapBinding {
     }
     const applied = live.apply(plan.waypoints, plan.legs, context.profile);
     setVisible(null);
+    // The preview's whole-line rendering leaves with the apply — the
+    // applied vertices carry the profile as their own legStyle, so
+    // the styled join keeps showing exactly this geometry.
+    live.setPreviewActive(false);
     setFailed(!applied);
     if (applied) {
       announce(

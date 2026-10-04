@@ -23,7 +23,10 @@
  * (the store-reading join lives in the hook layer).
  */
 
-import { joinCurveChain, joinDrawChain } from "@/features/reconstruction/roadFollow";
+import {
+  joinStyledChain,
+  type ChainNode,
+} from "@/features/reconstruction/roadFollow";
 import { roadLegsSignature } from "@/features/elevation/samples";
 import { geodesicDistanceMeters } from "@/lib/geo/geodesy";
 import type { PaceUnit } from "@/lib/utils/format";
@@ -63,9 +66,10 @@ export interface PlanJoin {
 
 /**
  * Build the planner's rendered join. Exactly the join the draft chain
- * renders — straight/routed legs through `joinDrawChain`, smooth local
- * spline through `joinCurveChain` — so the numbers the panel shows are
- * the numbers the line draws.
+ * renders — each segment under the style it was DRAWN with (per-vertex
+ * `legStyle`, falling back to the whole-line style for pre-fix lines)
+ * — so the numbers the panel shows are the numbers the line draws,
+ * on mixed-mode routes as much as single-mode ones.
  */
 export function planJoin(
   vertices: readonly DrawVertex[],
@@ -75,14 +79,14 @@ export function planJoin(
   if (vertices.length === 0) {
     return { points: [], distanceM: 0 };
   }
-  const nodes: LatLon[] = vertices.map((vertex) => ({
+  const nodes: ChainNode[] = vertices.map((vertex) => ({
     lat: vertex.lat,
     lon: vertex.lon,
+    ...(vertex.legStyle !== undefined
+      ? { legStyle: vertex.legStyle }
+      : {}),
   }));
-  const geometry =
-    pathStyle === "curve"
-      ? joinCurveChain(nodes)
-      : joinDrawChain(nodes, roadLegs);
+  const geometry = joinStyledChain(nodes, roadLegs, pathStyle);
   const points: PlanJoinPoint[] = [];
   let cumulative = 0;
   let previous: LatLon | null = null;

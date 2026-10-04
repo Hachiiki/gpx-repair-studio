@@ -80,7 +80,12 @@ export function useCreateMap(): CreateMapBinding {
   const roadLegs = useCreateStore((s) => s.roadLegs);
   const spacingM = useCreateStore((s) => s.spacingM);
   const matchDistance = useCreateStore((s) => s.matchDistance)
-  const pathStyle = useCreateStore((s) => s.pathStyle);
+  // The line's remembered style — the resample fallback. The ACTIVE
+  // chip state never redraws the placed route (the per-segment
+  // contract), so it must not change the review track either.
+  const lineStyle = useCreateStore(
+    (s) => s.reconstruction.pathStyle ?? "off",
+  );
 
   const setContainer = useCallback((element: HTMLDivElement | null) => {
     containerRef.current = element;
@@ -132,10 +137,12 @@ export function useCreateMap(): CreateMapBinding {
       roadLegs,
       spacingM,
       matchDistance,
-      pathStyle,
+      // The line's remembered style (the resample fallback) — the
+      // per-segment contract: vertices carry their own legStyles.
+      pathStyle: lineStyle,
     });
     return track ? createTrackRouteView(track) : null;
-  }, [phase, stats, vertices, roadLegs, spacingM, matchDistance, pathStyle]);
+  }, [phase, stats, vertices, roadLegs, spacingM, matchDistance, lineStyle]);
 
   useEffect(() => {
     controllerRef.current?.setRoute(route);

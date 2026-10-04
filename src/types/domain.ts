@@ -454,6 +454,20 @@ export interface DrawVertex {
   lon: number;
   /** Set when the vertex was snapped to an original track point. */
   snappedTo?: PointId;
+  /**
+   * Phase 20 fix — the path style of the SEGMENT that ENDS at this
+   * vertex (previous node → here). A segment's mode is decided when
+   * it is drawn and NEVER re-derived: switching the style chips only
+   * changes how the NEXT segment generates, so every placed segment
+   * keeps its own road/foot/curve/straight geometry forever.
+   *
+   * The first vertex's style also governs the near-anchor segment
+   * (before-anchor → v0); the far-anchor closing segment follows the
+   * LAST vertex's style. Absent = the pre-fix whole-line style
+   * (legacy sessions fall back to `Reconstruction.pathStyle`, so
+   * restored lines render exactly as they were saved).
+   */
+  legStyle?: PathStyle;
 }
 
 /**
@@ -479,9 +493,12 @@ export interface Reconstruction {
   /** Densification spacing in meters, or `'off'` to keep vertices only. */
   resampleSpacingM: number | "off";
   /**
-   * The line's path style (Tasks 46–47): road / footpath / curve /
-   * straight, remembered per line and adopted by the editor when it
-   * reopens. A setting, never undoable (§D-3.5). Absent = "off".
+   * The line's remembered path style (Tasks 46–47): with per-segment
+   * styles this is "the style of the most recently PLACED segment" —
+   * the style the chips re-adopt when the line reopens, and the
+   * whole-line fallback for pre-Phase-20-fix vertices that carry no
+   * `legStyle` of their own. Chip switches alone never rewrite it (a
+   * settings change, never undoable — §D-3.5).
    */
   pathStyle?: PathStyle;
   /** Bumped on every vertex change → derived data recomputes lazily. */
@@ -582,6 +599,15 @@ export interface RoadLeg {
   coordinates: [number, number][];
   /** Route length reported by the provider (meters) — diagnostic only. */
   routeDistanceM: number;
+  /**
+   * Phase 20 fix — the profile this leg was resolved under ("car" →
+   * OSRM, "foot" → Valhalla). A mixed line can hold car AND foot
+   * legs for the same node pair (delete + redraw in another mode),
+   * so lookups filter by the asking segment's own style. Absent = a
+   * pre-fix leg: matches any profile (legacy sessions keep their
+   * geometry).
+   */
+  mode?: Exclude<RoadFollowMode, "off">;
 }
 
 /** One entry of the ordered merged view (Phase 7 export basis). */

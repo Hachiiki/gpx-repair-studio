@@ -21,7 +21,12 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { MAX_VERTICES } from "@/features/reconstruction/drawModel";
-import { joinCurveChain, joinDrawChain } from "@/features/reconstruction/roadFollow";
+import {
+  joinStyledChain,
+  routableOf,
+  type ChainNode,
+  type RoutableRoadMode,
+} from "@/features/reconstruction/roadFollow";
 import { simplifyStroke } from "@/features/reconstruction/stroke";
 import { polylineLengthMeters } from "@/lib/geo/geodesy";
 import type { MapController } from "@/lib/map/mapController";
@@ -104,20 +109,33 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
 
   const mapReady = map.status === "ready";
   const active = phase === "draw";
+  // The line's remembered style — the whole-line FALLBACK for vertices
+  // that carry no legStyle of their own (pre-fix and restored lines).
+  const lineStyle = useCreateStore((s) => s.reconstruction.pathStyle ?? "off");
 
   // -- controller draw-session driving ----------------------------------------
 
+  /*
+   * The joins the controller renders with — STABLE identity: the
+   * inputs that change (the legs, the line's fallback style) are read
+   * from the store at CALL time, never captured. A path-style chip
+   * switch rebuilds NOTHING: the draw session lives across mode
+   * switches and the placed route never flickers, resets, or
+   * re-resolves (the per-segment mode contract — the style only
+   * decides how the NEXT segment generates).
+   */
   const makeJoins = useCallback(
     (legs: readonly RoadLeg[]) => ({
-      // Task 46: the curve style joins through the local spline.
-      chainJoin: (nodes: readonly LatLon[]) =>
-        pathStyle === "curve"
-          ? joinCurveChain(nodes)
-          : joinDrawChain(nodes, legs),
+      chainJoin: (nodes: readonly ChainNode[]) =>
+        joinStyledChain(
+          nodes,
+          legs,
+          useCreateStore.getState().reconstruction.pathStyle ?? "off",
+        ),
       // No far anchor ever exists — no closing segment to join.
       closingJoin: null,
     }),
-    [pathStyle],
+    [],
   );
 
   // Open/close the controller session with the phase (also fires once the
@@ -176,6 +194,12 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
 
   // -- road-follow leg resolution (snap to road) --------------------------------
 
+  /*
+   * Each pair asks under the profile of the segment it belongs to
+   * (the per-segment mode contract): a chip switch never re-runs
+   * this effect — placed segments keep their resolved legs; only a
+   * vertex edit or a consent grant does.
+   */
   const roadGeneration = useRef(0);
 
   useEffect(() => {
@@ -189,44 +213,41 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
       resetRouting();
       return;
     }
-    if (pathStyle !== "car" && pathStyle !== "foot") {
+    const fallback =
+      useCreateStore.getState().reconstruction.pathStyle ?? "off";
+    const pairs: { a: LatLon; b: LatLon; mode: RoutableRoadMode }[] = [];
+    for (let i = 1; i < vertices.length; i += 1) {
+      const mode = routableOf(vertices[i].legStyle ?? fallback);
+      if (mode) {
+        pairs.push({
+          a: { lat: vertices[i - 1].lat, lon: vertices[i - 1].lon },
+          b: { lat: vertices[i].lat, lon: vertices[i].lon },
+          mode,
+        });
+      }
+    }
+    if (pairs.length === 0) {
       const legs = useCreateStore.getState().roadLegs;
       if (legs.length > 0) useCreateStore.getState().setRoadLegs([]);
       resetRouting();
       return;
     }
     /* §EE 17.2 — the honest consent gate (the editor hook's twin). */
+    const router = getRoadRouter();
     if (useUiStore.getState().routerConsent !== "granted") {
-      const gatedNodes: LatLon[] = vertices.map((vertex) => ({
-        lat: vertex.lat,
-        lon: vertex.lon,
-      }));
       const resolved: RoadLeg[] = [];
-      for (let i = 0; i + 1 < gatedNodes.length; i += 1) {
-        const leg = getRoadRouter().cached(
-          pathStyle,
-          gatedNodes[i],
-          gatedNodes[i + 1],
-        );
+      for (const pair of pairs) {
+        const leg = router.cached(pair.mode, pair.a, pair.b);
         if (leg) resolved.push(leg);
       }
       useCreateStore.getState().setRoadLegs(resolved);
       resetRouting();
       return;
     }
-    const nodes: LatLon[] = vertices.map((vertex) => ({
-      lat: vertex.lat,
-      lon: vertex.lon,
-    }));
-    const pairs: { a: LatLon; b: LatLon }[] = [];
-    for (let i = 0; i + 1 < nodes.length; i += 1) {
-      pairs.push({ a: nodes[i], b: nodes[i + 1] });
-    }
-    const router = getRoadRouter();
     const resolved: RoadLeg[] = [];
-    const missing: { a: LatLon; b: LatLon }[] = [];
+    const missing: typeof pairs = [];
     for (const pair of pairs) {
-      const leg = router.cached(pathStyle, pair.a, pair.b);
+      const leg = router.cached(pair.mode, pair.a, pair.b);
       if (leg) resolved.push(leg);
       else missing.push(pair);
     }
@@ -239,12 +260,14 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     const generation = (roadGeneration.current += 1);
     let pending = missing.length;
     for (const pair of missing) {
-      void router.segment(pathStyle, pair.a, pair.b).then((leg) => {
+      void router.segment(pair.mode, pair.a, pair.b).then((leg) => {
         if (roadGeneration.current !== generation) return; // stale
         const state = useCreateStore.getState();
-        if (state.phase !== "draw" || state.pathStyle !== pathStyle) {
+        if (state.phase !== "draw") {
           return;
         }
+        // A STYLE SWITCH DOES NOT invalidate — the leg belongs to its
+        // own segment, whichever chip is active now.
         pending -= 1;
         if (leg) {
           state.setRoadLegs([...state.roadLegs, leg]);
@@ -254,7 +277,7 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
         }
       });
     }
-  }, [active, vertices, pathStyle, routerConsent]);
+  }, [active, vertices, routerConsent]);
 
   // Pointer mode (Draw / Move / Pan — Task 45) and the pen (user pass
   // 48) → controller handlers.
@@ -309,14 +332,18 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
 
   // -- derived view data --------------------------------------------------------
 
-  // The drawn distance runs over the RENDERED path (road legs included):
-  // the number the line draws is the number the badge and the
-  // reconciliation show (WYSIWYG honesty).
+  // The drawn distance runs over the RENDERED path (road legs
+  // included): the number the line draws is the number the badge and the
+  // reconciliation show (WYSIWYG honesty) — each segment under the style
+  // it was drawn with.
   const distanceM = useMemo(() => {
     if (vertices.length < 2) return vertices.length === 1 ? 0 : null;
-    const nodes: LatLon[] = vertices.map((vertex) => ({
+    const nodes: ChainNode[] = vertices.map((vertex) => ({
       lat: vertex.lat,
       lon: vertex.lon,
+      ...(vertex.legStyle !== undefined
+        ? { legStyle: vertex.legStyle }
+        : {}),
     }));
     return polylineLengthMeters(makeJoins(roadLegs).chainJoin(nodes).points);
   }, [vertices, roadLegs, makeJoins]);
@@ -371,10 +398,13 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     redoCount: history.redo.length,
     pathStyle,
     routingPending: roadRouting.pending > 0,
-    routingFailed: roadRouting.failed && pathStyle !== "off" && pathStyle !== "curve",
+    routingFailed: roadRouting.failed,
     routingNeedsConsent:
-      (pathStyle === "car" || pathStyle === "foot") &&
-      routerConsent !== "granted",
+      routerConsent !== "granted" &&
+      (routableOf(pathStyle) !== null ||
+        vertices.some(
+          (vertex) => routableOf(vertex.legStyle ?? lineStyle) !== null,
+        )),
     routerConsent,
     requestRoadConsent: requestRouterConsent,
     resampleSpacing: spacingM,

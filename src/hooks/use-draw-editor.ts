@@ -42,8 +42,6 @@ import {
 import {
   closingLegCoordinates,
   isStraightLinePath,
-  joinCurveChain,
-  joinDrawChain,
 } from "@/features/reconstruction/roadFollow";
 import { isUsableStatsPoint } from "@/features/statistics/distance";
 import { simplifyStroke } from "@/features/reconstruction/stroke";
@@ -72,7 +70,12 @@ import type {
   RoadSnapState,
 } from "@/hooks/use-road-snap";
 import { setLineCommand } from "@/features/reconstruction/drawModel";
-import type { RoutableRoadMode } from "@/features/reconstruction/roadFollow";
+import {
+  joinDrawChain,
+  joinStyledChain,
+  routableOf,
+  type RoutableRoadMode,
+} from "@/features/reconstruction/roadFollow";
 import { announce } from "@/lib/announcements";
 import type { NudgeStepM } from "@/features/reconstruction/coordEntry";
 import type {
@@ -610,22 +613,38 @@ export function useDrawEditor(
 
   // -- controller draw-session driving ----------------------------------------
 
-  // Road-follow joins injected into the controller (the DrawSnapFn
-  // pattern: the map adapter runs no domain code). Fresh closures whenever
-  // the resolved legs change; straight legs while a resolution is pending.
+  /*
+   * The joins the controller renders with — STABLE identity: the
+   * inputs that change (the legs, the line's fallback style, the
+   * whole-line snap preview) are read from the store at CALL time,
+   * never captured. A path-style chip switch therefore rebuilds
+   * NOTHING: the draw session lives across mode switches and the
+   * placed line never flickers, resets, or re-resolves (the Phase 20
+   * mode-switching fix — the style only decides how the NEXT segment
+   * generates, via the store's add/insert commands).
+   */
   const makeJoins = useCallback(
     (legs: readonly RoadLeg[]) => ({
-      // Task 46: the curve style joins through the local spline (no
-      // legs, no network); every other style joins through the road
-      // table (straight legs when nothing resolved).
-      chainJoin: (nodes: readonly LatLon[]) =>
-        pathStyle === "curve"
-          ? joinCurveChain(nodes)
-          : joinDrawChain(nodes, legs),
-      closingJoin: (from: LatLon, to: LatLon) =>
-        closingLegCoordinates(from, to, legs),
+      chainJoin: (nodes: readonly (LatLon & { legStyle?: PathStyle })[]) => {
+        if (useEditorStore.getState().snapPreviewActive) {
+          // §EE 17.3 — the one-shot whole-line snap preview replaces
+          // the rendering: routed slices for EVERY pair, regardless of
+          // the styles the placed segments carry.
+          return joinDrawChain(nodes, legs);
+        }
+        return joinStyledChain(
+          nodes,
+          legs,
+          activeReconstruction(useEditorStore.getState())?.pathStyle ?? "off",
+        );
+      },
+      closingJoin: (
+        from: LatLon,
+        to: LatLon,
+        style?: PathStyle,
+      ) => closingLegCoordinates(from, to, legs, style),
     }),
-    [pathStyle],
+    [],
   );
 
   // Open/switch/close the controller session when the active gap changes
@@ -697,15 +716,18 @@ export function useDrawEditor(
 
   // -- road-follow leg resolution (snap to road) --------------------------------
 
-  // The chain's node pairs (anchor → vertices → far anchor) are routed
-  // through the shared router as long as road-follow is on. Resolved legs
-  // land in the store side table (rendering + distance + commit all read
-  // it); failures fall back to straight legs — WYSIWYG: a missing road is
-  // honestly straight, never a silent detour. Stale async results are
-  // dropped via a generation counter (vertex moved / gap switched / mode
-  // changed since the request started). Status lives in the store (same
-  // transient-aid contract as drawMode) so this effect never calls React
-  // setState directly.
+  /*
+   * The chain's node pairs (anchor → vertices → far anchor) are
+   * routed through the shared router — each under the profile of the
+   * SEGMENT it belongs to (the per-segment mode contract): a pair
+   * asks with the style stored on the vertex it ends at, and the
+   * anchor connections follow their nearest vertex's style. A chip
+   * switch never re-runs this effect (placed segments keep their
+   * resolved legs); only a vertex edit, a gap switch, or a consent
+   * grant does. Failures fall back to straight legs — WYSIWYG: a
+   * missing road is honestly straight, never a silent detour. Stale
+   * async results are dropped via a generation counter.
+   */
   const roadGeneration = useRef(0);
 
   useEffect(() => {
@@ -720,7 +742,34 @@ export function useDrawEditor(
       return;
     }
     const gapId = activeGap.id;
-    if (pathStyle !== "car" && pathStyle !== "foot") {
+    const lineStyle =
+      useEditorStore.getState().reconstructions[gapId]?.pathStyle ?? "off";
+    // Every routable pair, with its OWN asking profile.
+    const pairs: { a: LatLon; b: LatLon; mode: RoutableRoadMode }[] = [];
+    const ask = (a: LatLon, b: LatLon, style: PathStyle) => {
+      const mode = routableOf(style);
+      if (mode) pairs.push({ a, b, mode });
+    };
+    let previous: LatLon | null = null;
+    for (const vertex of vertices) {
+      const point = { lat: vertex.lat, lon: vertex.lon };
+      if (previous !== null) {
+        ask(previous, point, vertex.legStyle ?? lineStyle);
+      } else {
+        ask({ lat: nearAnchor.lat, lon: nearAnchor.lon }, point, vertex.legStyle ?? lineStyle);
+      }
+      previous = point;
+    }
+    if (farAnchor && previous !== null) {
+      const last = vertices[vertices.length - 1];
+      ask(
+        previous,
+        { lat: farAnchor.lat, lon: farAnchor.lon },
+        last.legStyle ?? lineStyle,
+      );
+    }
+    if (pairs.length === 0) {
+      // Nothing routable — only stale legs (deleted pairs) can linger.
       const legs = useEditorStore.getState().roadLegs[gapId] ?? [];
       if (legs.length > 0) useEditorStore.getState().setRoadLegs(gapId, []);
       resetRouting();
@@ -732,35 +781,21 @@ export function useDrawEditor(
      * network call is even attempted until this session says yes.
      * The panels surface the enable notice from `routerConsent`.
      */
+    const router = getRoadRouter();
     if (useUiStore.getState().routerConsent !== "granted") {
-      const nodes = [
-        { lat: nearAnchor.lat, lon: nearAnchor.lon },
-        ...vertices,
-        ...(farAnchor ? [{ lat: farAnchor.lat, lon: farAnchor.lon }] : []),
-      ];
       const resolved: RoadLeg[] = [];
-      for (let i = 0; i + 1 < nodes.length; i += 1) {
-        const leg = getRoadRouter().cached(pathStyle, nodes[i], nodes[i + 1]);
+      for (const pair of pairs) {
+        const leg = router.cached(pair.mode, pair.a, pair.b);
         if (leg) resolved.push(leg);
       }
       useEditorStore.getState().setRoadLegs(gapId, resolved);
       resetRouting();
       return;
     }
-    const nodes: LatLon[] = [
-      { lat: nearAnchor.lat, lon: nearAnchor.lon },
-      ...vertices,
-      ...(farAnchor ? [{ lat: farAnchor.lat, lon: farAnchor.lon }] : []),
-    ];
-    const pairs: { a: LatLon; b: LatLon }[] = [];
-    for (let i = 0; i + 1 < nodes.length; i += 1) {
-      pairs.push({ a: nodes[i], b: nodes[i + 1] });
-    }
-    const router = getRoadRouter();
     const resolved: RoadLeg[] = [];
-    const missing: { a: LatLon; b: LatLon }[] = [];
+    const missing: typeof pairs = [];
     for (const pair of pairs) {
-      const leg = router.cached(pathStyle, pair.a, pair.b);
+      const leg = router.cached(pair.mode, pair.a, pair.b);
       if (leg) resolved.push(leg);
       else missing.push(pair);
     }
@@ -773,10 +808,12 @@ export function useDrawEditor(
     const generation = (roadGeneration.current += 1);
     let pending = missing.length;
     for (const pair of missing) {
-      void router.segment(pathStyle, pair.a, pair.b).then((leg) => {
+      void router.segment(pair.mode, pair.a, pair.b).then((leg) => {
         if (roadGeneration.current !== generation) return; // stale
         const state = useEditorStore.getState();
-        if (state.activeGapId !== gapId || state.pathStyle !== pathStyle) {
+        // A gap switch invalidates; a STYLE SWITCH DOES NOT — the leg
+        // belongs to its own segment, whichever chip is active now.
+        if (state.activeGapId !== gapId) {
           return;
         }
         pending -= 1;
@@ -791,7 +828,7 @@ export function useDrawEditor(
     // vertices identity changes per command; activeGap/nearAnchor/farAnchor
     // are stable per session — the effect re-runs on every edit, which is
     // exactly when the wanted leg set changes.
-  }, [activeGap, nearAnchor, farAnchor, vertices, pathStyle, routerConsent]);
+  }, [activeGap, nearAnchor, farAnchor, vertices, routerConsent]);
 
   // Pointer mode (Draw / Move / Pan — Task 45) and the pen (user pass
   // 48) → controller handlers.
@@ -1185,6 +1222,11 @@ export function useDrawEditor(
       useEditorStore.getState().roadLegs[gapId] ?? [],
     setLegs: (gapId, legs) =>
       useEditorStore.getState().setRoadLegs(gapId, legs),
+    setPreviewActive: (active) => {
+      if (useEditorStore.getState().snapPreviewActive !== active) {
+        useEditorStore.setState({ snapPreviewActive: active });
+      }
+    },
     apply: (waypoints, legs, profile) => {
       const state = useEditorStore.getState();
       const current = activeReconstruction(state);
@@ -1192,7 +1234,14 @@ export function useDrawEditor(
       let seq = state.vertexSeq;
       const nextVertices = waypoints.map((point) => {
         seq += 1;
-        return { id: vertexId(seq), lat: point.lat, lon: point.lon };
+        // The applied line IS the profile — every segment carries it
+        // as its own legStyle (the whole-line operation's contract).
+        return {
+          id: vertexId(seq),
+          lat: point.lat,
+          lon: point.lon,
+          legStyle: profile as PathStyle,
+        };
       });
       const command = setLineCommand(current, {
         vertices: nextVertices,
@@ -1203,10 +1252,12 @@ export function useDrawEditor(
       useEditorStore.setState({ vertexSeq: seq });
       /*
        * The seeded legs must cover EVERY pair the leg effect will
-       * look up — including the two anchor connections. The routed
-       * geometry starts/ends at the provider-snapped anchors, so the
-       * stubs are the honest few-meter stitches (the same WYSIWYG
-       * contract every road leg follows), and no request re-fires.
+       * look up — including the two anchor connections — and carry
+       * the profile (mode-tagged lookups, the per-segment fix). The
+       * routed geometry starts/ends at the provider-snapped anchors,
+       * so the stubs are the honest few-meter stitches (the same
+       * WYSIWYG contract every road leg follows), and no request
+       * re-fires.
        */
       const chainLegs: RoadLeg[] = [];
       if (nearAnchor && nextVertices.length > 0) {
@@ -1219,9 +1270,12 @@ export function useDrawEditor(
             [first.lon, first.lat],
           ],
           routeDistanceM: 0,
+          mode: profile,
         });
       }
-      chainLegs.push(...legs);
+      chainLegs.push(
+        ...legs.map((leg) => ({ ...leg, mode: profile })),
+      );
       if (farAnchor && nextVertices.length > 0) {
         const last = nextVertices[nextVertices.length - 1];
         chainLegs.push({
@@ -1232,6 +1286,7 @@ export function useDrawEditor(
             [farAnchor.lon, farAnchor.lat],
           ],
           routeDistanceM: 0,
+          mode: profile,
         });
       }
       useEditorStore.getState().setRoadLegs(current.gapId, chainLegs);
@@ -1249,10 +1304,16 @@ export function useDrawEditor(
     snapEnabled,
     pathStyle,
     routingPending: roadRouting.pending > 0,
-    routingFailed: roadRouting.failed && pathStyle !== "off" && pathStyle !== "curve",
+    routingFailed: roadRouting.failed,
     routingNeedsConsent:
-      (pathStyle === "car" || pathStyle === "foot") &&
-      routerConsent !== "granted",
+      routerConsent !== "granted" &&
+      (routableOf(pathStyle) !== null ||
+        vertices.some(
+          (vertex) =>
+            routableOf(
+              vertex.legStyle ?? activeRecon?.pathStyle ?? "off",
+            ) !== null,
+        )),
     routerConsent,
     requestRoadConsent: requestRouterConsent,
     online,

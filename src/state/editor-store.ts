@@ -110,6 +110,13 @@ interface EditorState {
   /** Road-routing status of the active chain (pending count + last failure). */
   roadRouting: { pending: number; failed: boolean };
   /**
+   * §EE 17.3 — the one-shot whole-line snap preview is on screen: the
+   * joins render the routed slices for EVERY pair (the preview
+   * replaces the line, overriding the placed segments' own styles
+   * until applied or cancelled). Machine-written, transient.
+   */
+  snapPreviewActive: boolean;
+  /**
    * File-level timing entries for files without usable timestamps
    * (§J-1 Case 3, Phase 5): an activity start time and/or a total
    * duration, entered once per file. Repair state — reset with the
@@ -151,7 +158,11 @@ interface EditorState {
   setSnapEnabled: (on: boolean) => void;
   /** The draw-mode pen (user pass 48; transient, never undoable). */
   setPenMode: (pen: PenMode) => void;
-  /** Road-follow mode for drawn legs (transient, never undoable). */
+  /**
+   * The style the NEXT segment is drawn with (transient, never
+   * undoable). Switching it never touches placed segments — each
+   * segment keeps the style it was drawn with (the per-segment fix).
+   */
   setPathStyle: (mode: PathStyle) => void;
   /** Replace the resolved road legs of one gap (no-op when unchanged). */
   setRoadLegs: (gapId: GapId, legs: readonly RoadLeg[]) => void;
@@ -215,6 +226,7 @@ const INITIAL = {
   pathStyle: "car" as PathStyle,
   roadLegs: {} as Readonly<Record<string, readonly RoadLeg[]>>,
   roadRouting: { pending: 0, failed: false },
+  snapPreviewActive: false,
   fileTiming: { startMs: null, totalDurationMs: null } as FileTimingContext,
 };
 
@@ -242,6 +254,22 @@ function styleSyncPatch(
   if (state.activeGapId !== gapId) return {};
   const style = reconstruction.pathStyle ?? "off";
   return state.pathStyle === style ? {} : { pathStyle: style };
+}
+
+/**
+ * The per-segment fix's line-style tracking: the reconstruction's
+ * remembered style becomes the style of the most recently PLACED
+ * segment (the style the chips re-adopt when the line reopens). A
+ * pure settings patch — geometryRevision stays untouched (§D-3.5),
+ * and undo never restores it (a setting, not a command).
+ */
+function withLineStyle(
+  reconstruction: Reconstruction,
+  style: PathStyle,
+): Reconstruction {
+  return reconstruction.pathStyle === style
+    ? reconstruction
+    : { ...reconstruction, pathStyle: style };
 }
 
 export const useEditorStore = create<EditorState>()((set, get) => ({
@@ -389,27 +417,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
   setPenMode: (pen) => set({ pen }),
 
-  setPathStyle: (pathStyle) =>
-    set((state) => {
-      // The setting always moves; when an editor is open the ACTIVE
-      // line remembers it too (a settings change — geometryRevision
-      // stays untouched, §D-3.5).
-      const gapId = state.activeGapId;
-      if (gapId === null || state.pathStyle === pathStyle) {
-        return state.pathStyle === pathStyle ? state : { pathStyle };
-      }
-      const current = state.reconstructions[gapId];
-      if (!current || current.pathStyle === pathStyle) {
-        return { pathStyle };
-      }
-      return {
-        pathStyle,
-        reconstructions: {
-          ...state.reconstructions,
-          [gapId]: { ...current, pathStyle },
-        },
-      };
-    }),
+  setPathStyle: (pathStyle) => set({ pathStyle }),
 
   setRoadLegs: (gapId, legs) =>
     set((state) => {
@@ -454,7 +462,15 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     const current = activeReconstruction(state);
     if (!current) return;
     const seq = state.vertexSeq + 1;
-    const command = addVertexCommand(current, position, vertexId(seq));
+    // The placed segment's mode is decided HERE — the chip state at
+    // click time becomes the segment's legStyle, permanently.
+    const style = state.pathStyle;
+    const command = addVertexCommand(
+      current,
+      position,
+      vertexId(seq),
+      style,
+    );
     if (!command) return;
     const next = commitCommand(
       { reconstruction: current, history: state.history },
@@ -464,7 +480,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       vertexSeq: seq,
       reconstructions: {
         ...state.reconstructions,
-        [current.gapId]: next.reconstruction,
+        // The line's remembered style = the last placed segment's style
+        // (what the chips re-adopt on reopen).
+        [current.gapId]: withLineStyle(next.reconstruction, style),
       },
       history: next.history,
     });
@@ -475,11 +493,16 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     const current = activeReconstruction(state);
     if (!current) return;
     const seq = state.vertexSeq + 1;
+    // Mid-list inserts inherit the split leg's style (the constructor's
+    // rule); an APPEND takes the chip state, like addVertex.
+    const appending = index >= current.vertices.length;
+    const style = state.pathStyle;
     const command = insertVertexCommand(
       current,
       index,
       position,
       vertexId(seq),
+      style,
     );
     if (!command) return;
     const next = commitCommand(
@@ -490,7 +513,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       vertexSeq: seq,
       reconstructions: {
         ...state.reconstructions,
-        [current.gapId]: next.reconstruction,
+        [current.gapId]: appending
+          ? withLineStyle(next.reconstruction, style)
+          : next.reconstruction,
       },
       history: next.history,
     });
@@ -549,6 +574,13 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     if (!current || points.length === 0) return;
     const budget = MAX_VERTICES - current.vertices.length;
     if (budget < 2) return; // a stroke is a curve — it needs two nodes minimum
+    // The stroke's segment style: routed styles keep the router's
+    // geometry (the stroke's nodes are its waypoints); a local (off/
+    // curve) stroke becomes a smooth CURVE segment — the per-segment
+    // form of the Task-46 flip.
+    const active = state.pathStyle;
+    const strokeStyle: PathStyle =
+      active === "car" || active === "foot" ? active : "curve";
     let seq = state.vertexSeq;
     const added = points.slice(0, budget).map((point) => {
       seq += 1;
@@ -556,6 +588,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         id: vertexId(seq),
         lat: point.lat,
         lon: point.lon,
+        legStyle: strokeStyle,
       };
     });
     const command: DrawCommand = {
@@ -572,16 +605,16 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       vertexSeq: seq,
       reconstructions: {
         ...state.reconstructions,
-        [current.gapId]: next.reconstruction,
+        [current.gapId]: withLineStyle(next.reconstruction, strokeStyle),
       },
       history: next.history,
     });
-    // The curve pen's signature: a local straight line becomes a smooth
-    // curve line (the spline). Routed styles keep the router's geometry —
-    // the stroke's nodes are its waypoints.
-    const style = next.reconstruction.pathStyle;
-    if (style === undefined || style === "off") {
-      get().setPathStyle("curve");
+    // The curve pen's chip continuity (Task 46): a LOCAL stroke moves
+    // the active style to "curve" — the panel renders it as the
+    // Straight chip pressed, and the next segment continues smoothly.
+    // Routed styles keep the router's geometry.
+    if (strokeStyle !== active) {
+      get().setPathStyle(strokeStyle);
     }
   },
 

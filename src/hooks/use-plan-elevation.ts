@@ -83,7 +83,13 @@ export function usePlanElevation(): {
   );
   const vertices = usePlanStore((s) => s.reconstruction.vertices);
   const roadLegs = usePlanStore((s) => s.roadLegs);
-  const pathStyle = usePlanStore((s) => s.pathStyle);
+  // The LINE's remembered style — the join's whole-line fallback. The
+  // ACTIVE chip style deliberately does NOT join this signature: a
+  // mode switch never redraws the placed route (the per-segment
+  // contract), so it must not stale the elevation record either.
+  const lineStyle = usePlanStore(
+    (s) => s.reconstruction.pathStyle ?? "off",
+  );
   const sessionSeq = usePlanStore((s) => s.sessionSeq);
 
   const provider = getElevationProvider();
@@ -91,8 +97,8 @@ export function usePlanElevation(): {
 
   // The current join — the fetch subject and the disclosure's basis.
   const join = useMemo(
-    () => planJoin(vertices, roadLegs, pathStyle),
-    [vertices, roadLegs, pathStyle],
+    () => planJoin(vertices, roadLegs, lineStyle),
+    [vertices, roadLegs, lineStyle],
   );
 
   // -- freshness -----------------------------------------------------------------
@@ -102,8 +108,8 @@ export function usePlanElevation(): {
   // (re-estimate offered) instead of being silently dropped.
 
   const currentSignature = useMemo(
-    () => planElevationSignature(roadLegs, pathStyle, sessionSeq),
-    [roadLegs, pathStyle, sessionSeq],
+    () => planElevationSignature(roadLegs, lineStyle, sessionSeq),
+    [roadLegs, lineStyle, sessionSeq],
   );
 
   const stale =
@@ -155,7 +161,7 @@ export function usePlanElevation(): {
     const freshJoin = planJoin(
       store.reconstruction.vertices,
       store.roadLegs,
-      store.pathStyle,
+      store.reconstruction.pathStyle ?? "off",
     );
     if (freshJoin.points.length === 0) return;
 
@@ -167,7 +173,7 @@ export function usePlanElevation(): {
         fetchedAtRevision: store.reconstruction.geometryRevision,
         fetchedAtRoadSignature: planElevationSignature(
           store.roadLegs,
-          store.pathStyle,
+          store.reconstruction.pathStyle ?? "off",
           store.sessionSeq,
         ),
         totalPoints: freshJoin.points.length,

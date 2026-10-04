@@ -198,14 +198,27 @@ describe("settings — never undoable (§D-3.5)", () => {
     expect(usePlanStore.getState().pointerMode).toBe("move");
   });
 
-  it("the route remembers its own path style", () => {
+  it("the route remembers its own path style (per-segment)", () => {
     usePlanStore.getState().beginPlanning();
+    // A chip switch alone restyles NOTHING — the placed segments keep
+    // the styles they were drawn with (the mode-switching fix).
     usePlanStore.getState().setPathStyle("foot");
-    expect(usePlanStore.getState().reconstruction.pathStyle).toBe("foot");
+    expect(usePlanStore.getState().reconstruction.pathStyle).toBeUndefined();
 
-    // A no-op restyle changes nothing.
-    usePlanStore.getState().setPathStyle("foot");
+    // The first placed segment writes the line's remembered style.
+    usePlanStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
     expect(usePlanStore.getState().reconstruction.pathStyle).toBe("foot");
+    expect(
+      usePlanStore.getState().reconstruction.vertices[0].legStyle,
+    ).toBe("foot");
+
+    // Switching back to roads restyles no placed segment — only the
+    // NEXT one draws as a road.
+    usePlanStore.getState().setPathStyle("car");
+    expect(usePlanStore.getState().reconstruction.pathStyle).toBe("foot");
+    expect(
+      usePlanStore.getState().reconstruction.vertices[0].legStyle,
+    ).toBe("foot");
   });
 
   it("replaces road legs without churn when unchanged", () => {

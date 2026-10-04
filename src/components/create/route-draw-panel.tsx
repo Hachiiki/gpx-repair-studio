@@ -93,7 +93,7 @@ const PATH_STYLE_CHOICES: readonly {
   {
     value: "off",
     label: "Straight lines",
-    hint: "No road snapping — the line connects your points directly. Nothing leaves the browser. Routes drawn with the Curve pen stay smooth until redrawn.",
+    hint: "No road snapping — the next segment connects your points directly. Nothing leaves the browser. Segments drawn with the Curve pen stay smooth; switching styles never redraws them.",
   },
 ];
 
@@ -267,7 +267,8 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
           )}
         </div>
 
-        {/* Path style: what the line does between your points (per line). */}
+        {/* Path style: how the NEXT segment is drawn. Placed segments keep
+            the style they were drawn with (per-segment modes). */}
         <div
           className="grid gap-2"
           data-testid="road-follow-group"
@@ -275,8 +276,12 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
           aria-label="Path style"
         >
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
-            Between points, follow
+            New points follow
             <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
+          </p>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Each segment keeps the style it was drawn with — switch any
+            time, nothing you placed redraws.
           </p>
           <div className="flex flex-wrap gap-1.5">
             {PATH_STYLE_CHOICES.map((choice) => (
@@ -310,7 +315,10 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
               </HintTip>
             ))}
           </div>
-          {(draw.pathStyle === "car" || draw.pathStyle === "foot") && (
+          {(draw.pathStyle === "car" ||
+            draw.pathStyle === "foot" ||
+            draw.routingPending ||
+            draw.routingFailed) && (
             <p
               className="text-[11px] text-muted-foreground"
               data-testid="road-follow-status"
