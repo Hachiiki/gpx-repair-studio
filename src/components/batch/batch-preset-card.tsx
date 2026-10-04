@@ -16,6 +16,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import type { PresetId } from "@/types/domain";
+import { useI18n } from "@/hooks/use-i18n";
 
 export interface BatchPresetCardProps {
   /** The preset chips to render (the Phase 13 vocabulary). */
@@ -32,16 +33,16 @@ export function BatchPresetCard({
   presets,
   onOpenPreset,
 }: BatchPresetCardProps) {
+  const { t } = useI18n();
   return (
     <Card data-testid="batch-preset-card">
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <History className="size-4 shrink-0 text-signal" aria-hidden="true" />
-          Batch fixes
+          {t("batch.preset.title")}
         </h3>
         <CardDescription>
-          Run one preset across every parsed file — previewed per file,
-          applied only on your confirm.
+          {t("batch.preset.description")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-1.5">
@@ -50,19 +51,21 @@ export function BatchPresetCard({
             key={preset.id}
             type="button"
             data-testid={`batch-preset-${preset.id}`}
-            aria-label={`Preset ${preset.name}. ${preset.description}`}
+            aria-label={t("batch.preset.chipAria", {
+              name: preset.name, // canonical (stored; manifest-pinned)
+              descriptionKey: `preset.${preset.id}.description`,
+            })}
             className="grid gap-0.5 rounded-[9px] border-[1.25px] border-ink/15 px-3 py-2 text-left transition-colors hover:border-signal hover:bg-signal/[0.05] focus-visible:outline-2"
             onClick={() => onOpenPreset(preset.id)}
           >
-            <span className="text-[13px] font-semibold">{preset.name}</span>
+            <span className="text-[13px] font-semibold">{t(`preset.${preset.id}.name`)}</span>
             <span className="text-[11.5px] leading-relaxed text-muted-foreground">
-              {preset.description}
+              {t(`preset.${preset.id}.description`)}
             </span>
           </button>
         ))}
         <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
-          Presets use the shipped deep-check settings; tune an individual
-          file in the repair studio. Nothing here touches the originals.
+          {t("batch.preset.note")}
         </p>
       </CardContent>
     </Card>

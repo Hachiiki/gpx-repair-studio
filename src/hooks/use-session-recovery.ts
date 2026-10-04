@@ -66,6 +66,7 @@ import {
   type SessionSection,
 } from "@/lib/storage/sessionStore";
 import { announce } from "@/lib/announcements";
+import { useI18n } from "@/hooks/use-i18n";
 import { getRoadRouter } from "@/hooks/use-draw-editor";
 import { loadGpxFile } from "@/hooks/use-gpx-session";
 import { loadRecoveryFile } from "@/hooks/use-recovery-session";
@@ -286,6 +287,7 @@ export function sessionSectionHasWork(
 // ---------------------------------------------------------------------------
 
 export function useSessionRecovery(): SessionRecoveryController {
+  const { t } = useI18n();
   const [offers, setOffers] = useState<SessionOffer[]>([]);
   const [restoring, setRestoring] = useState<SessionSection | null>(null);
   /** True once the mount scan resolved — offers (or their absence) are final. */
@@ -693,8 +695,8 @@ export function useSessionRecovery(): SessionRecoveryController {
             // row is therefore always safe.
             announce(
               section === "repair"
-                ? "Previous repair session restored."
-                : "Previous recovery session restored.",
+                ? t("hook.sessionRecovery.repairRestored")
+                : t("hook.sessionRecovery.recoveryRestored"),
             );
           } else if (section === "create") {
             const record = readSessionRecord(await readSessionState("create"));
@@ -711,7 +713,7 @@ export function useSessionRecovery(): SessionRecoveryController {
             ) {
               getRoadRouter().seedCache(style, record.roadLegs);
             }
-            announce("Previous create session restored.");
+            announce(t("hook.sessionRecovery.createRestored"));
           } else {
             const record = readSessionRecord(await readSessionState("plan"));
             if (!record || record.kind !== "plan") {
@@ -727,7 +729,7 @@ export function useSessionRecovery(): SessionRecoveryController {
             ) {
               getRoadRouter().seedCache(style, record.roadLegs);
             }
-            announce("Previous plan restored.");
+            announce(t("hook.sessionRecovery.planRestored"));
           }
           removeOffer(section);
           /*
@@ -759,7 +761,7 @@ export function useSessionRecovery(): SessionRecoveryController {
         }
       })();
     },
-    [removeOffer, persistFileSession, persistCreateSession, persistPlanSession],
+    [removeOffer, persistFileSession, persistCreateSession, persistPlanSession, t],
   );
 
   const discard = useCallback(

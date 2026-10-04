@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
+import { useI18n } from "@/hooks/use-i18n";
 import type { MotionSummary } from "@/hooks/use-splits";
 import {
   formatDateTime,
@@ -86,6 +87,7 @@ export interface TimeInMotionCardProps {
 }
 
 export function TimeInMotionCard({ motion }: TimeInMotionCardProps) {
+  const { t } = useI18n();
   const [stopsOpen, setStopsOpen] = useState(false);
   const stopCount = motion.stopEvents.length;
   const movingProvenance = motion.hasEstimatedLegs ? "mixed" : "recorded";
@@ -98,12 +100,10 @@ export function TimeInMotionCard({ motion }: TimeInMotionCardProps) {
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          Time in motion
+          {t("stats.motion.title")}
         </h3>
         <CardDescription>
-          A stop is time with an implied speed under {motion.stopSpeedMps} m/s
-          — recorded gaps are excluded (the device stopped writing, not
-          necessarily moving). Computed on the route as it would export.
+          {t("stats.motion.desc", { speed: motion.stopSpeedMps })}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -112,22 +112,32 @@ export function TimeInMotionCard({ motion }: TimeInMotionCardProps) {
           className="grid grid-cols-[repeat(2,minmax(0,1fr))] overflow-hidden rounded-[8px] border-[1.5px] border-ink"
         >
           <SummaryBlock
-            label="In motion"
+            label={t("stats.motion.inMotion")}
             value={formatDurationMs(motion.inMotionMs)}
             detail={
               motion.wallTimeMs !== undefined
-                ? `of ${formatDurationMs(motion.wallTimeMs)} wall time`
+                ? t("stats.motion.inMotionOf", {
+                    wall: formatDurationMs(motion.wallTimeMs),
+                  })
                 : undefined
             }
           />
           <div className="border-l-[1.5px] border-ink/15">
             <SummaryBlock
-              label="Stopped"
+              label={t("stats.motion.stopped")}
               value={formatDurationMs(motion.stoppedMs)}
               detail={
                 stopCount > 0
-                  ? `${stopCount} stop${stopCount === 1 ? "" : "s"} · longest ${formatDurationMs(motion.longestStopMs)}`
-                  : "no stops detected"
+                  ? t(
+                      stopCount === 1
+                        ? "stats.motion.stopsSummary.one"
+                        : "stats.motion.stopsSummary.many",
+                      {
+                        count: stopCount,
+                        longest: formatDurationMs(motion.longestStopMs),
+                      },
+                    )
+                  : t("stats.motion.noStops")
               }
               accent={stopCount > 0}
             />
@@ -142,25 +152,25 @@ export function TimeInMotionCard({ motion }: TimeInMotionCardProps) {
                   scope="col"
                   className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                 >
-                  Time bucket
+                  {t("stats.motion.colTimeBucket")}
                 </TableHead>
                 <TableHead
                   scope="col"
                   className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                 >
-                  Value
+                  {t("stats.value")}
                 </TableHead>
                 <TableHead
                   scope="col"
                   className="h-auto pb-2 text-right text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                 >
-                  Source
+                  {t("stats.source")}
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow>
-                <TableCell>Wall time</TableCell>
+                <TableCell>{t("stats.wallTime")}</TableCell>
                 <TableCell className="tabular-nums">
                   {motion.wallTimeMs === undefined
                     ? "—"
@@ -172,12 +182,18 @@ export function TimeInMotionCard({ motion }: TimeInMotionCardProps) {
               </TableRow>
               <TableRow>
                 <TableCell>
-                  Moving time
+                  {t("stats.motion.movingTime")}
                   {motion.gapLegs > 0 && (
                     <span className="block text-[10.5px] leading-snug text-muted-foreground">
-                      excludes {motion.gapLegs} gap leg
-                      {motion.gapLegs === 1 ? "" : "s"} (
-                      {formatDurationMs(motion.gapTimeMs)})
+                      {t(
+                        motion.gapLegs === 1
+                          ? "stats.motion.excludesGap.one"
+                          : "stats.motion.excludesGap.many",
+                        {
+                          count: motion.gapLegs,
+                          gapTime: formatDurationMs(motion.gapTimeMs),
+                        },
+                      )}
                     </span>
                   )}
                 </TableCell>
@@ -189,7 +205,7 @@ export function TimeInMotionCard({ motion }: TimeInMotionCardProps) {
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell>Stopped time</TableCell>
+                <TableCell>{t("stats.motion.stoppedTime")}</TableCell>
                 <TableCell className="tabular-nums">
                   {formatDurationMs(motion.stoppedMs)}
                 </TableCell>
@@ -198,7 +214,9 @@ export function TimeInMotionCard({ motion }: TimeInMotionCardProps) {
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell className="font-semibold">In motion</TableCell>
+                <TableCell className="font-semibold">
+                  {t("stats.motion.inMotion")}
+                </TableCell>
                 <TableCell className="tabular-nums font-bold">
                   {formatDurationMs(motion.inMotionMs)}
                 </TableCell>
@@ -210,12 +228,22 @@ export function TimeInMotionCard({ motion }: TimeInMotionCardProps) {
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={3} className="pt-1 text-[11px] text-muted-foreground">
                     {[...((motion.untimedLegs > 0)
-                      ? [`${motion.untimedLegs} untimed leg${motion.untimedLegs === 1 ? "" : "s"}`]
+                      ? [t(
+                          motion.untimedLegs === 1
+                            ? "stats.flags.untimedLeg.one"
+                            : "stats.flags.untimedLeg.many",
+                          { count: motion.untimedLegs },
+                        )]
                       : []),
                       ...((motion.reversedLegs > 0)
-                        ? [`${motion.reversedLegs} reversed leg${motion.reversedLegs === 1 ? "" : "s"}`]
+                        ? [t(
+                            motion.reversedLegs === 1
+                              ? "stats.flags.reversedLeg.one"
+                              : "stats.flags.reversedLeg.many",
+                            { count: motion.reversedLegs },
+                          )]
                         : [])].join(" · ")}{" "}
-                    — counted, never guessed into the buckets above.
+                    {t("stats.motion.bookkeepingTail")}
                   </TableCell>
                 </TableRow>
               )}
@@ -234,8 +262,13 @@ export function TimeInMotionCard({ motion }: TimeInMotionCardProps) {
               onClick={() => setStopsOpen((open) => !open)}
             >
               {stopsOpen
-                ? "Hide stop list"
-                : `List ${stopCount} stop${stopCount === 1 ? "" : "s"}`}
+                ? t("stats.motion.hideStops")
+                : t(
+                    stopCount === 1
+                      ? "stats.motion.listStops.one"
+                      : "stats.motion.listStops.many",
+                    { count: stopCount },
+                  )}
             </button>
             {stopsOpen && (
               <div className="mt-2 overflow-x-auto">
@@ -246,31 +279,31 @@ export function TimeInMotionCard({ motion }: TimeInMotionCardProps) {
                         scope="col"
                         className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                       >
-                        #
+                        {t("stats.motion.colIndex")}
                       </TableHead>
                       <TableHead
                         scope="col"
                         className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                       >
-                        Started
+                        {t("stats.motion.colStarted")}
                       </TableHead>
                       <TableHead
                         scope="col"
                         className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                       >
-                        At
+                        {t("stats.motion.colAt")}
                       </TableHead>
                       <TableHead
                         scope="col"
                         className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                       >
-                        Duration
+                        {t("stats.motion.colDuration")}
                       </TableHead>
                       <TableHead
                         scope="col"
                         className="h-auto pb-2 text-right text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                       >
-                        Source
+                        {t("stats.source")}
                       </TableHead>
                     </TableRow>
                   </TableHeader>

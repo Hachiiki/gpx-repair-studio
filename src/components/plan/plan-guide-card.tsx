@@ -15,6 +15,7 @@
 
 "use client";
 
+import { useI18n } from "@/hooks/use-i18n";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,14 +26,10 @@ import {
 import { Crosshair, Eraser, MapPinned } from "lucide-react";
 import type { LocateStatus } from "@/hooks/use-plan-map";
 
-/** The geolocation aid's degraded copy (the shared states). */
-const LOCATE_NOTICES: Partial<Record<LocateStatus, string>> = {
-  denied:
-    "Position unavailable — permission was declined. Pan the map yourself.",
-  unavailable:
-    "This device has no geolocation — pan the map to your start point.",
-};
-
+/**
+ * The geolocation aid's degraded notices (the shared states),
+ * resolved through the translator inside the component.
+ */
 export interface PlanGuideCardProps {
   /** One-shot geolocation intent (the guide's "Find my position" aid). */
   onLocate: () => void;
@@ -50,25 +47,29 @@ export function PlanGuideCard({
   vertexCount,
   onClear,
 }: PlanGuideCardProps) {
-  const notice = LOCATE_NOTICES[locateStatus];
+  const { t } = useI18n();
+  const locateNotices: Partial<Record<LocateStatus, string>> = {
+    denied: t("plan.guide.locateDenied"),
+    unavailable: t("plan.guide.locateUnavailable"),
+  };
+  const notice = locateNotices[locateStatus];
 
   return (
     <Card className="border-[1.5px] border-ink" data-testid="plan-guide-card">
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <MapPinned className="size-4 text-signal" aria-hidden="true" />
-          Plan a route
+          {t("plan.guide.title")}
         </h3>
         <CardDescription>
-          Sketch where you might go — the estimates update as you draw.
+          {t("plan.guide.intro")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
         <p className="text-[13px] leading-relaxed text-muted-foreground">
-          Click to drop points (the Default pen) or press-drag a curve
-          (the Curve pen); switch to Move (M) to drag any point. This is
-          a scratchpad: <strong>no export, no share</strong> — the route
-          and its numbers stay on this page.
+          {t("plan.guide.contractLead")}{" "}
+          <strong>{t("plan.guide.contractBold")}</strong>
+          {t("plan.guide.contractTail")}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -81,7 +82,9 @@ export function PlanGuideCard({
             disabled={locateStatus === "locating"}
           >
             <Crosshair className="size-3.5" aria-hidden="true" />
-            {locateStatus === "locating" ? "Locating…" : "Find my position"}
+            {locateStatus === "locating"
+              ? t("plan.guide.locating")
+              : t("plan.guide.findPosition")}
           </Button>
           <Button
             type="button"
@@ -93,12 +96,12 @@ export function PlanGuideCard({
             disabled={vertexCount === 0}
             title={
               vertexCount === 0
-                ? "Nothing drawn yet"
-                : "Remove every point and start fresh"
+                ? t("plan.guide.clearTitleEmpty")
+                : t("plan.guide.clearTitle")
             }
           >
             <Eraser className="size-3.5" aria-hidden="true" />
-            Clear route
+            {t("plan.guide.clearRoute")}
           </Button>
         </div>
         {notice && (

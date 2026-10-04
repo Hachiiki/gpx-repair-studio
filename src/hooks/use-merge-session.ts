@@ -47,6 +47,7 @@ import { runParsePipeline } from "@/lib/gpx/parse-client";
 import { downloadTextFile } from "@/lib/utils/download";
 import { createDomXmlIo } from "@/lib/utils/xml";
 import { describeParseError } from "@/hooks/use-gpx-session";
+import { translateNow } from "@/i18n/runtime";
 import {
   parsedMergeFiles,
   useMergeStore,
@@ -83,8 +84,10 @@ export async function addMergeFiles(files: readonly File[]): Promise<void> {
 
     if (file.size === 0) {
       live.setFileError(id, {
-        title: "Empty file",
-        detail: `"${file.name}" contains no data. Choose a non-empty track export.`,
+        title: translateNow("hook.parse.emptyTitle"),
+        detail: translateNow("hook.parse.emptyDetailTrack", {
+          fileName: file.name,
+        }),
       });
       continue;
     }
@@ -118,10 +121,11 @@ export async function addMergeFiles(files: readonly File[]): Promise<void> {
       });
     } catch (err) {
       live.setFileError(id, {
-        title: "Could not read file",
-        detail:
-          `"${file.name}" could not be read: ` +
-          `${err instanceof Error ? err.message : String(err)}`,
+        title: translateNow("hook.parse.readTitle"),
+        detail: translateNow("hook.parse.readDetail", {
+          fileName: file.name,
+          reason: err instanceof Error ? err.message : String(err),
+        }),
       });
     }
   }

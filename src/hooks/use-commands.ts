@@ -21,9 +21,10 @@
 
 import { useCallback, useMemo } from "react";
 import {
-  COMMAND_GROUP_LABELS,
+  COMMAND_GROUP_LABEL_KEYS,
   COMMANDS,
   cheatSheet,
+  commandLabel,
   filterCommands,
   formatShortcut,
   matchesBinding,
@@ -32,30 +33,34 @@ import {
   type CommandDef,
   type CommandGroupId,
   type ShortcutBinding,
+  type TranslateFn,
 } from "@/features/commands/registry";
+import { useI18n } from "@/hooks/use-i18n";
+import type { TranslateParams } from "@/i18n/types";
 
 /*
  * Component-facing facades (the ESLint boundary: components never
  * import feature internals — they reach the registry through this
- * hook module, the use-draw-editor re-export precedent).
+ * hook module, the use-draw-editor re-export precedent). Phase 21:
+ * every facade takes the caller's translator — a locale switch
+ * re-renders the palette and the cheat sheet through useI18n.
  */
 
-/**
- * The help dialog's keyboard map, generated from the registry — the
+/** The help dialog's keyboard map, generated from the registry — the
  * Phase 12 "only bindings that ship" contract, enforced by
- * construction.
- */
-export function shortcutCheatSheet(): readonly CheatSheetGroup[] {
-  return cheatSheet(COMMANDS);
+ * construction. */
+export function shortcutCheatSheet(t: TranslateFn): readonly CheatSheetGroup[] {
+  return cheatSheet(COMMANDS, t);
 }
 
 /** The registry's fuzzy filter, for palette consumers. */
 export function searchCommands(
+  t: TranslateFn,
   commands: readonly CommandDef[],
   query: string,
   context: CommandContext,
 ): readonly CommandDef[] {
-  return filterCommands(commands, query, context);
+  return filterCommands(commands, query, context, t);
 }
 
 /** The display form of a binding (keycap chips). */
@@ -64,9 +69,22 @@ export function displayShortcut(binding: ShortcutBinding): string {
 }
 
 /** A command group's display label (the palette's group headings). */
-export function commandGroupLabel(group: CommandGroupId): string {
-  return COMMAND_GROUP_LABELS[group];
+export function commandGroupLabel(
+  t: TranslateFn,
+  group: CommandGroupId,
+): string {
+  return t(COMMAND_GROUP_LABEL_KEYS[group]);
 }
+
+/** A command's display label in the caller's locale. */
+export function boundCommandLabel(
+  t: TranslateFn,
+  command: CommandDef,
+): string {
+  return commandLabel(t, command);
+}
+
+export type { TranslateFn } from "@/features/commands/registry";
 
 /** The registry's group vocabulary, for palette typing. */
 export type { CommandGroupId } from "@/features/commands/registry";

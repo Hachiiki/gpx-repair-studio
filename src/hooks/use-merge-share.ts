@@ -40,6 +40,7 @@ import {
 import type { PaceUnit } from "@/lib/utils/format";
 import type { LatLon } from "@/types/domain";
 import { useUiStore } from "@/state/ui-store";
+import { useI18n } from "@/hooks/use-i18n";
 import type { MergedView } from "@/hooks/use-merge-session";
 import { mergedFileName } from "@/hooks/use-merge-session";
 
@@ -70,6 +71,7 @@ export function useMergeShare(
   fileCount: number,
 ): MergeShareBinding | null {
   const paceUnit = useUiStore((s) => s.paceUnit);
+  const { t } = useI18n();
 
   const setPaceUnit = useCallback((unit: PaceUnit) => {
     useUiStore.getState().setPaceUnit(unit);
@@ -97,11 +99,11 @@ export function useMergeShare(
     return {
       ...derived,
       notes: [
-        `Combined from ${fileCount} recordings — every point carried over verbatim, in the order you set.`,
+        t("hook.share.mergeNoteCombined", { count: fileCount }),
         ...derived.notes,
       ],
     };
-  }, [merged, paceUnit, fileCount]);
+  }, [merged, paceUnit, fileCount, t]);
 
   const spec = useMemo<ShareCardSpec | null>(
     () =>

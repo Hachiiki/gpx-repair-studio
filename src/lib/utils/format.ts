@@ -17,7 +17,28 @@
  * (which durations and distances produce which rows, with what
  * provenance) lives in features/statistics/pace.ts; this module only
  * renders values.
+ *
+ * Phase 21 — the module is locale-aware: unit words, number grouping,
+ * and date-time forms follow the active app locale (§EE 21.3), read
+ * from the i18n locale observable AT CALL TIME so a locale switch
+ * re-renders every formatted value through the normal React cycle.
+ * EXPORTED ARTIFACTS are the exception, by design: the share card
+ * (features/share/cardContent.ts) and the KML/CSV exports render for
+ * OTHER software, not for the user's screen, so they call the
+ * English-pinned `artifactFormatters` instead — an artifact's text
+ * must not depend on the machine it was made on.
+ *
+ * Domain purity: the locale read is a guarded module read (no DOM in
+ * node/test environments — English by default there, deterministic).
  */
+
+import type { AppLocale } from "@/i18n/types";
+import { getLocale } from "@/i18n/locale";
+import {
+  UNIT_WORDS,
+  formatNumber,
+  localeTag,
+} from "@/i18n/units";
 
 /** Pace display units (§J-2: min/km with a min/mi toggle). */
 export type PaceUnit = "km" | "mi";
@@ -30,11 +51,17 @@ export const PACE_METERS_PER_UNIT: Record<PaceUnit, number> = {
 
 /** Meters below 1 km, kilometers with 2 decimals otherwise. */
 export function formatDistanceMeters(meters: number): string {
+  return formatDistanceMetersIn(getLocale(), meters);
+}
+
+/** The locale-explicit core every public distance formatter delegates to. */
+function formatDistanceMetersIn(locale: AppLocale, meters: number): string {
   if (!Number.isFinite(meters)) return "—";
+  const units = UNIT_WORDS[locale];
   if (Math.abs(meters) < 1000) {
-    return `${Math.round(meters)} m`;
+    return `${formatNumber(Math.round(meters), locale)} ${units.m}`;
   }
-  return `${(meters / 1000).toFixed(2)} km`;
+  return `${formatNumber(meters / 1000, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${units.km}`;
 }
 
 /**
@@ -43,7 +70,7 @@ export function formatDistanceMeters(meters: number): string {
  */
 export function formatElevationMeters(meters: number): string {
   if (!Number.isFinite(meters)) return "—";
-  return `${Math.round(meters).toLocaleString("en-US")} m`;
+  return `${formatNumber(Math.round(meters), getLocale())} ${UNIT_WORDS[getLocale()].m}`;
 }
 
 /**
@@ -93,24 +120,35 @@ export function formatDistanceForUnit(
   meters: number,
   unit: PaceUnit,
 ): string {
+  return formatDistanceForUnitIn(getLocale(), meters, unit);
+}
+
+/** The locale-explicit core (artifact builders pin it to English). */
+function formatDistanceForUnitIn(
+  locale: AppLocale,
+  meters: number,
+  unit: PaceUnit,
+): string {
   if (!Number.isFinite(meters)) return "—";
-  if (unit === "km") return formatDistanceMeters(meters);
-  return `${(meters / PACE_METERS_PER_UNIT.mi).toFixed(2)} mi`;
+  if (unit === "km") return formatDistanceMetersIn(locale, meters);
+  return `${formatNumber(meters / PACE_METERS_PER_UNIT.mi, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${UNIT_WORDS[locale].mi}`;
 }
 
 /** Speed in km/h with 1 decimal. */
 export function formatSpeedKmh(kmh: number): string {
   if (!Number.isFinite(kmh)) return "—";
-  return `${kmh.toFixed(1)} km/h`;
+  return `${formatNumber(kmh, getLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${UNIT_WORDS[getLocale()].kmh}`;
 }
 
 /**
  * Epoch ms as a locale date-time string with seconds.
  * Returns "—" for missing/unreliable values (`undefined` upstream).
+ * Phase 21: the app locale's own conventions (was the BROWSER locale
+ * — deterministic for tests, and honest about what the app knows).
  */
 export function formatDateTime(epochMs: number | undefined): string {
   if (epochMs === undefined || !Number.isFinite(epochMs)) return "—";
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(localeTag(getLocale()), {
     dateStyle: "medium",
     timeStyle: "medium",
   }).format(new Date(epochMs));
@@ -148,7 +186,7 @@ export function formatPace(
     return "—";
   }
   const perUnit = (durationMs / distanceM) * PACE_METERS_PER_UNIT[unit];
-  return `${formatPaceMs(perUnit)} /${unit}`;
+  return `${formatPaceMs(perUnit)} ${unit === "km" ? UNIT_WORDS[getLocale()].perKm : UNIT_WORDS[getLocale()].perMi}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,4 +235,43 @@ export function msToDurationFields(
     minutes: Math.floor((total % 3600) / 60),
     seconds: total % 60,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Artifact formatters (Phase 21)
+// ---------------------------------------------------------------------------
+
+/**
+ * English-pinned formatters for EXPORTED ARTIFACTS — text rendered for
+ * other software (the share card's canvas painter, KML/CSV exports),
+ * whose words must not follow the machine they were made on. The
+ * share card's compact durations ("1h 45m") were already
+ * English-by-convention (Task 20); Phase 21 makes that convention
+ * structural: the UI formatters follow the app locale, these stay
+ * pinned, and the two can never drift apart silently.
+ */
+export const artifactFormatters = {
+  formatDistanceMeters: (meters: number): string =>
+    formatDistanceMetersIn("en", meters),
+  formatDistanceForUnit: (meters: number, unit: PaceUnit): string =>
+    formatDistanceForUnitIn("en", meters, unit),
+  formatDurationCompactMs,
+  formatSpeedKmh: (kmh: number): string =>
+    Number.isFinite(kmh)
+      ? `${formatNumber(kmh, "en", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km/h`
+      : "—",
+} as const;
+
+/**
+ * The app-locale distance formatter, explicit — for hooks that build
+ * ARTIFACT-BOUND text in the app locale (the create tool's share
+ * preview mirrors what the card will render, in the card's pinned
+ * English; UI mirrors use the default locale-aware exports).
+ */
+export function formatDistanceForUnitExplicit(
+  locale: AppLocale,
+  meters: number,
+  unit: PaceUnit,
+): string {
+  return formatDistanceForUnitIn(locale, meters, unit);
 }

@@ -79,6 +79,12 @@ export interface ElevationProvider {
   /** One-paragraph privacy note for the disclosure dialog. */
   privacyNote: string;
   /**
+   * Phase 21 — the privacy note's DICTIONARY KEY: the disclosure
+   * localizes through it (the canonical English `privacyNote` stays
+   * for logs and any artifact-bound rendering).
+   */
+  privacyNoteKey: string;
+  /**
    * Resolve elevations for the coordinates, in order. `undefined` marks
    * a point the provider could not resolve (void, ocean, or failure) —
    * partial results are expected and tolerated (§K-2).

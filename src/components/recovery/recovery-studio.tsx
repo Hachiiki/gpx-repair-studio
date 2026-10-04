@@ -60,9 +60,11 @@ import { useRecoveryExport } from "@/hooks/use-recovery-export";
 import { useRecoveryMap } from "@/hooks/use-recovery-map";
 import { useRecoverySession } from "@/hooks/use-recovery-session";
 import { useElevationStats } from "@/hooks/use-elevation";
+import { useI18n } from "@/hooks/use-i18n";
 import { useUiStore } from "@/state/ui-store";
 
 export function RecoveryStudio() {
+  const { t } = useI18n();
   const session = useRecoverySession();
   const map = useRecoveryMap(session);
   const draw = useRecoveryDraw(session, map);
@@ -108,21 +110,15 @@ export function RecoveryStudio() {
               onRemoveSpan={draw.removeManualSpan}
               statusById={draw.statusById}
               copy={{
-                title: "Unmeasured sections",
-                description:
-                  "Draw the route you lost — the app estimates its time from your pace in this file.",
-                anchorLabel: "Draw an unmeasured section",
-                anchorHint:
-                  "One click anywhere on the map — the section attaches to your recorded route's nearest end and your clicks draw the lost route outward from there, following the roads between them. Use it for any stretch the watch never measured, even when nothing was detected.",
-                pairLabel: "Redraw a stretch",
-                pairHint:
-                  "Click two points on the recorded route — the stretch between them is what you replace. Use it when the watch drew a straight line over the road you actually took; the time comes from the file.",
-                empty:
-                  "Nothing drawn yet. Start anywhere on the route — a tunnel the watch cut straight through, a section it never measured — even when no gap was detected.",
-                anchorInstructions:
-                  "Click anywhere on the map near where the lost section goes — it anchors to your recorded route's nearest end and every click after that draws outward from it. Esc cancels.",
-                pairInstructions:
-                  "Click two points on the recorded route — the stretch between them is what you replace. Pan and zoom stay available; Esc cancels.",
+                title: t("recovery.manual.title"),
+                description: t("recovery.manual.description"),
+                anchorLabel: t("recovery.manual.anchorLabel"),
+                anchorHint: t("recovery.manual.anchorHint"),
+                pairLabel: t("recovery.manual.pairLabel"),
+                pairHint: t("recovery.manual.pairHint"),
+                empty: t("recovery.manual.empty"),
+                anchorInstructions: t("recovery.manual.anchorInstructions"),
+                pairInstructions: t("recovery.manual.pairInstructions"),
               }}
             />
             {/*

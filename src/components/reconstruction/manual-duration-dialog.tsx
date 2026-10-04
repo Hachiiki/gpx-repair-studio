@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   durationFieldsToMs,
   msToDurationFields,
@@ -41,9 +42,9 @@ export interface ManualDurationDialogProps {
 }
 
 const FIELDS = [
-  { key: "hours", label: "Hours", testid: "duration-hours" },
-  { key: "minutes", label: "Minutes", testid: "duration-minutes" },
-  { key: "seconds", label: "Seconds", testid: "duration-seconds" },
+  { key: "hours", labelKey: "manualDuration.hours", testid: "duration-hours" },
+  { key: "minutes", labelKey: "manualDuration.minutes", testid: "duration-minutes" },
+  { key: "seconds", labelKey: "manualDuration.seconds", testid: "duration-seconds" },
 ] as const;
 
 export function ManualDurationDialog({
@@ -53,6 +54,7 @@ export function ManualDurationDialog({
   context,
   onSave,
 }: ManualDurationDialogProps) {
+  const { t } = useI18n();
   const [fields, setFields] = useState({ hours: "", minutes: "", seconds: "" });
 
   // Prefill on each open transition — state adjusted during render (the
@@ -81,12 +83,14 @@ export function ManualDurationDialog({
       <DialogContent data-testid="manual-duration-dialog">
         <DialogHeader>
           <DialogTitle>
-            {context === "gap" ? "How long was the missing stretch?" : "Total activity duration"}
+            {context === "gap"
+              ? t("manualDuration.gapTitle")
+              : t("manualDuration.fileTitle")}
           </DialogTitle>
           <DialogDescription>
             {context === "gap"
-              ? "The repair's interior timestamps will span exactly this duration — recorded timestamps are never changed."
-              : "Used for overall pace, and later for spreading timestamps over the whole activity when exporting."}
+              ? t("manualDuration.gapDescription")
+              : t("manualDuration.fileDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -98,7 +102,7 @@ export function ManualDurationDialog({
         <div className="grid grid-cols-3 gap-3.5">
           {FIELDS.map((field) => (
             <label key={field.key} className="grid gap-1.5 text-xs font-semibold">
-              {field.label}
+              {t(field.labelKey)}
               <input
                 type="number"
                 inputMode="numeric"
@@ -106,7 +110,7 @@ export function ManualDurationDialog({
                 step={1}
                 className="h-10 w-full rounded-[7px] border-[1.5px] border-ink/25 bg-card px-2 text-center text-[15px] font-semibold tabular-nums transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
                 data-testid={field.testid}
-                aria-label={field.label}
+                aria-label={t(field.labelKey)}
                 value={fields[field.key]}
                 onChange={(event) =>
                   setFields((current) => ({
@@ -125,7 +129,7 @@ export function ManualDurationDialog({
             data-testid="duration-error"
             role="alert"
           >
-            Enter numbers of 0 or more in each field.
+            {t("manualDuration.error")}
           </p>
         )}
 
@@ -136,7 +140,7 @@ export function ManualDurationDialog({
             data-testid="cancel-duration-button"
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("manualDuration.cancel")}
           </Button>
           <Button
             type="button"
@@ -148,7 +152,7 @@ export function ManualDurationDialog({
               onOpenChange(false);
             }}
           >
-            Save duration
+            {t("manualDuration.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

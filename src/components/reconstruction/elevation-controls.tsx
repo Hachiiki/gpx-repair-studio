@@ -23,17 +23,30 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
 import { ElevationDisclosureDialog } from "@/components/reconstruction/elevation-disclosure-dialog";
 import type { ElevationControlsBinding } from "@/hooks/use-elevation";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import { MountainSnow, RefreshCw, TriangleAlert } from "lucide-react";
 import { formatElevationMeters } from "@/lib/utils/format";
 
-const STATUS_LABEL: Record<ElevationControlsBinding["status"], string> = {
-  "not-fetched": "Not estimated",
-  fetching: "Estimating…",
-  complete: "Estimated",
-  partial: "Partial",
-  failed: "Failed",
-  stale: "Stale",
-};
+/** The status word per binding status (i18n: t-driven). */
+function statusLabel(
+  t: TranslatorArg,
+  status: ElevationControlsBinding["status"],
+): string {
+  switch (status) {
+    case "not-fetched":
+      return t("elevation.status.notFetched");
+    case "fetching":
+      return t("elevation.status.fetching");
+    case "complete":
+      return t("elevation.status.complete");
+    case "partial":
+      return t("elevation.status.partial");
+    case "failed":
+      return t("elevation.status.failed");
+    case "stale":
+      return t("elevation.status.stale");
+  }
+}
 
 const STATUS_TONE: Record<
   ElevationControlsBinding["status"],
@@ -52,6 +65,7 @@ export function ElevationControls({
 }: {
   elevation: ElevationControlsBinding;
 }) {
+  const { t } = useI18n();
   const [disclosureOpen, setDisclosureOpen] = useState(false);
   const disclosure = elevation.disclosure;
 
@@ -60,15 +74,15 @@ export function ElevationControls({
       className="grid gap-1.5"
       data-testid="elevation-controls"
       role="group"
-      aria-label="Elevation"
+      aria-label={t("elevation.groupAria")}
     >
       <p className="flex flex-wrap items-center gap-1.5 text-xs font-medium">
-        Elevation
+        {t("elevation.label")}
         <StatusBadge
           tone={STATUS_TONE[elevation.status]}
           data-testid="elevation-status-badge"
         >
-          {STATUS_LABEL[elevation.status]}
+          {statusLabel(t, elevation.status)}
         </StatusBadge>
       </p>
 
@@ -86,8 +100,10 @@ export function ElevationControls({
       {elevation.canFetch && elevation.status === "not-fetched" && disclosure && (
         <HintTip
           side="left"
-          title="Estimated elevation"
-          description={`Looks up terrain elevation for the points you drew (${elevation.providerName}, a public terrain database). Opt-in: a disclosure shows exactly what leaves your browser before anything is sent.`}
+          title={t("elevation.estimateHintTitle")}
+          description={t("elevation.estimateHintDescription", {
+            provider: elevation.providerName,
+          })}
         >
           <Button
             type="button"
@@ -98,7 +114,7 @@ export function ElevationControls({
             onClick={() => setDisclosureOpen(true)}
           >
             <MountainSnow className="size-3.5" aria-hidden="true" />
-            Estimate elevation
+            {t("elevation.estimateButton")}
           </Button>
         </HintTip>
       )}
@@ -110,12 +126,18 @@ export function ElevationControls({
           data-testid="elevation-progress"
           role="status"
         >
-          Fetching {elevation.providerName} terrain — {elevation.answered}/
-          {elevation.sent} points
           {elevation.sent < elevation.total
-            ? ` (sampled from ${elevation.total})`
-            : ""}
-          …
+            ? t("elevation.progressSampled", {
+                provider: elevation.providerName,
+                answered: elevation.answered,
+                sent: elevation.sent,
+                total: elevation.total,
+              })
+            : t("elevation.progress", {
+                provider: elevation.providerName,
+                answered: elevation.answered,
+                sent: elevation.sent,
+              })}
         </p>
       )}
 
@@ -127,8 +149,7 @@ export function ElevationControls({
           role="status"
         >
           <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
-          The route changed since the estimate — the old values are
-          excluded from statistics and export until you re-estimate.
+          {t("elevation.staleNote")}
           <Button
             type="button"
             size="sm"
@@ -138,7 +159,7 @@ export function ElevationControls({
             onClick={() => setDisclosureOpen(true)}
           >
             <RefreshCw className="size-3" aria-hidden="true" />
-            Re-estimate
+            {t("elevation.reEstimate")}
           </Button>
         </p>
       )}
@@ -161,7 +182,7 @@ export function ElevationControls({
               onClick={() => setDisclosureOpen(true)}
             >
               <RefreshCw className="size-3" aria-hidden="true" />
-              Try again
+              {t("elevation.tryAgain")}
             </Button>
           </div>
         </div>
@@ -197,9 +218,10 @@ export function ElevationControls({
           data-testid="elevation-partial-note"
           role="status"
         >
-          {elevation.resolved.toLocaleString("en-US")} of{" "}
-          {elevation.sent.toLocaleString("en-US")} terrain points resolved
-          — the gaps are interpolated between the ones that were.
+          {t("elevation.partialNote", {
+            resolved: elevation.resolved.toLocaleString("en-US"),
+            sent: elevation.sent.toLocaleString("en-US"),
+          })}
         </p>
       )}
 
@@ -215,7 +237,7 @@ export function ElevationControls({
             onClick={() => setDisclosureOpen(true)}
           >
             <RefreshCw className="size-3" aria-hidden="true" />
-            Re-estimate
+            {t("elevation.reEstimate")}
           </Button>
         </p>
       )}
@@ -228,7 +250,7 @@ export function ElevationControls({
           totalPoints={disclosure.totalPoints}
           requestCount={disclosure.requestCount}
           providerName={elevation.providerName}
-          privacyNote={elevation.privacyNote}
+          privacyNote={t(elevation.privacyNoteKey)}
           onConfirm={elevation.confirmFetch}
         />
       )}

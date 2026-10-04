@@ -14,6 +14,7 @@ import {
   CardDescription,
   CardHeader,
 } from "@/components/ui/card";
+import { useI18n } from "@/hooks/use-i18n";
 import type { TimeStats } from "@/hooks/use-gpx-session";
 import type { OriginalTrackData } from "@/types/domain";
 
@@ -44,6 +45,7 @@ export function GpxSummaryCard({
   data,
   timeStats,
 }: GpxSummaryCardProps) {
+  const { t } = useI18n();
   const pointCount = data.segments.reduce(
     (sum, segment) => sum + segment.points.length,
     0,
@@ -57,7 +59,7 @@ export function GpxSummaryCard({
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          File summary
+          {t("summary.title")}
         </h3>
         <CardDescription className="truncate" title={fileName}>
           {fileName}
@@ -66,34 +68,47 @@ export function GpxSummaryCard({
       <CardContent>
         <dl className="grid text-[13px]">
           <div className="flex min-w-0 items-baseline justify-between gap-4 border-b border-ink/[0.08] py-2 last:border-b-0">
-            <dt className="shrink-0 text-[13px] text-muted-foreground">Format</dt>
+            <dt className="shrink-0 text-[13px] text-muted-foreground">
+              {t("summary.format")}
+            </dt>
             <dd className="min-w-0">
-              <Badge variant="secondary">GPX {data.fileMeta.version}</Badge>
+              {/* The format name + version — data, not copy */}
+              <Badge variant="secondary">{`GPX ${data.fileMeta.version}`}</Badge>
             </dd>
           </div>
           <CountRow
-            label="Creator"
-            value={data.fileMeta.creator ?? "Unknown"}
+            label={t("summary.creator")}
+            value={data.fileMeta.creator ?? t("summary.unknownCreator")}
           />
-          <CountRow label="Tracks" value={data.tracks.length} />
-          <CountRow label="Segments" value={data.segments.length} />
-          <CountRow label="Track points" value={pointCount} />
-          <CountRow label="Waypoints" value={data.waypoints.length} />
-          <CountRow label="Routes" value={data.routes.length} />
+          <CountRow label={t("summary.tracks")} value={data.tracks.length} />
+          <CountRow
+            label={t("summary.segments")}
+            value={data.segments.length}
+          />
+          <CountRow label={t("summary.trackPoints")} value={pointCount} />
+          <CountRow
+            label={t("summary.waypoints")}
+            value={data.waypoints.length}
+          />
+          <CountRow label={t("summary.routes")} value={data.routes.length} />
           <div className="flex min-w-0 items-baseline justify-between gap-4 border-b border-ink/[0.08] py-2 last:border-b-0">
-            <dt className="shrink-0 text-[13px] text-muted-foreground">Timing</dt>
+            <dt className="shrink-0 text-[13px] text-muted-foreground">
+              {t("summary.timing")}
+            </dt>
             <dd className="min-w-0">
               {timeStats === null ? null : timeStats.hasTimingData ? (
                 <span className="text-[13.5px] font-semibold tabular-nums">
-                  {timeStats.pointsWithTime.toLocaleString()} of{" "}
-                  {timeStats.pointsTotal.toLocaleString()} points timed
+                  {t("summary.pointsTimed", {
+                    timed: timeStats.pointsWithTime.toLocaleString(),
+                    total: timeStats.pointsTotal.toLocaleString(),
+                  })}
                 </span>
               ) : (
                 <Badge
                   variant="destructive"
                   data-testid="no-timing-data-badge"
                 >
-                  No timing data
+                  {t("summary.noTimingData")}
                 </Badge>
               )}
             </dd>

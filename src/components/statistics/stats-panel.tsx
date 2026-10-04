@@ -24,6 +24,8 @@
  * the rows themselves render.
  */
 
+"use client";
+
 import {
   Card,
   CardAction,
@@ -32,6 +34,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Download, Printer } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   Table,
   TableBody,
@@ -164,11 +167,16 @@ export interface StatsPanelProps {
   onPrintStats?: () => void;
 }
 
-const PACE_ROW_LABELS: Record<PaceRow["id"], string> = {
-  recorded: "Pace (recorded)",
-  repaired: "Pace (repairs)",
-  overall: "Overall pace",
-};
+/** The §L-1 pace row labels, resolved through the active locale. */
+function paceRowLabels(
+  t: ReturnType<typeof useI18n>["t"],
+): Record<PaceRow["id"], string> {
+  return {
+    recorded: t("stats.paceRecorded"),
+    repaired: t("stats.paceRepairs"),
+    overall: t("stats.paceOverall"),
+  };
+}
 
 export function StatsPanel({
   distanceStats,
@@ -184,6 +192,8 @@ export function StatsPanel({
   onDownloadStatsCsv,
   onPrintStats,
 }: StatsPanelProps) {
+  const { t } = useI18n();
+  const paceRowLabelMap = paceRowLabels(t);
   const noTime = !timeStats.hasTimingData;
   const reimportDistance = reimport?.repairedDistanceM ?? 0;
   const reimportTime = reimport?.repairTimeMs ?? null;
@@ -227,14 +237,14 @@ export function StatsPanel({
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <span className="size-2 shrink-0 rounded-[1px] bg-signal" aria-hidden="true" />
-          Statistics
+          {t("stats.title")}
         </h3>
         <CardDescription>
           {working?.hasEdits
-            ? "Recomputed from the working copy — confirmed fixes included, the original file untouched."
+            ? t("stats.desc.working")
             : hasRepairs
-              ? "Original recording plus committed repairs — every estimated value is labeled with its source."
-              : "Original recording only — repairs are not included yet."}
+              ? t("stats.desc.repairs")
+              : t("stats.desc.original")}
         </CardDescription>
         <CardAction>
           {(onDownloadStatsCsv !== undefined || onPrintStats !== undefined) && (
@@ -252,7 +262,7 @@ export function StatsPanel({
                   className="inline-flex items-center gap-1.5 rounded-[5px] border-[1.25px] border-ink/30 px-2 py-1 text-[12px] font-semibold text-ink transition-colors hover:border-signal hover:bg-signal/[0.08] focus-visible:outline-2"
                 >
                   <Download className="size-3.5" aria-hidden="true" />
-                  Stats CSV
+                  {t("stats.statsCsv")}
                 </button>
               )}
               {onPrintStats !== undefined && (
@@ -263,7 +273,7 @@ export function StatsPanel({
                   className="inline-flex items-center gap-1.5 rounded-[5px] border-[1.25px] border-ink/30 px-2 py-1 text-[12px] font-semibold text-ink transition-colors hover:border-signal hover:bg-signal/[0.08] focus-visible:outline-2"
                 >
                   <Printer className="size-3.5" aria-hidden="true" />
-                  Print
+                  {t("stats.print")}
                 </button>
               )}
             </div>
@@ -280,31 +290,62 @@ export function StatsPanel({
             data-testid="stats-working-note"
             className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-[8px] border-[1.25px] border-signal/40 bg-signal/[0.06] px-3 py-2 text-[12px] leading-relaxed text-muted-foreground"
           >
-            <span className="font-semibold text-ink">Modified:</span>
+            <span className="font-semibold text-ink">{t("stats.working.label")}</span>
             <span>
               {[
                 working.deletedPointCount > 0
-                  ? `${working.deletedPointCount} point${working.deletedPointCount === 1 ? "" : "s"} removed`
+                  ? t(
+                      working.deletedPointCount === 1
+                        ? "stats.working.pointsRemoved.one"
+                        : "stats.working.pointsRemoved.many",
+                      { count: working.deletedPointCount },
+                    )
                   : null,
                 working.splitCount > 0
-                  ? `${working.splitCount} segment${working.splitCount === 1 ? "" : "s"} split`
+                  ? t(
+                      working.splitCount === 1
+                        ? "stats.working.segmentsSplit.one"
+                        : "stats.working.segmentsSplit.many",
+                      { count: working.splitCount },
+                    )
                   : null,
                 working.duplicatedSegmentCount > 0
-                  ? `${working.duplicatedSegmentCount} cop${working.duplicatedSegmentCount === 1 ? "y" : "ies"} inserted`
+                  ? t(
+                      working.duplicatedSegmentCount === 1
+                        ? "stats.working.copiesInserted.one"
+                        : "stats.working.copiesInserted.many",
+                      { count: working.duplicatedSegmentCount },
+                    )
                   : null,
                 working.reorderedSegmentCount > 0
-                  ? `${working.reorderedSegmentCount} manual reorder${working.reorderedSegmentCount === 1 ? "" : "s"}`
+                  ? t(
+                      working.reorderedSegmentCount === 1
+                        ? "stats.working.manualReorders.one"
+                        : "stats.working.manualReorders.many",
+                      { count: working.reorderedSegmentCount },
+                    )
                   : null,
                 working.sortedSegmentIds.length > 0
-                  ? `${working.sortedSegmentIds.length} segment${working.sortedSegmentIds.length === 1 ? "" : "s"} sorted by time`
+                  ? t(
+                      working.sortedSegmentIds.length === 1
+                        ? "stats.working.segmentsSorted.one"
+                        : "stats.working.segmentsSorted.many",
+                      { count: working.sortedSegmentIds.length },
+                    )
                   : null,
                 working.overriddenEleCount > 0
-                  ? `${working.overriddenEleCount} elevation${working.overriddenEleCount === 1 ? "" : "s"} smoothed`
+                  ? t(
+                      working.overriddenEleCount === 1
+                        ? "stats.working.elevationsSmoothed.one"
+                        : "stats.working.elevationsSmoothed.many",
+                      { count: working.overriddenEleCount },
+                    )
                   : null,
               ]
                 .filter((part) => part !== null)
                 .join(" · ")}
-              {" — the numbers here reflect the working copy, not the raw file."}
+              {" — "}
+              {t("stats.working.suffix")}
             </span>
           </p>
         )}
@@ -317,25 +358,29 @@ export function StatsPanel({
             className="mb-4 grid grid-cols-[repeat(3,minmax(0,1fr))] overflow-hidden rounded-[8px] border-[1.5px] border-ink"
           >
             <OutcomeColumn
-              label="Original"
+              label={t("stats.outcome.original")}
               value={formatDistanceMeters(recordedDistanceM)}
               detail={
                 noTime
                   ? undefined
-                  : `${formatDurationMs(timeStats.recordedMovingTimeMs)} moving`
+                  : t("stats.outcome.moving", {
+                      duration: formatDurationMs(timeStats.recordedMovingTimeMs),
+                    })
               }
               provenance="recorded"
             />
             <div className="border-l-[1.5px] border-ink/15">
               <OutcomeColumn
-                label="+ Repaired"
+                label={t("stats.outcome.repaired")}
                 value={formatDistanceMeters(repairedDistanceM)}
                 detail={
                   noTime
                     ? undefined
                     : repairTime === null
-                      ? "duration pending"
-                      : `+${formatDurationMs(repairTime)} (est.)`
+                      ? t("stats.outcome.durationPending")
+                      : t("stats.outcome.estTime", {
+                          duration: formatDurationMs(repairTime),
+                        })
                 }
                 provenance="estimated"
                 accent
@@ -343,14 +388,16 @@ export function StatsPanel({
             </div>
             <div className="border-l-[1.5px] border-ink/15">
               <OutcomeColumn
-                label="Outcome"
+                label={t("stats.outcome.outcome")}
                 value={formatDistanceMeters(bannerOutcomeDistanceM)}
                 detail={
                   noTime
                     ? undefined
                     : bannerOutcomeMovingMs === null
-                      ? "duration pending"
-                      : `${formatDurationMs(bannerOutcomeMovingMs)} moving`
+                      ? t("stats.outcome.durationPending")
+                      : t("stats.outcome.moving", {
+                          duration: formatDurationMs(bannerOutcomeMovingMs),
+                        })
                 }
                 provenance="mixed"
               />
@@ -361,23 +408,23 @@ export function StatsPanel({
           <TableHeader>
             <TableRow>
               <TableHead scope="col" className={HEAD_CELL}>
-                Metric
+                {t("stats.metric")}
               </TableHead>
               <TableHead scope="col" className={HEAD_CELL}>
-                Value
+                {t("stats.value")}
               </TableHead>
               <TableHead scope="col" className={`${HEAD_CELL} text-right`}>
-                Source
+                {t("stats.source")}
               </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {/* Distance rows. */}
-            <GroupRow label="Distance" />
+            <GroupRow label={t("stats.group.distance")} />
             {hasRepairs ? (
               <>
                 <TableRow>
-                  <TableCell>Recorded distance</TableCell>
+                  <TableCell>{t("stats.recordedDistance")}</TableCell>
                   <TableCell className={VALUE_CELL}>
                     {formatDistanceMeters(recordedDistanceM)}
                   </TableCell>
@@ -386,7 +433,7 @@ export function StatsPanel({
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell>Repaired distance</TableCell>
+                  <TableCell>{t("stats.repairedDistance")}</TableCell>
                   <TableCell className={VALUE_CELL}>
                     {formatDistanceMeters(repairedDistanceM)}
                   </TableCell>
@@ -395,7 +442,7 @@ export function StatsPanel({
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell>Total with repairs</TableCell>
+                  <TableCell>{t("stats.totalWithRepairs")}</TableCell>
                   <TableCell className={VALUE_CELL}>
                     {formatDistanceMeters(
                       recordedDistanceM + repairedDistanceM,
@@ -408,7 +455,7 @@ export function StatsPanel({
               </>
             ) : (
               <TableRow>
-                <TableCell>Total distance</TableCell>
+                <TableCell>{t("stats.totalDistance")}</TableCell>
                 <TableCell className={VALUE_CELL}>
                   {formatDistanceMeters(distanceStats.totalDistanceM)}
                 </TableCell>
@@ -419,12 +466,12 @@ export function StatsPanel({
             )}
 
             {/* Time rows. */}
-            <GroupRow label="Time" />
+            <GroupRow label={t("stats.group.time")} />
             <TableRow>
-              <TableCell>Recorded moving time</TableCell>
+              <TableCell>{t("stats.recordedMovingTime")}</TableCell>
               <TableCell className="tabular-nums">
                 {noTime
-                  ? emDash("No timing data in this file")
+                  ? emDash(t("stats.noTiming"))
                   : formatDurationMs(timeStats.recordedMovingTimeMs)}
               </TableCell>
               <TableCell>
@@ -432,12 +479,12 @@ export function StatsPanel({
               </TableCell>
             </TableRow>
             <TableRow>
-              <TableCell>Wall time</TableCell>
+              <TableCell>{t("stats.wallTime")}</TableCell>
               <TableCell className="tabular-nums">
                 {noTime
-                  ? emDash("No timing data in this file")
+                  ? emDash(t("stats.noTiming"))
                   : timeStats.wallTimeMs === undefined
-                    ? emDash("Timestamps are not monotonic")
+                    ? emDash(t("stats.notMonotonic"))
                     : formatDurationMs(timeStats.wallTimeMs)}
               </TableCell>
               <TableCell>
@@ -446,10 +493,10 @@ export function StatsPanel({
             </TableRow>
             {hasRepairs && (
               <TableRow>
-                <TableCell>Repair time</TableCell>
+                <TableCell>{t("stats.repairTime")}</TableCell>
                 <TableCell className={VALUE_CELL}>
                   {repairTime === null
-                    ? emDash("Repairs still need durations")
+                    ? emDash(t("stats.needDurations"))
                     : formatDurationMs(repairTime)}
                 </TableCell>
                 <TableCell>
@@ -459,10 +506,10 @@ export function StatsPanel({
             )}
             {hasRepairs && !noTime && (
               <TableRow>
-                <TableCell>Moving time incl. repairs</TableCell>
+                <TableCell>{t("stats.movingInclRepairs")}</TableCell>
                 <TableCell className={VALUE_CELL}>
                   {liveRepairsLackDuration
-                    ? emDash("Repairs still need durations")
+                    ? emDash(t("stats.needDurations"))
                     : formatDurationMs(
                         timeStats.recordedMovingTimeMs + (liveRepairTime ?? 0),
                       )}
@@ -474,11 +521,11 @@ export function StatsPanel({
             )}
             {noTime && manualTotalDurationMs !== null && (
               <TableRow>
-                <TableCell>Total duration (entered)</TableCell>
+                <TableCell>{t("stats.totalDurationEntered")}</TableCell>
                 <TableCell className={VALUE_CELL}>
                   {manualTotalDurationMs > 0
                     ? formatDurationMs(manualTotalDurationMs)
-                    : emDash("Enter a total duration")}
+                    : emDash(t("stats.enterDuration"))}
                 </TableCell>
                 <TableCell>
                   <ProvenanceBadge kind="estimated" />
@@ -487,17 +534,17 @@ export function StatsPanel({
             )}
 
             {/* §L-1 pace rows (Phase 5). */}
-            {paceRows.length > 0 && <GroupRow label="Pace" />}
+            {paceRows.length > 0 && <GroupRow label={t("stats.group.pace")} />}
             {paceRows.map((row) => (
               <TableRow key={row.id} data-testid={`pace-row-${row.id}`}>
-                <TableCell>{PACE_ROW_LABELS[row.id]}</TableCell>
+                <TableCell>{paceRowLabelMap[row.id]}</TableCell>
                 <TableCell className={VALUE_CELL}>
                   {row.durationMs === null ? (
                     <span
-                      title={row.missingReason ?? "Not computable"}
+                      title={row.missingReason ?? t("stats.notComputableTitle")}
                       className="text-muted-foreground"
                     >
-                      — {row.missingReason ?? "not computable"}
+                      — {row.missingReason ?? t("stats.notComputable")}
                     </span>
                   ) : (
                     formatPace(row.durationMs, row.distanceM, paceUnit)
@@ -517,11 +564,13 @@ export function StatsPanel({
                 file. */}
             {elevation && elevation.pointsTotal > 0 && (
               <>
-                <GroupRow label="Elevation" />
+                <GroupRow label={t("stats.group.elevation")} />
                 {(elevation.insufficient
                   ? [
                       {
-                        label: "Elevation gain / loss",
+                        id: "gain-loss",
+                        kind: "gain" as const,
+                        labelKey: "stats.eleGainLoss",
                         value: null as { gainM: number; lossM: number } | null,
                         provenance: "mixed" as const,
                       },
@@ -529,69 +578,85 @@ export function StatsPanel({
                   : elevation.reconstructed
                     ? [
                         {
-                          label: "Elevation gain (recorded)",
+                          id: "gain-recorded",
+                          kind: "gain" as const,
+                          labelKey: "stats.eleGainRecorded",
                           value: elevation.original,
                           provenance: "recorded" as const,
                         },
                         {
-                          label: "Elevation gain (repairs)",
+                          id: "gain-repairs",
+                          kind: "gain" as const,
+                          labelKey: "stats.eleGainRepairs",
                           value: elevation.reconstructed,
                           provenance: "estimated" as const,
                         },
                         {
-                          label: "Elevation gain (total)",
+                          id: "gain-total",
+                          kind: "gain" as const,
+                          labelKey: "stats.eleGainTotal",
                           value: elevation.mixed,
                           provenance: "mixed" as const,
                         },
                         {
-                          label: "Elevation loss (recorded)",
+                          id: "loss-recorded",
+                          kind: "loss" as const,
+                          labelKey: "stats.eleLossRecorded",
                           value: elevation.original,
                           provenance: "recorded" as const,
                         },
                         {
-                          label: "Elevation loss (repairs)",
+                          id: "loss-repairs",
+                          kind: "loss" as const,
+                          labelKey: "stats.eleLossRepairs",
                           value: elevation.reconstructed,
                           provenance: "estimated" as const,
                         },
                         {
-                          label: "Elevation loss (total)",
+                          id: "loss-total",
+                          kind: "loss" as const,
+                          labelKey: "stats.eleLossTotal",
                           value: elevation.mixed,
                           provenance: "mixed" as const,
                         },
                       ]
                     : [
                         {
-                          label: "Elevation gain",
+                          id: "gain",
+                          kind: "gain" as const,
+                          labelKey: "stats.eleGain",
                           value: elevation.original,
                           provenance: "recorded" as const,
                         },
                         {
-                          label: "Elevation loss",
+                          id: "loss",
+                          kind: "loss" as const,
+                          labelKey: "stats.eleLoss",
                           value: elevation.original,
                           provenance: "recorded" as const,
                         },
                       ]
                 ).map((row) => (
                   <TableRow
-                    key={row.label}
+                    key={row.id}
                     data-testid={
-                      row.label.includes("gain") || row.label.includes("gain / loss")
+                      row.kind === "gain"
                         ? "elevation-gain-row"
                         : "elevation-loss-row"
                     }
                   >
-                    <TableCell>{row.label}</TableCell>
+                    <TableCell>{t(row.labelKey)}</TableCell>
                     <TableCell className={VALUE_CELL}>
                       {elevation.insufficient
                         ? emDash(
-                            `Insufficient elevation data — only ${Math.round(
-                              elevation.coverage * 100,
-                            )}% of points carry elevation`,
+                            t("stats.insufficientEle", {
+                              percent: Math.round(elevation.coverage * 100),
+                            }),
                           )
                         : row.value === null
-                          ? emDash("No recorded elevation in this file")
+                          ? emDash(t("stats.noRecordedEle"))
                           : formatElevationMeters(
-                              row.label.includes("loss")
+                              row.kind === "loss"
                                 ? row.value.lossM
                                 : row.value.gainM,
                             )}
@@ -610,91 +675,106 @@ export function StatsPanel({
           {elevation && elevation.pointsTotal > 0 && (
             <p data-testid="elevation-note">
               {elevation.insufficient
-                ? `Insufficient elevation data — only ${Math.round(
-                    elevation.coverage * 100,
-                  )}% of points carry elevation, so gain and loss are withheld rather than estimated.`
-                : `Gain/loss use a ${elevation.hysteresisThresholdM.toFixed(1)} m noise threshold (changes smaller than that are treated as GPS/DEM noise); ${
-                    elevation.reconstructed
-                      ? `repaired stretches are estimated from ${
-                          elevation.estimatedFrom.length > 0
-                            ? elevation.estimatedFrom.join(", ")
-                            : "the elevation service"
-                        } terrain.`
-                      : "original elevation only — repairs without an estimate contribute nothing."
-                  }`}
+                ? t("stats.note.insufficient", {
+                    percent: Math.round(elevation.coverage * 100),
+                  })
+                : elevation.reconstructed
+                  ? t("stats.note.thresholdRepairs", {
+                      threshold: elevation.hysteresisThresholdM.toFixed(1),
+                      sources:
+                        elevation.estimatedFrom.length > 0
+                          ? elevation.estimatedFrom.join(", ")
+                          : t("stats.note.eleService"),
+                    })
+                  : t("stats.note.thresholdOriginal", {
+                      threshold: elevation.hysteresisThresholdM.toFixed(1),
+                    })}
             </p>
           )}
           {elevation && elevation.repairsWithoutElevation > 0 && (
             <p data-testid="elevation-missing-note">
-              {elevation.repairsWithoutElevation} repair
-              {elevation.repairsWithoutElevation === 1 ? "" : "s"} without an
-              elevation estimate — open the repair and use “Estimate
-              elevation” to include it.
+              {t(
+                elevation.repairsWithoutElevation === 1
+                  ? "stats.note.repairsWithoutEle.one"
+                  : "stats.note.repairsWithoutEle.many",
+                { count: elevation.repairsWithoutElevation },
+              )}
             </p>
           )}
           {(reimport?.markerCount ?? 0) > 0 && (
             <p data-testid="reimport-note">
-              {reimport!.markerCount} points in this file were reconstructed
-              by a previous repair — they count as repaired distance, not
-              recorded, and the map draws them as repairs.
+              {t("stats.note.reimport", { count: reimport!.markerCount })}
             </p>
           )}
           {noTime && (
-            <p data-testid="no-timing-note">
-              No timing data in this file — time and pace statistics are
-              unavailable unless a duration is entered (per repair, or a
-              total for the whole activity).
-            </p>
+            <p data-testid="no-timing-note">{t("stats.note.noTiming")}</p>
           )}
           {hasRepairs && (repair?.gapsWithoutDuration ?? 0) > 0 && (
             <p data-testid="repair-duration-note">
-              {repair!.gapsWithoutDuration} repair
-              {repair!.gapsWithoutDuration === 1 ? "" : "s"} still need
-              {repair!.gapsWithoutDuration === 1 ? "s" : ""} a duration —
-              its time is not counted yet (open the repair&apos;s editor to
-              add one).
+              {t(
+                repair!.gapsWithoutDuration === 1
+                  ? "stats.note.repairDuration.one"
+                  : "stats.note.repairDuration.many",
+                { count: repair!.gapsWithoutDuration },
+              )}
             </p>
           )}
           {hasRepairs && (repair?.discrepancies.length ?? 0) > 0 && (
             <p data-testid="duration-discrepancy-note">
-              {repair!.discrepancies.length} manual duration
-              {repair!.discrepancies.length === 1 ? "" : "s"} disagree
-              {repair!.discrepancies.length === 1 ? "s" : ""} with the
-              recorded gap span — timestamps follow the manual value;
-              recorded timestamps are never changed.
+              {t(
+                repair!.discrepancies.length === 1
+                  ? "stats.note.discrepancy.one"
+                  : "stats.note.discrepancy.many",
+                { count: repair!.discrepancies.length },
+              )}
             </p>
           )}
           {!noTime && timeStats.gapLegs > 0 && (
             <p>
-              Wall time includes{" "}
-              {formatDurationMs(timeStats.gapTimeMs)} across{" "}
-              {timeStats.gapLegs} gap span
-              {timeStats.gapLegs === 1 ? "" : "s"} (excluded from moving
-              time).
+              {t(
+                timeStats.gapLegs === 1
+                  ? "stats.note.gapSpan.one"
+                  : "stats.note.gapSpan.many",
+                {
+                  duration: formatDurationMs(timeStats.gapTimeMs),
+                  count: timeStats.gapLegs,
+                },
+              )}
             </p>
           )}
           {!noTime && timeStats.reversedLegs > 0 && (
             <p>
-              {timeStats.reversedLegs} reversed timestamp leg
-              {timeStats.reversedLegs === 1 ? "" : "s"} — counted as zero
-              duration.
+              {t(
+                timeStats.reversedLegs === 1
+                  ? "stats.note.reversedLegs.one"
+                  : "stats.note.reversedLegs.many",
+                { count: timeStats.reversedLegs },
+              )}
             </p>
           )}
           {!noTime && timeStats.untimedLegs > 0 && (
             <p>
-              {timeStats.untimedLegs} leg
-              {timeStats.untimedLegs === 1 ? "" : "s"} without usable
-              timestamps — excluded from moving time.
+              {t(
+                timeStats.untimedLegs === 1
+                  ? "stats.note.untimedLegs.one"
+                  : "stats.note.untimedLegs.many",
+                { count: timeStats.untimedLegs },
+              )}
             </p>
           )}
           {distanceStats.excludedLegs > 0 && (
             <p>
-              {distanceStats.excludedLegs} distance leg
-              {distanceStats.excludedLegs === 1 ? "" : "s"} excluded —
-              damaged coordinates (invalid:{" "}
-              {distanceStats.excludedByReason["invalid-coord"]}, out-of-range:{" "}
-              {distanceStats.excludedByReason["out-of-range-coord"]},
-              zero-coordinate: {distanceStats.excludedByReason["zero-coord"]}).
+              {t(
+                distanceStats.excludedLegs === 1
+                  ? "stats.note.excludedLegs.one"
+                  : "stats.note.excludedLegs.many",
+                {
+                  count: distanceStats.excludedLegs,
+                  invalid: distanceStats.excludedByReason["invalid-coord"],
+                  outOfRange: distanceStats.excludedByReason["out-of-range-coord"],
+                  zero: distanceStats.excludedByReason["zero-coord"],
+                },
+              )}
             </p>
           )}
         </div>

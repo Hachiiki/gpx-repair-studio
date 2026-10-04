@@ -18,6 +18,7 @@
 
 import type { ReactNode } from "react";
 import { ArrowUp, ChevronDown } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import { WorkspaceToolsColumn } from "@/components/layout/workspace-tools-column";
 
 export interface WorkspaceLayoutProps {
@@ -41,18 +42,19 @@ export interface WorkspaceLayoutProps {
   scrollCueLabel?: string;
 }
 
-export function WorkspaceLayout({
-  map,
-  tools,
-  details,
-  sectionId = "repair",
-  sectionLabel = "Repair map and tools",
-  toolsLabel = "Repair tools",
-  detailsTitle = "Statistics & file details",
-  detailsIntro =
-    "Everything the app knows about the original recording — honest numbers with their provenance, never fabricated.",
-  scrollCueLabel,
-}: WorkspaceLayoutProps) {
+export function WorkspaceLayout(props: WorkspaceLayoutProps) {
+  const { t } = useI18n();
+  const {
+    map,
+    tools,
+    details,
+    sectionId = "repair",
+    sectionLabel = t("workspace.sectionLabel"),
+    toolsLabel = t("workspace.toolsLabel"),
+    detailsTitle = t("workspace.detailsTitle"),
+    detailsIntro = t("workspace.detailsIntro"),
+    scrollCueLabel,
+  } = props;
   const cueLabel = scrollCueLabel ?? detailsTitle;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-12">
@@ -101,7 +103,7 @@ export function WorkspaceLayout({
       {/* Section 2 — stats + details. */}
       <section
         id="details"
-        aria-label="Statistics and file details"
+        aria-label={t("workspace.detailsAria")}
         data-testid="details-section"
         className="scroll-mt-20"
       >
@@ -125,7 +127,7 @@ export function WorkspaceLayout({
             className="inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
           >
             <ArrowUp className="size-3.5" aria-hidden="true" />
-            Back to the map
+            {t("workspace.backToMap")}
           </a>
         </div>
         {details}

@@ -31,6 +31,7 @@ import { PlanDrawPanel } from "@/components/plan/plan-draw-panel";
 import { PlanEstimatesCard } from "@/components/plan/plan-estimates-card";
 import { PlanGuideCard } from "@/components/plan/plan-guide-card";
 import { PlanWorkspace } from "@/components/plan/plan-workspace";
+import { useI18n } from "@/hooks/use-i18n";
 import { usePlanDraw } from "@/hooks/use-plan-draw";
 import { usePlanElevation } from "@/hooks/use-plan-elevation";
 import { usePlanEstimates } from "@/hooks/use-plan-estimates";
@@ -39,6 +40,7 @@ import { usePlanStore } from "@/state/plan-store";
 import { useUiStore } from "@/state/ui-store";
 
 export function PlanStudio() {
+  const { t } = useI18n();
   const plannedTimeMs = usePlanStore((s) => s.plannedTimeMs);
   const setPlannedTime = usePlanStore((s) => s.setPlannedTime);
   const paceUnit = useUiStore((s) => s.paceUnit);
@@ -59,7 +61,7 @@ export function PlanStudio() {
           map={map}
           attachContainer={map.setContainer}
           draw={draw}
-          srNote=" No file — this route is a plan you are sketching; nothing is exported or shared."
+          srNote={t("plan.studio.srNote")}
         />
       }
       tools={

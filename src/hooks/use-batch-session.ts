@@ -52,6 +52,7 @@ import { createDomXmlIo } from "@/lib/utils/xml";
 import { downloadBlobFile } from "@/lib/utils/download";
 import { announce } from "@/lib/announcements";
 import { describeParseError } from "@/hooks/use-gpx-session";
+import { useI18n } from "@/hooks/use-i18n";
 import { nextEditId } from "@/state/working-store";
 import { useBatchStore, type BatchItem } from "@/state/batch-store";
 import { useUiStore } from "@/state/ui-store";
@@ -157,6 +158,7 @@ export interface BatchSessionBinding {
 }
 
 export function useBatchSession(): BatchSessionBinding {
+  const { t } = useI18n();
   const phase = useBatchStore((s) => s.phase);
   const items = useBatchStore((s) => s.items);
   const exportMode = useUiStore((s) => s.exportMode);
@@ -199,10 +201,11 @@ export function useBatchSession(): BatchSessionBinding {
         }
       } catch (err) {
         useBatchStore.getState().setFailed(next.id, {
-          title: "Could not read file",
-          detail:
-            `"${next.fileName}" could not be read: ` +
-            `${err instanceof Error ? err.message : String(err)}`,
+          title: t("hook.parse.readTitle"),
+          detail: t("hook.parse.readDetail", {
+            fileName: next.fileName,
+            reason: err instanceof Error ? err.message : String(err),
+          }),
         });
       } finally {
         pumpingRef.current = false;
@@ -210,7 +213,7 @@ export function useBatchSession(): BatchSessionBinding {
         // this effect and picks up the next queued file (if any).
       }
     })();
-  }, [items]);
+  }, [items, t]);
 
   // ---- derived per-file views --------------------------------------------
 
@@ -352,20 +355,34 @@ export function useBatchSession(): BatchSessionBinding {
         appliedFixes += edits.length;
       }
       if (appliedFiles === 0) {
-        announce("Nothing to apply — every file was already clean for this preset.");
+        announce(t("hook.batch.nothingToApply"));
         return;
       }
       announce(
-        `${preset.name} applied to ${appliedFiles} file${appliedFiles === 1 ? "" : "s"} — ${appliedFixes} fix${appliedFixes === 1 ? "" : "es"} in total.`,
+        t("hook.batch.presetApplied", {
+          preset: preset.name,
+          files: t(
+            appliedFiles === 1
+              ? "hook.batch.fileCountOne"
+              : "hook.batch.fileCountMany",
+            { count: appliedFiles },
+          ),
+          fixes: t(
+            appliedFixes === 1
+              ? "hook.batch.fixCountOne"
+              : "hook.batch.fixCountMany",
+            { count: appliedFixes },
+          ),
+        }),
       );
     },
-    [],
+    [t],
   );
 
   const undoFileEdit = useCallback((itemId: string) => {
     const undone = useBatchStore.getState().undoLastEdit(itemId);
-    if (undone) announce("Undone — the file's most recent fix is reverted.");
-  }, []);
+    if (undone) announce(t("hook.batch.undone"));
+  }, [t]);
 
   const removeItem = useCallback((itemId: string) => {
     useBatchStore.getState().removeItem(itemId);
@@ -383,9 +400,9 @@ export function useBatchSession(): BatchSessionBinding {
   const enterStudio = useCallback(() => {
     const entered = useBatchStore.getState().enterStudio();
     if (!entered) {
-      announce("Nothing to work on yet — add at least one file that parses.");
+      announce(t("hook.batch.nothingToWorkOn"));
     }
-  }, []);
+  }, [t]);
 
   // ---- the ZIP export ------------------------------------------------------
 
@@ -414,10 +431,18 @@ export function useBatchSession(): BatchSessionBinding {
       .getState()
       .markExported(parsed.map((item) => item.id));
     announce(
-      `Export ready — ${fileName} downloaded (${parsed.length} repaired file${parsed.length === 1 ? "" : "s"} + the manifest).`,
+      t("hook.export.batchZipReady", {
+        fileName,
+        files: t(
+          parsed.length === 1
+            ? "hook.batch.repairedFilesOne"
+            : "hook.batch.repairedFilesMany",
+          { count: parsed.length },
+        ),
+      }),
     );
     return fileName;
-  }, [items, exportMode, prettyPrint]);
+  }, [items, exportMode, prettyPrint, t]);
 
   return {
     phase,

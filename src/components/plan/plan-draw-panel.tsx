@@ -26,6 +26,7 @@ import { HintTip } from "@/components/shared/hint-tip";
 import { UndoRedoBar } from "@/components/reconstruction/undo-redo-bar";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
 import { Crosshair, X } from "lucide-react";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import type { PlanDrawBinding } from "@/hooks/use-plan-draw";
 import type { DrawVertex } from "@/types/domain";
 import {
@@ -36,52 +37,62 @@ import {
 
 /**
  * Pen choices (user pass 48 — curve is a PEN, not a path style): how
- * the Draw mode captures points.
+ * the Draw mode captures points. Labels + hints resolve through the
+ * translator (Phase 21).
  */
-const PEN_CHOICES: readonly {
+function getPenChoices(
+  t: TranslatorArg,
+): readonly {
   value: PlanDrawBinding["pen"];
   label: string;
   hint: string;
-}[] = [
-  {
-    value: "default",
-    label: "Default pen",
-    hint: "The classic pencil: click to place points one by one — click before and after a bend and the line follows.",
-  },
-  {
-    value: "curve",
-    label: "Curve pen",
-    hint: "Press and drag to draw a curve freehand — the app smooths your stroke into the route. Works with every path style; a quick tap still places a single point.",
-  },
-];
+}[] {
+  return [
+    {
+      value: "default",
+      label: t("plan.draw.penDefault"),
+      hint: t("plan.draw.penDefaultHint"),
+    },
+    {
+      value: "curve",
+      label: t("plan.draw.penCurve"),
+      hint: t("plan.draw.penCurveHint"),
+    },
+  ];
+}
 
 /**
  * Path-style choices (Tasks 46–47 — what the line does between your
  * points, remembered per line). The planner offers exactly the three
  * per-line styles. The test ids keep the historic `road-follow-*`
- * names for e2e compatibility.
+ * names for e2e compatibility. Labels + hints resolve through the
+ * translator (Phase 21).
  */
-const PATH_STYLE_CHOICES: readonly {
+function getPathStyleChoices(
+  t: TranslatorArg,
+): readonly {
   value: Exclude<PlanDrawBinding["pathStyle"], "curve">;
   label: string;
   hint: string;
-}[] = [
-  {
-    value: "car",
-    label: "Roads",
-    hint: "The line follows drivable roads between your points — click before and after a curve and the bend draws itself.",
-  },
-  {
-    value: "foot",
-    label: "Footpaths",
-    hint: "Same idea, but for pedestrian ways — trails, footpaths, stairs. Better for runs through parks or along rivers.",
-  },
-  {
-    value: "off",
-    label: "Straight lines",
-    hint: "No road snapping — the next segment connects your points directly. Nothing leaves the browser. Segments drawn with the Curve pen stay smooth; switching styles never redraws them.",
-  },
-];
+}[] {
+  return [
+    {
+      value: "car",
+      label: t("plan.draw.styleRoads"),
+      hint: t("plan.draw.styleRoadsHint"),
+    },
+    {
+      value: "foot",
+      label: t("plan.draw.styleFootpaths"),
+      hint: t("plan.draw.styleFootpathsHint"),
+    },
+    {
+      value: "off",
+      label: t("plan.draw.styleStraight"),
+      hint: t("plan.draw.styleStraightHint"),
+    },
+  ];
+}
 
 function VertexRow({
   vertex,
@@ -92,6 +103,7 @@ function VertexRow({
   index: number;
   onDelete: (vertexId: DrawVertex["id"]) => void;
 }) {
+  const { t } = useI18n();
   return (
     <li
       className="flex items-center gap-2 rounded-[6px] border border-ink/10 bg-card px-2 py-1.5 text-xs transition-colors hover:bg-ink/[0.04]"
@@ -108,7 +120,7 @@ function VertexRow({
         variant="ghost"
         size="sm"
         className="ml-auto size-5 shrink-0 rounded-[4px] p-0 text-shade hover:bg-inkplus hover:text-paper"
-        aria-label={`Delete point ${index + 1}`}
+        aria-label={t("plan.draw.deletePoint", { index: index + 1 })}
         data-testid="plan-delete-vertex-button"
         onClick={() => onDelete(vertex.id)}
       >
@@ -124,6 +136,10 @@ export interface PlanDrawPanelProps {
 }
 
 export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
+  const { t } = useI18n();
+  const penChoices = getPenChoices(t);
+  const pathStyleChoices = getPathStyleChoices(t);
+
   if (!draw.active) return null;
 
   const drawnM = draw.distanceM ?? 0;
@@ -136,11 +152,10 @@ export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <Crosshair className="size-4 text-signal" aria-hidden="true" />
-          Your route
+          {t("plan.draw.title")}
         </h3>
         <CardDescription>
-          Click to add points — switch to Move (M) to drag any of them,
-          everything undoes.
+          {t("plan.draw.intro")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -153,14 +168,14 @@ export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
           className="grid gap-2"
           data-testid="pen-mode-group"
           role="group"
-          aria-label="Pen"
+          aria-label={t("plan.draw.penLabel")}
         >
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
-            Pen
+            {t("plan.draw.penLabel")}
             <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {PEN_CHOICES.map((choice) =>
+            {penChoices.map((choice) =>
               penLive ? (
                 <HintTip
                   key={choice.value}
@@ -214,9 +229,7 @@ export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
               data-testid="pen-curve-hint"
               role="status"
             >
-              Drag on the map to draw your curve — release to place it. A
-              quick tap still adds a single point. (C toggles pens, D/M/P
-              switch modes.)
+              {t("plan.draw.curveHint")}
             </p>
           )}
           {!penLive && (
@@ -225,12 +238,13 @@ export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
               data-testid="pen-inactive-note"
               role="status"
             >
-              The pen works in Draw mode only — press D (or the pencil tool)
-              to draw. Right now the pointer{" "}
-              {draw.pointerMode === "move"
-                ? "drags your points"
-                : "navigates the map"}
-              .
+              {t("plan.draw.penInactive", {
+                action: t(
+                  draw.pointerMode === "move"
+                    ? "plan.draw.pointerMoves"
+                    : "plan.draw.pointerPans",
+                ),
+              })}
             </p>
           )}
         </div>
@@ -241,18 +255,17 @@ export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
           className="grid gap-2"
           data-testid="road-follow-group"
           role="group"
-          aria-label="Path style"
+          aria-label={t("plan.draw.styleGroupLabel")}
         >
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
-            New points follow
+            {t("plan.draw.styleLabel")}
             <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
           </p>
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Each segment keeps the style it was drawn with — switch any
-            time, nothing you placed redraws.
+            {t("plan.draw.styleNote")}
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {PATH_STYLE_CHOICES.map((choice) => (
+            {pathStyleChoices.map((choice) => (
               <HintTip
                 key={choice.value}
                 side="left"
@@ -293,12 +306,12 @@ export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
               role="status"
             >
               {draw.routingPending
-                ? "Finding the road…"
+                ? t("plan.draw.routingPending")
                 : draw.routingFailed
-                  ? "Road follow unavailable right now — straight lines until it recovers."
+                  ? t("plan.draw.routingFailed")
                   : draw.pointerMode === "move"
-                    ? "Drag any point to adjust it — the road re-finds itself."
-                    : "Switch to Move (M) to drag a point — the road re-finds itself."}
+                    ? t("plan.draw.routingMove")
+                    : t("plan.draw.routingDraw")}
             </p>
           )}
           {
@@ -315,9 +328,7 @@ export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
               data-testid="road-consent-notice"
             >
               <p className="text-[11.5px] leading-snug text-ink">
-                Road snapping sends the points you draw to a public
-                routing service — never your file. It is off until you
-                enable it.
+                {t("plan.draw.consentNotice")}
               </p>
               <Button
                 type="button"
@@ -326,7 +337,7 @@ export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
                 data-testid="road-consent-enable"
                 onClick={draw.requestRoadConsent}
               >
-                Enable road snapping…
+                {t("plan.draw.consentEnable")}
               </Button>
             </div>
           )}
@@ -336,15 +347,15 @@ export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
                 className="text-[11px] leading-snug text-muted-foreground"
                 data-testid="road-consent-on-note"
               >
-                Road snapping is on for this session —{" "}
+                {t("plan.draw.consentOnLead")}{" "}
                 <button
                   type="button"
                   className="font-semibold text-foreground underline decoration-ink/25 underline-offset-2 hover:decoration-ink"
                   onClick={draw.requestRoadConsent}
                 >
-                  turn it off
+                  {t("plan.draw.turnItOff")}
                 </button>{" "}
-                any time.
+                {t("plan.draw.consentOnTail")}
               </p>
             )}
         </div>
@@ -363,8 +374,11 @@ export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
             className="text-[11.5px] tabular-nums text-muted-foreground"
             data-testid="vertex-count"
           >
-            {draw.vertexCount} / {draw.maxVertices} points
-            {draw.atVertexCap ? " — limit reached" : ""}
+            {t("plan.draw.vertexCount", {
+              count: draw.vertexCount,
+              max: draw.maxVertices,
+            })}
+            {draw.atVertexCap ? t("plan.draw.vertexCap") : ""}
           </p>
         </div>
 
@@ -383,9 +397,7 @@ export function PlanDrawPanel({ draw, paceUnit }: PlanDrawPanelProps) {
         {draw.vertexCount > 0 && (
           <div className="grid gap-1.5">
             <p className="text-xs font-medium text-muted-foreground">
-              Drawn points — switch to Move (M) and drag any of them on the
-              map, double-click to remove. Drawing (D) adds points only —
-              the pencil never drags.
+              {t("plan.draw.vertexListNote")}
             </p>
             <ScrollArea className="max-h-40 -mx-2">
               <ul className="grid gap-0.5 px-2">

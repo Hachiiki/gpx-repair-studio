@@ -28,6 +28,10 @@
  * Phase 18 — Batch & portable sessions. Pure TypeScript.
  */
 
+import { translateLabel, translatorFor } from "@/i18n/runtime";
+
+const enT = translatorFor("en");
+
 import {
   applyWorkingEdits,
   workingMetaOf,
@@ -195,8 +199,10 @@ export function buildManifest(
     lines.push(`   parsed: ${pointCountOf(item.data)} recorded points`);
 
     if (item.presetName !== undefined && item.edits.length > 0) {
+      // The manifest is an exported artifact: labels pin to English
+      // (Phase 21 — artifacts never follow the authoring machine).
       const fixNames = item.edits
-        .map((edit) => edit.label)
+        .map((edit) => translateLabel(enT, edit.label))
         .join("; ");
       lines.push(`   applied: ${item.presetName} — ${fixNames}`);
     }

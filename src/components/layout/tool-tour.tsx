@@ -13,6 +13,10 @@
  *
  * The copy is a contract, like everywhere else: no step promises what
  * the app does not do, and every provenance word matches the cards'.
+ *
+ * Phase 21: the tour content is a KEY map (icons stay code-side);
+ * getToolTours(t) resolves the display strings through the
+ * translator, so a locale switch re-renders every walkthrough.
  */
 
 "use client";
@@ -43,6 +47,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import { TOOL_TOUR_STEPS } from "@/hooks/use-tool-tours";
 import type { ToolToursController } from "@/hooks/use-tool-tours";
 import type { ToolTourId } from "@/lib/storage/tour-flag";
@@ -66,217 +71,267 @@ export interface ToolTourDefinition {
   steps: readonly ToolTourStep[];
 }
 
-export const TOOL_TOURS: Record<ToolTourId, ToolTourDefinition> = {
+/** One step's copy as dictionary keys (the icon stays code-side). */
+interface ToolTourStepCopy {
+  icon: LucideIcon;
+  kickerKey: string;
+  titleKey: string;
+  bodyKey: string;
+  /** Optional payload action (loads the tour's teaching sample). */
+  actionKey?: string;
+}
+
+/** One tour's copy as dictionary keys. */
+interface ToolTourDefinitionCopy {
+  titleKey: string;
+  blurbKey: string;
+  steps: readonly ToolTourStepCopy[];
+}
+
+/**
+ * The seven walkthroughs' content — keys into the tours dictionary
+ * (`tour.<tool>.title` / `.blurb` / `.step<N>.kicker|title|body` /
+ * optional `.step<N>.action`), icons and step order code-side.
+ */
+const TOOL_TOUR_COPY: Record<ToolTourId, ToolTourDefinitionCopy> = {
   repair: {
-    title: "Repair a recording",
-    blurb: "Find the defects, fix them with previews, see exactly what changed.",
+    titleKey: "tour.repair.title",
+    blurbKey: "tour.repair.blurb",
     steps: [
       {
         icon: UploadCloud,
-        kicker: "Repair · Step 1",
-        title: "Start with a recording",
-        body: "Drop a GPX, TCX, or FIT file onto the upload zone — or load the bundled sample ride, which carries two GPS gaps and a handful of deep defects to practice on. Everything parses in this tab; the file on disk is never touched.",
-        actionLabel: "Load the sample ride",
+        kickerKey: "tour.repair.step1.kicker",
+        titleKey: "tour.repair.step1.title",
+        bodyKey: "tour.repair.step1.body",
+        actionKey: "tour.repair.step1.action",
       },
       {
         icon: ScanSearch,
-        kicker: "Repair · Step 2",
-        title: "Find the problems",
-        body: "The deep-validation card walks the recording for teleports, duplicate points, reversed timestamps, elevation spikes, GPS drift, and missing altitude. Every finding previews its fix before you confirm anything — and confirmed fixes land on a working copy you can undo.",
+        kickerKey: "tour.repair.step2.kicker",
+        titleKey: "tour.repair.step2.title",
+        bodyKey: "tour.repair.step2.body",
       },
       {
         icon: GitCompareArrows,
-        kicker: "Repair · Step 3",
-        title: "See what changed",
-        body: "The Before/after card overlays the original as a dashed ghost under your working copy and highlights every touched stretch in orange; side-by-side shows both pictures at one scale, and the delta table counts the differences. The repair summary prints as a sheet for your records.",
+        kickerKey: "tour.repair.step3.kicker",
+        titleKey: "tour.repair.step3.title",
+        bodyKey: "tour.repair.step3.body",
       },
       {
         icon: Download,
-        kicker: "Repair · Step 4",
-        title: "Export with provenance",
-        body: "Review & export writes the repaired file with gpxr markers that disclose every change — Strava and every other platform keeps them, so nothing pretends to be recorded data. The original stays on your disk exactly as it was.",
+        kickerKey: "tour.repair.step4.kicker",
+        titleKey: "tour.repair.step4.title",
+        bodyKey: "tour.repair.step4.body",
       },
     ],
   },
   share: {
-    title: "Share card",
-    blurb: "Turn a clean run into a picture worth posting.",
+    titleKey: "tour.share.title",
+    blurbKey: "tour.share.blurb",
     steps: [
       {
         icon: Image,
-        kicker: "Share card · Step 1",
-        title: "A picture of your activity",
-        body: "Upload the recording you want to show off — a clean continuous run works best — or load the bundled steady-run sample. The card renders from the same parsed data as every other tool, in this tab.",
-        actionLabel: "Load the sample run",
+        kickerKey: "tour.share.step1.kicker",
+        titleKey: "tour.share.step1.title",
+        bodyKey: "tour.share.step1.body",
+        actionKey: "tour.share.step1.action",
       },
       {
         icon: Palette,
-        kicker: "Share card · Step 2",
-        title: "Make it yours",
-        body: "Themes, artwork, units, and the route's framing live on the card itself — click around and watch it re-render live. The numbers carry their provenance just like the statistics panel.",
+        kickerKey: "tour.share.step2.kicker",
+        titleKey: "tour.share.step2.title",
+        bodyKey: "tour.share.step2.body",
       },
       {
         icon: Download,
-        kicker: "Share card · Step 3",
-        title: "PNG, rendered locally",
-        body: "Download the card as an image when it looks right. It was drawn entirely in your browser — no server ever saw the file.",
+        kickerKey: "tour.share.step3.kicker",
+        titleKey: "tour.share.step3.title",
+        bodyKey: "tour.share.step3.body",
       },
     ],
   },
   recovery: {
-    title: "Gap recovery",
-    blurb: "Redraw the stretch your GPS dropped, with honest timestamps.",
+    titleKey: "tour.recovery.title",
+    blurbKey: "tour.recovery.blurb",
     steps: [
       {
         icon: Route,
-        kicker: "Recovery · Step 1",
-        title: "A recording with a hole",
-        body: "Upload a file whose GPS dropped for a stretch — it needs timestamps on both sides of the hole so the missing interval can be detected. The bundled sample ride has exactly that; load it to follow along.",
-        actionLabel: "Load the sample ride",
+        kickerKey: "tour.recovery.step1.kicker",
+        titleKey: "tour.recovery.step1.title",
+        bodyKey: "tour.recovery.step1.body",
+        actionKey: "tour.recovery.step1.action",
       },
       {
         icon: PenLine,
-        kicker: "Recovery · Step 2",
-        title: "Draw the missing route",
-        body: "Open the gap and draw: the Default pen places points that follow real roads or footpaths, the Curve pen draws freehand, and Move (M) drags any point afterward. Everything undoes, step by step.",
+        kickerKey: "tour.recovery.step2.kicker",
+        titleKey: "tour.recovery.step2.title",
+        bodyKey: "tour.recovery.step2.body",
       },
       {
         icon: Clock,
-        kicker: "Recovery · Step 3",
-        title: "Time is estimated — and labeled",
-        body: "The recovered stretch's timestamps are interpolated, and the app says so everywhere: the pace rows, the statistics panel, and the export's markers. Nothing invented is presented as recorded.",
+        kickerKey: "tour.recovery.step3.kicker",
+        titleKey: "tour.recovery.step3.title",
+        bodyKey: "tour.recovery.step3.body",
       },
       {
         icon: Download,
-        kicker: "Recovery · Step 4",
-        title: "Export the whole activity",
-        body: "The export writes recorded data and your recovered stretch in one file, with gpxr markers disclosing which is which.",
+        kickerKey: "tour.recovery.step4.kicker",
+        titleKey: "tour.recovery.step4.title",
+        bodyKey: "tour.recovery.step4.body",
       },
     ],
   },
   create: {
-    title: "Create from stats",
-    blurb: "Turn numbers from another app into a drawn route.",
+    titleKey: "tour.create.title",
+    blurbKey: "tour.create.blurb",
     steps: [
       {
         icon: Calculator,
-        kicker: "Create · Step 1",
-        title: "From your numbers",
-        body: "Type the distance, duration, and elevation your watch recorded somewhere else. The form prefills example numbers if you just want to see how it works — nothing is uploaded anywhere.",
+        kickerKey: "tour.create.step1.kicker",
+        titleKey: "tour.create.step1.title",
+        bodyKey: "tour.create.step1.body",
       },
       {
         icon: PenLine,
-        kicker: "Create · Step 2",
-        title: "Draw the route",
-        body: "Draw the route you actually took: click by click with road-following, or freehand with the Curve pen. The live distance readout keeps score against your target.",
+        kickerKey: "tour.create.step2.kicker",
+        titleKey: "tour.create.step2.title",
+        bodyKey: "tour.create.step2.body",
       },
       {
         icon: Sparkles,
-        kicker: "Create · Step 3",
-        title: "Refine until it fits",
-        body: "Move points, undo anything, and watch the numbers reconcile. When the drawn route matches the real activity, it is done — no guessing hidden anywhere.",
+        kickerKey: "tour.create.step3.kicker",
+        titleKey: "tour.create.step3.title",
+        bodyKey: "tour.create.step3.body",
       },
       {
         icon: Image,
-        kicker: "Create · Step 4",
-        title: "Share it if you like",
-        body: "The review track can become a share card, exactly like an uploaded activity. Your original numbers stay in the session if you come back to adjust.",
+        kickerKey: "tour.create.step4.kicker",
+        titleKey: "tour.create.step4.title",
+        bodyKey: "tour.create.step4.body",
       },
     ],
   },
   merge: {
-    title: "Merge recordings",
-    blurb: "Combine two or more recordings into one honest route.",
+    titleKey: "tour.merge.title",
+    blurbKey: "tour.merge.blurb",
     steps: [
       {
         icon: GitMerge,
-        kicker: "Merge · Step 1",
-        title: "Two or more recordings",
-        body: "Add the files in the order you rode or ran them — a commute split in two, a watch that died mid-ride, an activity broken by a pause. The bundled sample pair is a two-part commute you can load with one click.",
-        actionLabel: "Load the sample pair",
+        kickerKey: "tour.merge.step1.kicker",
+        titleKey: "tour.merge.step1.title",
+        bodyKey: "tour.merge.step1.body",
+        actionKey: "tour.merge.step1.action",
       },
       {
         icon: ArrowUpDown,
-        kicker: "Merge · Step 2",
-        title: "Arrange the chain",
-        body: "Drag the files into order or sort by start time. The chained preview shows how the pieces connect, end to start, with the joins disclosed.",
+        kickerKey: "tour.merge.step2.kicker",
+        titleKey: "tour.merge.step2.title",
+        bodyKey: "tour.merge.step2.body",
       },
       {
         icon: Route,
-        kicker: "Merge · Step 3",
-        title: "One route, honestly",
-        body: "The combined route reconciles the overlaps and carries the merged statistics — with each file's own numbers still one click away.",
+        kickerKey: "tour.merge.step3.kicker",
+        titleKey: "tour.merge.step3.title",
+        bodyKey: "tour.merge.step3.body",
       },
       {
         icon: Download,
-        kicker: "Merge · Step 4",
-        title: "Export the combined file",
-        body: "One GPX out, provenance preserved: the export notes where the pieces came from.",
+        kickerKey: "tour.merge.step4.kicker",
+        titleKey: "tour.merge.step4.title",
+        bodyKey: "tour.merge.step4.body",
       },
     ],
   },
   plan: {
-    title: "Plan a route",
-    blurb: "A draw-and-measure scratchpad for the route you're thinking about.",
+    titleKey: "tour.plan.title",
+    blurbKey: "tour.plan.blurb",
     steps: [
       {
         icon: MapIcon,
-        kicker: "Plan · Step 1",
-        title: "A scratchpad, not a session",
-        body: "No file needed — start planning and the map is yours. Draw the route you're thinking about, from scratch or around a place you know.",
+        kickerKey: "tour.plan.step1.kicker",
+        titleKey: "tour.plan.step1.title",
+        bodyKey: "tour.plan.step1.body",
       },
       {
         icon: PenLine,
-        kicker: "Plan · Step 2",
-        title: "Draw and measure",
-        body: "The same pens as everywhere else: click-by-click with road-following, freehand curves, and draggable points. The distance readout updates with every change.",
+        kickerKey: "tour.plan.step2.kicker",
+        titleKey: "tour.plan.step2.title",
+        bodyKey: "tour.plan.step2.body",
       },
       {
         icon: Sparkles,
-        kicker: "Plan · Step 3",
-        title: "Check your work",
-        body: "The plan's numbers — distance, the route's shape, the elevation profile when you ask for it — stay live while you refine. Undo everything, step by step.",
+        kickerKey: "tour.plan.step3.kicker",
+        titleKey: "tour.plan.step3.title",
+        bodyKey: "tour.plan.step3.body",
       },
       {
         icon: Route,
-        kicker: "Plan · Step 4",
-        title: "When it's right",
-        body: "Plans stay on this device — there is no export here by design, just a clear route to draw into your usual planning app once it feels right. Unfinished plans are autosaved and offered back next visit.",
+        kickerKey: "tour.plan.step4.kicker",
+        titleKey: "tour.plan.step4.title",
+        bodyKey: "tour.plan.step4.body",
       },
     ],
   },
   batch: {
-    title: "Batch cleanup",
-    blurb: "One preset across a folder of files, one ZIP out, sessions to keep.",
+    titleKey: "tour.batch.title",
+    blurbKey: "tour.batch.blurb",
     steps: [
       {
         icon: FileArchive,
-        kicker: "Batch · Step 1",
-        title: "Many files, one pass",
-        body: "Queue up to fifty files at once — the whole season's exports, the folder from your old watch. Each parses one at a time with its own status; nothing is uploaded anywhere. Load two sample files to see the flow.",
-        actionLabel: "Load two sample files",
+        kickerKey: "tour.batch.step1.kicker",
+        titleKey: "tour.batch.step1.title",
+        bodyKey: "tour.batch.step1.body",
+        actionKey: "tour.batch.step1.action",
       },
       {
         icon: Sparkles,
-        kicker: "Batch · Step 2",
-        title: "One preset, per-file previews",
-        body: "Pick a preset and every file previews exactly what it would change — point by point, file by file. Confirm applies it across the queue, and any file's last fix undoes on its own.",
+        kickerKey: "tour.batch.step2.kicker",
+        titleKey: "tour.batch.step2.title",
+        bodyKey: "tour.batch.step2.body",
       },
       {
         icon: FileArchive,
-        kicker: "Batch · Step 3",
-        title: "One ZIP out",
-        body: "Download everything at once: one repaired GPX per file plus a MANIFEST.txt that states, for each file, exactly what changed and what did not. Files with no issues export unchanged.",
+        kickerKey: "tour.batch.step3.kicker",
+        titleKey: "tour.batch.step3.title",
+        bodyKey: "tour.batch.step3.body",
       },
       {
         icon: Download,
-        kicker: "Batch · Step 4",
-        title: "Come back anytime",
-        body: "The queue can be saved as a named session — exported as a .gpxrepair.json file that carries the originals and every fix, and reopened here on any device.",
+        kickerKey: "tour.batch.step4.kicker",
+        titleKey: "tour.batch.step4.title",
+        bodyKey: "tour.batch.step4.body",
       },
     ],
   },
 };
+
+/** Resolve every tour's display strings for one locale. */
+export function getToolTours(
+  t: TranslatorArg,
+): Record<ToolTourId, ToolTourDefinition> {
+  const resolve = (copy: ToolTourDefinitionCopy): ToolTourDefinition => ({
+    title: t(copy.titleKey),
+    blurb: t(copy.blurbKey),
+    steps: copy.steps.map((step) => ({
+      icon: step.icon,
+      kicker: t(step.kickerKey),
+      title: t(step.titleKey),
+      body: t(step.bodyKey),
+      ...(step.actionKey !== undefined
+        ? { actionLabel: t(step.actionKey) }
+        : {}),
+    })),
+  });
+  return {
+    repair: resolve(TOOL_TOUR_COPY.repair),
+    share: resolve(TOOL_TOUR_COPY.share),
+    recovery: resolve(TOOL_TOUR_COPY.recovery),
+    create: resolve(TOOL_TOUR_COPY.create),
+    merge: resolve(TOOL_TOUR_COPY.merge),
+    plan: resolve(TOOL_TOUR_COPY.plan),
+    batch: resolve(TOOL_TOUR_COPY.batch),
+  };
+}
 
 export interface ToolTourDialogProps {
   /** The controller (hooks/use-tool-tours) — every behavior. */
@@ -286,9 +341,10 @@ export interface ToolTourDialogProps {
 }
 
 export function ToolTourDialog({ tour, actionAvailable }: ToolTourDialogProps) {
+  const { t } = useI18n();
   const open = tour.active !== null && tour.step !== null;
   const activeId = tour.active;
-  const definition = activeId !== null ? TOOL_TOURS[activeId] : null;
+  const definition = activeId !== null ? getToolTours(t)[activeId] : null;
   const stepIndex = tour.step ?? 0;
   const step = definition !== null ? definition.steps[stepIndex] : null;
   const stepCount = activeId !== null ? TOOL_TOUR_STEPS[activeId] : 0;
@@ -347,7 +403,7 @@ export function ToolTourDialog({ tour, actionAvailable }: ToolTourDialogProps) {
             data-testid="tool-tour-skip"
             onClick={tour.close}
           >
-            Skip
+            {t("tour.skip")}
           </Button>
 
           <div className="flex items-center gap-3">
@@ -371,7 +427,7 @@ export function ToolTourDialog({ tour, actionAvailable }: ToolTourDialogProps) {
               ))}
             </div>
             <span className="sr-only" data-testid="tool-tour-step-count">
-              Step {stepIndex + 1} of {stepCount}
+              {t("tour.stepCount", { current: stepIndex + 1, count: stepCount })}
             </span>
 
             {stepIndex > 0 && (
@@ -382,7 +438,7 @@ export function ToolTourDialog({ tour, actionAvailable }: ToolTourDialogProps) {
                 data-testid="tool-tour-back"
                 onClick={tour.back}
               >
-                Back
+                {t("tour.back")}
               </Button>
             )}
             {action && (
@@ -402,7 +458,9 @@ export function ToolTourDialog({ tour, actionAvailable }: ToolTourDialogProps) {
               data-testid="tool-tour-next"
               onClick={tour.next}
             >
-              {stepIndex >= stepCount - 1 ? "Get started" : "Next"}
+              {stepIndex >= stepCount - 1
+                ? t("tour.getStarted")
+                : t("tour.next")}
             </Button>
           </div>
         </div>
@@ -418,9 +476,10 @@ export interface ToolTourOfferProps {
 
 /** The dismissible first-visit strip above a tool's workspace. */
 export function ToolTourOffer({ tour }: ToolTourOfferProps) {
+  const { t } = useI18n();
   const offerId = tour.offer;
   if (offerId === null) return null;
-  const definition = TOOL_TOURS[offerId];
+  const definition = getToolTours(t)[offerId];
   const stepCount = TOOL_TOUR_STEPS[offerId];
   const firstStep = definition.steps[0];
   return (
@@ -436,10 +495,10 @@ export function ToolTourOffer({ tour }: ToolTourOfferProps) {
       </span>
       <p className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground">
         <span className="font-semibold text-ink">
-          New: the {definition.title} walkthrough.
+          {t("tour.offer.new", { title: definition.title })}
         </span>{" "}
-        {stepCount} steps, about a minute
-        {firstStep?.actionLabel ? " — teaching samples included" : ""}.
+        {t("tour.offer.meta", { count: stepCount })}
+        {firstStep?.actionLabel ? t("tour.offer.samples") : ""}.
       </p>
       <div className="flex shrink-0 items-center gap-2">
         <button
@@ -448,7 +507,7 @@ export function ToolTourOffer({ tour }: ToolTourOfferProps) {
           onClick={() => tour.start(offerId)}
           className="inline-flex items-center gap-1.5 rounded-[6px] border-[1.5px] border-ink bg-card px-2.5 py-1.5 text-[12.5px] font-semibold text-ink shadow-[0_1.5px_0_0_var(--ink)] transition-colors hover:bg-ink/[0.05] focus-visible:outline-2"
         >
-          Start
+          {t("tour.offer.start")}
         </button>
         <button
           type="button"
@@ -456,7 +515,7 @@ export function ToolTourOffer({ tour }: ToolTourOfferProps) {
           onClick={tour.dismissOffer}
           className="rounded-[6px] px-2 py-1.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-ink focus-visible:outline-2"
         >
-          Dismiss
+          {t("tour.offer.dismiss")}
         </button>
       </div>
     </div>

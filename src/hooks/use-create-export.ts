@@ -37,6 +37,7 @@ import {
 import { createDomXmlIo } from "@/lib/utils/xml";
 import { downloadTextFile } from "@/lib/utils/download";
 import { announce } from "@/lib/announcements";
+import { useI18n } from "@/hooks/use-i18n";
 import { useCreateStore } from "@/state/create-store";
 import { useUiStore } from "@/state/ui-store";
 
@@ -56,6 +57,7 @@ export interface CreateReview {
 }
 
 export function useCreateExport(): CreateReview | null {
+  const { t } = useI18n();
   const phase = useCreateStore((s) => s.phase);
   const stats = useCreateStore((s) => s.stats);
   const vertices = useCreateStore((s) => s.reconstruction.vertices);
@@ -121,9 +123,9 @@ export function useCreateExport(): CreateReview | null {
     downloadTextFile(fileName, xml);
     // Phase 8: no visual focus moves on a blob download — the
     // aria-live region speaks it.
-    announce(`Export ready — ${fileName} downloaded.`);
+    announce(t("hook.export.ready", { fileName }));
     return fileName;
-  }, [stats, track, prettyPrint]);
+  }, [stats, track, prettyPrint, t]);
 
   // The review exposes the reconciliation toggle alongside the track —
   // the card drives it, the rebuild follows it (pure derivation).

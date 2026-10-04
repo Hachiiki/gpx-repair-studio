@@ -13,6 +13,7 @@
 
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
 import { formatDistanceMeters } from "@/lib/utils/format";
+import { useI18n } from "@/hooks/use-i18n";
 
 export interface DrawDistanceBadgeProps {
   /** Live path length including both anchors; null while inactive. */
@@ -26,6 +27,7 @@ export function DrawDistanceBadge({
   vertexCount,
   maxVertices,
 }: DrawDistanceBadgeProps) {
+  const { t } = useI18n();
   return (
     <div
       className="absolute left-1/2 top-2 z-10 -translate-x-1/2 rounded-[10px] border-[1.5px] border-ink bg-card px-4 py-2 shadow-float"
@@ -46,10 +48,10 @@ export function DrawDistanceBadge({
         className="mt-1 text-center text-[11px] font-medium tabular-nums text-shade"
         data-testid="badge-vertex-count"
       >
-        {vertexCount}/{maxVertices} pts
+        {t("map.drawBadge.vertexCount", { vertices: vertexCount, max: maxVertices })}
       </p>
       <p className="text-center text-[10px] leading-snug text-ink/70">
-        road length, not straight line
+        {t("map.drawBadge.roadLengthNote")}
       </p>
     </div>
   );

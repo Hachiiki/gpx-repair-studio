@@ -16,6 +16,7 @@
 "use client";
 
 import { Download } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   Card,
   CardContent,
@@ -40,6 +41,8 @@ export function MergeExportCard({
   pointCount,
   onDownload,
 }: MergeExportCardProps) {
+  const { t } = useI18n();
+
   return (
     <Card data-testid="merge-export-card">
       <CardHeader>
@@ -48,12 +51,15 @@ export function MergeExportCard({
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          Download the merged file
+          {t("merge.export.title")}
         </h3>
         <CardDescription>
-          One track: all {pointCount.toLocaleString()} points from{" "}
-          {fileCount} file{fileCount === 1 ? "" : "s"}, in the order
-          above, under the name you chose.
+          {t(
+            fileCount === 1
+              ? "merge.export.introOne"
+              : "merge.export.introMany",
+            { points: pointCount.toLocaleString(), count: fileCount },
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -70,18 +76,15 @@ export function MergeExportCard({
           )}
         >
           <Download className="size-[18px]" aria-hidden="true" />
-          Download .gpx
+          {t("merge.export.download")}
         </button>
         {!canDownload && (
           <p className="text-[12.5px] text-muted-foreground">
-            A merge needs at least two files — add one more above.
+            {t("merge.export.needTwo")}
           </p>
         )}
         <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-          Every recorded point, elevation, timestamp, and waypoint is
-          carried over verbatim. Single-file metadata (author, copyright,
-          per-track descriptions) is not — several files' worth cannot
-          be combined honestly.
+          {t("merge.export.honesty")}
         </p>
       </CardContent>
     </Card>

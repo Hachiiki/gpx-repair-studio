@@ -22,6 +22,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useI18n } from "@/hooks/use-i18n";
 import type { GapThresholds } from "@/hooks/use-gpx-session";
 
 export interface GapThresholdSettingsProps {
@@ -104,6 +105,7 @@ export function GapThresholdSettings({
   onThresholdsChange,
   onReset,
 }: GapThresholdSettingsProps) {
+  const { t } = useI18n();
   const fieldId = useId();
 
   return (
@@ -111,19 +113,18 @@ export function GapThresholdSettings({
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
           <SlidersHorizontal className="size-3.5" aria-hidden="true" />
-          Detection settings
+          {t("gapThresholds.openButton")}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72">
         <div className="grid gap-4">
           <p className="text-xs text-muted-foreground">
-            Changes re-run gap detection on the original data. The file
-            itself is never modified.
+            {t("gapThresholds.note")}
           </p>
           <ThresholdField
             id={`${fieldId}-time`}
-            label="Time gap threshold"
-            hint="Timestamp jumps longer than this count as gaps."
+            label={t("gapThresholds.timeLabel")}
+            hint={t("gapThresholds.timeHint")}
             unit="s"
             value={thresholds.timeGapMs / 1000}
             min={0}
@@ -134,8 +135,8 @@ export function GapThresholdSettings({
           />
           <ThresholdField
             id={`${fieldId}-speed`}
-            label="Speed anomaly threshold"
-            hint="Legs implying a straight-line speed above this count as gaps."
+            label={t("gapThresholds.speedLabel")}
+            hint={t("gapThresholds.speedHint")}
             unit="km/h"
             value={thresholds.speedAnomalyKmh}
             min={0.5}
@@ -144,8 +145,8 @@ export function GapThresholdSettings({
           />
           <ThresholdField
             id={`${fieldId}-guard`}
-            label="Short-leg guard"
-            hint="Legs with a time delta at or below this are immune to the speed check."
+            label={t("gapThresholds.guardLabel")}
+            hint={t("gapThresholds.guardHint")}
             unit="s"
             value={thresholds.speedDtGuardMs / 1000}
             min={0}
@@ -161,7 +162,7 @@ export function GapThresholdSettings({
             onClick={onReset}
           >
             <RotateCcw className="size-3.5" aria-hidden="true" />
-            Reset to defaults
+            {t("gapThresholds.reset")}
           </Button>
         </div>
       </PopoverContent>

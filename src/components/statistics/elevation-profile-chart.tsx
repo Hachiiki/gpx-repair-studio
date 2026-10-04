@@ -43,6 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
+import { useI18n } from "@/hooks/use-i18n";
 import type { ElevationProfile } from "@/hooks/use-elevation";
 import { formatElevationMeters } from "@/lib/utils/format";
 
@@ -287,6 +288,7 @@ export function ElevationProfileChart({
   /** Textual summary for the a11y label (from the stats rows). */
   gainLossSummary?: string | null;
 }) {
+  const { t } = useI18n();
   const [cursor, setCursor] = useState<number | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
   const liveId = useId();
@@ -349,10 +351,17 @@ export function ElevationProfileChart({
     cursorPoint === null
       ? null
       : cursorPoint.ele === undefined
-        ? `at ${axisDistance(cursorPoint.xM)} — no elevation recorded`
-        : `at ${axisDistance(cursorPoint.xM)} — ${formatElevationMeters(cursorPoint.ele)} (${
-            cursorPoint.kind === "recorded" ? "recorded" : "reconstructed, estimated"
-          })`;
+        ? t("profile.readout.noEle", {
+            distance: axisDistance(cursorPoint.xM),
+          })
+        : t("profile.readout.at", {
+            distance: axisDistance(cursorPoint.xM),
+            elevation: formatElevationMeters(cursorPoint.ele),
+            kind:
+              cursorPoint.kind === "recorded"
+                ? t("profile.kindRecorded")
+                : t("profile.kindReconstructed"),
+          });
 
   const onKeyDown = (event: React.KeyboardEvent<SVGSVGElement>) => {
     if (profile.points.length === 0) return;
@@ -387,12 +396,14 @@ export function ElevationProfileChart({
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          Elevation profile
+          {t("profile.title")}
         </h3>
         <CardDescription>
-          {formatElevationMeters(profile.minEleM)} to{" "}
-          {formatElevationMeters(profile.maxEleM)} over {distanceLabel} —
-          recorded stretches solid, reconstructed stretches estimated.
+          {t("profile.desc", {
+            min: formatElevationMeters(profile.minEleM),
+            max: formatElevationMeters(profile.maxEleM),
+            distance: distanceLabel,
+          })}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -409,7 +420,7 @@ export function ElevationProfileChart({
             /* Screen-only instruction — a printed sheet has no pointer
              * (the Phase 15 VLM print critique's one confirmed claim). */
             <span data-print-hide-on-print>
-              hover, or focus + arrow keys, to read values
+              {t("profile.readoutHint")}
             </span>
           )}
         </p>
@@ -419,13 +430,16 @@ export function ElevationProfileChart({
           role="img"
           tabIndex={0}
           data-testid="elevation-profile-svg"
-          aria-label={`Elevation profile from ${formatElevationMeters(
-            profile.minEleM,
-          )} to ${formatElevationMeters(profile.maxEleM)} over ${distanceLabel}${
-            gainLossSummary ? `, ${gainLossSummary}` : ""
-          }. Reconstructed stretches are estimated. Focus this chart and use the arrow keys to read values.${
-            readoutText !== null ? ` Cursor: ${readoutText}.` : ""
-          }`}
+          aria-label={t("profile.ariaLabel", {
+            min: formatElevationMeters(profile.minEleM),
+            max: formatElevationMeters(profile.maxEleM),
+            distance: distanceLabel,
+            gainLoss: gainLossSummary ? `, ${gainLossSummary}` : "",
+            cursor:
+              readoutText !== null
+                ? ` ${t("profile.ariaCursor", { readout: readoutText })}.`
+                : "",
+          })}
           onKeyDown={onKeyDown}
           onPointerMove={(event) =>
             setCursor(indexForClientX(event.clientX, event.currentTarget))
@@ -578,7 +592,7 @@ export function ElevationProfileChart({
                 strokeWidth="2"
               />
             </svg>
-            Recorded
+            {t("stats.provenance.recorded")}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <svg width="18" height="8" aria-hidden="true">
@@ -592,7 +606,7 @@ export function ElevationProfileChart({
                 strokeDasharray="5 3"
               />
             </svg>
-            Reconstructed (estimated)
+            {t("profile.legendReconstructed")}
           </span>
         </div>
 
@@ -607,12 +621,11 @@ export function ElevationProfileChart({
             className="rounded-[5px] px-2 py-1 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2"
             onClick={() => setTableOpen((open) => !open)}
           >
-            {tableOpen ? "Hide profile table" : "Show profile table"}
+            {tableOpen ? t("profile.hideTable") : t("profile.showTable")}
           </button>
           {tableOpen && (
             <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-              The same display series the chart draws (lightly smoothed for
-              reading) — {intervals.length} distance intervals.
+              {t("profile.tableNote", { count: intervals.length })}
             </p>
           )}
           {tableOpen && (
@@ -620,19 +633,24 @@ export function ElevationProfileChart({
               <Table data-testid="elevation-profile-table">
                 <TableHeader>
                   <TableRow>
-                    {["Distance interval", "Start", "End", "Min", "Max", "Source"].map(
-                      (label, i) => (
-                        <TableHead
-                          key={label}
-                          scope="col"
-                          className={`h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25 ${
-                            i === 5 ? "text-right" : ""
-                          }`}
-                        >
-                          {label}
-                        </TableHead>
-                      ),
-                    )}
+                    {[
+                      "profile.colInterval",
+                      "profile.colStart",
+                      "profile.colEnd",
+                      "profile.colMin",
+                      "profile.colMax",
+                      "stats.source",
+                    ].map((labelKey, i) => (
+                      <TableHead
+                        key={labelKey}
+                        scope="col"
+                        className={`h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25 ${
+                          i === 5 ? "text-right" : ""
+                        }`}
+                      >
+                        {t(labelKey)}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>

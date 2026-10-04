@@ -15,6 +15,7 @@
 "use client";
 
 import { Info } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import type { ConsistencyNotice } from "@/hooks/use-create-session";
 import { formatDurationMs } from "@/lib/utils/format";
 
@@ -28,6 +29,7 @@ export function ConsistencyNote({
   notice,
   enteredDurationMs,
 }: ConsistencyNoteProps) {
+  const { t } = useI18n();
   return (
     <p
       className="flex items-start gap-2 rounded-md border border-signal/40 bg-signal/[0.06] px-3 py-2 text-xs leading-relaxed text-ink"
@@ -36,12 +38,11 @@ export function ConsistencyNote({
     >
       <Info className="mt-0.5 size-3.5 shrink-0 text-signal" aria-hidden="true" />
       {notice.level === "rounding"
-        ? "Your entered statistics differ slightly due to rounding — the route will be generated using your recorded values."
-        : `Your time, distance, and pace don't quite agree — distance × pace works out to ${formatDurationMs(
-            notice.impliedDurationMs,
-          )}, you entered ${formatDurationMs(
-            enteredDurationMs,
-          )}. Check for typos; the route will be generated using your recorded values.`}
+        ? t("create.consistency.rounding")
+        : t("create.consistency.mismatch", {
+            implied: formatDurationMs(notice.impliedDurationMs),
+            entered: formatDurationMs(enteredDurationMs),
+          })}
     </p>
   );
 }

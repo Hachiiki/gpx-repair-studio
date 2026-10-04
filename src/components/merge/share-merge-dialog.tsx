@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Download, ImageUp } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import type { ShareCardContent } from "@/hooks/use-merge-share";
 
 export interface ShareMergeDialogProps {
@@ -54,6 +55,8 @@ export function ShareMergeDialog({
   content,
   onConfirm,
 }: ShareMergeDialogProps) {
+  const { t } = useI18n();
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent
@@ -63,11 +66,10 @@ export function ShareMergeDialog({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 text-left">
             <ImageUp className="size-4 text-signal" aria-hidden="true" />
-            Share your merged recording
+            {t("merge.shareDialog.title")}
           </AlertDialogTitle>
           <AlertDialogDescription className="text-left">
-            Here is exactly what happens next — nothing leaves this browser
-            either way.
+            {t("merge.shareDialog.intro")}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -79,11 +81,11 @@ export function ShareMergeDialog({
             />
             <span>
               <span className="font-semibold">
-                Your merged GPX downloads now
+                {t("merge.shareDialog.step1Lead")}
               </span>{" "}
-              — <span className="font-semibold">{fileName}</span>, the same
-              file the Download button produces. Import it into Strava or
-              any GPX platform.
+              {t("merge.shareDialog.step1Mid")}{" "}
+              <span className="font-semibold">{fileName}</span>
+              {t("merge.shareDialog.step1Tail")}
             </span>
           </li>
           <li className="flex items-start gap-2.5 rounded-[10px] border-[1.5px] border-ink/15 bg-ink/[0.03] px-3 py-2.5">
@@ -93,27 +95,26 @@ export function ShareMergeDialog({
             />
             <span>
               <span className="font-semibold">
-                The share card opens
+                {t("merge.shareDialog.step2Lead")}
               </span>{" "}
-              — your combined route as a Strava-style graphic with{" "}
+              {t("merge.shareDialog.step2Mid")}{" "}
               {content ? (
                 <>
                   <span className="font-semibold">{content.distance}</span>,{" "}
-                  <span className="font-semibold">{content.pace}</span>, and{" "}
+                  <span className="font-semibold">{content.pace}</span>
+                  {t("merge.shareDialog.andGlue")}
                   <span className="font-semibold">{content.time}</span>
                 </>
               ) : (
-                "the merged file's distance, pace, and time"
+                t("merge.shareDialog.step2Fallback")
               )}
-              . Download it as a PNG from there.
+              {t("merge.shareDialog.step2Tail")}
             </span>
           </li>
         </ol>
 
         <p className="text-left text-xs leading-relaxed text-muted-foreground">
-          Every recorded point stays exactly as its source recorded it —
-          merging re-orders files, never values. You can come straight back
-          to the arrangement from the share view.
+          {t("merge.shareDialog.honesty")}
         </p>
 
         <AlertDialogFooter className="sm:flex-col sm:items-stretch">
@@ -123,13 +124,13 @@ export function ShareMergeDialog({
             onClick={onConfirm}
           >
             <Download className="size-4" aria-hidden="true" />
-            Download GPX &amp; open share card
+            {t("merge.shareDialog.confirm")}
           </AlertDialogAction>
           <AlertDialogCancel
             className="h-10 gap-1.5 border-[1.5px] font-semibold"
             data-testid="merge-share-cancel"
           >
-            Not now
+            {t("merge.shareDialog.cancel")}
           </AlertDialogCancel>
         </AlertDialogFooter>
       </AlertDialogContent>

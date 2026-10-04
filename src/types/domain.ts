@@ -36,6 +36,7 @@
  * Phase 1 — GPX Domain Core. Pure types; no runtime behavior here.
  */
 
+import type { LocalLabel } from "@/i18n/types";
 import type { GapId, PointId, SegmentId, VertexId } from "./ids";
 
 // The id types are part of the shared vocabulary: consumers import them
@@ -678,8 +679,12 @@ export type WorkingEditEntry =
 export interface WorkingEdit {
   /** Deterministic id: `fix/{seq}` allocated by the working store. */
   id: string;
-  /** Human label for the change log, e.g. "Remove 4 speed spikes". */
-  label: string;
+  /**
+   * Human label for the change log, e.g. "Remove 4 speed spikes" —
+   * a LocalLabel (Phase 21): structured labels localize at render;
+   * legacy strings from pre-21 sessions render verbatim.
+   */
+  label: LocalLabel;
   reason: FixReason;
   /** Epoch ms when the fix was confirmed. */
   appliedAt: number;
@@ -789,11 +794,16 @@ export type SurgeryKind =
 export interface FixPlan {
   /** Which fix / preset / surgery op produced the plan. */
   kind: FixKind | PresetId | SurgeryKind;
-  label: string;
+  /**
+   * Phase 21 — a LocalLabel: structured { key, params } for new plans
+   * (resolved at render in the active locale), or a legacy final
+   * string from sessions saved before Phase 21.
+   */
+  label: LocalLabel;
   /** The entries applying the plan would write. */
   entries: readonly WorkingEditEntry[];
   /** The points the plan touches (jump/preview list). */
   points: readonly PointRef[];
-  /** What-would-change lines for the preview dialog. */
-  summary: readonly string[];
+  /** What-would-change lines for the preview dialog (LocalLabels). */
+  summary: readonly LocalLabel[];
 }

@@ -24,6 +24,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "@/hooks/use-i18n";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -97,6 +98,7 @@ export function PlanEstimatesCard({
   paceUnit,
   onPaceUnitChange,
 }: PlanEstimatesCardProps) {
+  const { t } = useI18n();
   // The h/m/s entry fields, kept as strings (the shared DurationFields
   // contract): "" reads as 0, invalid text blocks the update. This card
   // is the ONLY writer of the store's plannedTimeMs, so the fields stay
@@ -165,11 +167,11 @@ export function PlanEstimatesCard({
 
   const paceLine =
     !hasRoute
-      ? "Draw a route on the map first — the pace needs a distance."
+      ? t("plan.estimates.paceNeedsRoute")
       : plannedTimeMs === null
-        ? "Enter a time above to see the pace it implies."
+        ? t("plan.estimates.paceNeedsTime")
         : plannedTimeMs <= 0
-          ? "The time needs to be more than zero."
+          ? t("plan.estimates.paceNeedsPositiveTime")
           : null;
 
   return (
@@ -180,25 +182,34 @@ export function PlanEstimatesCard({
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <TimerReset className="size-4 text-signal" aria-hidden="true" />
-          Estimates
+          {t("plan.estimates.title")}
         </h3>
         <CardDescription>
-          What the route implies — read-only, nothing is exported.
+          {t("plan.estimates.intro")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
         {/* Route facts: the crow-flies comparison. */}
         <div className="grid gap-1">
-          <p className="text-xs font-bold tracking-[0.01em]">Route facts</p>
+          <p className="text-xs font-bold tracking-[0.01em]">
+            {t("plan.estimates.factsLabel")}
+          </p>
           <p
             className="text-[11.5px] leading-snug tabular-nums text-muted-foreground"
             data-testid="plan-crowflies"
           >
             {crowFliesM === null
-              ? "Place at least two points for the start-to-finish line."
+              ? t("plan.estimates.crowFliesEmpty")
               : detour === null
-                ? `Start to finish straight line: ${formatDistanceForUnit(crowFliesM, paceUnit)} — the route runs ${formatDistanceForUnit(distanceM ?? 0, paceUnit)}.`
-                : `Start to finish straight line: ${formatDistanceForUnit(crowFliesM, paceUnit)} — the route winds to ${detour.toFixed(detour >= 10 ? 0 : 1)}× that, at ${formatDistanceForUnit(distanceM ?? 0, paceUnit)}.`}
+                ? t("plan.estimates.crowFliesNoDetour", {
+                    straight: formatDistanceForUnit(crowFliesM, paceUnit),
+                    distance: formatDistanceForUnit(distanceM ?? 0, paceUnit),
+                  })
+                : t("plan.estimates.crowFliesDetour", {
+                    straight: formatDistanceForUnit(crowFliesM, paceUnit),
+                    factor: detour.toFixed(detour >= 10 ? 0 : 1),
+                    distance: formatDistanceForUnit(distanceM ?? 0, paceUnit),
+                  })}
           </p>
         </div>
 
@@ -209,23 +220,27 @@ export function PlanEstimatesCard({
         <div className="grid gap-2 border-t border-ink/10 pt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-bold tracking-[0.01em]">
-              Pace from a time you enter
+              {t("plan.estimates.paceLabel")}
             </p>
             <PaceUnitToggle unit={paceUnit} onChange={onPaceUnitChange} />
           </div>
-          <div className="flex flex-wrap items-end gap-2" role="group" aria-label="Goal time">
+          <div
+            className="flex flex-wrap items-end gap-2"
+            role="group"
+            aria-label={t("plan.estimates.goalTimeLabel")}
+          >
             {(
               [
-                { key: "hours", label: "Hours" },
-                { key: "minutes", label: "Minutes" },
-                { key: "seconds", label: "Seconds" },
+                { key: "hours", labelKey: "plan.estimates.hours" },
+                { key: "minutes", labelKey: "plan.estimates.minutes" },
+                { key: "seconds", labelKey: "plan.estimates.seconds" },
               ] as const
             ).map((part) => (
               <label
                 key={part.key}
                 className="grid w-[4.5rem] gap-1 text-[11px] font-semibold text-muted-foreground"
               >
-                {part.label}
+                {t(part.labelKey)}
                 <input
                   type="number"
                   min={0}
@@ -233,7 +248,9 @@ export function PlanEstimatesCard({
                   inputMode="numeric"
                   className="h-8 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2 text-xs font-normal tabular-nums transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
                   data-testid={`plan-time-${part.key}`}
-                  aria-label={`Goal time ${part.label.toLowerCase()}`}
+                  aria-label={t("plan.estimates.goalTimePart", {
+                    part: t(part.labelKey).toLowerCase(),
+                  })}
                   value={fields[part.key]}
                   onChange={(event) => updateField(part.key, event.target.value)}
                 />
@@ -247,10 +264,10 @@ export function PlanEstimatesCard({
               data-testid="plan-time-clear"
               onClick={clearTime}
               disabled={plannedTimeMs === null}
-              title="Clear the entered time"
+              title={t("plan.estimates.clearTitle")}
             >
               <Eraser className="size-3.5" aria-hidden="true" />
-              Clear
+              {t("plan.estimates.clear")}
             </Button>
           </div>
 
@@ -268,7 +285,7 @@ export function PlanEstimatesCard({
             </span>
             {paceMsPerUnit !== undefined && (
               <StatusBadge tone="neutral" data-testid="plan-pace-planned-badge">
-                Planned
+                {t("plan.estimates.plannedBadge")}
               </StatusBadge>
             )}
           </div>
@@ -290,7 +307,13 @@ export function PlanEstimatesCard({
               ref={splitsRef}
             >
               <p className="text-[11px] font-medium text-muted-foreground">
-                Even splits — where each whole {paceUnit === "km" ? "kilometer" : "mile"} lands:
+                {t("plan.estimates.evenSplits", {
+                  unit: t(
+                    paceUnit === "km"
+                      ? "plan.estimates.kilometer"
+                      : "plan.estimates.mile",
+                  ),
+                })}
               </p>
               <ScrollArea className="max-h-44 -mx-2">
                 <ul className="grid gap-0.5 px-2">
@@ -303,8 +326,12 @@ export function PlanEstimatesCard({
                   ))}
                   {tail && (
                     <SplitRow
-                      label={`last ${formatDistanceForUnit(tail.distanceM, paceUnit)}`}
-                      value={`ends at ${formatDurationMs(tail.elapsedMsAtEnd)}`}
+                      label={t("plan.estimates.splitTail", {
+                        distance: formatDistanceForUnit(tail.distanceM, paceUnit),
+                      })}
+                      value={t("plan.estimates.splitTailEnds", {
+                        time: formatDurationMs(tail.elapsedMsAtEnd),
+                      })}
                     />
                   )}
                 </ul>

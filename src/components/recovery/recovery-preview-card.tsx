@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/card";
 import { Lock } from "lucide-react";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
+import { useI18n } from "@/hooks/use-i18n";
 import type { DistanceStats, TimeStats } from "@/hooks/use-recovery-session";
 import type { RepairTimeStats } from "@/hooks/use-draw-editor";
 import {
@@ -72,6 +73,7 @@ export function RecoveryPreviewCard({
   recoveredCount,
   detectedCount,
 }: RecoveryPreviewCardProps) {
+  const { t } = useI18n();
   const hasCommits = repair.gapCount > 0;
   const recordedDistanceM = distanceStats?.totalDistanceM ?? 0;
   const completedDistanceM = recordedDistanceM + repair.reconstructedDistanceM;
@@ -85,26 +87,32 @@ export function RecoveryPreviewCard({
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          Completed route
+          {t("recovery.preview.title")}
         </h3>
         <CardDescription>
           {hasCommits
             ? detectedCount > 0
-              ? `${recoveredCount} of ${detectedCount} missing section${
-                  detectedCount === 1 ? "" : "s"
-                } recovered — preview before you export.`
-              : `${recoveredCount} unmeasured section${
-                  recoveredCount === 1 ? "" : "s"
-                } drawn — time estimated from your file's pace.`
-            : "Draw a missing section to see the completed route here — detection or not, drawing is always available."}
+              ? detectedCount === 1
+                ? t("recovery.preview.desc.recoveredOne", {
+                    count: recoveredCount,
+                    total: detectedCount,
+                  })
+                : t("recovery.preview.desc.recoveredMany", {
+                    count: recoveredCount,
+                    total: detectedCount,
+                  })
+              : recoveredCount === 1
+                ? t("recovery.preview.desc.drawnOne", { count: recoveredCount })
+                : t("recovery.preview.desc.drawnMany", { count: recoveredCount })
+            : t("recovery.preview.desc.empty")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {hasCommits ? (
           <dl className="grid gap-2 text-sm" data-testid="recovery-preview-stats">
             <Row
-              label="Recovered time"
-              hint="From the sections' recorded boundary intervals — or, for unmeasured sections, estimated from your file's average pace."
+              label={t("recovery.preview.recoveredTime")}
+              hint={t("recovery.preview.recoveredTimeHint")}
             >
               {repair.reconstructedTimeMs !== null ? (
                 <span className="inline-flex items-baseline gap-1.5">
@@ -116,7 +124,7 @@ export function RecoveryPreviewCard({
                   className="font-normal text-muted-foreground"
                   title={
                     repair.gapsWithoutDuration > 0
-                      ? "A recovered section still needs a duration (or timestamps) before this is honest."
+                      ? t("recovery.preview.needsDurationHint")
                       : undefined
                   }
                 >
@@ -125,8 +133,8 @@ export function RecoveryPreviewCard({
               )}
             </Row>
             <Row
-              label="Distance"
-              hint="Recorded legs (gaps excluded) → recorded plus the drawn sections."
+              label={t("recovery.preview.distance")}
+              hint={t("recovery.preview.distanceHint")}
             >
               <span className="inline-flex items-baseline gap-1.5">
                 {formatDistanceMeters(recordedDistanceM)}
@@ -138,20 +146,20 @@ export function RecoveryPreviewCard({
               </span>
             </Row>
             <Row
-              label="Elapsed time"
-              hint="First to last recorded timestamp — the original recording is never rewritten, so this cannot change."
+              label={t("recovery.preview.elapsedTime")}
+              hint={t("recovery.preview.elapsedTimeHint")}
             >
               <span className="inline-flex items-baseline gap-1.5">
                 {wallMs !== undefined ? formatDurationMs(wallMs) : "—"}
                 <span className="inline-flex items-center gap-0.5 rounded bg-signal/10 px-1 py-0.5 text-[10px] font-medium text-signal-ink">
                   <Lock className="size-2.5" aria-hidden="true" />
-                  unchanged
+                  {t("recovery.preview.unchanged")}
                 </span>
               </span>
             </Row>
             <Row
-              label="Average speed, completed"
-              hint="Completed distance over the recorded elapsed time plus any estimated time the file's clock never counted — the geometry is drawn, the clock is real."
+              label={t("recovery.preview.avgSpeed")}
+              hint={t("recovery.preview.avgSpeedHint")}
             >
               {wallMs !== undefined && wallMs > 0 ? (
                 <span className="inline-flex items-baseline gap-1.5">
@@ -172,8 +180,8 @@ export function RecoveryPreviewCard({
               )}
             </Row>
             <Row
-              label="Points generated"
-              hint="Inserted along your drawing inside the missing interval — exported with estimated timestamps and provenance markers."
+              label={t("recovery.preview.pointsGenerated")}
+              hint={t("recovery.preview.pointsGeneratedHint")}
             >
               <span className="inline-flex items-baseline gap-1.5">
                 {insertedPoints ?? 0}
@@ -181,17 +189,12 @@ export function RecoveryPreviewCard({
               </span>
             </Row>
             <p className="mt-1 border-t pt-2 text-xs leading-snug text-muted-foreground">
-              Generated points are estimated data, not original GPS fixes —
-              the export marks every one of them, and platforms that re-read
-              the file will see the markers.
+              {t("recovery.preview.estimatedNote")}
             </p>
           </dl>
         ) : (
           <p className="text-sm leading-snug text-muted-foreground">
-            Nothing is applied to the file until you export — and even then
-            the export is a new file: the original stays exactly as
-            recorded, with your recovered sections inserted between its
-            untouched points.
+            {t("recovery.preview.emptyNote")}
           </p>
         )}
       </CardContent>

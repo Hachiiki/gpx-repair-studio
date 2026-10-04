@@ -24,7 +24,9 @@ import type { DistanceStats, TimeStats } from "@/hooks/use-gpx-session";
 
 afterEach(() => cleanup());
 
-const PRIVACY_NOTE = "The coordinates of your reconstructed points are sent…";
+const PRIVACY_NOTE = "The coordinates of your reconstructed points are sent to api.open-meteo.com (Open-Meteo Elevation API) in the request URL.";
+const PRIVACY_NOTE_TAIL = "never the full file, never the recorded route.";
+const PRIVACY_NOTE_UNUSED = "The coordinates of your reconstructed points are sent…";
 
 function controls(
   overrides: Partial<ElevationControlsBinding> = {},
@@ -42,7 +44,7 @@ function controls(
     disclosure: { sentPoints: 12, totalPoints: 12, requestCount: 1 },
     providerName: "Open-Meteo",
     attribution: "Elevation: Open-Meteo (Copernicus DEM GLO-90)",
-    privacyNote: PRIVACY_NOTE,
+    privacyNoteKey: "elevation.privacyNote.openMeteo",
     summary: null,
     error: null,
     confirmFetch: vi.fn(),
@@ -83,6 +85,7 @@ describe("ElevationControls", () => {
     expect(dialog).toHaveTextContent("sampled from 900");
     expect(dialog).toHaveTextContent("4 requests");
     expect(dialog).toHaveTextContent(PRIVACY_NOTE);
+    expect(dialog).toHaveTextContent(PRIVACY_NOTE_TAIL);
 
     fireEvent.click(screen.getByTestId("elevation-disclosure-confirm"));
     expect(confirmFetch).toHaveBeenCalledTimes(1);

@@ -44,11 +44,13 @@ import { useCreateElevation } from "@/hooks/use-create-elevation";
 import { useCreateExport } from "@/hooks/use-create-export";
 import { useCreateMap } from "@/hooks/use-create-map";
 import { useCreateShare } from "@/hooks/use-create-share";
+import { useI18n } from "@/hooks/use-i18n";
 import { createTrackFileName } from "@/hooks/use-create-session";
 import { useCreateStore } from "@/state/create-store";
 import { useUiStore } from "@/state/ui-store";
 
 export function CreateStudio() {
+  const { t } = useI18n();
   const phase = useCreateStore((s) => s.phase);
   const view = useCreateStore((s) => s.view);
   const stats = useCreateStore((s) => s.stats);
@@ -102,7 +104,7 @@ export function CreateStudio() {
             map={map}
             attachContainer={map.setContainer}
             draw={draw}
-            srNote=" No recorded route — this activity is drawn from scratch from your entered statistics."
+            srNote={` ${t("create.studio.srNote")}`}
           />
         }
         tools={

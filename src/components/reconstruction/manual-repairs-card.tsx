@@ -33,6 +33,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { HintTip } from "@/components/shared/hint-tip";
+import { useI18n } from "@/hooks/use-i18n";
 import { Crosshair, MousePointer2, PenLine, Trash2, X } from "lucide-react";
 import {
   GAP_KIND_LABELS,
@@ -55,10 +56,11 @@ function BoundaryLine({
   role: string;
   point: NonNullable<RepairRow["before"]>;
 }) {
+  const { t } = useI18n();
   return (
     <p className="text-[11.5px] leading-relaxed text-muted-foreground">
       <span className="font-semibold text-ink">{role}</span>{" "}
-      {point.time !== undefined ? formatDateTime(point.time) : "no time"} ·{" "}
+      {point.time !== undefined ? formatDateTime(point.time) : t("manualRepairs.noTime")} ·{" "}
       <span className="font-mono text-[10.5px]">{formatLatLon(point.lat, point.lon)}</span>
     </p>
   );
@@ -75,6 +77,7 @@ function ManualSpanRow({
   onOpenEditor: (gapId: GapId) => void;
   onRemoveSpan: (gapId: GapId) => void;
 }) {
+  const { t } = useI18n();
   const hasVertices = status === "reconstructed" || status === "in-progress";
   const openEnded = row.before === undefined || row.after === undefined;
   return (
@@ -87,19 +90,20 @@ function ManualSpanRow({
         <GapStatusBadge status={status} />
         {row.impliedDistanceM !== undefined && (
           <span className="ml-auto text-[12.5px] font-bold tabular-nums">
-            {formatDistanceMeters(row.impliedDistanceM)} span
+            {t("manualRepairs.spanMeters", {
+              distance: formatDistanceMeters(row.impliedDistanceM),
+            })}
           </span>
         )}
       </span>
-      {row.before && <BoundaryLine role="From" point={row.before} />}
-      {row.after && <BoundaryLine role="To" point={row.after} />}
+      {row.before && <BoundaryLine role={t("manualRepairs.from")} point={row.before} />}
+      {row.after && <BoundaryLine role={t("manualRepairs.to")} point={row.after} />}
       {openEnded && (
         <p
           className="text-xs italic text-muted-foreground"
           data-testid="open-end-note"
         >
-          Open end — the drawn route extends into the unrecorded part; it
-          connects nowhere else.
+          {t("manualRepairs.openEndNote")}
         </p>
       )}
       <span className="mt-1 flex items-center gap-1">
@@ -110,17 +114,17 @@ function ManualSpanRow({
           onClick={() => onOpenEditor(row.id)}
         >
           <PenLine className="size-3.5" aria-hidden="true" />
-          {hasVertices ? "Edit route" : "Draw route"}
+          {hasVertices ? t("manualRepairs.editRoute") : t("manualRepairs.drawRoute")}
         </button>
         <button
           type="button"
           data-testid="remove-manual-span-button"
           className="flex w-fit items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12.5px] font-semibold text-muted-foreground hover:bg-inkplus hover:text-paper focus-visible:outline-2"
-          aria-label={`Remove manual repair span ${row.id}`}
+          aria-label={t("manualRepairs.removeAria", { id: row.id })}
           onClick={() => onRemoveSpan(row.id)}
         >
           <Trash2 className="size-3.5" aria-hidden="true" />
-          Remove
+          {t("manualRepairs.remove")}
         </button>
       </span>
     </li>
@@ -181,28 +185,26 @@ export function ManualRepairsCard({
   statusById,
   copy,
 }: ManualRepairsCardProps) {
+  const { t } = useI18n();
   const detected = new Set(detectedGapIds);
   const visible = rows.filter((row) => !detected.has(row.id));
-  const title = copy?.title ?? "Manual repairs";
+  /*
+   * Per-section voice (Task 28): every string stays overridable — the
+   * recovery section passes its own copy; the repair studio's exact
+   * wording now lives in the i18n dictionary as the default.
+   */
+  const title = copy?.title ?? t("manualRepairs.title");
   const description =
-    copy?.description ?? "Add or redraw route yourself — detection is only a helper.";
-  const anchorLabel = copy?.anchorLabel ?? "Add missing route";
-  const anchorHint =
-    copy?.anchorHint ??
-    "One click anywhere on the map — the repair attaches to the recorded route's nearest end and your clicks draw the missing route outward from there, following the roads between them. Use it for a missing head or tail the watch never recorded.";
-  const pairLabel = copy?.pairLabel ?? "Redraw a stretch";
-  const pairHint =
-    copy?.pairHint ??
-    "Click two points on the recorded route — what's between them gets replaced by your drawing. Use it when the watch drew a straight line over a detour you actually ran.";
-  const empty =
-    copy?.empty ??
-    "No manual repairs yet. Start one anywhere on the route — a detour the watch drew straight, a missing head or tail — even when no gap was detected.";
+    copy?.description ?? t("manualRepairs.description");
+  const anchorLabel = copy?.anchorLabel ?? t("manualRepairs.anchorLabel");
+  const anchorHint = copy?.anchorHint ?? t("manualRepairs.anchorHint");
+  const pairLabel = copy?.pairLabel ?? t("manualRepairs.pairLabel");
+  const pairHint = copy?.pairHint ?? t("manualRepairs.pairHint");
+  const empty = copy?.empty ?? t("manualRepairs.empty");
   const anchorInstructions =
-    copy?.anchorInstructions ??
-    "Click anywhere on the map near where the missing route goes — the repair anchors to the recorded route's nearest end and every click after that draws outward from it. Esc cancels.";
+    copy?.anchorInstructions ?? t("manualRepairs.anchorInstructions");
   const pairInstructions =
-    copy?.pairInstructions ??
-    "Click two points on the recorded route — the stretch between them is what you replace. Pan and zoom stay available; Esc cancels.";
+    copy?.pairInstructions ?? t("manualRepairs.pairInstructions");
 
   return (
     <Card data-testid="manual-repairs-card">
@@ -226,7 +228,7 @@ export function ManualRepairsCard({
               onClick={onCancelPick}
             >
               <X className="size-3.5" aria-hidden="true" />
-              Cancel picking
+              {t("manualRepairs.cancelPicking")}
             </Button>
           )}
         </CardAction>
@@ -272,8 +274,7 @@ export function ManualRepairsCard({
             className="rounded-md border-[1.25px] border-ink/15 bg-ink/[0.03] px-3 py-2 text-xs leading-relaxed text-muted-foreground"
             data-testid="tools-locked-note"
           >
-            A repair editor is open — finish or close it before starting
-            another repair.
+            {t("manualRepairs.toolsLocked")}
           </p>
         )}
         {pickMode === "anchor" && (

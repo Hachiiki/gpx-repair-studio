@@ -10,10 +10,11 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HelpDialog } from "@/components/layout/help-dialog";
-import { SHORTCUT_GROUPS } from "@/components/layout/help-content";
+import { getShortcutGroups } from "@/components/layout/help-content";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { setThemePreference } from "@/state/theme-store";
+import { enTranslator } from "@/hooks/use-i18n";
 
 afterEach(() => {
   cleanup();
@@ -21,9 +22,11 @@ afterEach(() => {
   setThemePreference("system");
 });
 
-describe("HelpContent / SHORTCUT_GROUPS (the keyboard map contract)", () => {
+describe("HelpContent / getShortcutGroups (the keyboard map contract)", () => {
   it("documents the shipped bindings: ?, Esc, D, M, P, C", () => {
-    const all = SHORTCUT_GROUPS.flatMap((group) => group.shortcuts);
+    const all = getShortcutGroups(enTranslator).flatMap(
+      (group) => group.shortcuts,
+    );
     for (const key of ["?", "Esc", "D", "M", "P", "C"]) {
       expect(
         all.some((shortcut) => shortcut.keys.includes(key)),
@@ -35,7 +38,7 @@ describe("HelpContent / SHORTCUT_GROUPS (the keyboard map contract)", () => {
   it("renders the groups and the where-everything-lives guide", () => {
     render(<HelpDialog open onClose={vi.fn()} />);
     expect(screen.getByTestId("help-dialog")).toBeInTheDocument();
-    for (const group of SHORTCUT_GROUPS) {
+    for (const group of getShortcutGroups(enTranslator)) {
       expect(screen.getByText(group.title)).toBeInTheDocument();
     }
     expect(screen.getByText(/seven tool cards/i)).toBeInTheDocument();

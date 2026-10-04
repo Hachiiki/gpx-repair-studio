@@ -31,6 +31,7 @@ import type { BatchSessionBinding } from "@/hooks/use-batch-session";
 import { useBatchStore } from "@/state/batch-store";
 import type { PresetId } from "@/types/domain";
 import { formatDistanceMeters } from "@/lib/utils/format";
+import { useI18n } from "@/hooks/use-i18n";
 
 /** The studio's one piece of local state: the pending preset flow. */
 interface PendingPreset {
@@ -40,18 +41,25 @@ interface PendingPreset {
 }
 
 export function BatchStudio({ session }: { session: BatchSessionBinding }) {
+  const { t } = useI18n();
   const [pending, setPending] = useState<PendingPreset | null>(null);
   const aggregate = session.aggregate;
 
   // The aggregate line — one sentence, every number derived (§EE 18.1).
   const summaryParts = [
-    `${aggregate.parsed} parsed`,
-    ...(aggregate.failed > 0 ? [`${aggregate.failed} failed`] : []),
-    ...(aggregate.fixed > 0 ? [`${aggregate.fixed} fixed`] : []),
-    ...(aggregate.issuesFound > 0
-      ? [`${aggregate.issuesFound} with findings`]
+    t("batch.studio.summaryParsed", { count: aggregate.parsed }),
+    ...(aggregate.failed > 0
+      ? [t("batch.studio.summaryFailed", { count: aggregate.failed })]
       : []),
-    ...(aggregate.clean > 0 ? [`${aggregate.clean} clean`] : []),
+    ...(aggregate.fixed > 0
+      ? [t("batch.studio.summaryFixed", { count: aggregate.fixed })]
+      : []),
+    ...(aggregate.issuesFound > 0
+      ? [t("batch.studio.summaryFindings", { count: aggregate.issuesFound })]
+      : []),
+    ...(aggregate.clean > 0
+      ? [t("batch.studio.summaryClean", { count: aggregate.clean })]
+      : []),
   ];
   const summary = summaryParts.join(" · ");
 
@@ -73,7 +81,7 @@ export function BatchStudio({ session }: { session: BatchSessionBinding }) {
 
   return (
     <section
-      aria-label="Batch queue studio"
+      aria-label={t("batch.studio.sectionAria")}
       data-testid="batch-section"
       className="scroll-mt-20"
       id="batch"
@@ -92,19 +100,25 @@ export function BatchStudio({ session }: { session: BatchSessionBinding }) {
                 className="size-[11px] shrink-0 rounded-[1.5px] bg-signal"
                 aria-hidden="true"
               />
-              The batch queue
+              {t("batch.studio.title")}
             </h2>
             <p
               className="mt-1.5 max-w-[62ch] text-sm leading-relaxed text-muted-foreground"
               data-testid="batch-aggregate"
             >
-              {summary} · {aggregate.recordedPoints.toLocaleString()} recorded
-              points · {formatDistanceMeters(aggregate.recordedDistanceM)}{" "}
-              recorded
+              {summary} ·{" "}
+              {t("batch.studio.recordedPoints", {
+                count: aggregate.recordedPoints.toLocaleString(),
+              })}{" "}
+              ·{" "}
+              {t("batch.studio.recordedDistance", {
+                distance: formatDistanceMeters(aggregate.recordedDistanceM),
+              })}
               {aggregate.deletedPoints > 0 &&
-                ` · ${aggregate.deletedPoints.toLocaleString()} points removed by fixes`}
-              . Everything stays in this browser; the originals are never
-              modified.
+                t("batch.studio.pointsRemoved", {
+                  count: aggregate.deletedPoints.toLocaleString(),
+                })}
+              {t("batch.studio.aggregateNote")}
             </p>
           </div>
           <Button
@@ -114,7 +128,7 @@ export function BatchStudio({ session }: { session: BatchSessionBinding }) {
             onClick={() => useBatchStore.getState().backToIntake()}
           >
             <Plus className="size-4" aria-hidden="true" />
-            Add files
+            {t("batch.studio.addFiles")}
           </Button>
         </div>
 

@@ -31,6 +31,8 @@ import {
   planSplitSegment,
 } from "@/features/validation/surgery";
 import { announce } from "@/lib/announcements";
+import { useI18n } from "@/hooks/use-i18n";
+import { translateLabel } from "@/i18n/runtime";
 import { isUsableStatsPoint } from "@/features/statistics/distance";
 import type { MapController } from "@/lib/map/mapController";
 import { activeReconstruction, useEditorStore } from "@/state/editor-store";
@@ -87,6 +89,7 @@ export function useSurgery(
   session: GpxSession,
   map: MapBinding,
 ): SurgeryBinding {
+  const { t } = useI18n();
   // The armed slot is DERIVED through two guards instead of being
   // synced by effects (the react-hooks/set-state-in-effect rule): the
   // editor's span picks cancel it (the one-pick-mode rule — the same
@@ -135,13 +138,13 @@ export function useSurgery(
           pickSeq.current += 1;
           setLastPick({ slot: pickMode, pointId, seq: pickSeq.current });
           setPickSlot(null);
-          announce("Point picked.");
+          announce(t("hook.surgery.pointPicked"));
         },
         onCancel: () => setPickSlot(null),
       },
     });
     return () => controller.endPickSession();
-  }, [pickMode, workingData, getController]);
+  }, [pickMode, workingData, getController, t]);
 
   // -- resolvers + planners (pure, over the working view) --------------------
 
@@ -218,8 +221,10 @@ export function useSurgery(
     useWorkingStore
       .getState()
       .applyEdit(editFromPlan(plan, nextEditId(), appliedAt));
-    announce(`Surgery applied — ${plan.label}. Stats recompute from the working copy.`);
-  }, []);
+    announce(
+      t("hook.surgery.applied", { label: translateLabel(t, plan.label) }),
+    );
+  }, [t]);
 
   return useMemo(
     () => ({

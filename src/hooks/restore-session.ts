@@ -37,6 +37,7 @@ import { getRoadRouter } from "@/hooks/use-draw-editor";
 import { loadGpxFile } from "@/hooks/use-gpx-session";
 import { loadRecoveryFile } from "@/hooks/use-recovery-session";
 import { announce } from "@/lib/announcements";
+import { translateNow } from "@/i18n/runtime";
 import { useCreateStore } from "@/state/create-store";
 import { useEditorStore } from "@/state/editor-store";
 import { usePlanStore } from "@/state/plan-store";
@@ -102,8 +103,8 @@ export async function restoreSessionFromRecord(
     seedRouterFromFileRecord(record);
     announce(
       record.section === "repair"
-        ? "Repair session restored."
-        : "Recovery session restored.",
+        ? translateNow("hook.restore.repairRestored")
+        : translateNow("hook.restore.recoveryRestored"),
     );
     return { status: "restored", section: record.section };
   }
@@ -114,7 +115,7 @@ export async function restoreSessionFromRecord(
     if ((style === "car" || style === "foot") && record.roadLegs.length > 0) {
       getRoadRouter().seedCache(style, record.roadLegs);
     }
-    announce("Create session restored.");
+    announce(translateNow("hook.restore.createRestored"));
     return { status: "restored", section: "create" };
   }
 
@@ -124,7 +125,7 @@ export async function restoreSessionFromRecord(
     if ((style === "car" || style === "foot") && record.roadLegs.length > 0) {
       getRoadRouter().seedCache(style, record.roadLegs);
     }
-    announce("Plan session restored.");
+    announce(translateNow("hook.restore.planRestored"));
     return { status: "restored", section: "plan" };
   }
 

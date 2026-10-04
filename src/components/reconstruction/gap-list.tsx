@@ -26,6 +26,7 @@ import {
   GapSeverityBadge,
   GapStatusBadge,
 } from "@/components/shared/gap-vocabulary";
+import { useI18n } from "@/hooks/use-i18n";
 import type { GapRow, GapThresholds } from "@/hooks/use-gpx-session";
 import type { GapStatus } from "@/state/editor-store";
 import type { GapId } from "@/types/domain";
@@ -44,10 +45,11 @@ function BoundaryLine({
   role: string;
   point: GapRow["before"];
 }) {
+  const { t } = useI18n();
   return (
     <p className="text-[11.5px] leading-relaxed text-muted-foreground">
       <span className="font-semibold text-ink">{role}</span>{" "}
-      {point.time !== undefined ? formatDateTime(point.time) : "no time"} ·{" "}
+      {point.time !== undefined ? formatDateTime(point.time) : t("gapList.noTime")} ·{" "}
       <span className="font-mono text-[10.5px]">{formatLatLon(point.lat, point.lon)}</span>{" "}
       <span className="font-mono text-[10.5px] text-ink/70">({point.pointId})</span>
     </p>
@@ -77,6 +79,7 @@ function GapRowItem({
   showOpenEditor: boolean;
 }) {
   const rowRef = useRef<HTMLButtonElement | null>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (selected && typeof rowRef.current?.scrollIntoView === "function") {
@@ -100,7 +103,13 @@ function GapRowItem({
         data-testid="gap-row"
         data-selected={selected}
         aria-pressed={selected}
-        aria-label={`Gap ${GAP_KIND_LABELS[row.kind]}, ${row.severity}. ${selected ? "Deselect" : "Select and focus on map"}.`}
+        aria-label={t("gapList.rowAria", {
+          kind: GAP_KIND_LABELS[row.kind],
+          severity: row.severity,
+          action: selected
+            ? t("gapList.deselect")
+            : t("gapList.selectFocus"),
+        })}
         className={`grid w-full gap-1.5 rounded-[6px] text-left focus-visible:outline-2 ${
           selected ? "" : "hover:bg-ink/[0.04]"
         }`}
@@ -114,21 +123,23 @@ function GapRowItem({
           {status !== "new" && <GapStatusBadge status={status} />}
           <span className="ml-auto text-[12.5px] font-bold tabular-nums">
             {row.elapsedMs !== undefined
-              ? `${formatDurationMs(row.elapsedMs)} elapsed`
-              : "elapsed unknown"}
+              ? t("gapList.elapsed", { duration: formatDurationMs(row.elapsedMs) })
+              : t("gapList.elapsedUnknown")}
           </span>
         </span>
-        <BoundaryLine role="From" point={row.before} />
-        <BoundaryLine role="To" point={row.after} />
+        <BoundaryLine role={t("gapList.from")} point={row.before} />
+        <BoundaryLine role={t("gapList.to")} point={row.after} />
         <span className="text-[11.5px] leading-relaxed text-muted-foreground">
-          Straight-line:{" "}
+          {t("gapList.straightLine")}{" "}
           {row.impliedDistanceM !== undefined
             ? formatDistanceMeters(row.impliedDistanceM)
             : "—"}
           {row.impliedSpeed !== undefined && (
             <>
               {" "}
-              · implied speed {formatSpeedKmh(row.impliedSpeed * 3.6)}
+              {t("gapList.impliedSpeed", {
+                speed: formatSpeedKmh(row.impliedSpeed * 3.6),
+              })}
             </>
           )}
         </span>
@@ -141,7 +152,7 @@ function GapRowItem({
           onClick={() => onOpenEditor(row.id)}
         >
           <PenLine className="size-3.5" aria-hidden="true" />
-          {hasVertices ? "Edit route" : "Draw route"}
+          {hasVertices ? t("gapList.editRoute") : t("gapList.drawRoute")}
         </button>
       )}
     </div>
@@ -186,17 +197,18 @@ export function GapList({
   onBeginPick,
   editorActive = false,
 }: GapListProps) {
+  const { t } = useI18n();
   return (
     <Card data-testid="gap-list">
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <span className="size-2 shrink-0 rounded-[1px] bg-signal" aria-hidden="true" />
-          Detected gaps
+          {t("gapList.title")}
         </h3>
         <CardDescription>
           {rows.length === 1
-            ? "1 candidate repair site"
-            : `${rows.length} candidate repair sites`}
+            ? t("gapList.oneSite")
+            : t("gapList.manySites", { count: rows.length })}
         </CardDescription>
         <CardAction>
           <GapThresholdSettings
@@ -214,7 +226,7 @@ export function GapList({
                 className="size-4 shrink-0 text-signal"
                 aria-hidden="true"
               />
-              No gaps detected with the current thresholds.
+              {t("gapList.empty")}
             </p>
             {onBeginPick && (
               <button
@@ -223,14 +235,12 @@ export function GapList({
                 className="flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-signal-ink hover:bg-signal/10 focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-50"
                 disabled={editorActive}
                 title={
-                  editorActive
-                    ? "A repair editor is open — finish or close it first."
-                    : undefined
+                  editorActive ? t("gapList.editorOpenTitle") : undefined
                 }
                 onClick={onBeginPick}
               >
                 <PenLine className="size-3.5" aria-hidden="true" />
-                Something still looks wrong? Draw a repair manually
+                {t("gapList.beginPick")}
               </button>
             )}
           </div>

@@ -9,6 +9,11 @@
  * intermediate states; nothing applies without the caller's decision.
  */
 
+import { translateLabel, translatorFor } from "@/i18n/runtime";
+
+const t = translatorFor("en");
+const labelOf = (l: unknown) => translateLabel(t, l as never);
+
 import { describe, expect, it } from "vitest";
 import { parseFixture } from "./helpers/gpxTestUtils";
 import { deepValidate } from "@/features/validation/deepValidate";
@@ -48,7 +53,7 @@ describe("planFix — each fix targets its own finding", () => {
       { kind: "point-deletion", pointId: pid(10) },
       { kind: "point-deletion", pointId: pid(11) },
     ]);
-    expect(plan?.summary[0]).toContain("2 recorded points leave");
+    expect(labelOf(plan?.summary[0])).toContain("2 recorded points leave");
   });
 
   it("plans keep-first dedupe (the anchor survives)", () => {
@@ -61,7 +66,7 @@ describe("planFix — each fix targets its own finding", () => {
   it("plans the sort with the untimed-points disclosure", () => {
     const plan = planFix(data, report, "sort-by-time");
     expect(plan?.entries).toEqual([{ kind: "segment-sort", segmentId: "t0s0" }]);
-    expect(plan?.summary.join(" ")).not.toContain("without a usable timestamp");
+    expect(plan?.summary.map((s) => labelOf(s)).join(" ")).not.toContain("without a usable timestamp");
   });
 
   it("plans the smoothing with the interpolated replacement", () => {

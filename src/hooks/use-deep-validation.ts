@@ -36,6 +36,8 @@ import {
 } from "@/features/validation/fixes";
 import { workingMetaOf } from "@/features/validation/workingCopy";
 import { announce } from "@/lib/announcements";
+import { useI18n } from "@/hooks/use-i18n";
+import { translateLabel } from "@/i18n/runtime";
 import { nextEditId, useWorkingStore } from "@/state/working-store";
 import type {
   DeepIssueKind,
@@ -83,6 +85,7 @@ export interface DeepValidationBinding {
 }
 
 export function useDeepValidation(session: GpxSession): DeepValidationBinding {
+  const { t } = useI18n();
   const edits = useWorkingStore((s) => s.edits);
   const rawOptions = useWorkingStore((s) => s.options);
   const applyEdit = useWorkingStore((s) => s.applyEdit);
@@ -155,19 +158,22 @@ export function useDeepValidation(session: GpxSession): DeepValidationBinding {
       // Phase 8 pattern — the aria-live region speaks the outcome.
       const label =
         plans.length === 1
-          ? plans[0].label
-          : `${plans.length} fixes (${plans.map((p) => p.label).join("; ")})`;
-      announce(`Fix applied — ${label}. The report re-checks the working copy.`);
+          ? translateLabel(t, plans[0].label)
+          : t("hook.deepValidation.fixesSummary", {
+              count: plans.length,
+              labels: plans.map((p) => translateLabel(t, p.label)).join("; "),
+            });
+      announce(t("hook.deepValidation.applied", { label }));
     },
-    [applyEdit],
+    [applyEdit, t],
   );
 
   const undo = useCallback(() => {
     const undone = undoEdit();
     if (undone) {
-      announce(`Undone — ${undone.label}.`);
+      announce(t("hook.deepValidation.undone", { label: translateLabel(t, undone.label) }));
     }
-  }, [undoEdit]);
+  }, [undoEdit, t]);
 
   return {
     options,

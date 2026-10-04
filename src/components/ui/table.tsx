@@ -1,5 +1,6 @@
 "use client"
 
+import { translateNow } from "@/i18n/runtime";
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -13,7 +14,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
        * once it overflows; the tab stop is inert when it doesn't). */
       tabIndex={0}
       role="region"
-      aria-label="Data table"
+      aria-label={translateNow("ui.dataTable")}
       className="relative w-full overflow-x-auto focus-visible:outline-2"
     >
       <table

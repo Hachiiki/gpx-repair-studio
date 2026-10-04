@@ -14,6 +14,7 @@
 
 "use client";
 
+import { useI18n } from "@/hooks/use-i18n";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,6 +30,8 @@ export interface PlanStartCardProps {
 }
 
 export function PlanStartCard({ onBegin }: PlanStartCardProps) {
+  const { t } = useI18n();
+
   return (
     <Card
       className="w-full border-[1.5px] border-ink"
@@ -37,10 +40,10 @@ export function PlanStartCard({ onBegin }: PlanStartCardProps) {
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <PencilRuler className="size-4 text-signal" aria-hidden="true" />
-          Nothing to upload
+          {t("plan.start.title")}
         </h3>
         <CardDescription>
-          The map is the input — sketch a route and read its numbers.
+          {t("plan.start.intro")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -51,8 +54,7 @@ export function PlanStartCard({ onBegin }: PlanStartCardProps) {
               aria-hidden="true"
             />
             <span>
-              Estimate distance and elevation for roads and paths you
-              draw — live, as the line takes shape.
+              {t("plan.start.estimateBullet")}
             </span>
           </li>
           <li className="flex items-start gap-2">
@@ -61,9 +63,9 @@ export function PlanStartCard({ onBegin }: PlanStartCardProps) {
               aria-hidden="true"
             />
             <span>
-              Enter a time and see the pace it implies — a scratchpad for
-              planning, with <strong>no export and no share</strong>:
-              nothing leaves this page.
+              {t("plan.start.paceBulletLead")}{" "}
+              <strong>{t("plan.start.paceBulletBold")}</strong>
+              {t("plan.start.paceBulletTail")}
             </span>
           </li>
         </ul>
@@ -75,7 +77,7 @@ export function PlanStartCard({ onBegin }: PlanStartCardProps) {
           onClick={onBegin}
         >
           <PencilRuler className="size-4" aria-hidden="true" />
-          Start planning
+          {t("plan.start.begin")}
         </Button>
       </CardContent>
     </Card>

@@ -8,6 +8,7 @@
  * that keeps one server's answers out of another's cache.
  */
 
+import { translatorFor } from "@/i18n/runtime";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_OSRM_BASE,
@@ -132,7 +133,7 @@ describe("validateCustomRouterUrlInput (honest verdicts)", () => {
     const verdict = validateCustomRouterUrlInput("osrm.example.com");
     expect(verdict.ok).toBe(false);
     if (!verdict.ok) {
-      expect(verdict.reason).toMatch(/must start with https:\/\//i);
+      expect(translatorFor("en")(verdict.reasonKey)).toMatch(/must start with https:\/\//i);
     }
   });
 
@@ -140,7 +141,7 @@ describe("validateCustomRouterUrlInput (honest verdicts)", () => {
     const verdict = validateCustomRouterUrlInput("https://");
     expect(verdict.ok).toBe(false);
     if (!verdict.ok) {
-      expect(verdict.reason).toMatch(/does not parse/i);
+      expect(translatorFor("en")(verdict.reasonKey)).toMatch(/does not parse/i);
     }
   });
 });

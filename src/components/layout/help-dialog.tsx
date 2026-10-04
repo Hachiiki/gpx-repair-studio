@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { HelpContent } from "@/components/layout/help-content";
+import { useI18n } from "@/hooks/use-i18n";
 import type { ToolTourId } from "@/lib/storage/tour-flag";
 
 export interface HelpDialogProps {
@@ -37,6 +38,7 @@ export interface HelpDialogProps {
 }
 
 export function HelpDialog({ open, onClose, onStartTour }: HelpDialogProps) {
+  const { t } = useI18n();
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent
@@ -46,12 +48,12 @@ export function HelpDialog({ open, onClose, onStartTour }: HelpDialogProps) {
         <div className="border-b-[1.5px] border-ink pl-5 pr-12 pt-4">
           <DialogTitle className="flex items-center gap-2 text-left text-[17px] font-bold tracking-tight">
             <Keyboard className="size-4 text-signal" aria-hidden="true" />
-            Shortcuts &amp; help
+            {t("help.dialog.title")}
           </DialogTitle>
           <DialogDescription className="mt-0.5 pb-3 text-left text-[13px] text-muted-foreground">
-            Every keyboard shortcut in the app, and where to find each tool.
-            Press <span className="font-mono font-semibold">?</span> anytime
-            to reopen this.
+            {t("help.dialog.description")}{" "}
+            <span className="font-mono font-semibold">?</span>{" "}
+            {t("help.dialog.descriptionSuffix")}
           </DialogDescription>
         </div>
         <div className="max-h-[min(70vh,640px)] overflow-y-auto p-5">

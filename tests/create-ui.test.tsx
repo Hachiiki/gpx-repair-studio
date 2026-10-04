@@ -409,7 +409,7 @@ function elevationBinding(
     disclosure: { sentPoints: 181, totalPoints: 181, requestCount: 2 },
     providerName: "Open-Meteo",
     attribution: "Open-Meteo",
-    privacyNote: "Coordinates are sent over HTTPS.",
+    privacyNoteKey: "elevation.privacyNote.openMeteo",
     summary: null,
     error: null,
     confirmFetch: vi.fn(),

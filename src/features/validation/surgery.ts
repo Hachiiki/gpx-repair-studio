@@ -135,7 +135,7 @@ export function planSplitSegment(
   ];
   return {
     kind: "split-segment",
-    label: `Split ${segmentId} after point #${at + 1}`,
+    label: { key: "surgery.split.label", params: { segment: segmentId, at: at + 1 } },
     entries: [
       {
         kind: "segment-split",
@@ -145,8 +145,11 @@ export function planSplitSegment(
     ],
     points: refs,
     summary: [
-      `${segmentId} is cut in two after point #${at + 1} — the ${tailCount} point${tailCount === 1 ? "" : "s"} after it move${tailCount === 1 ? "s" : ""} to a new segment in the same track.`,
-      "Every point keeps its position and its recorded data; only the grouping changes. The route and its distances do not move by the cut itself — the numbers recompute from the same points.",
+      {
+        key: "surgery.split.s1",
+        params: { segment: segmentId, at: at + 1, count: tailCount },
+      },
+      { key: "surgery.split.s2" },
     ],
   };
 }
@@ -186,15 +189,18 @@ export function planDeleteRange(
     .map((point) => ({ segmentId, pointId: point.id as PointRef["pointId"] }));
   return {
     kind: "delete-range",
-    label: `Delete ${count} point${count === 1 ? "" : "s"} from ${segmentId}`,
+    label: { key: count === 1 ? "surgery.deleteRange.label.one" : "surgery.deleteRange.label.many", params: { count, segment: segmentId } },
     entries,
     points: refs,
     summary: [
-      `${count} point${count === 1 ? " leaves" : "s leave"} the working copy — the stretch from point #${lo + 1} to #${hi + 1} of ${segmentId}.`,
-      whole
-        ? "The stretch covers the whole segment — it stays in the file as an empty segment rather than vanishing silently."
-        : "The points before and after the stretch stay exactly as recorded.",
-      "The original file keeps every point; the working copy and the export note the removal.",
+      {
+        key: count === 1
+          ? "surgery.deleteRange.s1.one"
+          : "surgery.deleteRange.s1.many",
+        params: { count, lo: lo + 1, hi: hi + 1, segment: segmentId },
+      },
+      { key: whole ? "surgery.deleteRange.s2.whole" : "surgery.deleteRange.s2.partial" },
+      { key: "surgery.deleteRange.s3" },
     ],
   };
 }
@@ -220,13 +226,19 @@ export function planDuplicateSegment(
   }));
   return {
     kind: "duplicate-segment",
-    label: `Duplicate ${segmentId} (${segment.points.length} points)`,
+    label: { key: "surgery.duplicate.label", params: { segment: segmentId, count: segment.points.length } },
     entries: [{ kind: "segment-duplicate", segmentId }],
     points: refs,
     summary: [
-      `A copy of ${segmentId} (${segment.points.length} point${segment.points.length === 1 ? "" : "s"}) is inserted directly after it, inside the same track.`,
-      "The copy's points are identical and get fresh ids — later fixes can address them individually. Its distance and time count like any other segment's (that is what a duplicate is for).",
-      "Segment extras — rare vendor children — are not copied; they belong to the original recording.",
+      {
+        key:
+          segment.points.length === 1
+            ? "surgery.duplicate.s1.one"
+            : "surgery.duplicate.s1.many",
+        params: { segment: segmentId, count: segment.points.length },
+      },
+      { key: "surgery.duplicate.s2" },
+      { key: "surgery.duplicate.s3" },
     ],
   };
 }
@@ -274,13 +286,16 @@ export function planSegmentOrder(
   ];
   return {
     kind: "reorder-segments",
-    label: `Reorder segments (${moved} move${moved === 1 ? "s" : ""})`,
+    label: { key: moved === 1 ? "surgery.reorder.label.one" : "surgery.reorder.label.many", params: { count: moved } },
     entries,
     points: [],
     summary: [
-      `Segments are rearranged within their tracks — ${moved} segment${moved === 1 ? " changes" : "s change"} position${moved === 1 ? "" : "s"}.`,
-      "Tracks themselves are never crossed and the point order inside every segment is untouched; only the sequence of segments changes.",
-      "The working copy's order is your choice — the export discloses the manual reorder.",
+      {
+        key: moved === 1 ? "surgery.reorder.s1.one" : "surgery.reorder.s1.many",
+        params: { count: moved },
+      },
+      { key: "surgery.reorder.s2" },
+      { key: "surgery.reorder.s3" },
     ],
   };
 }

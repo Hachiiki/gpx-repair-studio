@@ -24,6 +24,7 @@ import { useState } from "react";
 import { APP_VERSION } from "@/components/layout/app-version";
 import { Button } from "@/components/ui/button";
 import { useRouterSettings } from "@/hooks/road-router";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 
 /* ------------------------------------------------------------------ */
 /* Privacy & Data                                                      */
@@ -44,46 +45,47 @@ export interface EgressRow {
   payload: string;
 }
 
-export const EGRESS_ROWS: readonly EgressRow[] = [
-  {
-    trigger: "The map is visible",
-    destination: "Map tiles — OpenFreeMap (default) or OpenStreetMap raster",
-    hosts: "tiles.openfreemap.org · tile.openstreetmap.org",
-    payload:
-      "Tile coordinates (x/y/z) for the visible area, plus the standard metadata any web request carries (IP address, user agent). Tile-level only — roughly kilometers at low zoom. Never your GPX, never precise positions.",
-  },
-  {
-    trigger:
-      "You enable road snapping (Roads / Footpaths / Snap to road — off until you say yes, re-asked every session)",
-    destination:
-      "Public routing services — OSRM (roads) and Valhalla (footpaths), or your own OSRM-compatible server",
-    hosts: "router.project-osrm.org · valhalla1.openstreetmap.de",
-    payload:
-      "The points of the lines you draw — per-segment endpoints for the path styles, the drawn line's points for Snap to road. Never the file, never recorded points. Nothing is sent until you enable it; the footer says so while it is on, and Straight lines and the Curve pen are fully local — no request at all.",
-  },
-  {
-    trigger: "You opt in to an elevation lookup (per reconstruction, after a disclosure)",
-    destination: "Open-Meteo Elevation API (Copernicus DEM GLO-90)",
-    hosts: "api.open-meteo.com",
-    payload:
-      "The coordinates of the reconstructed points only — the count is shown before you confirm. Never the full file, never the recorded route. Off by default; nothing fetches until you ask.",
-  },
-];
+/**
+ * The egress table's rows — the complete list of what ever leaves the
+ * browser (§M-2). Resolved per locale through the translator;
+ * exported for the pinning tests. The `hosts` column is technical
+ * (pinned to source constants by tests) and stays literal.
+ */
+export function getEgressRows(t: TranslatorArg): readonly EgressRow[] {
+  return [
+    {
+      trigger: t("info.privacy.egress.tiles.trigger"),
+      destination: t("info.privacy.egress.tiles.destination"),
+      hosts: "tiles.openfreemap.org · tile.openstreetmap.org",
+      payload: t("info.privacy.egress.tiles.payload"),
+    },
+    {
+      trigger: t("info.privacy.egress.road.trigger"),
+      destination: t("info.privacy.egress.road.destination"),
+      hosts: "router.project-osrm.org · valhalla1.openstreetmap.de",
+      payload: t("info.privacy.egress.road.payload"),
+    },
+    {
+      trigger: t("info.privacy.egress.elevation.trigger"),
+      destination: t("info.privacy.egress.elevation.destination"),
+      hosts: "api.open-meteo.com",
+      payload: t("info.privacy.egress.elevation.payload"),
+    },
+  ];
+}
 
 export function PrivacyPane() {
+  const { t } = useI18n();
+  const egressRows = getEgressRows(t);
   return (
     <div className="space-y-6" data-testid="privacy-pane">
       {/* The promise — §M-1. */}
       <section className="space-y-2">
         <h3 className="text-[17px] font-bold tracking-tight">
-          Everything else runs on this device
+          {t("info.privacy.promise.title")}
         </h3>
         <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-          Reading the file, parsing, gap detection, drawing, geodesy,
-          timestamp reconstruction, statistics, merging, and export all
-          execute in this browser tab. There is no account, no server
-          copy, no analytics, and no cookies. Closing the tab destroys
-          everything in memory.
+          {t("info.privacy.promise.body")}
         </p>
       </section>
 
@@ -93,7 +95,7 @@ export function PrivacyPane() {
           id="privacy-egress-heading"
           className="text-[17px] font-bold tracking-tight"
         >
-          What leaves this browser — the complete list
+          {t("info.privacy.egress.title")}
         </h3>
         <div className="overflow-x-auto rounded-[10px] border-[1.5px] border-ink">
           <table
@@ -106,18 +108,18 @@ export function PrivacyPane() {
                   scope="col"
                   className="w-[38%] px-3 py-2 font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-shade"
                 >
-                  When &amp; where
+                  {t("info.privacy.egress.whenWhere")}
                 </th>
                 <th
                   scope="col"
                   className="px-3 py-2 font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-shade"
                 >
-                  What is sent
+                  {t("info.privacy.egress.whatSent")}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {EGRESS_ROWS.map((row) => (
+              {egressRows.map((row) => (
                 <tr
                   key={row.trigger}
                   className="border-b-[1.5px] border-ink/10 align-top last:border-b-0"
@@ -142,13 +144,7 @@ export function PrivacyPane() {
           </table>
         </div>
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-          That is the whole list. The core flow — upload, inspect, draw
-          with Straight or Curve lines, time reconstruction, statistics,
-          merge, export, share card — makes no requests at all, and an
-          automated test runs that flow with a strict network allow-list
-          and fails if anything else is ever contacted. Road snapping
-          is the one row you switch on yourself: it stays off, sends
-          nothing, until you enable it for a session.
+          {t("info.privacy.egress.footnote")}
         </p>
       </section>
 
@@ -158,15 +154,10 @@ export function PrivacyPane() {
           id="privacy-offline-heading"
           className="text-[17px] font-bold tracking-tight"
         >
-          Working offline
+          {t("info.privacy.offline.title")}
         </h3>
         <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-          Everything except the three rows above works with the network
-          off: upload, parse, inspect, draw (Straight and Curve), time
-          reconstruction, statistics, merge, export, and the share card.
-          Without tiles the basemap falls back to a plain background —
-          the route, the gaps, and every drawn line still render on it,
-          so the work keeps going while you are offline.
+          {t("info.privacy.offline.body")}
         </p>
       </section>
 
@@ -176,33 +167,26 @@ export function PrivacyPane() {
           id="privacy-providers-heading"
           className="text-[17px] font-bold tracking-tight"
         >
-          Choosing the providers
+          {t("info.privacy.providers.title")}
         </h3>
         <ul role="list" className="space-y-1.5">
           <li className="text-[13.5px] leading-relaxed text-muted-foreground">
-            <span className="font-semibold text-foreground">Basemap:</span>{" "}
-            the map toolbar&apos;s basemap control (the layers icon)
-            switches between OpenFreeMap and OpenStreetMap Standard
-            raster — remembered with your settings.
+            <span className="font-semibold text-foreground">
+              {t("info.privacy.providers.basemapLabel")}
+            </span>{" "}
+            {t("info.privacy.providers.basemapBody")}
           </li>
           <li className="text-[13.5px] leading-relaxed text-muted-foreground">
             <span className="font-semibold text-foreground">
-              Road-following:
+              {t("info.privacy.providers.roadLabel")}
             </span>{" "}
-            off until you enable it — the draw tools ask first, the
-            footer says so while it is on, and every fresh page load
-            asks again. OSRM serves the Roads path style and Valhalla
-            serves Footpaths by default — public demo servers,
-            best-effort by design. When one is unreachable the line
-            falls back to straight segments until it recovers, and the
-            editor says so. You can also point both styles — and the
-            Snap-to-road command — at your own server:
+            {t("info.privacy.providers.roadBody")}
           </li>
           <li className="text-[13.5px] leading-relaxed text-muted-foreground">
-            <span className="font-semibold text-foreground">Elevation:</span>{" "}
-            Open-Meteo (Copernicus DEM GLO-90) is the only provider
-            today, and it is opt-in per reconstruction — the disclosure
-            with the exact point count is shown before anything is sent.
+            <span className="font-semibold text-foreground">
+              {t("info.privacy.providers.elevationLabel")}
+            </span>{" "}
+            {t("info.privacy.providers.elevationBody")}
           </li>
         </ul>
         {/*
@@ -220,7 +204,7 @@ export function PrivacyPane() {
           id="privacy-storage-heading"
           className="text-[17px] font-bold tracking-tight"
         >
-          What this device stores
+          {t("info.privacy.storage.title")}
         </h3>
         <ul role="list" className="space-y-2">
           <li
@@ -228,15 +212,14 @@ export function PrivacyPane() {
             data-testid="privacy-storage-settings"
           >
             <p className="text-[13px] font-semibold">
-              Settings — localStorage
+              {t("info.privacy.storage.settingsTitle")}
             </p>
+            {/* Storage key names shown VERBATIM (machine values) */}
             <p className="mt-1 font-mono text-[11px] text-shade">
-              gpx-repair-studio.settings.v1
+              {"gpx-repair-studio.settings.v1"}
             </p>
             <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
-              Your gap thresholds, basemap choice, units, export
-              preferences, and the last tool you opened. Settings only —
-              never GPX data.
+              {t("info.privacy.storage.settingsBody")}
             </p>
           </li>
           <li
@@ -244,25 +227,18 @@ export function PrivacyPane() {
             data-testid="privacy-storage-sessions"
           >
             <p className="text-[13px] font-semibold">
-              Unfinished work — IndexedDB
+              {t("info.privacy.storage.sessionsTitle")}
             </p>
             <p className="mt-1 font-mono text-[11px] text-shade">
-              gpx-repair-studio.sessions
+              {"gpx-repair-studio.sessions"}
             </p>
             <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
-              While you draw, the original file&apos;s bytes and your
-              edits (points, spans, settings) are autosaved — one record
-              per tool, at most four, so a reload or closed tab offers
-              your work back instead of losing it. Never uploaded. Clear
-              it with Discard or &quot;Clear all saved sessions&quot; on
-              the landing page, &quot;Start over&quot; in a workspace, or
-              by clearing this site&apos;s data in the browser.
+              {t("info.privacy.storage.sessionsBody")}
             </p>
           </li>
         </ul>
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-          No cookies. No analytics. No accounts. If you clear site data
-          and close the tab, nothing remains anywhere.
+          {t("info.privacy.storage.footnote")}
         </p>
       </section>
     </div>
@@ -273,59 +249,57 @@ export function PrivacyPane() {
 /* About                                                               */
 /* ------------------------------------------------------------------ */
 
-/** The open-data / open-software credits — exported for the pinning tests. */
-export const ATTRIBUTIONS: readonly { name: string; credit: string }[] = [
-  {
-    name: "MapLibre GL JS",
-    credit: "Open-source WebGL map rendering (BSD-2-Clause).",
-  },
-  {
-    name: "OpenFreeMap & OpenStreetMap",
-    credit:
-      "Map tiles — the Positron style via OpenFreeMap, and the classic raster tiles. Map data © OpenStreetMap contributors.",
-  },
-  {
-    name: "OSRM & Valhalla",
-    credit:
-      "Road-following for the Roads and Footpaths pens, served from their public demo servers (OpenStreetMap data).",
-  },
-  {
-    name: "Open-Meteo — Copernicus DEM GLO-90",
-    credit:
-      "Opt-in elevation lookups. © Open-Meteo.com — contains modified Copernicus data.",
-  },
-  {
-    name: "Archivo, Big Shoulders, IBM Plex Mono & Montserrat",
-    credit:
-      "The type system — self-hosted with the app, which makes no font requests at runtime.",
-  },
-];
+/**
+ * The open-data / open-software credits, resolved per locale through
+ * the translator — exported for the pinning tests. The `name` column
+ * is third-party product names (locale-invariant, like the wordmark);
+ * the credit lines are copy.
+ */
+export function getAttributions(
+  t: TranslatorArg,
+): readonly { name: string; credit: string }[] {
+  return [
+    {
+      name: "MapLibre GL JS",
+      credit: t("info.about.credit.mapLibre"),
+    },
+    {
+      name: "OpenFreeMap & OpenStreetMap",
+      credit: t("info.about.credit.tiles"),
+    },
+    {
+      name: "OSRM & Valhalla",
+      credit: t("info.about.credit.routing"),
+    },
+    {
+      name: "Open-Meteo — Copernicus DEM GLO-90",
+      credit: t("info.about.credit.elevation"),
+    },
+    {
+      name: "Archivo, Big Shoulders, IBM Plex Mono & Montserrat",
+      credit: t("info.about.credit.fonts"),
+    },
+  ];
+}
 
 export function AboutPane() {
+  const { t } = useI18n();
+  const attributions = getAttributions(t);
   return (
     <div className="space-y-6" data-testid="about-pane">
       <section className="space-y-2">
         <h3 className="text-[17px] font-bold tracking-tight">
-          A local-first workbench for GPX files
+          {t("info.about.title")}
         </h3>
         <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-          GPX Repair Studio exists because GPS recordings break in
-          predictable ways — signal loss in tunnels and downtown
-          canyons, watches that keep the numbers but lose the map,
-          platforms that split one activity into pieces. Six tools fix
-          those files, and every one of them runs entirely in your
-          browser: nothing you open here is ever uploaded.
+          {t("info.about.p1")}
         </p>
         <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-          The whole app is built on one principle:{" "}
+          {t("info.about.p2Prefix")}{" "}
           <span className="font-semibold text-foreground">
-            recorded data and reconstructed data never mix
+            {t("info.about.p2Principle")}
           </span>
-          . Statistics label what was measured and what was drawn,
-          exports mark every reconstructed point so platforms like
-          Strava can see the difference, and the original recording is
-          never modified — repairs are added alongside it, and undo
-          always gets you back.
+          {t("info.about.p2Rest")}
         </p>
       </section>
 
@@ -334,10 +308,10 @@ export function AboutPane() {
           id="about-attribution-heading"
           className="text-[17px] font-bold tracking-tight"
         >
-          Built on open data &amp; software
+          {t("info.about.attributionsTitle")}
         </h3>
         <ul role="list" className="space-y-2.5">
-          {ATTRIBUTIONS.map((entry) => (
+          {attributions.map((entry) => (
             <li
               key={entry.name}
               data-testid="about-attribution-row"
@@ -358,7 +332,7 @@ export function AboutPane() {
         className="border-t-[1.5px] border-ink/15 pt-4 font-mono text-[11px] tracking-[0.04em] text-shade"
         data-testid="about-version"
       >
-        Version {APP_VERSION} · local-first · no tracking
+        {t("info.about.version", { version: APP_VERSION })}
       </p>
     </div>
   );
@@ -382,6 +356,7 @@ export function AboutPane() {
  * the full instructions.
  */
 function RouterSettingsControl() {
+  const { t } = useI18n();
   const settings = useRouterSettings();
   const [draft, setDraft] = useState(settings.current ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -395,17 +370,18 @@ function RouterSettingsControl() {
       data-testid="router-settings"
     >
       <p className="text-[12.5px] font-semibold text-foreground">
-        Your own routing server (optional)
+        {t("info.privacy.router.title")}
       </p>
       <label className="grid gap-1 text-[12px] text-muted-foreground">
-        OSRM-compatible base URL — e.g. https://osrm.example.com
+        {t("info.privacy.router.label")}
         <input
           type="url"
           inputMode="url"
           spellCheck={false}
           className="h-8 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2.5 font-mono text-[11.5px] text-foreground transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
           data-testid="router-url-input"
-          placeholder="https://osrm.example.com"
+          /* An example URL — the machine format, not copy */
+          placeholder={"https://osrm.example.com"}
           value={draft}
           onChange={(event) => {
             setDraft(event.target.value);
@@ -429,8 +405,7 @@ function RouterSettingsControl() {
           data-testid="router-url-saved"
           role="status"
         >
-          Saved — routing now goes to your server (once road snapping
-          is enabled).
+          {t("info.privacy.router.saved")}
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
@@ -443,7 +418,7 @@ function RouterSettingsControl() {
           onClick={() => {
             const verdict = settings.validate(draft);
             if (!verdict.ok) {
-              setError(verdict.reason);
+              setError(t(verdict.reasonKey));
               return;
             }
             settings.apply(draft);
@@ -452,7 +427,7 @@ function RouterSettingsControl() {
             setSaved(true);
           }}
         >
-          Save URL
+          {t("info.privacy.router.save")}
         </Button>
         <Button
           type="button"
@@ -468,15 +443,11 @@ function RouterSettingsControl() {
             setSaved(false);
           }}
         >
-          Use public servers
+          {t("info.privacy.router.reset")}
         </Button>
       </div>
       <p className="text-[11.5px] leading-snug text-muted-foreground">
-        An OSRM-compatible server answers the same route API the demo
-        servers do — a self-hosted osrm-routed serves whichever profile
-        it was built with, so both Roads and Footpaths follow it. The
-        README&apos;s self-hosting section has the full instructions;
-        with no URL here, the public demo servers above are used.
+        {t("info.privacy.router.note")}
       </p>
     </div>
   );

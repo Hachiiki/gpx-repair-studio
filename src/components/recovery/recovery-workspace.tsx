@@ -16,6 +16,7 @@
 
 import type { ReactNode } from "react";
 import { ArrowUp, ChevronDown } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import { WorkspaceToolsColumn } from "@/components/layout/workspace-tools-column";
 
 export interface RecoveryWorkspaceProps {
@@ -28,12 +29,13 @@ export interface RecoveryWorkspaceProps {
 }
 
 export function RecoveryWorkspace({ map, tools, details }: RecoveryWorkspaceProps) {
+  const { t } = useI18n();
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-12">
       {/* Section 1 — map + tools. */}
       <section
         id="recovery"
-        aria-label="Recovery map and tools"
+        aria-label={t("recovery.workspace.mapA11y")}
         data-testid="recovery-section"
         className="scroll-mt-20"
       >
@@ -42,7 +44,7 @@ export function RecoveryWorkspace({ map, tools, details }: RecoveryWorkspaceProp
           {/* Phase 8 — sticky column at lg+, bottom sheet on touch. */}
           <WorkspaceToolsColumn
             testid="recovery-tools-panel"
-            label="Recovery tools"
+            label={t("recovery.workspace.toolsLabel")}
           >
             {tools}
           </WorkspaceToolsColumn>
@@ -55,7 +57,7 @@ export function RecoveryWorkspace({ map, tools, details }: RecoveryWorkspaceProp
             data-testid="recovery-scroll-cue"
             className="group inline-flex items-center gap-2 rounded-full border-[1.5px] border-ink bg-card px-4 py-2 text-[13px] font-semibold text-muted-foreground transition-colors hover:border-signal hover:bg-signal/[0.08] hover:text-foreground focus-visible:outline-2"
           >
-            Preview &amp; statistics
+            {t("recovery.workspace.scrollCue")}
             <ChevronDown
               className="size-4 transition-transform group-hover:translate-y-0.5 motion-safe:animate-bounce motion-reduce:animate-none"
               aria-hidden="true"
@@ -67,7 +69,7 @@ export function RecoveryWorkspace({ map, tools, details }: RecoveryWorkspaceProp
       {/* Section 2 — preview + stats. */}
       <section
         id="recovery-details"
-        aria-label="Completed route preview and statistics"
+        aria-label={t("recovery.workspace.detailsA11y")}
         data-testid="recovery-details-section"
         className="scroll-mt-20"
       >
@@ -78,12 +80,10 @@ export function RecoveryWorkspace({ map, tools, details }: RecoveryWorkspaceProp
                 className="size-[11px] shrink-0 rounded-[1.5px] bg-signal"
                 aria-hidden="true"
               />
-              Completed route — preview &amp; statistics
+              {t("recovery.workspace.detailsTitle")}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              The original recording plus your recovered sections — the
-              elapsed time is untouched, and every generated point stays
-              labeled as estimated.
+              {t("recovery.workspace.detailsBlurb")}
             </p>
           </div>
           <a
@@ -92,7 +92,7 @@ export function RecoveryWorkspace({ map, tools, details }: RecoveryWorkspaceProp
             className="inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
           >
             <ArrowUp className="size-3.5" aria-hidden="true" />
-            Back to the map
+            {t("recovery.workspace.backToMap")}
           </a>
         </div>
         {details}

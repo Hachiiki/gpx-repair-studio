@@ -1663,3 +1663,42 @@ Stage Summary:
 - Phase 20 shipped complete: the registry as the single source (palette + cheat sheet + shortcut audit), the Ctrl/Cmd+K palette (fuzzy, keyboard-first, a11y-clean, recent sessions), and the audited undo/redo bindings. The user-reported mode-switching defect fixed as a per-segment style model, verified in two different studios at bulge-level geometry.
 - All gates green: 1825 unit, 191 e2e, static export, 22/22 live QA, VLM claims measured.
 - Baseline for Phase 21: 1825 unit + 191 e2e, typecheck + eslint clean.
+
+---
+Task ID: 66 (implementation)
+Agent: Super Z (main agent) + nine extraction subagents (66-a … 66-i)
+Task: Phase 21 — Internationalization (docs/MASTER_PLAN.md §EE 21 / §OO): typed dictionaries, the lightweight runtime, the zh-CN locale, locale-aware formatting, the pseudo expansion harness, the no-hardcoded-strings lint rule
+
+Work Log:
+- Locale set decision (§EE 21.3's open point): en (source) + zh-CN + the QA-only pseudo locale. Recorded with rationale.
+- 21.2 runtime — src/i18n/: types.ts (AppLocale, the picker registry, LocalLabel), locale.ts (module observable, theme-store pattern: ?lang= > the persisted raw key > en; pickable-only persistence — pseudo never saves; <html lang> mirror; useSyncExternalStore's getServerSnapshot=en keeps hydration mismatch-free), runtime.ts (pure translate + {param} interpolation + en fallback + translateLabel for LocalLabels), pseudo.ts (deterministic ~33% expansion, ⟦⟧ brackets, params untouched), units.ts (per-locale unit words + Intl tags). hooks/use-i18n.ts (the React facade + TranslatorArg + enTranslator for tests).
+- 21.3 formatting — lib/utils/format.ts reads the locale AT CALL TIME (公里/米/英里/公里/时 words, Intl grouping, zh-CN dates; en byte-identical, test-pinned) + artifactFormatters (en-pinned) for the share card, KML/CSV, GPX notes, MANIFEST.
+- 21.1 extraction — a nine-agent wave against docs/i18n-extraction-pattern.md (the written protocol: byte-identical en, key naming, {param} rules, the glossary, per-domain test lists): gpx (222 keys), reconstruction (281), recovery+create (201), merge+plan (162), stats+compare+share (248), batch+map+shared (222), help+info (70), tours+palette+restore+workspace (163), app-shell (7) + hooks/state (94). ~1,670 keys en, all translated zh, byte-identity mechanically verified per agent against git HEAD. Agents' detailed logs: scripts/phase21-worklog-66-*.md (merged below).
+- The labelKey pattern (domain half): FixPlan.label/summary, WorkingEdit.label, surgery labels, repairSummary rows, compareStats rows, describeSessionRecord, elevation privacyNote, router-URL reasons, snapProfile words, export-format hints, sample summaries → { key, params } LocalLabels resolved at render; legacy plain strings from pre-21 sessions render verbatim (the session-record validator accepts both). Two inverted-plural/latent-copy bugs fixed en-route (landing "Six tools" with seven tiles; the reorder label's "1 moves / 2 move").
+- Registry localization: CommandDef.label → labelKey + zh search aliases (cmd.kw.*) merged with the en keywords — the palette searches 撤销 AND "undo"; filterCommands/cheatSheet take the caller's translator; help-content drops the legacy English TOOL_TOURS snapshot.
+- 21.1 lint — no-restricted-syntax selectors (JSXText + text-bearing prop literals) over components/hooks/state/app (dormant ui/ boilerplate excluded, documented); shipped clean after fixing the 14 real stragglers it caught (print-header wordmarks, and-glue sentences, keycap glyphs, storage-key displays, the gpxr token).
+- The picker — footer LanguageToggle (the theme toggle's twin), the pre-paint <html lang> stamp in layout.tsx, the switch toast.
+- Tests — +42 unit → 1867 total: the runtime (interpolation, fallback, param extraction), THE GATES (every locale: exact en key parity, exact {param} parity per key, no empty values, no cross-domain duplicate keys — plus the compile-time Record<MessageKey,string> on every locale file), the locale store (resolution order, pickable-only persistence, cached resolution, hydration snapshot), pseudo (determinism, brackets, growth, param pass-through), formatting (en byte-identity, zh unit words, artifact pinning), the localized registry (bilingual search, label resolution, the localized cheat sheet). Updated where the labelKey refactor changed shapes: surgery, working-fixes, repair-summary, compare-surfaces, batch-zip, session-record, restore-prompt, command-registry, command-palette, elevation-ui/plan-ui/create-ui, samples, export suites.
+- E2E phase21-i18n.spec.ts 8/8 (toggle+persistence+round trip, ?lang= zh/pseudo direct loads, unknown-lang degradation, the pre-paint lang stamp, bilingual palette search, zh tool-page teaching, axe-clean zh) → 199 total; full regression re-run in nine chunks: one phase17 load flake (green standalone) and ONE REAL BUG — the long-press announcement referenced map.announce.pointDeleted before the key existed; the fallback rendered the raw key, the test caught it, the key landed. Static export PASS.
+- Live QA scripts/phase21-live-qa.mjs 28/28: en baseline, the toggle round trip (in-place switch, persistence, html lang), zh × dark (hero, palette bilingual search), zh × mobile (zero overflow), the pseudo harness (real expansion — 9 filler glyphs — zero horizontal overflow, all seven tiles, never persisted). Zero console/page errors everywhere.
+- VLM — six critiques (pseudo landing/tool/palette/help + zh landing/dark/mobile; scripts/qa/phase21/): ALL TEN measurable claims DISPROVEN by scripts/phase21-vlm-measure.mjs — pseudo rows perfectly even (344×3 + 325×3, spreads 0, tops aligned), zero clipped blurbs, scrollWidth delta 0, the "overlapping share icon" lives inside the artwork (plate→chip gap 14px), the header wordmark keeps a 12px badge gap, and the accused dark-mode card-description contrast measures 5.03:1 via canvas pixel sampling (WCAG AA passes; Tailwind 4's lab() colors broke the first rgb parser — the measurement was rebuilt rasterized).
+- Docs — MASTER_PLAN §EE Phase 21 marked DONE + §OO (the story, the shipped inventory, the verification record, six decisions); README's international paragraph; the extraction pattern doc itself.
+
+Stage Summary:
+- Phase 21 shipped complete: every user-visible string in the app flows through typed dictionaries (en + zh-CN, ~1,670 keys), a dependency-free runtime switches locales in place with hydration-safe settling and a pre-paint lang stamp, numbers/units/dates follow the locale while exported artifacts stay canonically English, the command palette searches bilingually, and a deterministic pseudo-locale harness proves the layout survives 33% longer strings.
+- All gates green: 1867 unit, 199 e2e (one real bug found and fixed by the new tests), eslint clean WITH the new no-hardcoded-strings rule, typecheck clean, static export PASS, live QA 28/28, VLM claims measured (10/10 disproven).
+- Baseline for Phase 22: 1867 unit + 199 e2e, eslint + tsc clean.
+
+*(Subagent log: scripts/phase21-worklog-66-a.md)*
+
+*(Subagent log: scripts/phase21-worklog-66-c.md)*
+
+*(Subagent log: scripts/phase21-worklog-66-d.md)*
+
+*(Subagent log: scripts/phase21-worklog-66-g1.md)*
+
+*(Subagent log: scripts/phase21-worklog-66-g2.md)*
+
+*(Subagent log: scripts/phase21-worklog-66-h.md)*
+
+*(Subagent log: scripts/phase21-worklog-66-i.md)*

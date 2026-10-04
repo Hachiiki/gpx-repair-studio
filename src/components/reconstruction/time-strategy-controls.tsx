@@ -33,6 +33,7 @@ import { ManualDurationDialog } from "@/components/reconstruction/manual-duratio
 import { Pencil, TriangleAlert } from "lucide-react";
 import type { GapTimePlan } from "@/hooks/use-draw-editor";
 import type { TimeStrategy } from "@/types/domain";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import { useUiStore } from "@/state/ui-store";
 import { formatDurationMs, formatPace } from "@/lib/utils/format";
 
@@ -53,31 +54,41 @@ export interface TimeStrategyControlsProps {
   paceAvailable?: boolean;
 }
 
-/** The chip the pace-estimated strategy renders as (Task 28). */
-const PACE_CHOICE = {
-  value: "pace-estimated" as const,
-  label: "From your pace",
-  hint: "The app estimates how long this section took: your drawn distance divided by the pace you actually held in this file. No number to type — the estimate updates as you draw.",
-};
-
-const STRATEGY_CHOICES = [
-  {
-    value: "distance-proportional" as const,
-    label: "By distance",
-    hint: "Timestamps spread in proportion to how far each point sits along the drawn route — the natural choice for an even-effort run.",
-  },
-  {
-    value: "uniform" as const,
-    label: "Evenly",
-    hint: "Timestamps spread by point count, ignoring distance — mostly useful with resampling switched off.",
-  },
-  PACE_CHOICE,
-  {
-    value: "manual-duration" as const,
-    label: "Manual",
-    hint: "You state how long the missing stretch took. The repair's timestamps follow your value even when it disagrees with the recorded span — the disagreement is shown, never hidden.",
-  },
-];
+/** The strategy chips (i18n: labels and hints are t-driven). */
+function getStrategyChoices(
+  t: TranslatorArg,
+): readonly {
+  value:
+    | "distance-proportional"
+    | "uniform"
+    | "pace-estimated"
+    | "manual-duration";
+  label: string;
+  hint: string;
+}[] {
+  return [
+    {
+      value: "distance-proportional",
+      label: t("timeStrategy.byDistance"),
+      hint: t("timeStrategy.byDistanceHint"),
+    },
+    {
+      value: "uniform",
+      label: t("timeStrategy.evenly"),
+      hint: t("timeStrategy.evenlyHint"),
+    },
+    {
+      value: "pace-estimated",
+      label: t("timeStrategy.paceLabel"),
+      hint: t("timeStrategy.paceHint"),
+    },
+    {
+      value: "manual-duration",
+      label: t("timeStrategy.manual"),
+      hint: t("timeStrategy.manualHint"),
+    },
+  ];
+}
 
 export function TimeStrategyControls({
   plan,
@@ -86,6 +97,7 @@ export function TimeStrategyControls({
   setTimeStrategy,
   paceAvailable = false,
 }: TimeStrategyControlsProps) {
+  const { t } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const paceUnit = useUiStore((s) => s.paceUnit);
 
@@ -103,7 +115,7 @@ export function TimeStrategyControls({
   // needs recorded timing, which such files lack by definition).
   // A single offer (one boundary, no file pace) renders the original
   // add/edit-duration button instead of a one-chip row.
-  const choices = STRATEGY_CHOICES.filter((choice) => {
+  const choices = getStrategyChoices(t).filter((choice) => {
     if (choice.value === "pace-estimated") return paceAvailable;
     if (!bothBoundaries) {
       return choice.value === "manual-duration";
@@ -120,10 +132,10 @@ export function TimeStrategyControls({
       className="grid gap-2"
       data-testid="time-strategy-controls"
       role="group"
-      aria-label="Time estimation"
+      aria-label={t("timeStrategy.groupAria")}
     >
       <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
-        Timestamps for this repair
+        {t("timeStrategy.label")}
         <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
       </p>
 
@@ -131,61 +143,53 @@ export function TimeStrategyControls({
       <p className="text-[11px] leading-snug text-muted-foreground">
         {paceEstimated && (
           <>
-            This section wasn&apos;t measured — the app estimates it took{" "}
+            {t("timeStrategy.paceIntro")}{" "}
             <span className="font-medium text-foreground">
               {plan.durationMs === null
                 ? "—"
                 : formatDurationMs(plan.durationMs)}
-            </span>{" "}
-            at your recorded pace (
+            </span>
+            {t("timeStrategy.atYourPace")}
             <span className="font-medium text-foreground">
               {plan.durationMs !== null && distanceM !== null && distanceM > 0
                 ? formatPace(plan.durationMs, distanceM, paceUnit)
                 : "—"}
             </span>
-            ). Draw more and the estimate follows.
+            {t("timeStrategy.paceOutro")}
           </>
         )}
         {!paceEstimated && bothBoundaries && plan.durationSource === "derived" && (
           <>
-            The watch was paused for{" "}
+            {t("timeStrategy.pausedFor")}{" "}
             <span className="font-medium text-foreground">
               {formatDurationMs(plan.durationMs ?? 0)}
             </span>{" "}
-            — your drawn route&apos;s points will span exactly that gap,
-            estimated as even effort.
+            {t("timeStrategy.pausedSuffix")}
           </>
         )}
         {!paceEstimated &&
           bothBoundaries &&
           plan.durationSource === "manual" && (
             <>
-              Your estimate (
+              {t("timeStrategy.yourEstimatePrefix")}
               <span className="font-medium text-foreground">
                 {formatDurationMs(plan.durationMs ?? 0)}
               </span>
-              ) replaces the recorded span for this repair&apos;s interior —
-              recorded timestamps are never changed.
+              {t("timeStrategy.yourEstimateSuffix")}
             </>
           )}
         {!paceEstimated && plan.boundaryCase === "before-only" && (
-          <>
-            Only the start of this gap has a timestamp. Enter how long the
-            missing stretch took and the interior spreads forward from it.
-          </>
+          <>{t("timeStrategy.beforeOnly")}</>
         )}
         {!paceEstimated && plan.boundaryCase === "after-only" && (
-          <>
-            Only the end of this gap has a timestamp. Enter how long the
-            missing stretch took and the interior counts back from it.
-          </>
+          <>{t("timeStrategy.afterOnly")}</>
         )}
         {!paceEstimated && plan.boundaryCase === "no-boundaries" && (
           <>
-            No timestamps around this gap. Enter a duration to estimate its
-            interior{plan.anchoredByFileStart
-              ? " — it will start from your entered activity start time (its position within the activity is an assumption)."
-              : " (points export without times until an activity start is entered for the file)."}
+            {t("timeStrategy.noBoundaries")}
+            {plan.anchoredByFileStart
+              ? t("timeStrategy.noBoundariesAnchored")
+              : t("timeStrategy.noBoundariesUnanchored")}
           </>
         )}
       </p>
@@ -234,7 +238,9 @@ export function TimeStrategyControls({
               onClick={openDialog}
             >
               <Pencil className="size-3" aria-hidden="true" />
-              Edit duration ({formatDurationMs(plan.durationMs)})
+              {t("timeStrategy.editDuration", {
+                duration: formatDurationMs(plan.durationMs),
+              })}
             </Button>
           ) : (
             <Button
@@ -244,7 +250,7 @@ export function TimeStrategyControls({
               data-testid="add-duration-button"
               onClick={openDialog}
             >
-              Add a duration
+              {t("timeStrategy.addDuration")}
             </Button>
           )}
         </div>
@@ -262,10 +268,10 @@ export function TimeStrategyControls({
           </span>
           <span className="text-[11.5px] font-medium text-muted-foreground">
             {plan.durationSource === "manual"
-              ? "your estimate"
+              ? t("timeStrategy.yourEstimate")
               : plan.durationSource === "estimated"
-                ? "pace estimate"
-                : "gap duration"}
+                ? t("timeStrategy.paceEstimate")
+                : t("timeStrategy.gapDuration")}
           </span>
           <ProvenanceBadge
             kind={
@@ -285,7 +291,9 @@ export function TimeStrategyControls({
               ? formatPace(plan.durationMs, distanceM, paceUnit)
               : "—"}
           </span>
-          <span className="text-[11.5px] font-medium text-muted-foreground">estimated pace</span>
+          <span className="text-[11.5px] font-medium text-muted-foreground">
+            {t("timeStrategy.estimatedPace")}
+          </span>
           <ProvenanceBadge kind="estimated" />
         </p>
       </div>
@@ -303,26 +311,18 @@ export function TimeStrategyControls({
           data-testid="duration-discrepancy"
         >
           <TriangleAlert className="size-4" aria-hidden="true" />
-          <AlertTitle>Differs from the recorded span</AlertTitle>
+          <AlertTitle>{t("timeStrategy.discrepancyTitle")}</AlertTitle>
           <AlertDescription>
             {paceEstimated ? (
-              <>
-                The pace estimate (
-                {formatDurationMs(plan.durationMs ?? 0)}) disagrees with the
-                time the file shows here (
-                {formatDurationMs(plan.recordedSpanMs)}) — this section
-                wasn&apos;t in the recording. The drawn points follow the
-                estimate; the original timestamps stay untouched and the
-                difference is reported in the statistics.
-              </>
+              t("timeStrategy.discrepancyPace", {
+                estimate: formatDurationMs(plan.durationMs ?? 0),
+                recorded: formatDurationMs(plan.recordedSpanMs),
+              })
             ) : (
-              <>
-                Your duration ({formatDurationMs(plan.durationMs ?? 0)}) disagrees
-                with the recorded gap ({formatDurationMs(plan.recordedSpanMs)}).
-                The repair&apos;s timestamps follow your value; the original
-                timestamps stay untouched and the difference is reported in the
-                statistics.
-              </>
+              t("timeStrategy.discrepancyManual", {
+                duration: formatDurationMs(plan.durationMs ?? 0),
+                recorded: formatDurationMs(plan.recordedSpanMs),
+              })
             )}
           </AlertDescription>
         </Alert>

@@ -23,28 +23,33 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AboutPane, PrivacyPane } from "@/components/layout/info-content";
+import { useI18n } from "@/hooks/use-i18n";
 import { cn } from "@/lib/utils";
 
 /** Which pane is open — `null` while closed. */
 export type InfoPane = "about" | "privacy";
 
+/**
+ * The panes — ids and icons are structural; the labels and titles
+ * resolve through the translator at render time (Phase 21).
+ */
 const PANES: readonly {
   id: InfoPane;
-  label: string;
+  labelKey: string;
   icon: typeof Info;
-  title: string;
+  titleKey: string;
 }[] = [
   {
     id: "about",
-    label: "About",
+    labelKey: "info.tab.about",
     icon: Info,
-    title: "About GPX Repair Studio",
+    titleKey: "info.tab.aboutTitle",
   },
   {
     id: "privacy",
-    label: "Privacy & data",
+    labelKey: "info.tab.privacy",
     icon: ShieldCheck,
-    title: "Privacy & Data",
+    titleKey: "info.tab.privacyTitle",
   },
 ];
 
@@ -58,6 +63,7 @@ export interface InfoDialogProps {
 }
 
 export function InfoDialog({ pane, onPaneChange, onClose }: InfoDialogProps) {
+  const { t } = useI18n();
   const tablistRef = useRef<HTMLDivElement>(null);
 
   // Arrow-key tablist traversal (WAI-ARIA tabs pattern) — Left/Up
@@ -100,7 +106,7 @@ export function InfoDialog({ pane, onPaneChange, onClose }: InfoDialogProps) {
           <div
             ref={tablistRef}
             role="tablist"
-            aria-label="About this app"
+            aria-label={t("info.tablistAria")}
             onKeyDown={onKeyDown}
             className="flex items-center gap-1"
           >
@@ -125,14 +131,14 @@ export function InfoDialog({ pane, onPaneChange, onClose }: InfoDialogProps) {
                   )}
                 >
                   <p.icon className="size-3.5" aria-hidden="true" />
-                  {p.label}
+                  {t(p.labelKey)}
                 </button>
               );
             })}
           </div>
           {/* The pane's title doubles as the DialogTitle (the accessible
               name); it lives visually inside the scroll area below. */}
-          <DialogTitle className="sr-only">{current.title}</DialogTitle>
+          <DialogTitle className="sr-only">{t(current.titleKey)}</DialogTitle>
         </div>
 
         {/* The pane, in its own scroll region — long content scrolls,

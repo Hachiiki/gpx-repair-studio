@@ -16,39 +16,46 @@
 
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
+import { useI18n } from "@/hooks/use-i18n";
 import type { ThemePreference } from "@/state/theme-store";
 import { cn } from "@/lib/utils";
 
 const OPTIONS: readonly {
   value: ThemePreference;
-  label: string;
+  /** The dictionary key for the option's title/aria-label. */
+  labelKey:
+    | "theme.system"
+    | "theme.light"
+    | "theme.dark";
   icon: typeof Sun;
 }[] = [
-  { value: "system", label: "Follow the system theme", icon: Monitor },
-  { value: "light", label: "Light theme", icon: Sun },
-  { value: "dark", label: "Dark theme", icon: Moon },
+  { value: "system", labelKey: "theme.system", icon: Monitor },
+  { value: "light", labelKey: "theme.light", icon: Sun },
+  { value: "dark", labelKey: "theme.dark", icon: Moon },
 ];
 
 export function ThemeToggle() {
   const { preference, setPreference } = useTheme();
+  const { t } = useI18n();
 
   return (
     <div
       role="group"
-      aria-label="Color theme"
+      aria-label={t("theme.groupA11y")}
       data-testid="theme-toggle"
       className="inline-flex items-center gap-0.5 rounded-[8px] border-[1.5px] border-ink/25 bg-card p-[3px] shadow-lift"
     >
       {OPTIONS.map((option) => {
         const pressed = preference === option.value;
+        const label = t(option.labelKey);
         return (
           <button
             key={option.value}
             type="button"
             data-testid={`theme-toggle-${option.value}`}
             aria-pressed={pressed}
-            title={option.label}
-            aria-label={option.label}
+            title={label}
+            aria-label={label}
             onClick={() => setPreference(option.value)}
             className={cn(
               "grid size-[26px] place-items-center rounded-[6px] transition-colors focus-visible:outline-2",

@@ -42,6 +42,7 @@ import { MergeDetailsCard } from "@/components/merge/merge-details-card";
 import { MergeExportCard } from "@/components/merge/merge-export-card";
 import { MergeShareView } from "@/components/merge/merge-share-view";
 import { ShareMergeDialog } from "@/components/merge/share-merge-dialog";
+import { useI18n } from "@/hooks/use-i18n";
 import { useMergeSession, mergedFileName } from "@/hooks/use-merge-session";
 import { useMergeShare } from "@/hooks/use-merge-share";
 import { useMergeMap } from "@/hooks/use-merge-map";
@@ -49,6 +50,7 @@ import { useMergeStore } from "@/state/merge-store";
 import { useUiStore } from "@/state/ui-store";
 
 export function MergeStudio() {
+  const { t } = useI18n();
   const session = useMergeSession();
   const map = useMergeMap(session);
   const view = useMergeStore((s) => s.view);
@@ -83,16 +85,18 @@ export function MergeStudio() {
     <>
       <WorkspaceLayout
         sectionId="merge"
-        sectionLabel="Merge map and arrangement"
-        toolsLabel="Merge tools"
-        detailsTitle="The merged recording"
-        detailsIntro="Everything the app knows about the combined file — every point carried over verbatim from its source, in the order you set."
-        scrollCueLabel="Statistics & file details"
+        sectionLabel={t("merge.studio.sectionLabel")}
+        toolsLabel={t("merge.studio.toolsLabel")}
+        detailsTitle={t("merge.studio.detailsTitle")}
+        detailsIntro={t("merge.studio.detailsIntro")}
+        scrollCueLabel={t("merge.studio.scrollCueLabel")}
         map={
           <MapCanvas
             map={map}
             attachContainer={map.setContainer}
-            srNote={`This is the merged route of ${session.parsedCount} recordings.`}
+            srNote={t("merge.studio.srNote", {
+              count: session.parsedCount,
+            })}
           />
         }
         tools={
@@ -132,7 +136,8 @@ export function MergeStudio() {
                 <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 xl:grid-cols-[repeat(2,minmax(0,1fr))]">
                   <GpxSummaryCard
                     fileName={
-                      session.combinedName.trim() || "Merged recording"
+                      session.combinedName.trim() ||
+                      t("merge.studio.defaultFileName")
                     }
                     data={merged.model}
                     timeStats={merged.timeStats}
@@ -156,8 +161,7 @@ export function MergeStudio() {
                * still right there.
                */
               <div className="rounded-[10px] border-[1.5px] border-ink bg-card p-[18px] text-sm text-muted-foreground">
-                Nothing to merge yet — add at least two files and the
-                combined route, its statistics, and its export appear here.
+                {t("merge.studio.emptyDetails")}
               </div>
             )}
           </RevealOnScroll>

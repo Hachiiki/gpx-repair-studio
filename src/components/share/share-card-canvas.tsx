@@ -21,6 +21,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { useI18n } from "@/hooks/use-i18n";
 import { loadShareCardFonts } from "@/lib/share/fonts";
 import {
   paintShareCardCanvas,
@@ -56,6 +57,7 @@ export function ShareCardCanvas({
   time,
   ariaLabel,
 }: ShareCardCanvasProps) {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // The spec is derived from props only — stable identity for the
@@ -83,7 +85,7 @@ export function ShareCardCanvas({
 
   const label =
     ariaLabel ??
-    `Share card: route plot with distance ${distance}, pace ${pace}, time ${time}`;
+    t("share.canvasA11y", { distance, pace, time });
 
   return (
     <canvas

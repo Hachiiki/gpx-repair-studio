@@ -35,14 +35,19 @@ export type CommandGroupId =
   | "view"
   | "help";
 
-export const COMMAND_GROUP_LABELS: Readonly<
+/**
+ * Phase 21: groups carry DICTIONARY KEYS, not labels — the palette
+ * resolves them at render time (a locale switch re-renders the
+ * headings in place).
+ */
+export const COMMAND_GROUP_LABEL_KEYS: Readonly<
   Record<CommandGroupId, string>
 > = {
-  navigate: "Go to",
-  sessions: "Sessions",
-  editing: "Editing",
-  view: "View",
-  help: "Help & tours",
+  navigate: "cmd.group.navigate",
+  sessions: "cmd.group.sessions",
+  editing: "cmd.group.editing",
+  view: "cmd.group.view",
+  help: "cmd.group.help",
 };
 
 /** Where a shortcut is active. */
@@ -90,9 +95,14 @@ export interface CommandContext {
 /** One registered command. */
 export interface CommandDef {
   id: string;
-  label: string;
+  /** The dictionary key this command's label lives under (Phase 21). */
+  labelKey: string;
   group: CommandGroupId;
-  /** Search-only aliases (the fuzzy match runs over label + keywords). */
+  /**
+   * Search-only aliases (the fuzzy match runs over label + keywords).
+   * English aliases ship here; translated aliases live under the
+   * `cmd.kw.<id>` dictionary keys and merge into the search text.
+   */
   keywords?: readonly string[];
   /** The primary keyboard binding, if one ships. */
   shortcut?: ShortcutBinding;
@@ -108,6 +118,11 @@ export interface CommandDef {
    * documented, not runnable.
    */
   palette?: boolean;
+  /**
+   * Phase 21 — replay-tour commands carry the tool's label key as the
+   * {name} param of their own label ("Replay the walkthrough: {name}").
+   */
+  replayTool?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,13 +130,13 @@ export interface CommandDef {
 // ---------------------------------------------------------------------------
 
 const LANDING_MODES = {
-  repair: "Repair a recording",
-  share: "Make a share card",
-  recovery: "Recover a GPS gap",
-  create: "Create from activity stats",
-  merge: "Merge recordings",
-  plan: "Plan a route",
-  batch: "Batch repair files",
+  repair: "cmd.open-repair",
+  share: "cmd.open-share",
+  recovery: "cmd.open-recovery",
+  create: "cmd.open-create",
+  merge: "cmd.open-merge",
+  plan: "cmd.open-plan",
+  batch: "cmd.open-batch",
 } as const;
 
 type LandingTool = keyof typeof LANDING_MODES;
@@ -136,7 +151,7 @@ const TOOL_COMMANDS: readonly CommandDef[] = (
 ).map(
   (tool): CommandDef => ({
     id: `open-${tool}`,
-    label: LANDING_MODES[tool],
+    labelKey: LANDING_MODES[tool],
     group: "navigate",
     keywords: ["tool", "open", "go", tool],
     when: (ctx: CommandContext) => ctx.section === null,
@@ -153,7 +168,7 @@ export const COMMANDS: readonly CommandDef[] = [
   ...TOOL_COMMANDS,
   {
     id: "go-home",
-    label: "Back to the tool cards",
+    labelKey: "cmd.go-home",
     group: "navigate",
     keywords: ["landing", "home", "start"],
     when: (ctx) => ctx.landingToolPage,
@@ -161,14 +176,14 @@ export const COMMANDS: readonly CommandDef[] = [
 
   {
     id: "open-sessions",
-    label: "Open saved sessions",
+    labelKey: "cmd.open-sessions",
     group: "sessions",
     keywords: ["shelf", "restore", "manager"],
   },
 
   {
     id: "editor-undo",
-    label: "Undo",
+    labelKey: "cmd.editor-undo",
     group: "editing",
     keywords: ["revert", "step back"],
     shortcut: { key: "z", ctrl: true },
@@ -177,7 +192,7 @@ export const COMMANDS: readonly CommandDef[] = [
   },
   {
     id: "editor-redo",
-    label: "Redo",
+    labelKey: "cmd.editor-redo",
     group: "editing",
     keywords: ["restore", "step forward"],
     shortcut: { key: "z", ctrl: true, shift: true },
@@ -187,7 +202,7 @@ export const COMMANDS: readonly CommandDef[] = [
   },
   {
     id: "editor-clear",
-    label: "Clear the drawn route",
+    labelKey: "cmd.editor-clear",
     group: "editing",
     keywords: ["remove", "points", "delete all"],
     scope: "editor",
@@ -195,7 +210,7 @@ export const COMMANDS: readonly CommandDef[] = [
   },
   {
     id: "editor-draw-mode",
-    label: "Draw mode — click to place points",
+    labelKey: "cmd.editor-draw-mode",
     group: "editing",
     keywords: ["pointer", "pencil"],
     shortcut: { key: "d" },
@@ -204,7 +219,7 @@ export const COMMANDS: readonly CommandDef[] = [
   },
   {
     id: "editor-move-mode",
-    label: "Move mode — drag any placed point",
+    labelKey: "cmd.editor-move-mode",
     group: "editing",
     keywords: ["pointer", "drag"],
     shortcut: { key: "m" },
@@ -213,7 +228,7 @@ export const COMMANDS: readonly CommandDef[] = [
   },
   {
     id: "editor-pan-mode",
-    label: "Pan mode — normal map navigation",
+    labelKey: "cmd.editor-pan-mode",
     group: "editing",
     keywords: ["pointer", "navigate"],
     shortcut: { key: "p" },
@@ -222,7 +237,7 @@ export const COMMANDS: readonly CommandDef[] = [
   },
   {
     id: "editor-pen-toggle",
-    label: "Toggle the Curve pen",
+    labelKey: "cmd.editor-pen-toggle",
     group: "editing",
     keywords: ["freehand", "stroke", "pencil"],
     shortcut: { key: "c" },
@@ -232,33 +247,33 @@ export const COMMANDS: readonly CommandDef[] = [
 
   {
     id: "theme-system",
-    label: "Theme: follow the system",
+    labelKey: "cmd.theme-system",
     group: "view",
     keywords: ["dark", "light", "color"],
   },
   {
     id: "theme-light",
-    label: "Theme: light",
+    labelKey: "cmd.theme-light",
     group: "view",
     keywords: ["dark", "color"],
   },
   {
     id: "theme-dark",
-    label: "Theme: dark",
+    labelKey: "cmd.theme-dark",
     group: "view",
     keywords: ["light", "color"],
   },
 
   {
     id: "open-help",
-    label: "Shortcuts & help",
+    labelKey: "cmd.open-help",
     group: "help",
     keywords: ["keyboard", "cheat sheet", "keys"],
     shortcut: { key: "?" },
   },
   {
     id: "command-palette",
-    label: "Open the command palette",
+    labelKey: "cmd.command-palette",
     group: "help",
     keywords: ["search", "actions", "commands"],
     // Cheat-sheet-only: the shell's own listener owns the chord (the
@@ -268,31 +283,24 @@ export const COMMANDS: readonly CommandDef[] = [
   },
   {
     id: "open-about",
-    label: "About this app",
+    labelKey: "cmd.open-about",
     group: "help",
   },
   {
     id: "open-privacy",
-    label: "Privacy & data",
+    labelKey: "cmd.open-privacy",
     group: "help",
     keywords: ["offline", "local", "providers"],
   },
-  ...(
-    [
-      ["repair", "Repair a recording"],
-      ["share", "Make a share card"],
-      ["recovery", "Recover a GPS gap"],
-      ["create", "Create from activity stats"],
-      ["merge", "Merge recordings"],
-      ["plan", "Plan a route"],
-      ["batch", "Batch repair files"],
-    ] as const
-  ).map(
-    ([id, label]): CommandDef => ({
-      id: `replay-tour-${id}`,
-      label: `Replay the walkthrough: ${label}`,
+  ...(Object.keys(LANDING_MODES) as readonly LandingTool[]).map(
+    (tool): CommandDef => ({
+      id: `replay-tour-${tool}`,
+      // The replay labels interpolate the tool's own localized label.
+      labelKey: "cmd.replay-tour",
       group: "help",
-      keywords: ["tour", "guide", "tutorial", id],
+      keywords: ["tour", "guide", "tutorial", tool],
+      // The tool label rides along as a param (see commandLabel).
+      replayTool: LANDING_MODES[tool],
     }),
   ),
 
@@ -303,7 +311,7 @@ export const COMMANDS: readonly CommandDef[] = [
    */
   {
     id: "escape",
-    label: "Close a dialog, or cancel the current pick / edit",
+    labelKey: "cmd.escape",
     group: "help",
     // Display-only bindings (the primitives own them natively): the
     // key strings carry their conventional display forms.
@@ -312,8 +320,7 @@ export const COMMANDS: readonly CommandDef[] = [
   },
   {
     id: "tab",
-    label:
-      "Move through the controls — the “Skip to content” link is first from the page top",
+    labelKey: "cmd.tab",
     group: "help",
     shortcut: { key: "Tab" },
     palette: false,
@@ -442,9 +449,32 @@ export function fuzzyScore(query: string, text: string): number | null {
   return score;
 }
 
-/** The searchable text of a command (label + keywords). */
-function searchText(command: CommandDef): string {
-  return [command.label, ...(command.keywords ?? [])].join(" ");
+/**
+ * A minimal translator shape (pure) — the caller supplies t(); the
+ * registry stays free of every framework dependency.
+ */
+export type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
+
+/** The command's display label in the caller's locale. */
+export function commandLabel(t: TranslateFn, command: CommandDef): string {
+  return command.replayTool !== undefined
+    ? t(command.labelKey, { name: t(command.replayTool) })
+    : t(command.labelKey);
+}
+
+/**
+ * The searchable text of a command: the localized label + the shipped
+ * English keywords + the localized aliases under `cmd.kw.<id>`
+ * (missing alias keys contribute nothing — English-only commands
+ * still search fine in every locale).
+ */
+export function searchText(t: TranslateFn, command: CommandDef): string {
+  const localizedKeywords = t(`cmd.kw.${command.id}`);
+  return [
+    commandLabel(t, command),
+    ...(command.keywords ?? []),
+    ...(localizedKeywords === `cmd.kw.${command.id}` ? [] : localizedKeywords.split(/\s+/)),
+  ].join(" ");
 }
 
 /**
@@ -456,6 +486,7 @@ export function filterCommands(
   commands: readonly CommandDef[],
   query: string,
   context: CommandContext,
+  t: TranslateFn,
 ): CommandDef[] {
   const available = commands.filter(
     (command) =>
@@ -465,11 +496,13 @@ export function filterCommands(
   if (q.length === 0) return available;
   const scored: { command: CommandDef; score: number }[] = [];
   for (const command of available) {
-    const score = fuzzyScore(q, searchText(command));
+    const score = fuzzyScore(q, searchText(t, command));
     if (score !== null) scored.push({ command, score });
   }
   scored.sort(
-    (a, b) => b.score - a.score || a.command.label.localeCompare(b.command.label),
+    (a, b) =>
+      b.score - a.score ||
+      commandLabel(t, a.command).localeCompare(commandLabel(t, b.command)),
   );
   return scored.map((entry) => entry.command);
 }
@@ -492,14 +525,16 @@ export interface CheatSheetGroup {
   entries: readonly CheatSheetEntry[];
 }
 
-const EDITOR_QUALIFIER = "Drawing editors (Repair, Recovery, Create, Plan)";
-
 /**
  * The generated cheat sheet: every shipped binding, grouped the way the
  * Phase 12 sheet presented them (the same titles, the same contract —
- * only bindings that exist in the registry appear).
+ * only bindings that exist in the registry appear). Phase 21: the
+ * caller's translator resolves every label and title.
  */
-export function cheatSheet(commands: readonly CommandDef[]): CheatSheetGroup[] {
+export function cheatSheet(
+  commands: readonly CommandDef[],
+  t: TranslateFn,
+): CheatSheetGroup[] {
   const globalEntries: CheatSheetEntry[] = [];
   const editorEntries: CheatSheetEntry[] = [];
   for (const command of commands) {
@@ -509,7 +544,7 @@ export function cheatSheet(commands: readonly CommandDef[]): CheatSheetGroup[] {
     if (bindings.length === 0) continue;
     const entry: CheatSheetEntry = {
       keys: bindings.map(formatShortcut),
-      description: command.label,
+      description: commandLabel(t, command),
       editorOnly: (command.scope ?? "global") === "editor",
     };
     if (entry.editorOnly) {
@@ -519,10 +554,10 @@ export function cheatSheet(commands: readonly CommandDef[]): CheatSheetGroup[] {
     }
   }
   const groups: CheatSheetGroup[] = [
-    { title: "Everywhere", entries: globalEntries },
+    { title: t("cmd.cheat.everywhere"), entries: globalEntries },
   ];
   if (editorEntries.length > 0) {
-    groups.push({ title: EDITOR_QUALIFIER, entries: editorEntries });
+    groups.push({ title: t("cmd.cheat.editors"), entries: editorEntries });
   }
   return groups;
 }

@@ -5,6 +5,11 @@
  * what-would-change lines the preview dialog renders.
  */
 
+import { translateLabel, translatorFor } from "@/i18n/runtime";
+
+const t = translatorFor("en");
+const labelOf = (l: unknown) => translateLabel(t, l as never);
+
 import { describe, expect, it } from "vitest";
 import { parseXml } from "./helpers/gpxTestUtils";
 import { applyWorkingEdits } from "@/features/validation/workingCopy";
@@ -48,8 +53,8 @@ describe("planSplitSegment", () => {
     expect(plan?.entries).toEqual([
       { kind: "segment-split", segmentId: sid("t0s0"), atPointId: "t0s0:1" as never },
     ]);
-    expect(plan?.label).toContain("after point #2");
-    expect(plan?.summary[0]).toContain("the 2 points after it move");
+    expect(labelOf(plan?.label)).toContain("after point #2");
+    expect(labelOf(plan?.summary?.[0])).toContain("the 2 points after it move");
   });
 
   it("refuses the last point (the cut would be empty)", () => {
@@ -71,13 +76,13 @@ describe("planDeleteRange", () => {
     expect(forward?.entries).toEqual(backward?.entries);
     expect(forward?.entries).toHaveLength(3);
     expect(forward?.entries.every((e) => e.kind === "point-deletion")).toBe(true);
-    expect(forward?.label).toContain("3 points");
+    expect(labelOf(forward?.label)).toContain("3 points");
   });
 
   it("the whole segment is legal and says so", () => {
     const plan = planDeleteRange(data, sid("t0s1"), "t0s1:0", "t0s1:1");
     expect(plan?.entries).toHaveLength(2);
-    expect(plan?.summary.join(" ")).toContain("empty segment");
+    expect(plan?.summary.map((s) => labelOf(s)).join(" ")).toContain("empty segment");
   });
 
   it("refuses endpoints outside the segment", () => {
@@ -93,9 +98,9 @@ describe("planDuplicateSegment", () => {
     expect(plan?.entries).toEqual([
       { kind: "segment-duplicate", segmentId: sid("t0s0") },
     ]);
-    expect(plan?.label).toContain("4 points");
-    expect(plan?.summary.join(" ")).toContain("fresh ids");
-    expect(plan?.summary.join(" ")).toContain("not copied");
+    expect(labelOf(plan?.label)).toContain("4 points");
+    expect(plan?.summary.map((s) => labelOf(s)).join(" ")).toContain("fresh ids");
+    expect(plan?.summary.map((s) => labelOf(s)).join(" ")).toContain("not copied");
   });
 
   it("refuses empty or unknown segments", () => {
@@ -111,7 +116,7 @@ describe("planSegmentOrder", () => {
     expect(plan?.entries).toEqual([
       { kind: "segment-order", order: [sid("t0s1"), sid("t0s0")] },
     ]);
-    expect(plan?.label).toContain("2 move");
+    expect(labelOf(plan?.label)).toContain("2 move");
   });
 
   it("refuses a non-permutation (missing, extra, or duplicate ids)", () => {

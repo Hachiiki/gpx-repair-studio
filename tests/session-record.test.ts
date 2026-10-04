@@ -13,6 +13,11 @@
  *   - describeSessionRecord: the prompt's label/detail lines.
  */
 
+import { translateLabel, translatorFor } from "@/i18n/runtime";
+
+const t = translatorFor("en");
+const detailOf = (d: unknown) => (Array.isArray(d) ? d : [d]).map((part) => translateLabel(t, part as never)).join(" · ");
+
 import { describe, expect, it } from "vitest";
 import {
   captureCreateSession,
@@ -438,9 +443,9 @@ describe("describeSessionRecord", () => {
   it("labels a file session with its name and drawn work", () => {
     const described = describeSessionRecord(captureFileSession(BASE_FILE_STATE, 1));
     expect(described.label).toBe("morning-run.gpx");
-    expect(described.detail).toContain("4 points drawn");
-    expect(described.detail).toContain("1 manual span");
-    expect(described.detail).toContain("1 skipped gap");
+    expect(detailOf(described.detail)).toContain("4 points drawn");
+    expect(detailOf(described.detail)).toContain("1 manual span");
+    expect(detailOf(described.detail)).toContain("1 skipped gap");
   });
 
   it("labels create with the entered distance and plan with its shape", () => {
@@ -457,9 +462,9 @@ describe("describeSessionRecord", () => {
         1,
       ),
     );
-    expect(create.label).toBe("Activity from stats");
-    expect(create.detail).toContain("3 points drawn");
-    expect(create.detail).toContain("10.0 km entered");
+    expect(translateLabel(t, create.label)).toBe("Activity from stats");
+    expect(detailOf(create.detail)).toContain("3 points drawn");
+    expect(detailOf(create.detail)).toContain("10.0 km entered");
 
     const plan = describeSessionRecord(
       capturePlanSession(
@@ -471,7 +476,7 @@ describe("describeSessionRecord", () => {
         1,
       ),
     );
-    expect(plan.label).toBe("Route plan");
-    expect(plan.detail).toBe("6 points drawn");
+    expect(translateLabel(t, plan.label)).toBe("Route plan");
+    expect(detailOf(plan.detail)).toBe("6 points drawn");
   });
 });

@@ -19,6 +19,8 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { ConsistencyNote } from "@/components/create/consistency-note";
+import { useI18n } from "@/hooks/use-i18n";
+import { UNIT_WORDS } from "@/i18n/units";
 import type { ActivityStats, ConsistencyNotice } from "@/hooks/use-create-session";
 import type { LocateStatus } from "@/hooks/use-create-map";
 import {
@@ -43,14 +45,19 @@ export interface CreateGuideCardProps {
   vertexCount: number;
 }
 
-const LOCATE_NOTICE: Record<LocateStatus, string | null> = {
-  idle: null,
-  locating: "Finding your position…",
-  denied:
-    "Location was declined — pan and zoom to your starting point instead.",
-  unavailable:
-    "This browser has no location support — pan and zoom to your starting point instead.",
-};
+/**
+ * The locate aid's degraded-state notices (idle has none). Resolved
+ * through the translator at render time — the one-time module map
+ * became per-locale copy in Phase 21.
+ */
+function locateNoticeFor(
+  t: ReturnType<typeof useI18n>["t"],
+  status: LocateStatus,
+): string | null {
+  if (status === "denied") return t("create.guide.locateDenied");
+  if (status === "unavailable") return t("create.guide.locateUnavailable");
+  return null;
+}
 
 export function CreateGuideCard({
   stats,
@@ -61,21 +68,21 @@ export function CreateGuideCard({
   onBackToStats,
   vertexCount,
 }: CreateGuideCardProps) {
+  const { t, locale } = useI18n();
   const metersPerUnit = PACE_METERS_PER_UNIT[paceUnit];
   const pacePerUnitMs =
     (stats.paceMsPerKm / PACE_METERS_PER_UNIT.km) * metersPerUnit;
-  const locateNotice = LOCATE_NOTICE[locateStatus];
+  const locateNotice = locateNoticeFor(t, locateStatus);
 
   return (
     <Card className="border-[1.5px] border-ink" data-testid="create-guide-card">
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <MapPin className="size-4 text-signal" aria-hidden="true" />
-          Draw your route
+          {t("create.guide.title")}
         </h3>
         <CardDescription>
-          The whole activity — there is no recording to fall back on. What
-          you draw is what the file becomes.
+          {t("create.guide.blurb")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3.5">
@@ -85,14 +92,21 @@ export function CreateGuideCard({
           className="grid gap-[3px] rounded-lg border border-ink/15 bg-ink/[0.03] px-2.5 py-2 text-xs text-muted-foreground"
           data-testid="create-stats-recap"
         >
-          <p className="font-semibold text-ink">Your watch recorded</p>
+          <p className="font-semibold text-ink">{t("create.guide.recapTitle")}</p>
           <p className="tabular-nums">
-            <span className="font-semibold text-ink">Distance</span>{" "}
+            <span className="font-semibold text-ink">
+              {t("create.guide.recapDistance")}
+            </span>{" "}
             {formatDistanceForUnit(stats.distanceM, paceUnit)} ·{" "}
-            <span className="font-semibold text-ink">Time</span>{" "}
+            <span className="font-semibold text-ink">
+              {t("create.guide.recapTime")}
+            </span>{" "}
             {formatDurationMs(stats.durationMs)} ·{" "}
-            <span className="font-semibold text-ink">Pace</span>{" "}
-            {formatPaceMs(pacePerUnitMs)} /{paceUnit}
+            <span className="font-semibold text-ink">
+              {t("create.guide.recapPace")}
+            </span>{" "}
+            {formatPaceMs(pacePerUnitMs)}{" "}
+            {paceUnit === "km" ? UNIT_WORDS[locale].perKm : UNIT_WORDS[locale].perMi}
           </p>
         </div>
 
@@ -109,20 +123,16 @@ export function CreateGuideCard({
             data-testid="create-draw-instructions"
             role="status"
           >
-            Find your starting point on the map (or use{" "}
-            <span className="font-semibold">Find my position</span>), then
-            click to place the route point by point — the line follows real
-            roads between your clicks. Pan with the P key or the mode chip;
-            draw with D.
+            {t("create.guide.instructionsLead")}{" "}
+            <span className="font-semibold">{t("create.guide.locate")}</span>
+            {t("create.guide.instructionsTail")}
           </p>
         ) : (
           <p
             className="rounded-md border border-signal/40 bg-signal/[0.06] px-3 py-2 text-xs leading-relaxed text-ink"
             role="status"
           >
-            Keep clicking to extend the route. Switch to Move (M) to drag
-            any point, double-click to remove it, and finish when the line
-            matches where you went.
+            {t("create.guide.instructionsMore")}
           </p>
         )}
 
@@ -138,8 +148,8 @@ export function CreateGuideCard({
           >
             <LocateFixed className="size-3.5" aria-hidden="true" />
             {locateStatus === "locating"
-              ? "Finding your position…"
-              : "Find my position"}
+              ? t("create.guide.locating")
+              : t("create.guide.locate")}
           </Button>
           {locateNotice && locateStatus !== "locating" && (
             <p
@@ -154,9 +164,7 @@ export function CreateGuideCard({
         </div>
 
         <p className="text-[11px] leading-snug text-muted-foreground">
-          Road following sends only the points you click to a public
-          routing service (OSRM / Valhalla); nothing else leaves this
-          browser.
+          {t("create.guide.privacyNote")}
         </p>
 
         <Button
@@ -168,7 +176,7 @@ export function CreateGuideCard({
           onClick={onBackToStats}
         >
           <ArrowLeft className="size-3.5" aria-hidden="true" />
-          Back to statistics
+          {t("create.guide.backToStats")}
         </Button>
       </CardContent>
     </Card>

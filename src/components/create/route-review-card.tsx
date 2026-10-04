@@ -31,6 +31,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
 import { ElevationControls } from "@/components/reconstruction/elevation-controls";
 import { ConsistencyNote } from "@/components/create/consistency-note";
+import { useI18n } from "@/hooks/use-i18n";
+import { UNIT_WORDS } from "@/i18n/units";
 import type { CreateReview } from "@/hooks/use-create-export";
 import type { ElevationControlsBinding } from "@/hooks/use-elevation";
 import type {
@@ -67,6 +69,7 @@ export function RouteReviewCard({
   elevation,
   onEditRoute,
 }: RouteReviewCardProps) {
+  const { t, locale } = useI18n();
   const { track } = review;
   const { reconciliation } = track;
   const [downloadedFile, setDownloadedFile] = useState<string | null>(null);
@@ -90,11 +93,10 @@ export function RouteReviewCard({
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <Ruler className="size-4 text-signal" aria-hidden="true" />
-          Review &amp; export
+          {t("create.review.title")}
         </h3>
         <CardDescription>
-          The route you drew decides the file&apos;s distance — your recorded
-          time always stands.
+          {t("create.review.blurb")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -104,15 +106,21 @@ export function RouteReviewCard({
           data-testid="distance-reconciliation"
         >
           <p>
-            <span className="font-semibold text-ink">Recorded distance</span>{" "}
+            <span className="font-semibold text-ink">
+              {t("create.review.recordedDistance")}
+            </span>{" "}
             {formatDistanceForUnit(reconciliation.recordedM, paceUnit)}
           </p>
           <p>
-            <span className="font-semibold text-ink">Drawn route</span>{" "}
+            <span className="font-semibold text-ink">
+              {t("create.review.drawnRoute")}
+            </span>{" "}
             {formatDistanceForUnit(reconciliation.drawnM, paceUnit)}
           </p>
           <p data-testid="distance-difference">
-            <span className="font-semibold text-ink">Difference</span>{" "}
+            <span className="font-semibold text-ink">
+              {t("create.review.difference")}
+            </span>{" "}
             {reconciliation.differenceM >= 0 ? "+" : "−"}
             {formatDistanceForUnit(
               Math.abs(reconciliation.differenceM),
@@ -132,19 +140,22 @@ export function RouteReviewCard({
                 onCheckedChange={(checked) =>
                   review.setMatchDistance(checked === true)
                 }
-                aria-label="Use my watch's distance instead of the drawn route's"
+                aria-label={t("create.review.matchA11y")}
                 data-testid="match-distance-toggle"
                 className="mt-0.5"
               />
               <span>
                 <span className="font-semibold">
-                  Use my watch&apos;s distance instead
+                  {t("create.review.matchTitle")}
                 </span>{" "}
-                — the drawn shape is scaled uniformly to your recorded{" "}
-                {formatDistanceForUnit(reconciliation.recordedM, paceUnit)} (×
-                {reconciliation.scaleFactor?.toFixed(3)}). Leave it off and the
-                file carries the drawn route&apos;s{" "}
-                {formatDistanceForUnit(reconciliation.drawnM, paceUnit)} as is.
+                {t("create.review.matchBody", {
+                  recorded: formatDistanceForUnit(
+                    reconciliation.recordedM,
+                    paceUnit,
+                  ),
+                  scale: reconciliation.scaleFactor?.toFixed(3) ?? "",
+                  drawn: formatDistanceForUnit(reconciliation.drawnM, paceUnit),
+                })}
               </span>
             </label>
             {reconciliation.extreme && (
@@ -153,32 +164,30 @@ export function RouteReviewCard({
                 data-testid="extreme-scale-warning"
               >
                 <TriangleAlert className="size-4" aria-hidden="true" />
-                <AlertTitle>That&apos;s a big difference</AlertTitle>
+                <AlertTitle>{t("create.review.extremeTitle")}</AlertTitle>
                 <AlertDescription>
-                  {Math.round(reconciliation.relativeDifference * 100)}% apart —
-                  usually a km/miles mixup or a missed loop in the drawing.
-                  Consider going back and checking what you entered, or edit the
-                  route to match where you went.
+                  {t("create.review.extremeBody", {
+                    percent: Math.round(reconciliation.relativeDifference * 100),
+                  })}
                 </AlertDescription>
               </Alert>
             )}
           </div>
         ) : (
           <p className="text-xs text-muted-foreground" role="status">
-            The drawn route matches your recorded distance — nothing to
-            reconcile.
+            {t("create.review.matches")}
           </p>
         )}
 
         {/* The final activity summary — what the file will carry. */}
         <div className="grid gap-2" data-testid="activity-summary">
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
-            The file will carry
+            {t("create.review.summaryTitle")}
             <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
           </p>
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5 text-[13px] tabular-nums">
             <dt className="text-xs font-semibold text-muted-foreground">
-              Distance
+              {t("create.review.distance")}
             </dt>
             <dd className="flex flex-wrap items-baseline gap-2 font-semibold">
               {formatDistanceForUnit(finalDistanceM, paceUnit)}
@@ -187,33 +196,37 @@ export function RouteReviewCard({
               )}
             </dd>
             <dt className="text-xs font-semibold text-muted-foreground">
-              Time
+              {t("create.review.time")}
             </dt>
             <dd className="font-semibold">
               {formatDurationMs(stats.durationMs)}
             </dd>
             <dt className="text-xs font-semibold text-muted-foreground">
-              Average pace
+              {t("create.review.avgPace")}
             </dt>
             <dd className="font-semibold">
               {impliedPaceMsPerUnit === null
                 ? "—"
-                : `${formatPaceMs(impliedPaceMsPerUnit)} /${paceUnit}`}
+                : `${formatPaceMs(impliedPaceMsPerUnit)} ${
+                    paceUnit === "km"
+                      ? UNIT_WORDS[locale].perKm
+                      : UNIT_WORDS[locale].perMi
+                  }`}
             </dd>
             <dt className="text-xs font-semibold text-muted-foreground">
-              Start
+              {t("create.review.start")}
             </dt>
             <dd className="font-semibold">{formatDateTime(stats.startMs)}</dd>
             <dt className="text-xs font-semibold text-muted-foreground">
-              Route
+              {t("create.review.route")}
             </dt>
             <dd className="font-semibold">
-              Reconstructed manually — {track.pointCount} points
+              {t("create.review.routeValue", { count: track.pointCount })}
             </dd>
             {elevation.summary && (
               <>
                 <dt className="text-xs font-semibold text-muted-foreground">
-                  Elevation
+                  {t("create.review.elevation")}
                 </dt>
                 <dd
                   className="flex flex-wrap items-baseline gap-2 font-semibold"
@@ -236,13 +249,15 @@ export function RouteReviewCard({
         <ElevationControls elevation={elevation} />
 
         <p className="text-[11px] leading-snug text-muted-foreground">
-          Timestamps are estimated — your recorded total time, spread evenly by
-          effort along the route. {elevation.summary ? (
-            <>Elevation is estimated from {elevation.providerName} terrain and
-            labeled as estimated in the file.{" "}</>
+          {t("create.review.timestampsNote")}{" "}
+          {elevation.summary ? (
+            <>
+              {t("create.review.elevationNote", {
+                provider: elevation.providerName,
+              })}{" "}
+            </>
           ) : (
-            <>No elevation is included: the watch recorded none, and none is
-            invented.</>
+            <>{t("create.review.noElevationNote")}</>
           )}
         </p>
 
@@ -261,7 +276,7 @@ export function RouteReviewCard({
             onClick={onExport}
           >
             <Download className="size-4" aria-hidden="true" />
-            Export GPX
+            {t("create.review.export")}
           </Button>
           {downloadedFile && (
             <p
@@ -270,8 +285,7 @@ export function RouteReviewCard({
               data-testid="export-success"
             >
               <Check className="size-3.5 text-signal" aria-hidden="true" />
-              Downloaded {downloadedFile} — import it into Strava or any GPX
-              platform.
+              {t("create.review.downloaded", { file: downloadedFile })}
             </p>
           )}
           <Button
@@ -283,7 +297,7 @@ export function RouteReviewCard({
             onClick={onEditRoute}
           >
             <ArrowLeft className="size-3.5" aria-hidden="true" />
-            Edit route
+            {t("create.review.editRoute")}
           </Button>
         </div>
       </CardContent>

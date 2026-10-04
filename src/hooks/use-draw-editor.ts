@@ -77,6 +77,7 @@ import {
   type RoutableRoadMode,
 } from "@/features/reconstruction/roadFollow";
 import { announce } from "@/lib/announcements";
+import { useI18n } from "@/hooks/use-i18n";
 import type { NudgeStepM } from "@/features/reconstruction/coordEntry";
 import type {
   DrawVertex,
@@ -312,6 +313,7 @@ export function useDrawEditor(
   session: GpxSession,
   map: MapBinding,
 ): DrawEditorBinding {
+  const { t } = useI18n();
   const activeGapId = useEditorStore((s) => s.activeGapId);
   const pointerMode = useEditorStore((s) => s.pointerMode);
   const pen = useEditorStore((s) => s.pen);
@@ -1160,17 +1162,19 @@ export function useDrawEditor(
     const current = activeReconstruction(useEditorStore.getState());
     if (current) {
       announce(
-        `Point added by coordinates — the line now holds ${current.vertices.length} points.`,
+        t("hook.drawEditor.pointAddedByCoords", {
+          count: current.vertices.length,
+        }),
       );
     }
-  }, []);
+  }, [t]);
 
   const insertVertexAt = useCallback(
     (index: number, lat: number, lon: number) => {
       useEditorStore.getState().insertVertex(index, { lat, lon });
-      announce("Point inserted by coordinates.");
+      announce(t("hook.drawEditor.pointInsertedByCoords"));
     },
-    [],
+    [t],
   );
 
   const moveVertexTo = useCallback(

@@ -8,6 +8,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Eraser, Redo2, Undo2 } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 
 export interface UndoRedoBarProps {
   canUndo: boolean;
@@ -32,11 +33,12 @@ export function UndoRedoBar({
   onRedo,
   onClear,
 }: UndoRedoBarProps) {
+  const { t } = useI18n();
   return (
     <div
       className="flex items-center gap-1.5"
       role="group"
-      aria-label="Drawing history"
+      aria-label={t("undoRedo.groupAria")}
       data-testid="undo-redo-bar"
     >
       <Button
@@ -46,11 +48,17 @@ export function UndoRedoBar({
         className="h-8 gap-1.5 px-2.5"
         disabled={!canUndo}
         onClick={onUndo}
-        aria-label={canUndo ? `Undo (${undoCount} step${undoCount === 1 ? "" : "s"})` : "Undo (nothing to undo)"}
+        aria-label={
+          canUndo
+            ? undoCount === 1
+              ? t("undoRedo.undoOne", { count: undoCount })
+              : t("undoRedo.undoMany", { count: undoCount })
+            : t("undoRedo.undoEmpty")
+        }
         data-testid="undo-button"
       >
         <Undo2 className="size-3.5" aria-hidden="true" />
-        Undo
+        {t("undoRedo.undo")}
       </Button>
       <Button
         type="button"
@@ -59,11 +67,17 @@ export function UndoRedoBar({
         className="h-8 gap-1.5 px-2.5"
         disabled={!canRedo}
         onClick={onRedo}
-        aria-label={canRedo ? `Redo (${redoCount} step${redoCount === 1 ? "" : "s"})` : "Redo (nothing to redo)"}
+        aria-label={
+          canRedo
+            ? redoCount === 1
+              ? t("undoRedo.redoOne", { count: redoCount })
+              : t("undoRedo.redoMany", { count: redoCount })
+            : t("undoRedo.redoEmpty")
+        }
         data-testid="redo-button"
       >
         <Redo2 className="size-3.5" aria-hidden="true" />
-        Redo
+        {t("undoRedo.redo")}
       </Button>
       <Button
         type="button"
@@ -72,11 +86,11 @@ export function UndoRedoBar({
         className="h-8 gap-1.5 px-2.5"
         disabled={!canClear}
         onClick={onClear}
-        aria-label="Clear all drawn points"
+        aria-label={t("undoRedo.clearAria")}
         data-testid="clear-button"
       >
         <Eraser className="size-3.5" aria-hidden="true" />
-        Clear
+        {t("undoRedo.clear")}
       </Button>
     </div>
   );

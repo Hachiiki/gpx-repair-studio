@@ -53,19 +53,21 @@ import type {
   WorkingEdit,
 } from "@/types/domain";
 import type { DeepValidationBinding } from "@/hooks/use-deep-validation";
+import { useI18n } from "@/hooks/use-i18n";
+import { translateLabel } from "@/i18n/runtime";
 import { formatDateTime } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
-// Vocabulary (UI labels — presentation-only)
+// Vocabulary (UI labels — presentation-only; i18n KEYS, rendered via t())
 // ---------------------------------------------------------------------------
 
-const KIND_LABELS: Record<DeepIssueKind, string> = {
-  "speed-spike": "Speed spikes",
-  "duplicate-cluster": "Duplicate points",
-  "gps-drift": "GPS drift",
-  "elevation-outlier": "Elevation outliers",
-  "non-monotonic-time": "Clock runs backwards",
-  "missing-elevation": "Missing elevation",
+const KIND_LABEL_KEYS: Record<DeepIssueKind, string> = {
+  "speed-spike": "deepValidation.kind.speedSpike",
+  "duplicate-cluster": "deepValidation.kind.duplicateCluster",
+  "gps-drift": "deepValidation.kind.gpsDrift",
+  "elevation-outlier": "deepValidation.kind.elevationOutlier",
+  "non-monotonic-time": "deepValidation.kind.nonMonotonicTime",
+  "missing-elevation": "deepValidation.kind.missingElevation",
 };
 
 const SEVERITY_ORDER: Record<DeepIssueSeverity, number> = {
@@ -80,32 +82,38 @@ const SEVERITY_TONE: Record<DeepIssueSeverity, StatusTone> = {
   info: "neutral",
 };
 
-const SEVERITY_NOUN: Record<DeepIssueSeverity, string> = {
-  error: "errors",
-  warning: "warnings",
-  info: "notes",
+const SEVERITY_LABEL_KEYS: Record<DeepIssueSeverity, string> = {
+  error: "deepValidation.severity.error",
+  warning: "deepValidation.severity.warning",
+  info: "deepValidation.severity.info",
 };
 
-const FIX_LABELS: Record<FixKind, string> = {
-  "remove-spikes": "Remove spikes…",
-  dedupe: "Dedupe…",
-  "sort-by-time": "Sort by time…",
-  "smooth-elevations": "Smooth elevations…",
-  "remove-drift": "Collapse drift…",
-  thin: "Thin recording…",
+const SEVERITY_NOUN_KEYS: Record<DeepIssueSeverity, string> = {
+  error: "deepValidation.noun.error",
+  warning: "deepValidation.noun.warning",
+  info: "deepValidation.noun.info",
 };
 
-const REASON_LABELS: Record<WorkingEdit["reason"], string> = {
-  spike: "spike removal",
-  duplicate: "dedupe",
-  drift: "drift collapse",
-  sort: "time sort",
-  elevation: "elevation smoothing",
-  thin: "thinning",
-  split: "segment split",
-  range: "range deletion",
-  reorder: "manual reorder",
-  copy: "segment copy",
+const FIX_LABEL_KEYS: Record<FixKind, string> = {
+  "remove-spikes": "deepValidation.fix.removeSpikes",
+  dedupe: "deepValidation.fix.dedupe",
+  "sort-by-time": "deepValidation.fix.sortByTime",
+  "smooth-elevations": "deepValidation.fix.smoothElevations",
+  "remove-drift": "deepValidation.fix.removeDrift",
+  thin: "deepValidation.fix.thin",
+};
+
+const REASON_LABEL_KEYS: Record<WorkingEdit["reason"], string> = {
+  spike: "deepValidation.reason.spike",
+  duplicate: "deepValidation.reason.duplicate",
+  drift: "deepValidation.reason.drift",
+  sort: "deepValidation.reason.sort",
+  elevation: "deepValidation.reason.elevation",
+  thin: "deepValidation.reason.thin",
+  split: "deepValidation.reason.split",
+  range: "deepValidation.reason.range",
+  reorder: "deepValidation.reason.reorder",
+  copy: "deepValidation.reason.copy",
 };
 
 /** The point list cap per issue — the disclosure lists 12, then counts. */
@@ -134,6 +142,7 @@ export function DeepValidationCard({
   onJumpToPoint,
   resolvePoint,
 }: DeepValidationCardProps) {
+  const { t } = useI18n();
   const [pending, setPending] = useState<PendingPreview | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<DeepIssueKind>>(
     new Set(),
@@ -148,20 +157,23 @@ export function DeepValidationCard({
 
   const summary = (Object.keys(counts) as DeepIssueSeverity[])
     .filter((severity) => counts[severity] > 0)
-    .map((severity) => `${counts[severity]} ${SEVERITY_NOUN[severity]}`)
+    .map((severity) => `${counts[severity]} ${t(SEVERITY_NOUN_KEYS[severity])}`)
     .join(" · ");
 
   const openFixPreview = (kind: FixKind) => {
     const plan = deep.planFix(kind);
     if (plan === null) return;
-    setPending({ title: plan.label, plans: [plan] });
+    setPending({ title: translateLabel(t, plan.label), plans: [plan] });
   };
 
   const openPresetPreview = (id: PresetId) => {
     const plans = deep.planPreset(id);
     const preset = deep.presets.find((p) => p.id === id);
     if (plans === null || !preset) return;
-    setPending({ title: `Preset — ${preset.name}`, plans });
+    setPending({
+      title: t("deepValidation.presetTitle", { name: t(`preset.${preset.id}.name`) }),
+      plans,
+    });
   };
 
   const confirmPending = () => {
@@ -187,12 +199,12 @@ export function DeepValidationCard({
             className="size-4 shrink-0 text-signal"
             aria-hidden="true"
           />
-          Deep validation
+          {t("deepValidation.title")}
         </h3>
         <CardDescription>
           {deep.report.totalCount > 0
-            ? `${summary} in the working copy`
-            : "No fixable recording damage found"}
+            ? t("deepValidation.summaryLine", { summary })
+            : t("deepValidation.noDamage")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -202,8 +214,7 @@ export function DeepValidationCard({
               className="mt-0.5 size-4 shrink-0 text-ink"
               aria-hidden="true"
             />
-            Deep checks hunt teleports, duplicates, drift, clock and
-            elevation damage. This working copy is clean.
+            {t("deepValidation.cleanBody")}
           </p>
         ) : (
           <ScrollArea className="max-h-[22rem] -mx-2">
@@ -225,10 +236,13 @@ export function DeepValidationCard({
         )}
 
         {/* Preset bundles — detector→fix chains with a compound preview. */}
-        <section aria-label="Presets" className="grid gap-2">
+        <section
+          aria-label={t("deepValidation.presetsAria")}
+          className="grid gap-2"
+        >
           <h4 className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
             <History className="size-3.5" aria-hidden="true" />
-            Presets
+            {t("deepValidation.presets")}
           </h4>
           <div className="grid gap-1.5">
             {deep.presets.map((preset) => (
@@ -236,13 +250,16 @@ export function DeepValidationCard({
                 key={preset.id}
                 type="button"
                 data-testid={`deep-preset-${preset.id}`}
-                aria-label={`Preset ${preset.name}. ${preset.description}`}
+                aria-label={t("deepValidation.presetAria", {
+                  name: preset.name, // canonical (stored; manifest-pinned)
+                  descriptionKey: `preset.${preset.id}.description`,
+                })}
                 className="grid gap-0.5 rounded-[9px] border-[1.25px] border-ink/15 px-3 py-2 text-left transition-colors hover:border-signal hover:bg-signal/[0.05] focus-visible:outline-2"
                 onClick={() => openPresetPreview(preset.id)}
               >
-                <span className="text-[13px] font-semibold">{preset.name}</span>
+                <span className="text-[13px] font-semibold">{t(`preset.${preset.id}.name`)}</span>
                 <span className="text-[11.5px] leading-relaxed text-muted-foreground">
-                  {preset.description}
+                  {t(`preset.${preset.id}.description`)}
                 </span>
               </button>
             ))}
@@ -251,11 +268,14 @@ export function DeepValidationCard({
 
         {/* The confirmed-fix log — provenance + undo (log = undo stack). */}
         {deep.edits.length > 0 && (
-          <section aria-label="Applied fixes" className="grid gap-2">
+          <section
+            aria-label={t("deepValidation.appliedAria")}
+            className="grid gap-2"
+          >
             <div className="flex items-center justify-between gap-2">
               <h4 className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 <ListOrdered className="size-3.5" aria-hidden="true" />
-                Changes ({deep.edits.length})
+                {t("deepValidation.changes", { count: deep.edits.length })}
               </h4>
               <button
                 type="button"
@@ -264,7 +284,7 @@ export function DeepValidationCard({
                 onClick={deep.undo}
               >
                 <Undo2 className="size-3.5" aria-hidden="true" />
-                Undo last
+                {t("deepValidation.undoLast")}
               </button>
             </div>
             <ul className="grid gap-1.5" data-testid="deep-change-log">
@@ -277,13 +297,13 @@ export function DeepValidationCard({
                     className="grid gap-0.5 rounded-[9px] border-[1.25px] border-ink/15 px-3 py-2"
                   >
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] font-semibold">
-                      {edit.label}
+                      {translateLabel(t, edit.label)}
                       <span className="rounded-[3px] border-[1.25px] border-ink/25 px-1 py-px font-mono text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        {REASON_LABELS[edit.reason]}
+                        {t(REASON_LABEL_KEYS[edit.reason])}
                       </span>
                       {index === 0 && (
                         <span className="text-[11px] font-normal text-muted-foreground">
-                          (newest)
+                          {t("deepValidation.newest")}
                         </span>
                       )}
                     </span>
@@ -294,8 +314,7 @@ export function DeepValidationCard({
                 ))}
             </ul>
             <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-              Statistics, the map route, and the export recompute from this
-              working copy; the original file stays untouched.
+              {t("deepValidation.recomputeNote")}
             </p>
           </section>
         )}
@@ -333,6 +352,7 @@ function DeepIssueRow({
   onFix: (kind: FixKind) => void;
   resolvePoint: (pointId: string) => PreviewPointInfo | null;
 }) {
+  const { t } = useI18n();
   const shown = issue.points.slice(0, POINT_LIST_CAP);
   return (
     <li
@@ -342,9 +362,9 @@ function DeepIssueRow({
     >
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge tone={SEVERITY_TONE[issue.severity]}>
-          {issue.severity}
+          {t(SEVERITY_LABEL_KEYS[issue.severity])}
         </StatusBadge>
-        <span className="font-semibold">{KIND_LABELS[issue.kind]}</span>
+        <span className="font-semibold">{t(KIND_LABEL_KEYS[issue.kind])}</span>
         <span className="ml-auto font-bold tabular-nums text-muted-foreground">
           ×{issue.count}
         </span>
@@ -359,11 +379,13 @@ function DeepIssueRow({
             type="button"
             data-testid="deep-issue-jump"
             className="inline-flex items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12.5px] font-bold text-signal-ink transition-colors hover:bg-signal/10 hover:underline hover:underline-offset-[3px] focus-visible:outline-2"
-            aria-label={`Jump the map to the ${KIND_LABELS[issue.kind]} location`}
+            aria-label={t("deepValidation.jumpAria", {
+              kind: t(KIND_LABEL_KEYS[issue.kind]),
+            })}
             onClick={onJump}
           >
             <Crosshair className="size-3.5" aria-hidden="true" />
-            Jump to map
+            {t("deepValidation.jumpToMap")}
           </button>
         )}
         {fixes.map((kind) => (
@@ -372,11 +394,13 @@ function DeepIssueRow({
             type="button"
             data-testid={`deep-issue-fix-${kind}`}
             className="inline-flex items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12.5px] font-bold text-signal-ink transition-colors hover:bg-signal/10 hover:underline hover:underline-offset-[3px] focus-visible:outline-2"
-            aria-label={`${FIX_LABELS[kind]} Preview what would change, then confirm.`}
+            aria-label={t("deepValidation.fixAria", {
+              label: t(FIX_LABEL_KEYS[kind]),
+            })}
             onClick={() => onFix(kind)}
           >
             <Wrench className="size-3.5" aria-hidden="true" />
-            {FIX_LABELS[kind]}
+            {t(FIX_LABEL_KEYS[kind])}
           </button>
         ))}
         {issue.points.length > 0 && (
@@ -387,7 +411,11 @@ function DeepIssueRow({
             className="ml-auto rounded-[5px] px-2 py-1 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2"
             onClick={onToggle}
           >
-            {expanded ? "Hide points" : `List ${issue.points.length} points`}
+            {expanded
+              ? t("deepValidation.hidePoints")
+              : t("deepValidation.listPoints", {
+                  count: issue.points.length,
+                })}
           </button>
         )}
       </div>
@@ -417,14 +445,16 @@ function DeepIssueRow({
                       : ""}
                   </>
                 ) : (
-                  " · unknown position"
+                  t("deepValidation.unknownPosition")
                 )}
               </li>
             );
           })}
           {issue.points.length > shown.length && (
             <li className="text-[11px] text-muted-foreground">
-              …and {issue.points.length - shown.length} more
+              {t("deepValidation.andMore", {
+                count: issue.points.length - shown.length,
+              })}
             </li>
           )}
         </ul>

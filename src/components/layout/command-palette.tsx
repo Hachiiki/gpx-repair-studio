@@ -36,14 +36,16 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   commandGroupLabel,
+  boundCommandLabel,
   displayShortcut,
   type BoundCommand,
   type CommandGroupId,
 } from "@/hooks/use-commands";
 import {
-  savedSessionSectionLabel,
+  savedSessionSectionKey,
   type SavedSessionRow,
 } from "@/hooks/use-saved-sessions";
 import { formatDateTime } from "@/lib/utils/format";
@@ -75,6 +77,7 @@ export function CommandPalette({
   filter,
   sessions,
 }: CommandPaletteProps) {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   // A fresh palette opens with a fresh search — adjusted during render
   // (React's "reset state when a prop changes" pattern; no effect).
@@ -113,10 +116,9 @@ export function CommandPalette({
         data-testid="command-palette"
         className="top-[18%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-lg"
       >
-        <DialogTitle className="sr-only">Command palette</DialogTitle>
+        <DialogTitle className="sr-only">{t("palette.title")}</DialogTitle>
         <DialogDescription className="sr-only">
-          Search every action in the app. Arrow keys move, Enter runs,
-          Escape closes.
+          {t("palette.description")}
         </DialogDescription>
         <Command
           className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10.5px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-muted-foreground"
@@ -124,7 +126,7 @@ export function CommandPalette({
         >
           <CommandInput
             data-testid="command-palette-input"
-            placeholder="Search commands…"
+            placeholder={t("palette.placeholder")}
             value={query}
             onValueChange={setQuery}
           />
@@ -133,11 +135,11 @@ export function CommandPalette({
             className="max-h-[min(52vh,380px)] border-t-[1.5px] border-ink/10"
           >
             <CommandEmpty data-testid="command-palette-empty">
-              Nothing matches — try a tool name, “undo”, or “theme”.
+              {t("palette.empty")}
             </CommandEmpty>
 
             {sessionMatches.length > 0 && (
-              <CommandGroup heading="Recent sessions">
+              <CommandGroup heading={t("palette.recentSessions")}>
                 {sessionMatches.map((entry) => (
                   <CommandItem
                     key={`session-${entry.row.id}`}
@@ -153,7 +155,7 @@ export function CommandPalette({
                         {entry.row.name}
                       </span>
                       <span className="truncate text-[11px] text-muted-foreground">
-                        {savedSessionSectionLabel(entry.row.section)} ·{" "}
+                        {t(savedSessionSectionKey(entry.row.section))} ·{" "}
                         {formatDateTime(entry.row.updatedAt)}
                       </span>
                     </span>
@@ -163,7 +165,7 @@ export function CommandPalette({
             )}
 
             {grouped === null ? (
-              <CommandGroup heading="Commands">
+              <CommandGroup heading={t("palette.commands")}>
                 {filtered.map((command) => (
                   <PaletteItem
                     key={command.def.id}
@@ -174,7 +176,7 @@ export function CommandPalette({
               </CommandGroup>
             ) : (
               Array.from(grouped.entries()).map(([group, items]) => (
-                <CommandGroup key={group} heading={commandGroupLabel(group)}>
+                <CommandGroup key={group} heading={commandGroupLabel(t, group)}>
                   {items.map((command) => (
                     <PaletteItem
                       key={command.def.id}
@@ -192,12 +194,13 @@ export function CommandPalette({
           >
             <span className="flex items-center gap-1">
               <CommandKeycap>↑</CommandKeycap>
-              <CommandKeycap>↓</CommandKeycap> move ·{" "}
-              <CommandKeycap>↵</CommandKeycap> run ·{" "}
-              <CommandKeycap>Esc</CommandKeycap> close
+              <CommandKeycap>↓</CommandKeycap> {t("palette.footerMove")} ·{" "}
+              <CommandKeycap>↵</CommandKeycap> {t("palette.footerRun")} ·{" "}
+              <CommandKeycap>{"Esc"}</CommandKeycap> {t("palette.footerClose")}
             </span>
+            {/* Keycap glyphs are the keyboard's own standardized names (Esc, Ctrl) — machine vocabulary, not copy */}
             <span className="flex items-center gap-0.5 font-mono">
-              <CommandKeycap>Ctrl</CommandKeycap>
+              <CommandKeycap>{"Ctrl"}</CommandKeycap>
               <CommandKeycap>K</CommandKeycap>
             </span>
           </p>
@@ -214,20 +217,22 @@ function PaletteItem({
   command: BoundCommand;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const bindings = [command.def.shortcut, command.def.altShortcut].filter(
     (binding): binding is NonNullable<typeof command.def.shortcut> =>
       Boolean(binding),
   );
+  const label = boundCommandLabel(t, command.def);
   return (
     <CommandItem
       data-testid={`command-palette-item-${command.def.id}`}
-      value={`${command.def.label} ${(command.def.keywords ?? []).join(" ")}`}
+      value={`${label} ${(command.def.keywords ?? []).join(" ")}`}
       onSelect={() => {
         onDone();
         command.run();
       }}
     >
-      <span className="flex-1 truncate text-[13px]">{command.def.label}</span>
+      <span className="flex-1 truncate text-[13px]">{label}</span>
       {bindings.length > 0 ? (
         <span className="ml-3 flex shrink-0 items-center gap-1 font-mono">
           {bindings.map((binding) => (
@@ -238,7 +243,7 @@ function PaletteItem({
         </span>
       ) : command.def.scope === "editor" ? (
         <span className="ml-3 shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
-          editor
+          {t("palette.editor")}
         </span>
       ) : null}
     </CommandItem>

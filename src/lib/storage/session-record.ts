@@ -39,6 +39,7 @@
  * Phase 10 — Session Recovery. Pure TypeScript.
  */
 
+import type { LocalLabel } from "@/i18n/types";
 import type { GapThresholds } from "@/features/gpx/detectGaps";
 import type { ActivityStats } from "@/features/create/stats";
 import type { FileTimingContext } from "@/features/reconstruction/timestamps";
@@ -564,7 +565,16 @@ function isWorkingEdit(value: unknown): value is StoredWorkingEdit {
   if (typeof value !== "object" || value === null) return false;
   const edit = value as Record<string, unknown>;
   if (typeof edit.id !== "string" || edit.id.length === 0) return false;
-  if (typeof edit.label !== "string") return false;
+  // Phase 21 — labels are LocalLabels: a legacy final string OR a
+  // structured { key, params } pair (the key must be non-empty).
+  const labelOk =
+    typeof edit.label === "string"
+      ? edit.label.length > 0
+      : typeof edit.label === "object" &&
+        edit.label !== null &&
+        typeof (edit.label as Record<string, unknown>).key === "string" &&
+        ((edit.label as Record<string, unknown>).key as string).length > 0;
+  if (!labelOk) return false;
   if (typeof edit.reason !== "string" || !FIX_REASONS.has(edit.reason)) {
     return false;
   }
@@ -714,18 +724,23 @@ export function readSessionRecord(raw: unknown): StoredSessionRecord | null {
 // Prompt description (record → display row)
 // ---------------------------------------------------------------------------
 
-/** One restorable session as the prompt renders it. */
+/** One restorable session as the prompt renders it. Phase 21: the
+ * label/detail are LocalLabels (structured keys + params; the file
+ * name stays a plain string — it is data, not copy). */
 export interface SessionRecordDescriptor {
   section: "repair" | "recovery" | "create" | "plan";
   savedAt: number;
   /** Primary line — the file name, or the route's shape. */
-  label: string;
-  /** Secondary line — what work would come back. */
-  detail: string;
+  label: LocalLabel;
+  /** Secondary line — the parts, joined at render with " · ". */
+  detail: LocalLabel[];
 }
 
-function describeVertices(count: number): string {
-  return count === 1 ? "1 point" : `${count} points`;
+function describeVertices(count: number): LocalLabel {
+  return {
+    key: count === 1 ? "restore.desc.drawn.one" : "restore.desc.drawn.many",
+    params: { count },
+  };
 }
 
 /** Derive the prompt's display row from a validated record (pure). */
@@ -741,20 +756,24 @@ export function describeSessionRecord(
       (total, recon) => total + recon.vertices.length,
       0,
     );
-    const extras: string[] = [];
+    const extras: LocalLabel[] = [];
     if (record.manualSpans.length > 0) {
-      extras.push(
-        record.manualSpans.length === 1
-          ? "1 manual span"
-          : `${record.manualSpans.length} manual spans`,
-      );
+      extras.push({
+        key:
+          record.manualSpans.length === 1
+            ? "restore.desc.manualSpans.one"
+            : "restore.desc.manualSpans.many",
+        params: { count: record.manualSpans.length },
+      });
     }
     if (record.skippedGapIds.length > 0) {
-      extras.push(
-        record.skippedGapIds.length === 1
-          ? "1 skipped gap"
-          : `${record.skippedGapIds.length} skipped gaps`,
-      );
+      extras.push({
+        key:
+          record.skippedGapIds.length === 1
+            ? "restore.desc.skippedGaps.one"
+            : "restore.desc.skippedGaps.many",
+        params: { count: record.skippedGapIds.length },
+      });
     }
     // Phase 13: confirmed deep-validation fixes are work too — the
     // prompt's detail line says they would come back.
@@ -768,35 +787,53 @@ export function describeSessionRecord(
       );
       const others = record.workingEdits.length;
       extras.push(
-        others === 1
-          ? removed > 0
-            ? `1 fix (${removed} points)`
-            : "1 fix"
-          : `${others} fixes${removed > 0 ? ` (${removed} points)` : ""}`,
+        removed > 0
+          ? {
+              key:
+                others === 1
+                  ? "restore.desc.fixes.points.one"
+                  : "restore.desc.fixes.points.many",
+              params: { count: others, points: removed },
+            }
+          : {
+              key:
+                others === 1
+                  ? "restore.desc.fixes.plain.one"
+                  : "restore.desc.fixes.plain.many",
+              params: { count: others },
+            },
       );
     }
-    const detailParts = [
-      `${describeVertices(vertices)} drawn`,
+    // The detail rides as a param list: the renderer joins the
+    // localized parts with the locale's own separator.
+    const detailParts: LocalLabel[] = [
+      describeVertices(vertices),
       ...extras,
     ];
     return {
       ...base,
       label: record.fileName,
-      detail: detailParts.join(" · "),
+      detail: detailParts,
     };
   }
   if (record.kind === "create") {
     return {
       ...base,
-      label: "Activity from stats",
-      detail: `${describeVertices(record.reconstruction.vertices.length)} drawn · ${(
-        record.stats.distanceM / 1000
-      ).toFixed(1)} km entered`,
+      label: { key: "restore.desc.createLabel" },
+      detail: [
+        describeVertices(record.reconstruction.vertices.length),
+        {
+          key: "restore.desc.createKm",
+          params: {
+            km: (record.stats.distanceM / 1000).toFixed(1),
+          },
+        },
+      ],
     };
   }
   return {
     ...base,
-    label: "Route plan",
-    detail: `${describeVertices(record.reconstruction.vertices.length)} drawn`,
+    label: { key: "restore.desc.planLabel" },
+    detail: [describeVertices(record.reconstruction.vertices.length)],
   };
 }

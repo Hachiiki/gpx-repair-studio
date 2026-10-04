@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Milestone, ShieldCheck } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 
 export interface RouterConsentDialogProps {
   open: boolean;
@@ -64,6 +65,7 @@ export function RouterConsentDialog({
   onClose,
   onOpenPrivacy,
 }: RouterConsentDialogProps) {
+  const { t } = useI18n();
   const managing = consent === "granted";
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
@@ -75,74 +77,65 @@ export function RouterConsentDialog({
             ) : (
               <Milestone className="size-4 text-signal" aria-hidden="true" />
             )}
-            {managing ? "Road snapping is on" : "Turn on road snapping?"}
+            {managing ? t("shared.consent.titleManaging") : t("shared.consent.titleGrant")}
           </DialogTitle>
           <DialogDescription asChild>
             <div className="space-y-3 text-[13px] leading-relaxed text-muted-foreground">
               {managing ? (
                 <p data-testid="router-consent-manage-note">
-                  Road snapping is enabled for this session. The points of
-                  every line you draw with Roads, Footpaths, or Snap to road
-                  are being sent to{" "}
+                  {t("shared.consent.managePrefix")}{" "}
                   <span className="font-mono text-[11.5px] text-foreground">
                     {hostsLabel}
                   </span>
-                  . Nothing else ever leaves — not your file, not your
-                  recorded points. It turns off when you close this tab, or
-                  right now:
+                  {t("shared.consent.manageSuffix")}
                 </p>
               ) : (
                 <>
                   <p data-testid="router-consent-notice">
-                    Road snapping sends the drawn line to a third-party
-                    router: the points you place on a line with the{" "}
+                    {t("shared.consent.noticeLead")}{" "}
                     <span className="font-semibold text-foreground">
-                      Roads
+                      {t("shared.consent.roads")}
                     </span>
-                    ,{" "}
+                    {t("shared.consent.sepComma")}
                     <span className="font-semibold text-foreground">
-                      Footpaths
+                      {t("shared.consent.footpaths")}
                     </span>
-                    , or{" "}
+                    {t("shared.consent.sepOr")}
                     <span className="font-semibold text-foreground">
-                      Snap to road
+                      {t("shared.consent.snapToRoad")}
                     </span>{" "}
-                    controls go to{" "}
+                    {t("shared.consent.controlsGoTo")}{" "}
                     <span className="font-mono text-[11.5px] text-foreground">
                       {hostsLabel}
                     </span>{" "}
-                    to find the roads between them.
+                    {t("shared.consent.toFindRoads")}
                   </p>
                   <p>
                     <span className="font-semibold text-foreground">
-                      Never your GPX file, never your recorded points
+                      {t("shared.consent.neverLine")}
                     </span>{" "}
-                    — only what you yourself draw. Straight lines and the
-                    Curve pen stay fully local either way, and you can turn
-                    this off any time from the footer.
+                    {t("shared.consent.neverRest")}
                   </p>
                 </>
               )}
               {customRouter && (
                 <p className="rounded-md border border-ink/15 bg-ink/[0.03] px-3 py-2 text-[12.5px]">
-                  You have configured your own routing server — drawn points
-                  go there, to{" "}
+                  {t("shared.consent.customPrefix")}{" "}
                   <span className="font-mono text-[11.5px]">{hostsLabel}</span>
-                  , not to a public service.
+                  {t("shared.consent.customSuffix")}
                 </p>
               )}
               <p className="text-[12px]">
-                This permission lasts for this session only — a fresh page
-                load asks again.{" "}
+                {t("shared.consent.sessionScope")}{" "}
                 <button
                   type="button"
                   className="font-semibold text-foreground underline decoration-ink/25 underline-offset-2 hover:decoration-ink"
                   data-testid="router-consent-privacy-link"
                   onClick={onOpenPrivacy}
                 >
-                  Privacy &amp; data
+                  {t("shared.consent.privacyLink")}
                 </button>{" "}
-                has the full list and the self-hosting instructions.
+                {t("shared.consent.privacyRest")}
               </p>
             </div>
           </DialogDescription>
@@ -156,7 +149,7 @@ export function RouterConsentDialog({
                 data-testid="router-consent-done"
                 onClick={onClose}
               >
-                Done
+                {t("shared.consent.done")}
               </Button>
               <Button
                 type="button"
@@ -165,7 +158,7 @@ export function RouterConsentDialog({
                 data-testid="router-consent-revoke"
                 onClick={onRevoke}
               >
-                Turn off for this session
+                {t("shared.consent.turnOff")}
               </Button>
             </>
           ) : (
@@ -176,14 +169,14 @@ export function RouterConsentDialog({
                 data-testid="router-consent-decline"
                 onClick={onDecline}
               >
-                Keep lines local
+                {t("shared.consent.keepLocal")}
               </Button>
               <Button
                 type="button"
                 data-testid="router-consent-grant"
                 onClick={onGrant}
               >
-                Enable for this session
+                {t("shared.consent.enable")}
               </Button>
             </>
           )}

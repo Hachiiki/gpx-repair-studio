@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PaceUnitToggle } from "@/components/shared/pace-unit-toggle";
+import { useI18n } from "@/hooks/use-i18n";
 import { ShareCardCanvas } from "@/components/share/share-card-canvas";
 import type {
   CreateShareBinding,
@@ -42,17 +43,26 @@ export interface CreateShareViewProps {
 
 const SCALE_OPTIONS: readonly {
   value: CreateSharePngScale;
-  label: string;
-  detail: string;
+  labelKey: string;
+  detailKey: string;
 }[] = [
-  { value: 1, label: "1×", detail: "1080 × 1920" },
-  { value: 2, label: "2×", detail: "2160 × 3840" },
+  {
+    value: 1,
+    labelKey: "create.shareView.scale1",
+    detailKey: "create.shareView.scale1Detail",
+  },
+  {
+    value: 2,
+    labelKey: "create.shareView.scale2",
+    detailKey: "create.shareView.scale2Detail",
+  },
 ];
 
 export function CreateShareView({
   share,
   onBackToReview,
 }: CreateShareViewProps) {
+  const { t } = useI18n();
   const [scale, setScale] = useState<CreateSharePngScale>(1);
   const content = share.content;
   const spec = share.spec;
@@ -60,7 +70,7 @@ export function CreateShareView({
   return (
     <section
       id="create-share"
-      aria-label="Share card"
+      aria-label={t("create.shareView.title")}
       data-testid="create-share-section"
       className="scroll-mt-20"
     >
@@ -71,12 +81,10 @@ export function CreateShareView({
               className="size-[11px] shrink-0 rounded-[1.5px] bg-signal"
               aria-hidden="true"
             />
-            Share card
+            {t("create.shareView.title")}
           </h2>
           <p className="mt-1.5 max-w-[62ch] text-sm leading-relaxed text-muted-foreground">
-            A Strava-style graphic of your created activity — transparent
-            background, rendered from the route you drew and the time you
-            recorded.
+            {t("create.shareView.blurb")}
           </p>
         </div>
       </div>
@@ -105,14 +113,14 @@ export function CreateShareView({
             time={spec.time}
           />
           <p className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-3 py-1 text-[11.5px] text-white/80">
-            Transparent background — shown on dark
+            {t("create.shareView.stageNote")}
           </p>
         </div>
 
         <aside
           className="grid min-w-0 content-start gap-4 [&>*]:min-w-0"
           data-testid="create-share-tools"
-          aria-label="Share card tools"
+          aria-label={t("create.shareView.toolsA11y")}
         >
           <Card data-testid="create-share-summary-card">
             <CardHeader>
@@ -121,11 +129,10 @@ export function CreateShareView({
                   className="size-2 shrink-0 rounded-[1px] bg-signal"
                   aria-hidden="true"
                 />
-                On the card
+                {t("create.shareView.cardTitle")}
               </h3>
               <CardDescription>
-                The same numbers the review card shows — what the file will
-                carry.
+                {t("create.shareView.cardBlurb")}
               </CardDescription>
               <CardAction>
                 <PaceUnitToggle
@@ -141,7 +148,7 @@ export function CreateShareView({
               >
                 <div>
                   <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                    Distance
+                    {t("create.shareView.distance")}
                   </dt>
                   <dd
                     className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
@@ -152,7 +159,7 @@ export function CreateShareView({
                 </div>
                 <div>
                   <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                    Pace
+                    {t("create.shareView.pace")}
                   </dt>
                   <dd
                     className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
@@ -163,7 +170,7 @@ export function CreateShareView({
                 </div>
                 <div>
                   <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                    Time
+                    {t("create.shareView.time")}
                   </dt>
                   <dd
                     className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
@@ -176,12 +183,12 @@ export function CreateShareView({
 
               <div className="grid gap-2">
                 <span className="text-sm font-semibold">
-                  PNG resolution
+                  {t("create.shareView.pngResolution")}
                 </span>
                 <div
                   className="inline-flex w-fit gap-[3px] rounded-[7px] border-[1.25px] border-ink/25 bg-card p-[3px]"
                   role="group"
-                  aria-label="PNG resolution"
+                  aria-label={t("create.shareView.pngResolution")}
                   data-testid="create-share-scale-toggle"
                 >
                   {SCALE_OPTIONS.map((option) => (
@@ -197,9 +204,9 @@ export function CreateShareView({
                       }
                       onClick={() => setScale(option.value)}
                     >
-                      {option.label}
+                      {t(option.labelKey)}
                       <span className="ml-1.5 opacity-75">
-                        {option.detail}
+                        {t(option.detailKey)}
                       </span>
                     </button>
                   ))}
@@ -213,7 +220,7 @@ export function CreateShareView({
                   onClick={() => share.downloadPng(scale)}
                 >
                   <Download className="size-4" aria-hidden="true" />
-                  Download PNG
+                  {t("create.shareView.download")}
                 </Button>
                 <Button
                   variant="outline"
@@ -222,7 +229,7 @@ export function CreateShareView({
                   onClick={onBackToReview}
                 >
                   <ArrowLeft className="size-4" aria-hidden="true" />
-                  Back to route review
+                  {t("create.shareView.back")}
                 </Button>
               </div>
             </CardContent>
@@ -235,10 +242,10 @@ export function CreateShareView({
                   className="size-2 shrink-0 rounded-[1px] bg-signal"
                   aria-hidden="true"
                 />
-                What the numbers mean
+                {t("create.shareView.meaningTitle")}
               </h3>
               <CardDescription>
-                A created activity, honestly labeled.
+                {t("create.shareView.meaningBlurb")}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2 text-sm text-muted-foreground">

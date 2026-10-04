@@ -6,17 +6,20 @@
  * Pure presentation: current unit in, change intent out.
  */
 
+import { useI18n } from "@/hooks/use-i18n";
+
 export interface PaceUnitToggleProps {
   unit: "km" | "mi";
   onChange: (unit: "km" | "mi") => void;
 }
 
 export function PaceUnitToggle({ unit, onChange }: PaceUnitToggleProps) {
+  const { t } = useI18n();
   return (
     <div
       className="inline-flex gap-[3px] rounded-[7px] border-[1.25px] border-ink/25 bg-card p-[3px]"
       role="group"
-      aria-label="Pace unit"
+      aria-label={t("shared.paceUnit.groupAria")}
       data-testid="pace-unit-toggle"
     >
       {(["km", "mi"] as const).map((option) => (

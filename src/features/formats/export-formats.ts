@@ -12,8 +12,10 @@ export type ExportFormat = "gpx" | "kml" | "geojson" | "csv";
 
 export interface ExportFormatOption {
   value: ExportFormat;
+  /** The format's own name (never localized — a product noun). */
   label: string;
-  hint: string;
+  /** The hint's DICTIONARY KEY (Phase 21 — resolved at render). */
+  hintKey: string;
   /** Download file extension (without the dot). */
   extension: string;
   /** The MIME type handed to the browser with the blob. */
@@ -24,28 +26,28 @@ export const EXPORT_FORMAT_OPTIONS: readonly ExportFormatOption[] = [
   {
     value: "gpx",
     label: "GPX",
-    hint: "The full-fidelity export: every recorded value plus gpxr provenance markers — re-upload keeps repairs distinguishable.",
+    hintKey: "export.format.gpx",
     extension: "gpx",
     mimeType: "application/gpx+xml",
   },
   {
     value: "kml",
     label: "KML",
-    hint: "For Google Earth and mapping tools: the track line per segment plus stats and provenance as ExtendedData.",
+    hintKey: "export.format.kml",
     extension: "kml",
     mimeType: "application/vnd.google-earth.kml+xml",
   },
   {
     value: "geojson",
     label: "GeoJSON",
-    hint: "For developers and GIS tools: one Feature per track, coordinates plus per-track stats and provenance properties.",
+    hintKey: "export.format.geojson",
     extension: "geojson",
     mimeType: "application/geo+json",
   },
   {
     value: "csv",
     label: "CSV",
-    hint: "For spreadsheets: one row per trackpoint with a provenance column (recorded / estimated / modified).",
+    hintKey: "export.format.csv",
     extension: "csv",
     mimeType: "text/csv",
   },

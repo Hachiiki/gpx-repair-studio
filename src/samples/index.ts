@@ -33,29 +33,26 @@ export type SampleId = "repair-ride" | "clean-run" | "merge-a" | "merge-b";
 export interface SampleDefinition {
   /** The download/upload file name (always says "sample"). */
   readonly fileName: string;
-  /** What the sample demonstrates (aria-labels, tests). */
-  readonly summary: string;
+  /** What the sample demonstrates — a DICTIONARY KEY (Phase 21). */
+  readonly summaryKey: string;
 }
 
 export const SAMPLES: Record<SampleId, SampleDefinition> = {
   "repair-ride": {
     fileName: "sample-ride-with-gaps.gpx",
-    summary:
-      "A synthetic ride with two GPS gaps — one suspect, one severe — and full timestamps.",
+    summaryKey: "sample.repairRide.summary",
   },
   "clean-run": {
     fileName: "sample-steady-run.gpx",
-    summary:
-      "A synthetic steady run with no gaps and no anomalies — a clean continuous route.",
+    summaryKey: "sample.cleanRun.summary",
   },
   "merge-a": {
     fileName: "sample-commute-part-1.gpx",
-    summary: "The first half of a synthetic two-part commute.",
+    summaryKey: "sample.mergeA.summary",
   },
   "merge-b": {
     fileName: "sample-commute-part-2.gpx",
-    summary:
-      "The second half of the same commute, recorded 20 minutes later where part 1 ended.",
+    summaryKey: "sample.mergeB.summary",
   },
 };
 

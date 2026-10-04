@@ -16,6 +16,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   Card,
   CardContent,
@@ -59,6 +60,7 @@ export function MergeDetailsCard({
   distanceM,
   waypointCount,
 }: MergeDetailsCardProps) {
+  const { t } = useI18n();
   // Local field state; commits on blur/Enter (see header). Syncs when
   // the store's value changes from elsewhere (a reset).
   const [draft, setDraft] = useState(combinedName);
@@ -78,11 +80,10 @@ export function MergeDetailsCard({
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          The combined activity
+          {t("merge.details.title")}
         </h3>
         <CardDescription>
-          One track, one name — this is what Strava and other platforms
-          display for the merged file.
+          {t("merge.details.intro")}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -91,13 +92,13 @@ export function MergeDetailsCard({
             htmlFor="merge-activity-name"
             className="text-[12.5px] font-medium text-muted-foreground"
           >
-            Activity name
+            {t("merge.details.nameLabel")}
           </label>
           <input
             id="merge-activity-name"
             type="text"
             value={draft}
-            placeholder="e.g. Weekend double"
+            placeholder={t("merge.details.namePlaceholder")}
             maxLength={120}
             data-testid="merge-activity-name"
             onChange={(event) => setDraft(event.target.value)}
@@ -112,16 +113,24 @@ export function MergeDetailsCard({
             className="h-10 w-full rounded-[7px] border-[1.5px] border-ink/25 bg-card px-2.5 text-[14.5px] font-semibold transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
           />
           <p className="text-[11.5px] text-muted-foreground">
-            Written to the file's metadata and its single track. Leave
-            empty for an unnamed file, like a raw watch export.
+            {t("merge.details.nameHint")}
           </p>
         </div>
         <dl className="divide-y divide-ink/10" data-testid="merge-facts">
-          <FactRow label="Files merged" value={String(fileCount)} />
-          <FactRow label="Recorded points" value={String(totalPoints)} />
-          <FactRow label="Distance" value={formatDistanceMeters(distanceM)} />
+          <FactRow label={t("merge.details.factFiles")} value={String(fileCount)} />
+          <FactRow
+            label={t("merge.details.factPoints")}
+            value={String(totalPoints)}
+          />
+          <FactRow
+            label={t("merge.details.factDistance")}
+            value={formatDistanceMeters(distanceM)}
+          />
           {waypointCount > 0 && (
-            <FactRow label="Waypoints" value={String(waypointCount)} />
+            <FactRow
+              label={t("merge.details.factWaypoints")}
+              value={String(waypointCount)}
+            />
           )}
         </dl>
       </CardContent>

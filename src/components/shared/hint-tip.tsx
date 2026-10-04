@@ -18,6 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useI18n } from "@/hooks/use-i18n";
 
 /** Hover dwell before a hint opens (ms) — deliberate, not accidental. */
 const HINT_DELAY_MS = 450;
@@ -41,6 +42,7 @@ export function HintTip({
   side = "bottom",
   children,
 }: HintTipProps) {
+  const { t } = useI18n();
   return (
     <Tooltip delayDuration={HINT_DELAY_MS}>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
@@ -61,7 +63,7 @@ export function HintTip({
             <kbd className="rounded-[3px] border-b-2 border-white/25 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-paper">
               {kbd}
             </kbd>
-            <span>to switch</span>
+            <span>{t("shared.hint.toSwitch")}</span>
           </p>
         )}
       </TooltipContent>

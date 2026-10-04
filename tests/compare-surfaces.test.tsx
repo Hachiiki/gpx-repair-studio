@@ -25,7 +25,7 @@ const stats: CompareStats = {
   rows: [
     {
       id: "points",
-      label: "Recorded points",
+      labelKey: "compare.stat.points",
       original: 100,
       after: 94,
       delta: -6,
@@ -35,7 +35,7 @@ const stats: CompareStats = {
     },
     {
       id: "distance",
-      label: "Distance",
+      labelKey: "compare.stat.distance",
       original: 10_000,
       after: 9_850,
       delta: -150,
@@ -45,7 +45,7 @@ const stats: CompareStats = {
     },
     {
       id: "moving-time",
-      label: "Moving time",
+      labelKey: "compare.stat.movingTime",
       original: 1_800_000,
       after: 1_800_000,
       delta: 0,
@@ -55,7 +55,7 @@ const stats: CompareStats = {
     },
     {
       id: "gain",
-      label: "Elevation gain",
+      labelKey: "compare.stat.elevation",
       original: null,
       after: null,
       delta: null,
@@ -71,20 +71,20 @@ const summary: RepairSummary = {
   rows: [
     {
       kind: "filtered",
-      label: "Points removed by fixes",
+      labelKey: "summary.row.filtered",
       count: 6,
       provenance: "modified",
-      detail: "deleted from the working copy — the original keeps them",
+      detailKey: "summary.detail.filtered",
     },
     {
       kind: "sorted",
-      label: "Segments sorted by time",
+      labelKey: "summary.row.sorted",
       count: 1,
       provenance: "estimated",
-      detail: "the new order is estimated (stated in the export note)",
+      detailKey: "summary.detail.sorted",
     },
   ],
-  history: [{ label: "Remove speed spikes", appliedAt: 1_700_000_000_000 }],
+  history: [{ label: { key: "fix.removeSpikes.label.many", params: { count: 3 } }, appliedAt: 1_700_000_000_000 }],
 };
 
 function binding(patch: Partial<CompareBinding> = {}): CompareBinding {
@@ -193,7 +193,7 @@ describe("RepairSummaryCard", () => {
       screen.getByTestId("repair-summary-row-filtered"),
     ).toHaveTextContent("6");
     expect(screen.getByTestId("repair-summary-history")).toHaveTextContent(
-      "Remove speed spikes",
+      "Remove 3 speed spikes",
     );
     const snapshot = screen.getByTestId("repair-summary-snapshot");
     expect(snapshot.firstChild).toBeInTheDocument();

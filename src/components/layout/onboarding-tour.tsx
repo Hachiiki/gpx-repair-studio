@@ -14,6 +14,10 @@
  *
  * Pure presentation: the controller prop carries every behavior. The
  * copy is a contract — nothing here promises what the app does not do.
+ *
+ * Phase 21: the step content is a KEY map (icons stay code-side);
+ * getTourSteps(t) resolves the display strings through the
+ * translator, so a locale switch re-renders the tour.
  */
 
 "use client";
@@ -33,6 +37,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import type { OnboardingTourController } from "@/hooks/use-onboarding-tour";
 import { ONBOARDING_TOUR_STEPS } from "@/hooks/use-onboarding-tour";
 import { cn } from "@/lib/utils";
@@ -45,32 +50,54 @@ export interface TourStep {
   body: string;
 }
 
-export const TOUR_STEPS: readonly TourStep[] = [
+/** One step's copy as dictionary keys (the icon stays code-side). */
+interface TourStepCopy {
+  icon: LucideIcon;
+  kickerKey: string;
+  titleKey: string;
+  bodyKey: string;
+}
+
+/**
+ * The four steps' content — keys into the tours dictionary
+ * (`onboarding.step<N>.kicker|title|body`).
+ */
+const ONBOARDING_TOUR_COPY: readonly TourStepCopy[] = [
   {
     icon: ShieldCheck,
-    kicker: "Privacy first",
-    title: "Your files stay on this device",
-    body: "Uploading, parsing, gap detection, drawing, statistics, and export all happen in this browser tab. There is no account, and no copy of anything you open here exists anywhere else. The only network requests are map tiles — plus the road-follow and elevation lookups you explicitly trigger.",
+    kickerKey: "onboarding.step1.kicker",
+    titleKey: "onboarding.step1.title",
+    bodyKey: "onboarding.step1.body",
   },
   {
     icon: LayoutGrid,
-    kicker: "The workbench",
-    title: "Pick a tool",
-    body: "Six cards, six jobs: repair a recording, create a share card, recover a GPS gap, create an activity from its stats, combine recordings, or plan a route. Each opens its own workspace — with the same map, the same pens, and its own file.",
+    kickerKey: "onboarding.step2.kicker",
+    titleKey: "onboarding.step2.title",
+    bodyKey: "onboarding.step2.body",
   },
   {
     icon: PenLine,
-    kicker: "Drawing",
-    title: "Draw, then refine",
-    body: "The Default pen places points that follow real roads or footpaths; the Curve pen draws freehand. Switch to Move (M) to drag any point into place — and everything undoes, step by step.",
+    kickerKey: "onboarding.step3.kicker",
+    titleKey: "onboarding.step3.title",
+    bodyKey: "onboarding.step3.body",
   },
   {
     icon: History,
-    kicker: "The guarantees",
-    title: "Nothing is lost, nothing is invented",
-    body: "Statistics always separate recorded data from your reconstructions, and exports carry those markers into Strava and every other platform. Unfinished work is autosaved on this device and offered back the next time you return.",
+    kickerKey: "onboarding.step4.kicker",
+    titleKey: "onboarding.step4.title",
+    bodyKey: "onboarding.step4.body",
   },
 ];
+
+/** Resolve the tour's display strings for one locale. */
+export function getTourSteps(t: TranslatorArg): readonly TourStep[] {
+  return ONBOARDING_TOUR_COPY.map((step) => ({
+    icon: step.icon,
+    kicker: t(step.kickerKey),
+    title: t(step.titleKey),
+    body: t(step.bodyKey),
+  }));
+}
 
 export interface OnboardingTourProps {
   /** The controller (hooks/use-onboarding-tour) — every behavior. */
@@ -78,8 +105,10 @@ export interface OnboardingTourProps {
 }
 
 export function OnboardingTour({ tour }: OnboardingTourProps) {
+  const { t } = useI18n();
   const open = tour.step !== null;
-  const step = TOUR_STEPS[tour.step ?? 0];
+  const steps = getTourSteps(t);
+  const step = steps[tour.step ?? 0];
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   // Announce each step turn: the heading takes focus, so a screen
@@ -136,7 +165,7 @@ export function OnboardingTour({ tour }: OnboardingTourProps) {
             data-testid="tour-skip"
             onClick={tour.close}
           >
-            Skip
+            {t("onboarding.skip")}
           </Button>
 
           <div className="flex items-center gap-3">
@@ -146,7 +175,7 @@ export function OnboardingTour({ tour }: OnboardingTourProps) {
               aria-hidden="true"
               data-testid="tour-dots"
             >
-              {TOUR_STEPS.map((_, index) => (
+              {steps.map((_, index) => (
                 <span
                   key={index}
                   className={cn(
@@ -161,7 +190,10 @@ export function OnboardingTour({ tour }: OnboardingTourProps) {
               ))}
             </div>
             <span className="sr-only" data-testid="tour-step-count">
-              Step {(tour.step ?? 0) + 1} of {ONBOARDING_TOUR_STEPS}
+              {t("onboarding.stepCount", {
+                current: (tour.step ?? 0) + 1,
+                count: ONBOARDING_TOUR_STEPS,
+              })}
             </span>
 
             {(tour.step ?? 0) > 0 && (
@@ -172,7 +204,7 @@ export function OnboardingTour({ tour }: OnboardingTourProps) {
                 data-testid="tour-back"
                 onClick={tour.back}
               >
-                Back
+                {t("onboarding.back")}
               </Button>
             )}
             <Button
@@ -182,8 +214,8 @@ export function OnboardingTour({ tour }: OnboardingTourProps) {
               onClick={tour.next}
             >
               {(tour.step ?? 0) >= ONBOARDING_TOUR_STEPS - 1
-                ? "Get started"
-                : "Next"}
+                ? t("onboarding.getStarted")
+                : t("onboarding.next")}
             </Button>
           </div>
         </div>

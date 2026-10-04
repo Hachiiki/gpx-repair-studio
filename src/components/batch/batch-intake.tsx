@@ -22,9 +22,11 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge, type StatusTone } from "@/components/shared/status-badge";
 import { MAX_BATCH_FILES } from "@/state/batch-store";
 import type { BatchSessionBinding } from "@/hooks/use-batch-session";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import { cn } from "@/lib/utils";
 
 export function BatchIntake({ session }: { session: BatchSessionBinding }) {
+  const { t } = useI18n();
   const inputId = useId();
   const [dragging, setDragging] = useState(false);
   /** The last cap refusal, rendered until the next drop/pick. */
@@ -36,8 +38,14 @@ export function BatchIntake({ session }: { session: BatchSessionBinding }) {
     if (turnedAway.length > 0) {
       setRefused(
         turnedAway.length === 1
-          ? `"${turnedAway[0]!.name}" was not added — the queue holds at most ${MAX_BATCH_FILES} files.`
-          : `${turnedAway.length} files were not added — the queue holds at most ${MAX_BATCH_FILES} files.`,
+          ? t("batch.intake.refusedOne", {
+              name: turnedAway[0]!.name,
+              max: MAX_BATCH_FILES,
+            })
+          : t("batch.intake.refusedMany", {
+              count: turnedAway.length,
+              max: MAX_BATCH_FILES,
+            }),
       );
     } else {
       setRefused(null);
@@ -81,12 +89,12 @@ export function BatchIntake({ session }: { session: BatchSessionBinding }) {
           </span>
           <span className="space-y-1">
             <span className="block text-[17px] font-bold tracking-tight">
-              Drop your GPX, TCX, or FIT files here
+              {t("batch.intake.title")}
             </span>
             <span className="block text-[13px] text-muted-foreground">
-              one or many — or{" "}
+              {t("batch.intake.orPrefix")}{" "}
               <span className="font-semibold text-ink underline underline-offset-[3px]">
-                click to browse
+                {t("batch.intake.browse")}
               </span>
             </span>
           </span>
@@ -108,7 +116,7 @@ export function BatchIntake({ session }: { session: BatchSessionBinding }) {
 
       <p className="flex items-center justify-center gap-1.5 text-[12.5px] text-muted-foreground">
         <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
-        Files are read locally in this tab — nothing is uploaded anywhere.
+        {t("batch.intake.privacyLine")}
       </p>
 
       {refused !== null && (
@@ -126,18 +134,18 @@ export function BatchIntake({ session }: { session: BatchSessionBinding }) {
         <ul
           className="flex flex-col gap-1.5"
           data-testid="batch-intake-files"
-          aria-label="Collected files"
+          aria-label={t("batch.intake.filesAria")}
         >
           {session.items.map((item) => {
             const view = session.views.find((v) => v.item.id === item.id);
             const status: { tone: StatusTone; label: string } =
               item.status === "parsed"
-                ? { tone: "success", label: "Parsed" }
+                ? { tone: "success", label: t("batch.status.parsed") }
                 : item.status === "failed"
-                  ? { tone: "danger", label: "Failed" }
+                  ? { tone: "danger", label: t("batch.status.failed") }
                   : item.status === "parsing"
-                    ? { tone: "info", label: "Reading" }
-                    : { tone: "neutral", label: "Queued" };
+                    ? { tone: "info", label: t("batch.status.reading") }
+                    : { tone: "neutral", label: t("batch.status.queued") };
             return (
               <li
                 key={item.id}
@@ -153,19 +161,23 @@ export function BatchIntake({ session }: { session: BatchSessionBinding }) {
                   </span>
                   {item.status === "queued" && (
                     <span className="block text-[12px] text-muted-foreground">
-                      Waiting…
+                      {t("batch.intake.waiting")}
                     </span>
                   )}
                   {item.status === "parsing" && (
                     <span className="block text-[12px] text-muted-foreground">
-                      Reading…
+                      {t("batch.intake.reading")}
                     </span>
                   )}
                   {item.status === "parsed" && view?.working && (
                     <span className="block text-[12px] text-muted-foreground">
-                      {pointCountLabel(view.working)} · deep checks{" "}
-                      {view.report?.totalCount ?? 0} finding
-                      {(view.report?.totalCount ?? 0) === 1 ? "" : "s"}
+                      {pointCountLabel(t, view.working)} ·{" "}
+                      {t(
+                        (view.report?.totalCount ?? 0) === 1
+                          ? "batch.intake.deepChecksOne"
+                          : "batch.intake.deepChecksMany",
+                        { count: view.report?.totalCount ?? 0 },
+                      )}
                     </span>
                   )}
                   {item.status === "failed" && item.error && (
@@ -182,7 +194,9 @@ export function BatchIntake({ session }: { session: BatchSessionBinding }) {
                   <button
                     type="button"
                     data-testid={`batch-remove-${item.id}`}
-                    aria-label={`Remove ${item.fileName} from the queue`}
+                    aria-label={t("batch.intake.removeAria", {
+                      name: item.fileName,
+                    })}
                     className="rounded-[5px] p-1 text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
                     onClick={() => session.removeItem(item.id)}
                   >
@@ -204,17 +218,23 @@ export function BatchIntake({ session }: { session: BatchSessionBinding }) {
         disabled={session.aggregate.parsed === 0}
         onClick={session.enterStudio}
       >
-        Work the queue ({session.aggregate.parsed} parsed)
+        {t("batch.intake.workQueue", { count: session.aggregate.parsed })}
       </Button>
     </div>
   );
 }
 
 /** The honest point count of a working copy ("1,234 points"). */
-function pointCountLabel(working: {
-  segments: readonly { points: readonly unknown[] }[];
-}): string {
+function pointCountLabel(
+  t: TranslatorArg,
+  working: {
+    segments: readonly { points: readonly unknown[] }[];
+  },
+): string {
   let total = 0;
   for (const segment of working.segments) total += segment.points.length;
-  return `${total.toLocaleString()} point${total === 1 ? "" : "s"}`;
+  return t(
+    total === 1 ? "batch.intake.pointsOne" : "batch.intake.pointsMany",
+    { count: total.toLocaleString() },
+  );
 }

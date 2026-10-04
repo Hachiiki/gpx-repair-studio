@@ -26,12 +26,14 @@ import { useState } from "react";
 import { Route } from "lucide-react";
 import { mapOverlayPalette, type MapOverlayPalette } from "@/hooks/use-map-controller";
 import { useTheme } from "@/hooks/use-theme";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import { cn } from "@/lib/utils";
 
 const SAMPLE_LINE_CLASS = "h-1 w-7 rounded-full";
 
 /** The encoding entries — unchanged vocabulary, always mounted. */
 function renderEntries(
+  t: TranslatorArg,
   palette: MapOverlayPalette,
   compareGhost: boolean,
 ) {
@@ -52,7 +54,7 @@ function renderEntries(
             }}
             aria-hidden="true"
           />
-          Original track (ghost — before edits)
+          {t("map.legend.ghost")}
         </li>
       )}
       {compareGhost && (
@@ -68,7 +70,7 @@ function renderEntries(
             }}
             aria-hidden="true"
           />
-          Changed stretch of the original
+          {t("map.legend.changed")}
         </li>
       )}
       <li className="flex items-center gap-2">
@@ -77,7 +79,7 @@ function renderEntries(
           style={{ backgroundColor: palette.route }}
           aria-hidden="true"
         />
-        Recorded route (solid ink)
+        {t("map.legend.recorded")}
       </li>
       <li className="flex items-center gap-2">
         <span
@@ -87,7 +89,7 @@ function renderEntries(
           }}
           aria-hidden="true"
         />
-        Gap span (dashed, severity shades)
+        {t("map.legend.gapSpan")}
       </li>
       <li className="flex items-center gap-2">
         <span
@@ -103,7 +105,7 @@ function renderEntries(
           }}
           aria-hidden="true"
         />
-        Gap boundaries (ring = before, dot = after)
+        {t("map.legend.gapBoundaries")}
       </li>
       <li className="flex items-center gap-2">
         <span
@@ -111,7 +113,7 @@ function renderEntries(
           style={{ backgroundColor: palette.recon }}
           aria-hidden="true"
         />
-        Repaired route (solid orange)
+        {t("map.legend.repaired")}
       </li>
       <li className="flex items-center gap-2">
         <span
@@ -121,7 +123,7 @@ function renderEntries(
           }}
           aria-hidden="true"
         />
-        Footpath repair (dashed — drawn with Footpaths)
+        {t("map.legend.footpath")}
       </li>
       <li className="flex items-center gap-2">
         <span
@@ -132,7 +134,7 @@ function renderEntries(
           }}
           aria-hidden="true"
         />
-        Open connection (closes on finish)
+        {t("map.legend.openConnection")}
       </li>
       <li className="flex items-center gap-2">
         <span
@@ -143,13 +145,14 @@ function renderEntries(
           }}
           aria-hidden="true"
         />
-        Drawn point (drag in Move mode)
+        {t("map.legend.drawnPoint")}
       </li>
     </ul>
   );
 }
 
 export function MapLegend({ compareGhost = false }: { compareGhost?: boolean }) {
+  const { t } = useI18n();
   // Pinned = clicked open (stays until clicked again). Hover and keyboard
   // focus open it transiently through the same CSS group.
   const [pinned, setPinned] = useState(false);
@@ -178,16 +181,16 @@ export function MapLegend({ compareGhost = false }: { compareGhost?: boolean }) 
         )}
       >
         <div className="rounded-lg border border-ink/20 bg-paper/90 px-2.5 py-2.5 text-[11px] leading-tight text-ink/70 shadow-float backdrop-blur-[3px]">
-          {renderEntries(palette, compareGhost)}
+          {renderEntries(t, palette, compareGhost)}
         </div>
       </div>
       <button
         type="button"
         data-testid="map-legend-toggle"
-        aria-label="Map legend"
+        aria-label={t("map.legend.toggleAria")}
         aria-expanded={pinned}
         aria-controls="map-legend-panel"
-        title="What the map lines mean"
+        title={t("map.legend.toggleTitle")}
         onClick={() => setPinned((value) => !value)}
         className={cn(
           "flex items-center gap-1.5 rounded-lg border border-ink/20 bg-paper/90 px-2 py-1 text-[11px] font-semibold text-ink/70 shadow-float backdrop-blur-[3px] transition-colors",
@@ -197,7 +200,7 @@ export function MapLegend({ compareGhost = false }: { compareGhost?: boolean }) 
         )}
       >
         <Route className="size-3 shrink-0" aria-hidden="true" />
-        Legend
+        {t("map.legend.toggle")}
       </button>
     </div>
   );

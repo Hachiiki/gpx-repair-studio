@@ -12,6 +12,9 @@
  * Phase 2 — Upload & Inspection UI. Pure presentation.
  */
 
+"use client";
+
+import { useI18n } from "@/hooks/use-i18n";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -26,20 +29,20 @@ export type ProvenanceKind = "recorded" | "estimated" | "mixed";
  */
 const PROVENANCE_STYLES: Record<
   ProvenanceKind,
-  { label: string; square: string; className: string }
+  { labelKey: string; square: string; className: string }
 > = {
   recorded: {
-    label: "Recorded",
+    labelKey: "stats.provenance.recorded",
     square: "bg-ink",
     className: "border-ink/35 bg-transparent text-ink",
   },
   estimated: {
-    label: "Estimated",
+    labelKey: "stats.provenance.estimated",
     square: "bg-signal",
     className: "border-signal bg-signal/10 text-ink",
   },
   mixed: {
-    label: "Mixed",
+    labelKey: "stats.provenance.mixed",
     square: "bg-[linear-gradient(135deg,#FC4C02_0_50%,#222222_50%_100%)]",
     className: "border-ink bg-card text-ink",
   },
@@ -52,6 +55,7 @@ export function ProvenanceBadge({
   kind: ProvenanceKind;
   className?: string;
 }) {
+  const { t } = useI18n();
   const style = PROVENANCE_STYLES[kind];
   return (
     <Badge variant="outline" className={cn(style.className, className)}>
@@ -59,7 +63,7 @@ export function ProvenanceBadge({
         className={cn("size-[7px] shrink-0 rounded-[1px]", style.square)}
         aria-hidden="true"
       />
-      {style.label}
+      {t(style.labelKey)}
     </Badge>
   );
 }

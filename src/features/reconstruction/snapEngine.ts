@@ -267,7 +267,7 @@ export function planSnapApply(
   return { waypoints, legs };
 }
 
-/** The snap profile label (panel copy + logs). */
-export function snapProfileLabel(mode: RoutableRoadMode): string {
-  return mode === "car" ? "roads" : "footpaths";
+/** The snap profile's DICTIONARY KEY (Phase 21 — resolved at render). */
+export function snapProfileLabelKey(mode: RoutableRoadMode): string {
+  return mode === "car" ? "snap.profile.roads" : "snap.profile.footpaths";
 }

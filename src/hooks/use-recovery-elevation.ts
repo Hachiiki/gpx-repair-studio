@@ -38,6 +38,8 @@ import { resamplePath } from "@/features/reconstruction/resample";
 import { DEFAULT_HYSTERESIS_THRESHOLD_M } from "@/features/elevation/smoothing";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { useElevationStore } from "@/state/elevation-store";
+import { translateNow } from "@/i18n/runtime";
+import { useI18n } from "@/hooks/use-i18n";
 import { getElevationProvider } from "@/hooks/use-elevation";
 import type {
   ElevationAttachment,
@@ -65,15 +67,15 @@ function requestCountFor(sentPoints: number): number {
 function elevationFailureMessage(reason: ElevationFailureReason | null): string {
   switch (reason) {
     case "network":
-      return "The elevation service could not be reached — check your connection and try again.";
+      return translateNow("hook.elevation.errorNetwork");
     case "throttled":
-      return "The elevation service is rate-limiting requests — wait a few seconds and try again.";
+      return translateNow("hook.elevation.errorThrottled");
     case "server":
-      return "The elevation service is having trouble right now — try again in a moment.";
+      return translateNow("hook.elevation.errorServer");
     case "bad-response":
-      return "The elevation service returned an unexpected response — try again in a moment.";
+      return translateNow("hook.elevation.errorBadResponse");
     default:
-      return "The elevation service returned no usable data — try again in a moment.";
+      return translateNow("hook.elevation.errorNoData");
   }
 }
 
@@ -93,6 +95,7 @@ export function useRecoveryElevation(
 
   const provider: ElevationProvider = getElevationProvider();
   const activeGap = draw.activeGap;
+  const { t } = useI18n();
 
   // -- lifecycle hygiene (same contract as the draw hook) --------------------
 
@@ -295,7 +298,7 @@ export function useRecoveryElevation(
     blockedReason: !draw.active
       ? null
       : (activeRecon?.vertices.length ?? 0) === 0
-        ? "Draw the missing route first — elevation is estimated for the points you draw."
+        ? t("hook.elevation.blockedDrawRoute")
         : null,
     status,
     stale,
@@ -307,7 +310,7 @@ export function useRecoveryElevation(
     disclosure,
     providerName: provider.name,
     attribution: provider.attribution,
-    privacyNote: provider.privacyNote,
+    privacyNoteKey: provider.privacyNoteKey,
     summary,
     error: activeRecord?.error ?? null,
     confirmFetch,

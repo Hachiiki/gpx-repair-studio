@@ -39,6 +39,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { impliedPaceMsPerUnit, type Reconciliation } from "@/hooks/use-create-session";
+import { useI18n } from "@/hooks/use-i18n";
+import { UNIT_WORDS } from "@/i18n/units";
 import {
   formatDistanceForUnit,
   formatDurationMs,
@@ -69,6 +71,7 @@ export function ReconcileDistanceDialog({
   onUseDrawn,
   onUseRecorded,
 }: ReconcileDistanceDialogProps) {
+  const { t, locale } = useI18n();
   const shorter = reconciliation.differenceM < 0;
   const percent = Math.round(reconciliation.relativeDifference * 100);
   // The pace the file implies on the drawn distance (time ÷ whole route).
@@ -86,33 +89,42 @@ export function ReconcileDistanceDialog({
       >
         <AlertDialogHeader>
           <AlertDialogTitle className="text-left">
-            The drawn route&apos;s distance is different from the one you
-            entered
+            {t("create.reconcile.title")}
           </AlertDialogTitle>
           <AlertDialogDescription className="text-left">
-            Your watch recorded{" "}
+            {t("create.reconcile.watchRecorded")}{" "}
             <span className="font-semibold text-ink">
               {formatDistanceForUnit(reconciliation.recordedM, paceUnit)}
             </span>
-            , but the route you drew measures{" "}
+            {t("create.reconcile.butDrawn")}{" "}
             <span className="font-semibold text-ink">
               {formatDistanceForUnit(reconciliation.drawnM, paceUnit)}
             </span>{" "}
-            — {percent}% {shorter ? "shorter" : "longer"}.
+            {t("create.reconcile.difference", {
+              percent,
+              direction: shorter
+                ? t("create.reconcile.shorter")
+                : t("create.reconcile.longer"),
+            })}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         <p className="text-left text-sm leading-relaxed text-ink">
-          The file will use the{" "}
-          <span className="font-semibold">drawn route&apos;s distance</span>{" "}
-          instead — GPS watches often misjudge distance, and the route you
-          traced is usually closer to reality. Your total time of{" "}
+          {t("create.reconcile.bodyLead")}{" "}
+          <span className="font-semibold">
+            {t("create.reconcile.drawnDistance")}
+          </span>{" "}
+          {t("create.reconcile.bodyMid")}{" "}
           <span className="font-semibold">{formatDurationMs(durationMs)}</span>{" "}
-          is kept exactly as recorded, and the average pace is recalculated from
-          the whole route
           {drawnPaceMs === null
-            ? ""
-            : ` (${formatPaceMs(drawnPaceMs)} /${paceUnit})`}
+            ? t("create.reconcile.bodyTail")
+            : t("create.reconcile.bodyTailWithPace", {
+                pace: formatPaceMs(drawnPaceMs),
+                unit:
+                  paceUnit === "km"
+                    ? UNIT_WORDS[locale].perKm
+                    : UNIT_WORDS[locale].perMi,
+              })}
           .
         </p>
 
@@ -122,9 +134,7 @@ export function ReconcileDistanceDialog({
             data-testid="reconcile-extreme-hint"
             role="note"
           >
-            A difference this large usually means a km/miles mixup or a missed
-            loop in the drawing — double-check what you entered, or close this
-            and edit the route before exporting.
+            {t("create.reconcile.extremeHint")}
           </p>
         )}
 
@@ -134,16 +144,21 @@ export function ReconcileDistanceDialog({
             data-testid="use-drawn-distance-button"
             onClick={onUseDrawn}
           >
-            Use drawn distance (
-            {formatDistanceForUnit(reconciliation.drawnM, paceUnit)})
+            {t("create.reconcile.useDrawn", {
+              distance: formatDistanceForUnit(reconciliation.drawnM, paceUnit),
+            })}
           </AlertDialogAction>
           <AlertDialogCancel
             className="h-10 gap-1.5 border-[1.5px] font-semibold"
             data-testid="use-recorded-distance-button"
             onClick={onUseRecorded}
           >
-            Use my watch&apos;s distance (
-            {formatDistanceForUnit(reconciliation.recordedM, paceUnit)})
+            {t("create.reconcile.useRecorded", {
+              distance: formatDistanceForUnit(
+                reconciliation.recordedM,
+                paceUnit,
+              ),
+            })}
           </AlertDialogCancel>
         </AlertDialogFooter>
       </AlertDialogContent>

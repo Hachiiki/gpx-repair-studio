@@ -42,6 +42,7 @@ import {
   exportMimeType,
 } from "@/lib/utils/download";
 import { announce } from "@/lib/announcements";
+import { useI18n } from "@/hooks/use-i18n";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { useUiStore } from "@/state/ui-store";
 import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
@@ -67,6 +68,7 @@ export function useRecoveryExport(
   draw: DrawEditorBinding,
   elevation: ElevationAttachmentInput = null,
 ): GpxExportBinding {
+  const { t } = useI18n();
   const reconstructions = useRecoveryStore((s) => s.reconstructions);
   const roadLegs = useRecoveryStore((s) => s.roadLegs);
   const skippedGapIds = useRecoveryStore((s) => s.skippedGapIds);
@@ -243,7 +245,7 @@ export function useRecoveryExport(
     downloadTextFile(fileName, text, exportMimeType(exportFormat));
     // Phase 8: the download handed the browser a blob — no visual
     // focus moves, so the aria-live region speaks it.
-    announce(`Export ready — ${fileName} downloaded.`);
+    announce(t("hook.export.ready", { fileName }));
     return fileName;
   }, [
     data,
@@ -254,6 +256,7 @@ export function useRecoveryExport(
     session.fileName,
     session.distanceStats,
     session.timeStats,
+    t,
   ]);
 
   return {

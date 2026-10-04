@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Columns2, GitCompareArrows, Layers } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import { CompareSideBySideDialog } from "@/components/compare/compare-side-by-side";
 import {
   formatCompareCell,
@@ -42,35 +43,39 @@ import {
 } from "@/hooks/use-compare";
 import { cn } from "@/lib/utils";
 
-const MODES: readonly { id: CompareMode; label: string; icon: typeof Layers }[] =
-  [
-    { id: "off", label: "Off", icon: Layers },
-    { id: "overlay", label: "Overlay", icon: GitCompareArrows },
-    { id: "side-by-side", label: "Side by side", icon: Columns2 },
-  ];
+/** The mode control's entries (labels resolved at render). */
+const MODES: readonly {
+  id: CompareMode;
+  labelKey: string;
+  icon: typeof Layers;
+}[] = [
+  { id: "off", labelKey: "compare.mode.off", icon: Layers },
+  { id: "overlay", labelKey: "compare.mode.overlay", icon: GitCompareArrows },
+  { id: "side-by-side", labelKey: "compare.mode.sideBySide", icon: Columns2 },
+];
 
 /** The delta table's flag chip — the badge vocabulary plus "Modified". */
 const FLAG_STYLES: Record<
   CompareProvenance,
-  { label: string; square: string; className: string }
+  { labelKey: string; square: string; className: string }
 > = {
   recorded: {
-    label: "Recorded",
+    labelKey: "compare.flag.recorded",
     square: "bg-ink",
     className: "border-ink/35 bg-transparent text-ink",
   },
   modified: {
-    label: "Modified",
+    labelKey: "compare.flag.modified",
     square: "bg-ink ring-[1.5px] ring-signal",
     className: "border-signal/50 bg-signal/[0.06] text-ink",
   },
   estimated: {
-    label: "Estimated",
+    labelKey: "compare.flag.estimated",
     square: "bg-signal",
     className: "border-signal bg-signal/10 text-ink",
   },
   mixed: {
-    label: "Mixed",
+    labelKey: "compare.flag.mixed",
     square:
       "bg-[linear-gradient(135deg,#FC4C02_0_50%,#222222_50%_100%)]",
     className: "border-ink bg-card text-ink",
@@ -78,6 +83,7 @@ const FLAG_STYLES: Record<
 };
 
 function DeltaFlag({ kind }: { kind: CompareProvenance }) {
+  const { t } = useI18n();
   const style = FLAG_STYLES[kind];
   return (
     <span
@@ -91,17 +97,18 @@ function DeltaFlag({ kind }: { kind: CompareProvenance }) {
         className={cn("size-[7px] shrink-0 rounded-[1px]", style.square)}
         aria-hidden="true"
       />
-      {style.label}
+      {t(style.labelKey)}
     </span>
   );
 }
 
 function DeltaRow({ row }: { row: CompareStatRow }) {
+  const { t } = useI18n();
   const cells = formatCompareCell(row);
   return (
     <TableRow data-testid={`compare-row-${row.id}`}>
       <TableCell className="py-2.5 pl-3">
-        <span className="font-medium">{row.label}</span>
+        <span className="font-medium">{t(row.labelKey)}</span>
         {row.note && (
           <span className="mt-0.5 block text-[11.5px] leading-snug text-muted-foreground">
             {row.note}
@@ -136,6 +143,7 @@ export interface CompareCardProps {
 }
 
 export function CompareCard({ compare }: CompareCardProps) {
+  const { t } = useI18n();
   const stats = compare.stats;
   if (!stats) return null;
 
@@ -148,19 +156,19 @@ export function CompareCard({ compare }: CompareCardProps) {
               className="size-2 shrink-0 rounded-[1px] bg-signal"
               aria-hidden="true"
             />
-            Before / after
+            {t("compare.card.title")}
           </h3>
           <CardDescription>
             {stats.hasChanges
-              ? "What changed against the original recording — on the map and in the numbers."
-              : "Nothing has changed yet — the working copy still matches the original recording."}
+              ? t("compare.card.descChanged")
+              : t("compare.card.descUnchanged")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {/* The mode control (a radiogroup of toggles). */}
           <div
             role="radiogroup"
-            aria-label="Compare mode"
+            aria-label={t("compare.card.modeA11y")}
             data-testid="compare-mode"
             className="mb-3 grid grid-cols-3 gap-1 rounded-[8px] border-[1.5px] border-ink p-1"
           >
@@ -188,7 +196,7 @@ export function CompareCard({ compare }: CompareCardProps) {
                     )}
                     aria-hidden="true"
                   />
-                  <span className="truncate">{entry.label}</span>
+                  <span className="truncate">{t(entry.labelKey)}</span>
                 </button>
               );
             })}
@@ -198,11 +206,13 @@ export function CompareCard({ compare }: CompareCardProps) {
               className="mb-3 rounded-[8px] border-[1.25px] border-signal/40 bg-signal/[0.06] px-3 py-2 text-[12px] leading-relaxed text-muted-foreground"
               data-testid="compare-overlay-note"
             >
-              The map now shows the original as a dashed ghost under the
-              working copy; the stretches your fixes touched are dashed
-              orange. The legend spells out both.
-              {!compare.hasChanges &&
-                " With nothing changed yet, the ghost sits exactly under the working copy — it will diverge where your edits land."}
+              {t("compare.card.overlayNote")}
+              {!compare.hasChanges && (
+                <>
+                  {" "}
+                  {t("compare.card.overlayNoteNoChanges")}
+                </>
+              )}
             </p>
           )}
 
@@ -210,14 +220,20 @@ export function CompareCard({ compare }: CompareCardProps) {
           <Table data-testid="compare-table">
             <TableHeader>
               <TableRow>
-                <TableHead className="h-9 pl-3 text-left">Metric</TableHead>
-                <TableHead className="h-9 px-2 text-right">Original</TableHead>
-                <TableHead className="h-9 px-2 text-right">After</TableHead>
+                <TableHead className="h-9 pl-3 text-left">
+                  {t("compare.table.metric")}
+                </TableHead>
+                <TableHead className="h-9 px-2 text-right">
+                  {t("compare.table.original")}
+                </TableHead>
+                <TableHead className="h-9 px-2 text-right">
+                  {t("compare.table.after")}
+                </TableHead>
                 <TableHead className="h-9 pl-2 pr-3 text-right">
-                  Change
+                  {t("compare.table.change")}
                 </TableHead>
                 <TableHead className="h-9 pl-2 pr-3">
-                  <span className="sr-only">Provenance</span>
+                  <span className="sr-only">{t("compare.table.provenance")}</span>
                 </TableHead>
               </TableRow>
             </TableHeader>

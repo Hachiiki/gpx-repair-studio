@@ -43,6 +43,9 @@ import { runParsePipeline } from "@/lib/gpx/parse-client";
 import type { ParseProgress } from "@/lib/gpx/parse-worker-protocol";
 import { useRecoveryStore } from "@/state/recovery-store";
 import { describeParseError } from "@/hooks/use-gpx-session";
+import { translateNow } from "@/i18n/runtime";
+import { useI18n } from "@/hooks/use-i18n";
+import type { TranslatorArg } from "@/hooks/use-i18n";
 import type {
   GapBoundaryView,
   GapRow,
@@ -166,12 +169,15 @@ export function buildRecoveryGapRows(
 export function buildRecoverySegmentRows(
   data: OriginalTrackData,
   distance: DistanceStats,
+  t: TranslatorArg,
 ): SegmentRow[] {
   const trackNames = new Map<number, string>();
   for (const track of data.tracks) {
     trackNames.set(
       track.trackIndex,
-      track.name ?? `Track ${track.trackIndex + 1}`,
+      track.name ?? t("segmentList.trackFallback", {
+        number: track.trackIndex + 1,
+      }),
     );
   }
 
@@ -198,7 +204,8 @@ export function buildRecoverySegmentRows(
       segmentId: segment.id,
       trackIndex: segment.trackIndex,
       trackName:
-        trackNames.get(segment.trackIndex) ?? `Track ${segment.trackIndex + 1}`,
+        trackNames.get(segment.trackIndex) ??
+        t("segmentList.trackFallback", { number: segment.trackIndex + 1 }),
       pointCount: segment.points.length,
       flaggedPoints: segment.points.filter((p) => p.flags.length > 0).length,
       distanceM: dist.distanceM,
@@ -228,8 +235,10 @@ export async function loadRecoveryFile(file: File): Promise<void> {
 
   if (file.size === 0) {
     store.fail({
-      title: "Empty file",
-      detail: `"${file.name}" contains no data. Choose a non-empty track export.`,
+      title: translateNow("hook.parse.emptyTitle"),
+      detail: translateNow("hook.parse.emptyDetailTrack", {
+        fileName: file.name,
+      }),
     });
     return;
   }
@@ -257,10 +266,11 @@ export async function loadRecoveryFile(file: File): Promise<void> {
     store.setParsed(file.name, result.data, result.gaps);
   } catch (err) {
     store.fail({
-      title: "Could not read file",
-      detail:
-        `"${file.name}" could not be read: ` +
-        `${err instanceof Error ? err.message : String(err)}`,
+      title: translateNow("hook.parse.readTitle"),
+      detail: translateNow("hook.parse.readDetail", {
+        fileName: file.name,
+        reason: err instanceof Error ? err.message : String(err),
+      }),
     });
   }
 }
@@ -270,6 +280,7 @@ export async function loadRecoveryFile(file: File): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export function useRecoverySession(): RecoverySession {
+  const { t } = useI18n();
   const status = useRecoveryStore((s) => s.status);
   const fileName = useRecoveryStore((s) => s.fileName);
   const data = useRecoveryStore((s) => s.data);
@@ -328,8 +339,10 @@ export function useRecoverySession(): RecoverySession {
   );
   const segmentRows = useMemo(
     () =>
-      data && distanceStats ? buildRecoverySegmentRows(data, distanceStats) : [],
-    [data, distanceStats],
+      data && distanceStats
+        ? buildRecoverySegmentRows(data, distanceStats, t)
+        : [],
+    [data, distanceStats, t],
   );
   const extent = useMemo(() => {
     if (!data) return null;

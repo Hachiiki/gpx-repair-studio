@@ -22,12 +22,14 @@
 
 import { useId, useState } from "react";
 import { Combine, FileUp, ShieldCheck, Sparkles, X } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import { useMergeSession } from "@/hooks/use-merge-session";
 import { formatDistanceMeters } from "@/lib/utils/format";
 import { makeSampleFile } from "@/samples";
 import { cn } from "@/lib/utils";
 
 export function MergeIntake() {
+  const { t } = useI18n();
   const session = useMergeSession();
   const [dragging, setDragging] = useState(false);
   const inputId = useId();
@@ -74,12 +76,12 @@ export function MergeIntake() {
           </span>
           <span className="space-y-1">
             <span className="block text-[17px] font-bold tracking-tight">
-              Drop your GPX, TCX, or FIT files here
+              {t("merge.intake.dropTitle")}
             </span>
             <span className="block text-[13px] text-muted-foreground">
-              two or more — or{" "}
+              {t("merge.intake.twoOrMore")}{" "}
               <span className="font-semibold text-ink underline underline-offset-[3px]">
-                click to browse
+                {t("merge.intake.browse")}
               </span>
             </span>
           </span>
@@ -100,7 +102,7 @@ export function MergeIntake() {
 
       <p className="flex items-center justify-center gap-1.5 text-[12.5px] text-muted-foreground">
         <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
-        Files are read locally in this tab — nothing is uploaded anywhere.
+        {t("merge.intake.privacyLine")}
       </p>
 
       {/*
@@ -109,7 +111,7 @@ export function MergeIntake() {
        * button, both files — the tool needs two to demonstrate).
        */}
       <div className="flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
-        <span>No files handy?</span>
+        <span>{t("merge.intake.noFilesHandy")}</span>
         <button
           type="button"
           data-testid="merge-try-sample"
@@ -122,7 +124,7 @@ export function MergeIntake() {
           className="inline-flex items-center gap-1 rounded-[5px] px-1.5 py-1 font-semibold text-signal-ink underline decoration-signal/40 underline-offset-[3px] transition-colors hover:bg-signal/[0.08] focus-visible:outline-2"
         >
           <Sparkles className="size-3.5" aria-hidden="true" />
-          Try a sample pair
+          {t("merge.intake.trySamplePair")}
         </button>
       </div>
 
@@ -136,7 +138,7 @@ export function MergeIntake() {
         <ul
           className="flex flex-col gap-1.5"
           data-testid="merge-intake-files"
-          aria-label="Collected files"
+          aria-label={t("merge.intake.collectedFiles")}
         >
           {session.files.map((file) => (
             <li
@@ -153,19 +155,28 @@ export function MergeIntake() {
                 </span>
                 {file.status === "parsing" && (
                   <span className="block text-[12px] text-muted-foreground">
-                    Reading…
+                    {t("merge.intake.reading")}
                   </span>
                 )}
                 {file.status === "parsed" && file.summary && (
                   <span className="block text-[12px] text-muted-foreground">
-                    {file.summary.pointCount} points ·{" "}
-                    {file.summary.segmentCount}{" "}
-                    segment{file.summary.segmentCount === 1 ? "" : "s"} ·{" "}
+                    {t("merge.intake.filePoints", {
+                      count: file.summary.pointCount,
+                    })} ·{" "}
+                    {t(
+                      file.summary.segmentCount === 1
+                        ? "merge.intake.fileSegment"
+                        : "merge.intake.fileSegments",
+                      { count: file.summary.segmentCount },
+                    )} ·{" "}
                     {formatDistanceMeters(file.distanceM ?? 0)}
                     {file.summary.waypointCount > 0 &&
-                      ` · ${file.summary.waypointCount} waypoint${
-                        file.summary.waypointCount === 1 ? "" : "s"
-                      }`}
+                      ` · ${t(
+                        file.summary.waypointCount === 1
+                          ? "merge.intake.fileWaypoint"
+                          : "merge.intake.fileWaypoints",
+                        { count: file.summary.waypointCount },
+                      )}`}
                   </span>
                 )}
                 {file.status === "error" && file.error && (
@@ -176,7 +187,9 @@ export function MergeIntake() {
               </span>
               <button
                 type="button"
-                aria-label={`Remove ${file.fileName}`}
+                aria-label={t("merge.intake.removeFile", {
+                  fileName: file.fileName,
+                })}
                 onClick={() => session.removeFile(file.id)}
                 className="shrink-0 rounded-[5px] p-1.5 text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
               >
@@ -205,19 +218,18 @@ export function MergeIntake() {
         )}
       >
         <Combine className="size-[18px]" aria-hidden="true" />
-        Combine into one route
+        {t("merge.intake.combine")}
       </button>
       {!canCombine && (
         <p className="text-center text-[12.5px] text-muted-foreground">
           {session.parsedCount === 0
-            ? "Add at least two track files to combine them."
-            : "One more file — a merge needs at least two."}
+            ? t("merge.intake.needTwo")
+            : t("merge.intake.oneMore")}
         </p>
       )}
       {canCombine && (
         <p className="text-center text-[12.5px] text-muted-foreground">
-          They join in the order above — you can rearrange everything on
-          the next page.
+          {t("merge.intake.joinOrder")}
         </p>
       )}
     </div>

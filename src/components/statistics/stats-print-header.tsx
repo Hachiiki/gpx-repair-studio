@@ -14,11 +14,14 @@
 
 "use client";
 
+import { useI18n } from "@/hooks/use-i18n";
+
 export interface StatsPrintHeaderProps {
   fileName: string | null;
 }
 
 export function StatsPrintHeader({ fileName }: StatsPrintHeaderProps) {
+  const { t } = useI18n();
   const generated = new Date();
   const dateLabel = generated.toLocaleDateString(undefined, {
     year: "numeric",
@@ -31,17 +34,17 @@ export function StatsPrintHeader({ fileName }: StatsPrintHeaderProps) {
       <div className="flex items-end justify-between gap-4 border-b-[2px] border-ink pb-2">
         <div>
           <p className="font-display text-[22px] font-bold leading-none tracking-[0.02em]">
-            GPX REPAIR STUDIO
+            {t("header.wordmark").toUpperCase()}
           </p>
           <p className="mt-1 text-[12px] text-muted-foreground">
-            Activity statistics sheet
+            {t("stats.print.sheet")}
             {fileName ? ` — ${fileName}` : ""}
           </p>
         </div>
         <p className="text-right text-[11px] leading-snug text-muted-foreground">
           {dateLabel}
           <br />
-          Computed locally in the browser — no data left this device.
+          {t("stats.print.privacyLine")}
         </p>
       </div>
     </header>

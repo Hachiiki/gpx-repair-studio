@@ -22,6 +22,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Clock } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   durationFieldsToMs,
   msToDurationFields,
@@ -54,6 +55,7 @@ const FIELDS = [
 ] as const;
 
 export function FileTimingCard({ fileTiming, setFileTiming }: FileTimingCardProps) {
+  const { t } = useI18n();
   const [start, setStart] = useState(() => toLocalInputValue(fileTiming.startMs));
   const [fields, setFields] = useState(() => {
     const prefill = fileTiming.totalDurationMs
@@ -96,16 +98,15 @@ export function FileTimingCard({ fileTiming, setFileTiming }: FileTimingCardProp
       <CardHeader>
         <h3 className="flex items-center gap-2 leading-none font-semibold">
           <Clock className="size-4 text-muted-foreground" aria-hidden="true" />
-          No timing data
+          {t("fileTiming.title")}
         </h3>
         <CardDescription>
-          This file has no usable timestamps. Enter what you know — every
-          value derived from it is labeled estimated.
+          {t("fileTiming.description")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
         <label className="grid gap-1 text-xs font-medium">
-          Activity start (optional)
+          {t("fileTiming.startLabel")}
           <input
             type="datetime-local"
             className="h-8 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2.5 text-xs font-normal transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
@@ -125,7 +126,7 @@ export function FileTimingCard({ fileTiming, setFileTiming }: FileTimingCardProp
 
         <div className="grid gap-1">
           <span className="text-xs font-medium">
-            Total duration (optional)
+            {t("fileTiming.totalLabel")}
           </span>
           <div
             className="flex items-center gap-2.5"
@@ -145,7 +146,9 @@ export function FileTimingCard({ fileTiming, setFileTiming }: FileTimingCardProp
                 inputMode="numeric"
                 min={0}
                 step={1}
-                aria-label={`Total duration ${field.label}`}
+                aria-label={t("fileTiming.totalFieldAria", {
+                  unit: field.label,
+                })}
                 data-testid={field.testid}
                 className="h-8 w-14 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2 text-xs tabular-nums transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
                 value={fields[field.key]}
@@ -161,17 +164,16 @@ export function FileTimingCard({ fileTiming, setFileTiming }: FileTimingCardProp
           {parsedTotal !== null && (
             <p className="text-[11px] text-muted-foreground">
               {parsedTotal === 0
-                ? "No total duration entered."
-                : `Entered: ${Math.floor(parsedTotal / 60000)} min.`}
+                ? t("fileTiming.noneEntered")
+                : t("fileTiming.entered", {
+                    minutes: Math.floor(parsedTotal / 60000),
+                  })}
             </p>
           )}
         </div>
 
         <p className="text-[11px] leading-snug text-muted-foreground">
-          The start time anchors repairs that have no timestamps around
-          them; the total drives the overall pace. Each repair&apos;s own
-          duration is set in its editor. Exporting (a later release) will
-          spread these times across the whole activity by distance.
+          {t("fileTiming.note")}
         </p>
       </CardContent>
     </Card>

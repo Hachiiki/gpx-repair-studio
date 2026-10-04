@@ -72,7 +72,7 @@ describe("SessionIdleView — tool detail page", () => {
 
   it("Phase 12: offers the tool's sample when the intent is provided", () => {
     const onTrySample = vi.fn();
-    renderIdle({ onTrySample, sampleLabel: "a sample ride" });
+    renderIdle({ onTrySample, sampleLabelKey: "sample.ride" });
 
     const link = screen.getByTestId("try-sample");
     expect(link).toHaveTextContent(/sample ride/i);

@@ -34,15 +34,23 @@ import {
   type ToolToursController,
 } from "@/hooks/use-tool-tours";
 import {
-  TOOL_TOURS,
+  getToolTours,
   ToolTourDialog,
   ToolTourOffer,
 } from "@/components/layout/tool-tour";
+import { enTranslator } from "@/hooks/use-i18n";
 import { HelpContent } from "@/components/layout/help-content";
 import {
   clearToolTourFlags,
   hasSeenToolTour,
 } from "@/lib/storage/tour-flag";
+
+/*
+ * The tour content resolves through the English translator — tests
+ * stay English-anchored (the en dictionary is the contract the zh
+ * translation is checked against).
+ */
+const TOOL_TOURS = getToolTours(enTranslator);
 
 /*
  * The harness renders its children WITH the controller (a render

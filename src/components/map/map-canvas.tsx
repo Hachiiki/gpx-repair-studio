@@ -32,18 +32,21 @@ import { GapHighlightOverlay } from "@/components/map/gap-highlight-overlay";
 import { MapLegend } from "@/components/map/map-legend";
 import { MapToolbar } from "@/components/map/map-toolbar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import type {
   MapDrawChromeBinding,
 } from "@/hooks/use-draw-editor";
 import type { MapBinding } from "@/hooks/use-map-controller";
 import type { BBox } from "@/lib/geo/bbox";
 
-function extentText(extent: BBox | null): string {
-  if (!extent) return "unknown";
-  return (
-    `lat ${extent.minLat.toFixed(5)} to ${extent.maxLat.toFixed(5)}, ` +
-    `lon ${extent.minLon.toFixed(5)} to ${extent.maxLon.toFixed(5)}`
-  );
+function extentText(t: TranslatorArg, extent: BBox | null): string {
+  if (!extent) return t("map.canvas.extentUnknown");
+  return t("map.canvas.extentRange", {
+    minLat: extent.minLat.toFixed(5),
+    maxLat: extent.maxLat.toFixed(5),
+    minLon: extent.minLon.toFixed(5),
+    maxLon: extent.maxLon.toFixed(5),
+  });
 }
 
 export interface MapCanvasProps {
@@ -83,6 +86,7 @@ export function MapCanvas({
   srNote,
   compareGhost,
 }: MapCanvasProps) {
+  const { t } = useI18n();
   // "Nothing renderable at all" — recorded lines AND committed
   // reconstructions are empty. Reconstruction-only views (the create
   // workflow's review track, re-imported repairs on a fully damaged
@@ -106,7 +110,7 @@ export function MapCanvas({
          * sheet floats over whatever the scroll position brings. */
         className="relative h-[calc(100dvh-19.5rem)] min-h-[380px] w-full bg-muted/40 lg:h-[calc(100dvh-11.875rem)] lg:min-h-[540px]"
         role="application"
-        aria-label="Interactive map of the recorded route and its gaps"
+        aria-label={t("map.canvas.applicationAria")}
       >
         {/* Initializing — the plate taking shape (user pass 35): a
             ghost route in the field's ink plus a shimmer bar, the same
@@ -132,7 +136,7 @@ export function MapCanvas({
               />
             </svg>
             <div className="relative z-10 flex flex-col items-center gap-2.5">
-              <p>Loading map…</p>
+              <p>{t("map.canvas.loading")}</p>
               <Skeleton className="h-1.5 w-36 rounded-full" />
             </div>
           </div>
@@ -148,14 +152,14 @@ export function MapCanvas({
               <MapIcon className="size-6 text-muted-foreground" aria-hidden="true" />
             </span>
             <div className="space-y-1">
-              <h3 className="font-semibold">Map unavailable</h3>
+              <h3 className="font-semibold">{t("map.canvas.unavailableTitle")}</h3>
               <p className="mx-auto max-w-sm text-sm text-muted-foreground">
-                This browser or device cannot render the interactive map
-                (WebGL is unavailable or disabled). All inspection and
-                repair features remain fully usable through the panels.
+                {t("map.canvas.unavailableBody")}
               </p>
               <p className="font-mono text-xs text-muted-foreground">
-                Recorded extent: {extentText(map.extent)}
+                {t("map.canvas.recordedExtent", {
+                  extent: extentText(t, map.extent),
+                })}
               </p>
             </div>
           </div>
@@ -170,8 +174,7 @@ export function MapCanvas({
           >
             <WifiOff className="size-3.5 shrink-0" aria-hidden="true" />
             <span className="flex-1 leading-snug">
-              Basemap tiles unavailable — you may be offline. The recorded
-              route and gaps are still shown.
+              {t("map.canvas.offlineNotice")}
             </span>
             <Button
               variant="outline"
@@ -179,7 +182,7 @@ export function MapCanvas({
               className="h-6 shrink-0 px-2 text-[11px]"
               onClick={map.retryBasemap}
             >
-              Retry
+              {t("map.canvas.retry")}
             </Button>
           </div>
         )}
@@ -192,8 +195,7 @@ export function MapCanvas({
             role="status"
           >
             <p className="rounded-[10px] border-[1.5px] border-ink bg-card px-3 py-2 text-sm text-muted-foreground shadow-float">
-              No renderable route points — all recorded coordinates are
-              damaged.
+              {t("map.canvas.emptyRoute")}
             </p>
           </div>
         )}
@@ -218,13 +220,15 @@ export function MapCanvas({
                 type="button"
                 data-testid="map-mode-chip"
                 data-mode={draw.pointerMode}
-                aria-label={`Pointer mode: ${
-                  draw.pointerMode === "draw"
-                    ? "drawing — click to switch to move"
-                    : draw.pointerMode === "move"
-                      ? "moving points — click to switch to pan"
-                      : "panning — click to switch to draw"
-                }`}
+                aria-label={t("map.canvas.pointerModeAria", {
+                  state: t(
+                    draw.pointerMode === "draw"
+                      ? "map.canvas.modeStateDraw"
+                      : draw.pointerMode === "move"
+                        ? "map.canvas.modeStateMove"
+                        : "map.canvas.modeStatePan",
+                  ),
+                })}
                 onClick={() =>
                   draw.setPointerMode(
                     draw.pointerMode === "draw"
@@ -237,11 +241,11 @@ export function MapCanvas({
                 title={
                   draw.pointerMode === "draw"
                     ? draw.pen === "curve"
-                      ? "Draw mode, Curve pen — drag to draw a curve (D, C switches pens)"
-                      : "Draw mode — click to add points (D)"
+                      ? t("map.canvas.titleDrawCurve")
+                      : t("map.canvas.titleDraw")
                     : draw.pointerMode === "move"
-                      ? "Move mode — drag any point (M)"
-                      : "Pan mode — drag to navigate (P)"
+                      ? t("map.canvas.titleMove")
+                      : t("map.canvas.titlePan")
                 }
                 className={`absolute left-2 top-2 z-10 flex items-center gap-2 rounded-lg border-[1.5px] border-ink px-2.5 py-1.5 text-xs font-semibold shadow-float transition-colors focus-visible:outline-2 ${
                   draw.pointerMode === "draw"
@@ -262,11 +266,11 @@ export function MapCanvas({
                 )}
                 {draw.pointerMode === "draw"
                   ? draw.pen === "curve"
-                    ? "Curve pen"
-                    : "Drawing"
+                    ? t("map.canvas.chipCurve")
+                    : t("map.canvas.chipDraw")
                   : draw.pointerMode === "move"
-                    ? "Moving"
-                    : "Panning"}
+                    ? t("map.canvas.chipMove")
+                    : t("map.canvas.chipPan")}
                 <span
                   className="grid h-4 min-w-4 place-items-center rounded-[3px] border border-ink/25 border-b-2 bg-card px-0.5 text-[10px] font-bold text-shade"
                   aria-hidden="true"
@@ -291,8 +295,8 @@ export function MapCanvas({
                     aria-hidden="true"
                   />
                   {draw.pickMode === "anchor"
-                    ? "Click where the missing route goes — it anchors to the route's nearest end · Esc cancels"
-                    : "Pick two points on the recorded route — Esc cancels"}
+                    ? t("map.canvas.pickAnchor")
+                    : t("map.canvas.pickPair")}
                 </span>
               </div>
             )}
@@ -319,15 +323,34 @@ export function MapCanvas({
 
       {/* Textual alternative (§C-5). */}
       <p className="sr-only" data-testid="map-sr-summary">
-        Map panel: {map.segmentCount} segment
-        {map.segmentCount === 1 ? "" : "s"},{" "}
-        {map.route?.usablePointCount ?? 0} renderable recorded point
-        {(map.route?.usablePointCount ?? 0) === 1 ? "" : "s"},{" "}
-        {map.gapCount} detected gap{map.gapCount === 1 ? "" : "s"}. Recorded
-        extent: {extentText(map.extent)}. Select gaps from the detected-gaps
-        list to highlight and focus them on the map.
+        {t("map.canvas.srSummary", {
+          segments: t(
+            map.segmentCount === 1
+              ? "map.canvas.srSegmentsOne"
+              : "map.canvas.srSegmentsMany",
+            { count: map.segmentCount },
+          ),
+          points: t(
+            (map.route?.usablePointCount ?? 0) === 1
+              ? "map.canvas.srPointsOne"
+              : "map.canvas.srPointsMany",
+            { count: map.route?.usablePointCount ?? 0 },
+          ),
+          gaps: t(
+            map.gapCount === 1
+              ? "map.canvas.srGapsOne"
+              : "map.canvas.srGapsMany",
+            { count: map.gapCount },
+          ),
+          extent: extentText(t, map.extent),
+        })}
         {editorActive && draw && draw.vertexCount > 0
-          ? ` Reconstruction in progress: ${draw.vertexCount} drawn point${draw.vertexCount === 1 ? "" : "s"}.`
+          ? t(
+              draw.vertexCount === 1
+                ? "map.canvas.srReconstructionOne"
+                : "map.canvas.srReconstructionMany",
+              { count: draw.vertexCount },
+            )
           : ""}
         {srNote ?? ""}
       </p>

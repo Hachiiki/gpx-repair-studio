@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { MountainSnow } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 
 export interface ElevationDisclosureDialogProps {
   open: boolean;
@@ -53,6 +54,7 @@ export function ElevationDisclosureDialog({
   privacyNote,
   onConfirm,
 }: ElevationDisclosureDialogProps) {
+  const { t } = useI18n();
   const sampled = sentPoints < totalPoints;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -60,40 +62,48 @@ export function ElevationDisclosureDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MountainSnow className="size-4 text-signal" aria-hidden="true" />
-            Estimate elevation from {providerName}?
+            {t("elevationDialog.title", { provider: providerName })}
           </DialogTitle>
           <DialogDescription>
-            Elevation is looked up from a terrain database, so some data
-            has to leave this browser. Here is exactly what leaves:
+            {t("elevationDialog.description")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3 text-sm" data-testid="elevation-disclosure-body">
           <p>
             <span className="font-medium">
-              {sentPoints.toLocaleString("en-US")} coordinate
-              {sentPoints === 1 ? "" : "s"}
+              {sentPoints === 1
+                ? t("elevationDialog.coordinateOne", {
+                    count: sentPoints.toLocaleString("en-US"),
+                  })
+                : t("elevationDialog.coordinateMany", {
+                    count: sentPoints.toLocaleString("en-US"),
+                  })}
             </span>{" "}
-            of your reconstructed points
+            {t("elevationDialog.ofYourPoints")}
             {sampled ? (
               <>
                 {" "}
-                (sampled from {totalPoints.toLocaleString("en-US")} — the
-                rest is interpolated from these)
+                {t("elevationDialog.sampledSuffix", {
+                  total: totalPoints.toLocaleString("en-US"),
+                })}
               </>
             ) : (
-              " (every point you drew)"
+              t("elevationDialog.everyPointSuffix")
             )}{" "}
-            will be sent in {requestCount} request
-            {requestCount === 1 ? "" : "s"} to{" "}
-            <span className="font-medium">{providerName}</span>.
+            {requestCount === 1
+              ? t("elevationDialog.willSendOne", { count: requestCount })
+              : t("elevationDialog.willSendMany", { count: requestCount })}{" "}
+            <span className="font-medium">{providerName}</span>
+            {t("elevationDialog.sentenceEnd")}
           </p>
           <p className="text-muted-foreground">{privacyNote}</p>
           <p className="text-muted-foreground">
-            The result is labeled <span className="font-medium">estimated</span>{" "}
-            everywhere it appears — statistics, the profile chart, and the
-            exported file&apos;s provenance markers. Recorded elevation in
-            your file is never modified.
+            {t("elevationDialog.resultPrefix")}{" "}
+            <span className="font-medium">
+              {t("elevationDialog.estimatedWord")}
+            </span>{" "}
+            {t("elevationDialog.resultSuffix")}
           </p>
         </div>
 
@@ -104,7 +114,7 @@ export function ElevationDisclosureDialog({
             data-testid="elevation-disclosure-cancel"
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("elevationDialog.cancel")}
           </Button>
           <Button
             type="button"
@@ -114,8 +124,13 @@ export function ElevationDisclosureDialog({
               onOpenChange(false);
             }}
           >
-            Send {sentPoints.toLocaleString("en-US")} point
-            {sentPoints === 1 ? "" : "s"}
+            {sentPoints === 1
+              ? t("elevationDialog.sendOne", {
+                  count: sentPoints.toLocaleString("en-US"),
+                })
+              : t("elevationDialog.sendMany", {
+                  count: sentPoints.toLocaleString("en-US"),
+                })}
           </Button>
         </DialogFooter>
       </DialogContent>

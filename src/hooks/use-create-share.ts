@@ -44,6 +44,7 @@ import {
 } from "@/lib/utils/format";
 import type { LatLon } from "@/types/domain";
 import { useUiStore } from "@/state/ui-store";
+import { useI18n } from "@/hooks/use-i18n";
 import type { CreateReview } from "@/hooks/use-create-export";
 import type { CreateElevationAttachment } from "@/hooks/use-create-elevation";
 
@@ -81,6 +82,7 @@ export function useCreateShare(
   review: CreateReview | null,
   elevation: CreateElevationAttachment | null,
 ): CreateShareBinding | null {
+  const { t } = useI18n();
   const paceUnit = useUiStore((s) => s.paceUnit);
 
   const setPaceUnit = useCallback((unit: PaceUnit) => {
@@ -99,15 +101,17 @@ export function useCreateShare(
     const pace = paceMs === null ? "—" : `${formatPaceMs(paceMs)} /${paceUnit}`;
     const time = formatDurationMs(stats.durationMs);
     const notes: string[] = [
-      "Route reconstructed by hand from the statistics your watch recorded.",
+      t("hook.share.createNoteReconstructed"),
       track.scaleApplied
-        ? "Distance is your watch's number — the drawn shape was scaled uniformly to it."
-        : "Distance is the route you drew.",
-      "Time is the total you entered; pace is time divided by that distance.",
+        ? t("hook.share.createNoteScaled")
+        : t("hook.share.createNoteDrawn"),
+      t("hook.share.createNoteTime"),
     ];
     if (elevation) {
       notes.push(
-        `The exported file carries estimated elevation from ${elevation.providerName} — the card shows distance, pace, and time only.`,
+        t("hook.share.createNoteElevation", {
+          provider: elevation.providerName,
+        }),
       );
     }
     return {
@@ -117,7 +121,7 @@ export function useCreateShare(
       notes,
       includesEstimatedElevation: elevation !== null,
     };
-  }, [review, paceUnit, elevation]);
+  }, [review, paceUnit, elevation, t]);
 
   const spec = useMemo<ShareCardSpec | null>(
     () =>

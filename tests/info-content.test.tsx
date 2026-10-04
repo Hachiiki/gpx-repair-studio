@@ -20,8 +20,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  ATTRIBUTIONS,
-  EGRESS_ROWS,
+  getAttributions,
+  getEgressRows,
   PrivacyPane,
   AboutPane,
 } from "@/components/layout/info-content";
@@ -30,6 +30,7 @@ import { InfoDialog, type InfoPane } from "@/components/layout/info-dialog";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { MAP_TILE_PROVIDERS } from "@/lib/map/styles";
 import { OPEN_METEO_HOST } from "@/features/elevation/openmeteo";
+import { enTranslator } from "@/hooks/use-i18n";
 
 afterEach(() => cleanup());
 
@@ -39,7 +40,9 @@ afterEach(() => cleanup());
 
 describe("privacy copy is pinned to the real providers", () => {
   it("names every user-selectable tile provider's real host", () => {
-    const text = EGRESS_ROWS.map((r) => `${r.destination} ${r.hosts}`).join(" ");
+    const text = getEgressRows(enTranslator)
+      .map((r) => `${r.destination} ${r.hosts}`)
+      .join(" ");
     for (const provider of Object.values(MAP_TILE_PROVIDERS)) {
       if (!provider.attribution) continue;
       // Only the tile sources with real URLs must appear.
@@ -52,18 +55,20 @@ describe("privacy copy is pinned to the real providers", () => {
 
   it("names the Open-Meteo elevation host exactly", () => {
     expect(
-      EGRESS_ROWS.some((r) => r.hosts.includes(OPEN_METEO_HOST)),
+      getEgressRows(enTranslator).some((r) => r.hosts.includes(OPEN_METEO_HOST)),
     ).toBe(true);
   });
 
   it("names the routing endpoints exactly (OSRM + Valhalla)", () => {
-    const hosts = EGRESS_ROWS.map((r) => r.hosts).join(" ");
+    const hosts = getEgressRows(enTranslator)
+      .map((r) => r.hosts)
+      .join(" ");
     expect(hosts).toContain("router.project-osrm.org");
     expect(hosts).toContain("valhalla1.openstreetmap.de");
   });
 
   it("lists exactly three egress rows — no silent additions", () => {
-    expect(EGRESS_ROWS).toHaveLength(3);
+    expect(getEgressRows(enTranslator)).toHaveLength(3);
   });
 
   it("the offline section matches the real offline fallback", () => {
@@ -94,16 +99,20 @@ describe("about copy is pinned to the real credits", () => {
       sleep: vi.fn(),
     });
     expect(
-      ATTRIBUTIONS.some((a) => a.name.includes("Open-Meteo")),
+      getAttributions(enTranslator).some((a) => a.name.includes("Open-Meteo")),
     ).toBe(true);
     expect(
-      ATTRIBUTIONS.find((a) => a.name.includes("Copernicus"))?.credit,
+      getAttributions(enTranslator).find((a) =>
+        a.name.includes("Copernicus"),
+      )?.credit,
     ).toContain("© Open-Meteo.com");
     expect(provider.attribution).toContain("Open-Meteo");
   });
 
   it("credits MapLibre, OpenFreeMap/OSM, and the fonts", () => {
-    const names = ATTRIBUTIONS.map((a) => a.name).join(" ");
+    const names = getAttributions(enTranslator)
+      .map((a) => a.name)
+      .join(" ");
     expect(names).toContain("MapLibre");
     expect(names).toContain("OpenFreeMap");
     expect(names).toContain("OSRM");
@@ -161,7 +170,7 @@ describe("InfoDialog", () => {
     );
     expect(screen.getByTestId("about-pane")).toBeInTheDocument();
     expect(screen.getAllByTestId("about-attribution-row").length).toBe(
-      ATTRIBUTIONS.length,
+      getAttributions(enTranslator).length,
     );
   });
 

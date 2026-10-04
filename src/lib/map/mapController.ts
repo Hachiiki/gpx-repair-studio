@@ -4,7 +4,8 @@
  *
  * This module is the ONLY place in the codebase that imports `maplibre-gl`
  * at runtime (ESLint boundary; components go through
- * `hooks/use-map-controller.ts`). The import is *dynamic*:
+ * `hooks/use-map-controller.ts`). The import { translateNow } from "@/i18n/runtime";
+import is *dynamic*:
  *   - the heavy library stays off the initial bundle (code splitting);
  *   - the module never evaluates during prerender/SSR or in node-side unit
  *     tests (the hook's route-view math stays testable without WebGL).
@@ -54,6 +55,7 @@ import {
   interpolateLatLon,
 } from "@/lib/geo/geodesy";
 import { announce } from "@/lib/announcements";
+import { translateNow } from "@/i18n/runtime";
 import type {
   LatLon,
   PathStyle,
@@ -2644,7 +2646,7 @@ export class MapController {
     const session = this.#drawSession;
     if (!session || !this.#drawMode) return;
     session.callbacks.onVertexDelete(vertex);
-    announce("Point deleted.");
+    announce(translateNow("map.announce.pointDeleted"));
   }
 
   /** Abort the owned gesture without committing anything. */

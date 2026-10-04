@@ -20,6 +20,7 @@
  * Phase 19 — Compare, summaries & guided flows. Pure TypeScript.
  */
 
+import type { LocalLabel } from "@/i18n/types";
 import { workingMetaOf } from "@/features/validation/workingCopy";
 import type { GapId, RoadLeg, WorkingEdit } from "@/types/domain";
 
@@ -35,13 +36,16 @@ export type RepairSummaryKind =
 
 export interface RepairSummaryRow {
   kind: RepairSummaryKind;
-  /** The row's label (e.g. "Points removed by fixes"). */
-  label: string;
+  /**
+   * Phase 21 — the row's label KEY (e.g. "summary.row.filtered");
+   * render sites translate it in the active locale.
+   */
+  labelKey: string;
   count: number;
   /** The provenance word the row renders (the badge vocabulary). */
   provenance: "recorded" | "estimated" | "modified";
-  /** Optional one-line disclosure (the honest detail). */
-  detail: string | null;
+  /** Optional one-line disclosure KEY (the honest detail). */
+  detailKey: string | null;
 }
 
 /** What the repair population contributes (draw.repairTimeStats + legs). */
@@ -66,7 +70,7 @@ export interface RepairSummary {
   totalChanges: number;
   /** The applied-fix history (label + time), log order — the sheet's
    * audit list. Empty when nothing was applied. */
-  history: readonly { label: string; appliedAt: number }[];
+  history: readonly { label: LocalLabel; appliedAt: number }[];
 }
 
 /** The provenance word each kind renders (the badge vocabulary). */
@@ -99,63 +103,63 @@ export function buildRepairSummary(
     rows.push({
       kind: "filtered",
       provenance: PROVENANCE_BY_KIND.filtered,
-      label: "Points removed by fixes",
+      labelKey: "summary.row.filtered",
       count: meta.deletedPointCount,
-      detail: "deleted from the working copy — the original keeps them",
+      detailKey: "summary.detail.filtered",
     });
   }
   if (meta.sortedSegmentIds.length > 0) {
     rows.push({
       kind: "sorted",
       provenance: PROVENANCE_BY_KIND.sorted,
-      label: "Segments sorted by time",
+      labelKey: "summary.row.sorted",
       count: meta.sortedSegmentIds.length,
-      detail: "the new order is estimated (stated in the export note)",
+      detailKey: "summary.detail.sorted",
     });
   }
   if (meta.overriddenEleCount > 0) {
     rows.push({
       kind: "estimated",
       provenance: PROVENANCE_BY_KIND.estimated,
-      label: "Elevations smoothed",
+      labelKey: "summary.row.smoothed",
       count: meta.overriddenEleCount,
-      detail: "interpolated replacements — gpxr:modified markers in the export",
+      detailKey: "summary.detail.smoothed",
     });
   }
   if (meta.splitCount > 0) {
     rows.push({
       kind: "structure",
       provenance: PROVENANCE_BY_KIND.structure,
-      label: "Segments split",
+      labelKey: "summary.row.split",
       count: meta.splitCount,
-      detail: "cut after a chosen point; both pieces keep their points",
+      detailKey: "summary.detail.split",
     });
   }
   if (meta.duplicatedSegmentCount > 0) {
     rows.push({
       kind: "structure",
       provenance: PROVENANCE_BY_KIND.structure,
-      label: "Segment copies inserted",
+      labelKey: "summary.row.duplicated",
       count: meta.duplicatedSegmentCount,
-      detail: "copied with fresh point ids, right after the source",
+      detailKey: "summary.detail.duplicated",
     });
   }
   if (meta.reorderedSegmentCount > 0) {
     rows.push({
       kind: "structure",
       provenance: PROVENANCE_BY_KIND.structure,
-      label: "Manual reorders",
+      labelKey: "summary.row.reordered",
       count: meta.reorderedSegmentCount,
-      detail: "segments moved within their track",
+      detailKey: "summary.detail.reordered",
     });
   }
   if ((repair?.gapCount ?? 0) > 0) {
     rows.push({
       kind: "authored",
       provenance: PROVENANCE_BY_KIND.authored,
-      label: "Gaps reconstructed",
+      labelKey: "summary.row.gaps",
       count: repair?.gapCount ?? 0,
-      detail: "drawn in the editor — solid signal lines on the map",
+      detailKey: "summary.detail.gaps",
     });
   }
   const snappedLegs = repair?.snappedLegs.length ?? 0;
@@ -163,27 +167,27 @@ export function buildRepairSummary(
     rows.push({
       kind: "snapped",
       provenance: PROVENANCE_BY_KIND.snapped,
-      label: "Road-following legs",
+      labelKey: "summary.row.snapped",
       count: snappedLegs,
-      detail: "reconstruction legs snapped to real roads (opt-in)",
+      detailKey: "summary.detail.snapped",
     });
   }
   if (input.skippedGapIds.length > 0) {
     rows.push({
       kind: "skipped",
       provenance: PROVENANCE_BY_KIND.skipped,
-      label: "Gaps left as recorded",
+      labelKey: "summary.row.gapsLeft",
       count: input.skippedGapIds.length,
-      detail: "excluded from the export's repair population by choice",
+      detailKey: "summary.detail.gapsLeft",
     });
   }
   if (input.reimportMarkerCount > 0) {
     rows.push({
       kind: "estimated",
       provenance: PROVENANCE_BY_KIND.estimated,
-      label: "Re-imported repair markers",
+      labelKey: "summary.row.reimported",
       count: input.reimportMarkerCount,
-      detail: "this file already carried gpxr repairs from a prior session",
+      detailKey: "summary.detail.reimported",
     });
   }
 

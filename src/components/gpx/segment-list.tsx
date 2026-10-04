@@ -15,10 +15,12 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { useI18n } from "@/hooks/use-i18n";
 import { formatDateTime, formatDistanceMeters } from "@/lib/utils/format";
 import type { SegmentRow } from "@/hooks/use-gpx-session";
 
 export function SegmentList({ rows }: { rows: readonly SegmentRow[] }) {
+  const { t } = useI18n();
   const trackCount = new Set(rows.map((row) => row.trackIndex)).size;
 
   // Pure grouping (segments of one track are contiguous in document order).
@@ -27,7 +29,7 @@ export function SegmentList({ rows }: { rows: readonly SegmentRow[] }) {
       trackIndex,
       trackName:
         rows.find((row) => row.trackIndex === trackIndex)?.trackName ??
-        `Track ${trackIndex + 1}`,
+        t("segmentList.trackFallback", { number: trackIndex + 1 }),
       rows: rows.filter((row) => row.trackIndex === trackIndex),
     }),
   );
@@ -40,11 +42,23 @@ export function SegmentList({ rows }: { rows: readonly SegmentRow[] }) {
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          Segments
+          {t("segmentList.title")}
         </h3>
         <CardDescription>
-          {rows.length} segment{rows.length === 1 ? "" : "s"} across{" "}
-          {trackCount} track{trackCount === 1 ? "" : "s"}
+          {t("segmentList.header", {
+            segments: t(
+              rows.length === 1
+                ? "segmentList.segmentOne"
+                : "segmentList.segmentMany",
+              { count: rows.length },
+            ),
+            tracks: t(
+              trackCount === 1
+                ? "segmentList.trackOne"
+                : "segmentList.trackMany",
+              { count: trackCount },
+            ),
+          })}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -66,25 +80,31 @@ export function SegmentList({ rows }: { rows: readonly SegmentRow[] }) {
                         {row.segmentId}
                       </span>
                       <span className="font-semibold tabular-nums">
-                        {row.pointCount.toLocaleString()} points ·{" "}
+                        {t("segmentList.points", {
+                          count: row.pointCount.toLocaleString(),
+                        })}{" "}·{" "}
                         {formatDistanceMeters(row.distanceM)}
                         {row.excludedLegs > 0 && (
                           <span className="text-signal-ink">
                             {" "}
-                            (+{row.excludedLegs} leg
-                            {row.excludedLegs === 1 ? "" : "s"} excluded)
+                            {t(
+                              row.excludedLegs === 1
+                                ? "segmentList.excludedLegsOne"
+                                : "segmentList.excludedLegsMany",
+                              { count: row.excludedLegs },
+                            )}
                           </span>
                         )}
                       </span>
                       <span className="text-[11.5px] text-muted-foreground">
                         {row.firstTimeMs !== undefined
                           ? `${formatDateTime(row.firstTimeMs)} → ${formatDateTime(row.lastTimeMs)}`
-                          : "No timestamps"}
+                          : t("segmentList.noTimestamps")}
                       </span>
                     </div>
                     {row.flaggedPoints > 0 && (
                       <StatusBadge tone="warning">
-                        {row.flaggedPoints} flagged
+                        {t("segmentList.flagged", { count: row.flaggedPoints })}
                       </StatusBadge>
                     )}
                   </div>

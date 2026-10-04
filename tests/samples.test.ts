@@ -9,6 +9,7 @@
  * these tests fail before the UX quietly lies.
  */
 
+import { translatorFor } from "@/i18n/runtime";
 import { describe, expect, it } from "vitest";
 import { parseGpx } from "@/features/gpx/parse";
 import { detectGaps } from "@/features/gpx/detectGaps";
@@ -31,7 +32,7 @@ describe("sample registry", () => {
   it("names every sample honestly (fileName says 'sample')", () => {
     for (const definition of Object.values(SAMPLES)) {
       expect(definition.fileName).toContain("sample");
-      expect(definition.summary.length).toBeGreaterThan(10);
+      expect(translatorFor("en")(definition.summaryKey).length).toBeGreaterThan(10);
     }
   });
 

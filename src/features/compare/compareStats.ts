@@ -64,7 +64,7 @@ export type CompareRowFormat = "count" | "distance" | "duration" | "elevation";
 
 export interface CompareStatRow {
   id: CompareRowId;
-  label: string;
+  labelKey: string;
   original: number | null;
   after: number | null;
   /** after − original; null when either side is null. */
@@ -120,7 +120,7 @@ export function buildCompareStats(input: CompareStatsInput): CompareStats {
     }
     rows.push({
       id: "points",
-      label: "Recorded points",
+      labelKey: "compare.stat.points",
       original: original.pointCount,
       after: after.pointCount,
       delta,
@@ -146,7 +146,7 @@ export function buildCompareStats(input: CompareStatsInput): CompareStats {
             : "recorded";
     rows.push({
       id: "distance",
-      label: "Distance",
+      labelKey: "compare.stat.distance",
       original: original.distanceM,
       after: after.distanceM,
       delta,
@@ -183,7 +183,7 @@ export function buildCompareStats(input: CompareStatsInput): CompareStats {
     }
     rows.push({
       id: "moving-time",
-      label: "Moving time",
+      labelKey: "compare.stat.movingTime",
       original: original.movingTimeMs,
       after: after.movingTimeMs,
       delta: deltaOf(original.movingTimeMs, after.movingTimeMs),
@@ -202,7 +202,7 @@ export function buildCompareStats(input: CompareStatsInput): CompareStats {
   {
     rows.push({
       id: "gain",
-      label: "Elevation gain",
+      labelKey: "compare.stat.elevation",
       original: original.gainM,
       after: after.gainM,
       delta: deltaOf(original.gainM, after.gainM),

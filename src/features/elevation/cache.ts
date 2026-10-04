@@ -94,6 +94,7 @@ export function withCache(
     name: provider.name,
     attribution: provider.attribution,
     privacyNote: provider.privacyNote,
+    privacyNoteKey: provider.privacyNoteKey,
     async getElevations(
       coords: readonly ElevationQueryPoint[],
       options?: ElevationFetchOptions,

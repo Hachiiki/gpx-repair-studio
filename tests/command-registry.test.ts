@@ -13,12 +13,18 @@
  *     commands are editor-only (context-gated);
  *   - the generated cheat sheet: every shipped binding appears, the
  *     editor bindings land in the editors' own group.
+ *
+ * Phase 21: labels live in the dictionary — the tests resolve them
+ * with the English translator (the en dictionary is the contract),
+ * and the search tests also prove the Chinese keyword aliases merge
+ * into the searchable text.
  */
 
 import { describe, expect, it } from "vitest";
 import {
   bindingId,
   cheatSheet,
+  commandLabel,
   COMMANDS,
   filterCommands,
   formatShortcut,
@@ -28,6 +34,10 @@ import {
   type CommandContext,
   type ShortcutBinding,
 } from "@/features/commands/registry";
+import { translatorFor } from "@/i18n/runtime";
+
+const t = translatorFor("en");
+const zh = translatorFor("zh-CN");
 
 const LANDING: CommandContext = {
   section: null,
@@ -56,11 +66,11 @@ const WORKSPACE: CommandContext = {
 };
 
 describe("the registry's integrity", () => {
-  it("every command has a unique id, a label, and a valid group", () => {
+  it("every command has a unique id, a label key that resolves, and a valid group", () => {
     const ids = new Set<string>();
     for (const command of COMMANDS) {
       expect(command.id.length).toBeGreaterThan(0);
-      expect(command.label.length).toBeGreaterThan(0);
+      expect(commandLabel(t, command).length).toBeGreaterThan(0);
       expect(["navigate", "sessions", "editing", "view", "help"]).toContain(
         command.group,
       );
@@ -106,7 +116,7 @@ describe("the registry's integrity", () => {
     for (const command of COMMANDS) {
       if (command.palette === false) {
         expect(
-          filterCommands(COMMANDS, "", LANDING).some(
+          filterCommands(COMMANDS, "", LANDING, t).some(
             (entry) => entry.id === command.id,
           ),
         ).toBe(false);
@@ -125,7 +135,7 @@ describe("the shortcut audit (§EE 20.3)", () => {
       ...COMMANDS,
       {
         id: "intruder",
-        label: "Intruder",
+        labelKey: "cmd.open-about",
         group: "view",
         shortcut: { key: "d" },
         scope: "editor",
@@ -144,14 +154,14 @@ describe("the shortcut audit (§EE 20.3)", () => {
       findShortcutConflicts([
         {
           id: "one",
-          label: "One",
+          labelKey: "cmd.open-about",
           group: "view",
           shortcut: { key: "x" },
           scope: "editor",
         },
         {
           id: "two",
-          label: "Two",
+          labelKey: "cmd.open-help",
           group: "view",
           shortcut: { key: "x" },
           scope: "global",
@@ -252,17 +262,17 @@ describe("the fuzzy search", () => {
 
 describe("availability (the `when` predicates)", () => {
   it("navigate commands are landing-only — hidden once a session holds the stage", () => {
-    const landingIds = filterCommands(COMMANDS, "", LANDING).map((c) => c.id);
+    const landingIds = filterCommands(COMMANDS, "", LANDING, t).map((c) => c.id);
     expect(landingIds).toContain("open-plan");
-    const workIds = filterCommands(COMMANDS, "", WORKSPACE).map((c) => c.id);
+    const workIds = filterCommands(COMMANDS, "", WORKSPACE, t).map((c) => c.id);
     expect(workIds).not.toContain("open-plan");
     expect(workIds).not.toContain("open-repair");
   });
 
   it("editing commands need a live editor session", () => {
-    const landingIds = filterCommands(COMMANDS, "", LANDING).map((c) => c.id);
+    const landingIds = filterCommands(COMMANDS, "", LANDING, t).map((c) => c.id);
     expect(landingIds).not.toContain("editor-undo");
-    const studioIds = filterCommands(COMMANDS, "", PLAN_STUDIO).map((c) => c.id);
+    const studioIds = filterCommands(COMMANDS, "", PLAN_STUDIO, t).map((c) => c.id);
     expect(studioIds).toContain("editor-undo");
     expect(studioIds).toContain("editor-redo");
     expect(studioIds).toContain("editor-clear");
@@ -270,27 +280,47 @@ describe("availability (the `when` predicates)", () => {
 
   it("'Back to the tool cards' needs the tool page", () => {
     expect(
-      filterCommands(COMMANDS, "", LANDING).some((c) => c.id === "go-home"),
+      filterCommands(COMMANDS, "", LANDING, t).some((c) => c.id === "go-home"),
     ).toBe(false);
     expect(
-      filterCommands(COMMANDS, "", TOOL_PAGE).some((c) => c.id === "go-home"),
+      filterCommands(COMMANDS, "", TOOL_PAGE, t).some((c) => c.id === "go-home"),
     ).toBe(true);
   });
 
   it("a query filters AND ranks (keywords count)", () => {
-    const hits = filterCommands(COMMANDS, "plan", LANDING);
+    const hits = filterCommands(COMMANDS, "plan", LANDING, t);
     expect(hits.length).toBeGreaterThan(0);
     // "Plan a route" outscores "Replay the walkthrough: …" variants.
     expect(hits[0]!.id).toBe("open-plan");
-    const undoHits = filterCommands(COMMANDS, "undo", PLAN_STUDIO);
+    const undoHits = filterCommands(COMMANDS, "undo", PLAN_STUDIO, t);
     expect(undoHits.map((c) => c.id)).toContain("editor-undo");
-    const nothing = filterCommands(COMMANDS, "zzzznotathing", LANDING);
+    const nothing = filterCommands(COMMANDS, "zzzznotathing", LANDING, t);
     expect(nothing).toEqual([]);
+  });
+
+  it("Phase 21 — Chinese keyword aliases merge into the search text", () => {
+    // The Chinese alias for the help door contains 键盘/键位/帮助.
+    const hits = filterCommands(COMMANDS, "帮助", LANDING, zh);
+    expect(hits.map((c) => c.id)).toContain("open-help");
+    // And English keywords still match under the Chinese locale.
+    const english = filterCommands(COMMANDS, "keyboard", LANDING, zh);
+    expect(english.map((c) => c.id)).toContain("open-help");
+  });
+
+  it("Phase 21 — labels localize (the replay tours interpolate their tool names)", () => {
+    expect(commandLabel(zh, COMMANDS.find((c) => c.id === "open-plan")!)).toBe(
+      "规划一条路线",
+    );
+    const replay = COMMANDS.find((c) => c.id === "replay-tour-plan")!;
+    expect(commandLabel(t, replay)).toBe(
+      "Replay the walkthrough: Plan a route",
+    );
+    expect(commandLabel(zh, replay)).toBe("重看操作导览：规划一条路线");
   });
 });
 
 describe("the generated cheat sheet", () => {
-  const sheet = cheatSheet(COMMANDS);
+  const sheet = cheatSheet(COMMANDS, t);
 
   it("every shipped binding appears exactly once", () => {
     const rows = sheet.flatMap((group) => group.entries);
@@ -335,5 +365,13 @@ describe("the generated cheat sheet", () => {
     const everywhere = sheet[0]!.entries;
     const descriptions = everywhere.map((entry) => entry.description);
     expect(descriptions).toContain("Shortcuts & help");
+  });
+
+  it("Phase 21 — the sheet localizes wholesale", () => {
+    const zhSheet = cheatSheet(COMMANDS, zh);
+    expect(zhSheet[0]!.title).toBe("全局");
+    expect(zhSheet.some((group) => group.title.startsWith("绘制编辑器"))).toBe(
+      true,
+    );
   });
 });

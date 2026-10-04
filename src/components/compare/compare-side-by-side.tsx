@@ -23,6 +23,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useI18n } from "@/hooks/use-i18n";
 import type { CompareSideBySide } from "@/hooks/use-compare";
 
 export interface CompareSideBySideDialogProps {
@@ -34,15 +35,13 @@ export interface CompareSideBySideDialogProps {
 const PANEL_META = [
   {
     key: "original" as const,
-    label: "Original — as recorded",
-    description:
-      "The immutable recording. Changed stretches are dashed orange.",
+    labelKey: "compare.sideBySide.panelOriginal",
+    descriptionKey: "compare.sideBySide.panelOriginalDesc",
   },
   {
     key: "after" as const,
-    label: "After — edits and repairs",
-    description:
-      "The working copy plus committed repairs. The ghost underneath is the original.",
+    labelKey: "compare.sideBySide.panelAfter",
+    descriptionKey: "compare.sideBySide.panelAfterDesc",
   },
 ];
 
@@ -51,6 +50,7 @@ export function CompareSideBySideDialog({
   panels,
   onClose,
 }: CompareSideBySideDialogProps) {
+  const { t } = useI18n();
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent
@@ -59,12 +59,10 @@ export function CompareSideBySideDialog({
       >
         <div className="border-b-[1.5px] border-ink px-5 pt-4">
           <DialogTitle className="text-left text-[17px] font-bold tracking-tight">
-            Before / after, side by side
+            {t("compare.sideBySide.title")}
           </DialogTitle>
           <DialogDescription className="mt-0.5 pb-3 text-left text-[13px] text-muted-foreground">
-            Both pictures share one scale — the same track shape, the
-            same zoom. The left panel is the original recording; the
-            right is what the export will contain.
+            {t("compare.sideBySide.desc")}
           </DialogDescription>
         </div>
         <div className="max-h-[min(72vh,720px)] overflow-y-auto p-5">
@@ -73,8 +71,7 @@ export function CompareSideBySideDialog({
               className="py-10 text-center text-sm text-muted-foreground"
               data-testid="compare-side-by-side-empty"
             >
-              Nothing to compare yet — the panels build once a file is
-              parsed.
+              {t("compare.sideBySide.empty")}
             </p>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
@@ -86,15 +83,15 @@ export function CompareSideBySideDialog({
                 >
                   <figcaption className="border-b-[1.5px] border-ink/10 bg-ink/[0.03] px-3 py-2">
                     <p className="text-[13px] font-bold leading-tight">
-                      {panel.label}
+                      {t(panel.labelKey)}
                     </p>
                     <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">
-                      {panel.description}
+                      {t(panel.descriptionKey)}
                     </p>
                   </figcaption>
                   <div
                     role="img"
-                    aria-label={panel.label}
+                    aria-label={t(panel.labelKey)}
                     data-testid={`compare-panel-svg-${panel.key}`}
                     className="bg-card [&>svg]:block [&>svg]:h-auto [&>svg]:w-full"
                     dangerouslySetInnerHTML={{
@@ -115,7 +112,7 @@ export function CompareSideBySideDialog({
           >
             <li className="flex items-center gap-1.5">
               <span className="h-1 w-6 rounded-full bg-ink/70" aria-hidden="true" />
-              Track (solid)
+              {t("compare.sideBySide.legendTrack")}
             </li>
             <li className="flex items-center gap-1.5">
               <span
@@ -126,7 +123,7 @@ export function CompareSideBySideDialog({
                 }}
                 aria-hidden="true"
               />
-              Original ghost
+              {t("compare.sideBySide.legendGhost")}
             </li>
             <li className="flex items-center gap-1.5">
               <span
@@ -137,7 +134,7 @@ export function CompareSideBySideDialog({
                 }}
                 aria-hidden="true"
               />
-              Changed / repaired
+              {t("compare.legendChanged")}
             </li>
           </ul>
         </div>

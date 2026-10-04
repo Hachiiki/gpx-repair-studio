@@ -10,6 +10,7 @@
  */
 
 import type { ReactNode } from "react";
+import { useI18n } from "@/hooks/use-i18n";
 import { WorkspaceToolsColumn } from "@/components/layout/workspace-tools-column";
 
 export interface CreateWorkspaceProps {
@@ -20,10 +21,11 @@ export interface CreateWorkspaceProps {
 }
 
 export function CreateWorkspace({ map, tools }: CreateWorkspaceProps) {
+  const { t } = useI18n();
   return (
     <section
       id="create"
-      aria-label="Create route map and tools"
+      aria-label={t("create.workspace.sectionA11y")}
       data-testid="create-section"
       className="scroll-mt-20"
     >
@@ -34,7 +36,7 @@ export function CreateWorkspace({ map, tools }: CreateWorkspaceProps) {
          * starts EXPANDED on phones. */}
         <WorkspaceToolsColumn
           testid="create-tools-panel"
-          label="Create tools"
+          label={t("create.workspace.toolsLabel")}
           defaultExpanded
         >
           {tools}

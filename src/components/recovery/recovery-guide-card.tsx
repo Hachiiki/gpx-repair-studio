@@ -19,6 +19,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Check, CircleDashed, PenLine, ScanSearch } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 
 export interface RecoveryGuideCardProps {
   /** Missing GPS sections detected in the loaded activity. */
@@ -34,6 +35,7 @@ export function RecoveryGuideCard({
   recoveredCount,
   editorOpen,
 }: RecoveryGuideCardProps) {
+  const { t } = useI18n();
   // "Done" means every DETECTED section is covered (Task 26) or, when
   // nothing was detected, at least one unmeasured section was drawn
   // (Task 28 — drawing without detection is this section's contract).
@@ -48,18 +50,18 @@ export function RecoveryGuideCard({
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          Gap recovery
+          {t("recovery.guide.title")}
         </h3>
         <CardDescription>
           {detectedCount === 0 && recoveredCount === 0
-            ? "No missing sections detected — you can still draw the route you lost below."
+            ? t("recovery.guide.status.empty")
             : detectedCount === 0
-              ? "Nothing was detected — your drawn sections carry the recovery."
+              ? t("recovery.guide.status.onlyDrawn")
               : allRecovered
-                ? "Every detected section has a recovered route."
+                ? t("recovery.guide.status.allRecovered")
                 : editorOpen
-                  ? "Drawing — click the map to add the missing route."
-                  : "Open a section below and draw where you actually went."}
+                  ? t("recovery.guide.status.drawing")
+                  : t("recovery.guide.status.invite")}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -79,9 +81,9 @@ export function RecoveryGuideCard({
               )}
             </span>
             <span className="text-muted-foreground">
-              Detect missing sections —{" "}
+              {t("recovery.guide.step.detect")}{" "}
               <span className="font-medium text-foreground tabular-nums">
-                {detectedCount} found
+                {t("recovery.guide.step.found", { count: detectedCount })}
               </span>
             </span>
           </li>
@@ -105,11 +107,14 @@ export function RecoveryGuideCard({
               )}
             </span>
             <span className="text-muted-foreground">
-              Draw the missing route —{" "}
+              {t("recovery.guide.step.draw")}{" "}
               <span className="font-medium text-foreground tabular-nums">
                 {detectedCount > 0
-                  ? `${recoveredCount} of ${detectedCount} recovered`
-                  : `${recoveredCount} drawn`}
+                  ? t("recovery.guide.step.recovered", {
+                      recovered: recoveredCount,
+                      detected: detectedCount,
+                    })
+                  : t("recovery.guide.step.drawn", { count: recoveredCount })}
               </span>
             </span>
           </li>
@@ -131,7 +136,7 @@ export function RecoveryGuideCard({
               href="#recovery-details"
               className="text-muted-foreground underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-2"
             >
-              Preview the completed route &amp; export
+              {t("recovery.guide.step.preview")}
             </a>
           </li>
         </ol>

@@ -44,6 +44,7 @@ import {
 } from "@/hooks/use-saved-sessions";
 import { formatDateTime } from "@/lib/utils/format";
 import type { SavedSessionRow } from "@/hooks/use-saved-sessions";
+import { useI18n } from "@/hooks/use-i18n";
 
 export interface SessionsManagerDialogProps {
   open: boolean;
@@ -56,6 +57,7 @@ export function SessionsManagerDialog({
   onOpenChange,
   sessions,
 }: SessionsManagerDialogProps) {
+  const { t } = useI18n();
   const saveInputId = useId();
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const openInputRef = useRef<HTMLInputElement | null>(null);
@@ -93,7 +95,7 @@ export function SessionsManagerDialog({
     if (outcome.status === "error") {
       setNotice(outcome.message);
     } else {
-      setNotice(`Imported — "${outcome.name}" is on the shelf.`);
+      setNotice(t("shared.sessions.importedNotice", { name: outcome.name }));
     }
   };
 
@@ -110,23 +112,24 @@ export function SessionsManagerDialog({
       >
         <DialogTitle className="flex items-center gap-2 text-[17px] font-bold tracking-tight">
           <BookmarkPlus className="size-4 text-signal" aria-hidden="true" />
-          Your sessions
+          {t("shared.sessions.title")}
         </DialogTitle>
         <DialogDescription className="text-[13px] leading-relaxed">
-          Sessions live in this browser only — no accounts, nothing sent
-          anywhere. A session file (.gpxrepair.json) carries the whole
-          thing: the original recording, every fix, every drawn repair.
+          {t("shared.sessions.description")}
         </DialogDescription>
 
         {/* SAVE — the current work under a name. */}
-        <section aria-label="Save the current session" className="grid gap-2">
+        <section
+          aria-label={t("shared.sessions.saveSectionAria")}
+          className="grid gap-2"
+        >
           <h3 className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
             <Save className="size-3.5" aria-hidden="true" />
-            Save what you are working on
+            {t("shared.sessions.saveHeading")}
           </h3>
           <div className="flex flex-wrap items-center gap-2">
             <label htmlFor={saveInputId} className="sr-only">
-              Session name
+              {t("shared.sessions.nameLabel")}
             </label>
             <input
               id={saveInputId}
@@ -136,8 +139,13 @@ export function SessionsManagerDialog({
               disabled={!nameable}
               placeholder={
                 nameable
-                  ? `Name this ${activeSection !== null ? savedSessionSectionLabel(activeSection).toLowerCase() : ""} session…`
-                  : "Nothing to save yet — draw or fix something first"
+                  ? t("shared.sessions.savePlaceholder", {
+                      section:
+                        activeSection !== null
+                          ? savedSessionSectionLabel(activeSection).toLowerCase()
+                          : "",
+                    })
+                  : t("shared.sessions.savePlaceholderEmpty")
               }
               onChange={(event) => setSaveName(event.target.value)}
               onKeyDown={(event) => {
@@ -152,7 +160,7 @@ export function SessionsManagerDialog({
               disabled={!nameable || saveName.trim().length === 0}
               onClick={() => void save()}
             >
-              Save session
+              {t("shared.sessions.saveButton")}
             </Button>
             <Button
               type="button"
@@ -163,7 +171,7 @@ export function SessionsManagerDialog({
               onClick={() => void sessions.exportCurrent()}
             >
               <Download className="size-3.5" aria-hidden="true" />
-              Export file
+              {t("shared.sessions.exportCurrent")}
             </Button>
           </div>
           {notice !== null && (
@@ -178,21 +186,22 @@ export function SessionsManagerDialog({
         </section>
 
         {/* THE SHELF — the named sessions. */}
-        <section aria-label="Saved sessions" className="grid gap-2">
+        <section
+          aria-label={t("shared.sessions.shelfSectionAria")}
+          className="grid gap-2"
+        >
           <h3 className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
             <FolderOpen className="size-3.5" aria-hidden="true" />
-            On this device
+            {t("shared.sessions.shelfHeading")}
           </h3>
           {!sessions.available && (
             <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-              Session storage is unavailable (blocked or private mode) —
-              save and export still work, but nothing persists here.
+              {t("shared.sessions.unavailable")}
             </p>
           )}
           {sessions.available && sessions.hasScanned && sessions.rows.length === 0 && (
             <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-              No saved sessions yet. Save one above, or import a session
-              file below.
+              {t("shared.sessions.empty")}
             </p>
           )}
           {sessions.rows.length > 0 && (
@@ -241,10 +250,13 @@ export function SessionsManagerDialog({
         </section>
 
         {/* IMPORT + OPEN — the portable file doors. */}
-        <section aria-label="Session files" className="grid gap-2">
+        <section
+          aria-label={t("shared.sessions.filesSectionAria")}
+          className="grid gap-2"
+        >
           <h3 className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
             <FileJson className="size-3.5" aria-hidden="true" />
-            Session files
+            {t("shared.sessions.filesHeading")}
           </h3>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -255,7 +267,7 @@ export function SessionsManagerDialog({
               onClick={() => importInputRef.current?.click()}
             >
               <Download className="size-3.5" aria-hidden="true" />
-              Import to the shelf
+              {t("shared.sessions.importButton")}
             </Button>
             <Button
               type="button"
@@ -265,7 +277,7 @@ export function SessionsManagerDialog({
               onClick={() => openInputRef.current?.click()}
             >
               <FolderOpen className="size-3.5" aria-hidden="true" />
-              Open a session file
+              {t("shared.sessions.openFileButton")}
             </Button>
             <input
               ref={importInputRef}
@@ -291,9 +303,7 @@ export function SessionsManagerDialog({
             />
           </div>
           <p className="text-[12px] leading-relaxed text-muted-foreground">
-            "Open a session file" loads it straight into the app — the
-            current session is replaced, exactly like uploading a new
-            file.
+            {t("shared.sessions.openFileNote")}
           </p>
         </section>
       </DialogContent>
@@ -329,6 +339,7 @@ function ShelfRow({
   onExport: () => void;
   onOpen: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <li
       data-testid="sessions-row"
@@ -341,7 +352,7 @@ function ShelfRow({
         {renaming !== null ? (
           <>
             <label className="sr-only" htmlFor={`rename-${row.id}`}>
-              New name for {row.name}
+              {t("shared.sessions.renameLabel", { name: row.name })}
             </label>
             <input
               id={`rename-${row.id}`}
@@ -363,7 +374,7 @@ function ShelfRow({
               disabled={renaming.trim().length === 0}
               onClick={onRenameCommit}
             >
-              Rename
+              {t("shared.sessions.renameCommit")}
             </Button>
             <Button
               type="button"
@@ -371,7 +382,7 @@ function ShelfRow({
               variant="ghost"
               onClick={onRenameCancel}
             >
-              Cancel
+              {t("shared.sessions.renameCancel")}
             </Button>
           </>
         ) : (
@@ -386,7 +397,7 @@ function ShelfRow({
               <button
                 type="button"
                 data-testid="sessions-rename-button"
-                aria-label={`Rename ${row.name}`}
+                aria-label={t("shared.sessions.renameAria", { name: row.name })}
                 className="rounded-[5px] p-1.5 text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
                 onClick={onRenameStart}
               >
@@ -395,7 +406,7 @@ function ShelfRow({
               <button
                 type="button"
                 data-testid="sessions-export-button"
-                aria-label={`Export ${row.name} as a session file`}
+                aria-label={t("shared.sessions.exportAria", { name: row.name })}
                 className="rounded-[5px] p-1.5 text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
                 onClick={onExport}
               >
@@ -404,7 +415,7 @@ function ShelfRow({
               <button
                 type="button"
                 data-testid="sessions-delete-button"
-                aria-label={`Delete ${row.name}`}
+                aria-label={t("shared.sessions.deleteAria", { name: row.name })}
                 className="rounded-[5px] p-1.5 text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
                 onClick={onDelete}
               >
@@ -415,12 +426,12 @@ function ShelfRow({
         )}
       </div>
       <p className="text-[11.5px] text-muted-foreground">
-        Updated {formatDateTime(row.updatedAt)}
+        {t("shared.sessions.updated", { date: formatDateTime(row.updatedAt) })}
       </p>
       {confirmingDelete ? (
         <div className="flex flex-wrap items-center gap-2 rounded-[7px] border-[1.25px] border-signal bg-signal/[0.05] px-2.5 py-1.5">
           <span className="text-[12px] font-semibold text-ink">
-            Delete this session?
+            {t("shared.sessions.deleteConfirm")}
           </span>
           <Button
             type="button"
@@ -429,7 +440,7 @@ function ShelfRow({
             data-testid="sessions-delete-confirm"
             onClick={onDeleteConfirm}
           >
-            Delete
+            {t("shared.sessions.deleteButton")}
           </Button>
           <Button
             type="button"
@@ -437,7 +448,7 @@ function ShelfRow({
             variant="ghost"
             onClick={onDeleteCancel}
           >
-            Keep
+            {t("shared.sessions.keepButton")}
           </Button>
         </div>
       ) : (
@@ -448,7 +459,7 @@ function ShelfRow({
           onClick={onOpen}
         >
           <FolderOpen className="mr-1.5 inline size-3.5" aria-hidden="true" />
-          Open this session
+          {t("shared.sessions.openButton")}
         </button>
       )}
     </li>

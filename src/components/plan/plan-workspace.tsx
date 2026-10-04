@@ -11,6 +11,7 @@
  */
 
 import type { ReactNode } from "react";
+import { useI18n } from "@/hooks/use-i18n";
 import { WorkspaceToolsColumn } from "@/components/layout/workspace-tools-column";
 
 export interface PlanWorkspaceProps {
@@ -21,10 +22,12 @@ export interface PlanWorkspaceProps {
 }
 
 export function PlanWorkspace({ map, tools }: PlanWorkspaceProps) {
+  const { t } = useI18n();
+
   return (
     <section
       id="plan"
-      aria-label="Plan a route map and tools"
+      aria-label={t("plan.workspace.sectionLabel")}
       data-testid="plan-section"
       className="scroll-mt-20"
     >
@@ -35,7 +38,7 @@ export function PlanWorkspace({ map, tools }: PlanWorkspaceProps) {
          * EXPANDED on phones. */}
         <WorkspaceToolsColumn
           testid="plan-tools-panel"
-          label="Plan tools"
+          label={t("plan.workspace.toolsLabel")}
           defaultExpanded
         >
           {tools}

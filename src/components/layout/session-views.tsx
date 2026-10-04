@@ -53,6 +53,7 @@ import { LandingCardsView } from "@/components/layout/landing-cards";
 import { PlanStartCard } from "@/components/plan/plan-start-card";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import type { ActivityStats } from "@/hooks/use-create-session";
 import type { PaceUnit } from "@/lib/utils/format";
 import type { LandingMode, LandingView } from "@/state/ui-store";
@@ -88,8 +89,8 @@ export interface SessionIdleViewProps {
    * pipeline. Undefined for tools without a file sample.
    */
   onTrySample?: () => void;
-  /** What the sample link calls the sample ("a sample ride", …). */
-  sampleLabel?: string;
+  /** What the sample link calls the sample (a dictionary key). */
+  sampleLabelKey?: string;
   /**
    * Phase 18 — the batch tool's intake node (the shell owns the
    * use-batch-session instance; see ToolDetailViewProps.batchIntake).
@@ -127,7 +128,7 @@ export function SessionIdleView({
   onCreateBegin,
   onPlanBegin,
   onTrySample,
-  sampleLabel,
+  sampleLabelKey,
   batchIntake,
   createStats,
   paceUnit,
@@ -168,7 +169,7 @@ export function SessionIdleView({
       onCreateBegin={onCreateBegin}
       onPlanBegin={onPlanBegin}
       onTrySample={onTrySample}
-      sampleLabel={sampleLabel}
+      sampleLabelKey={sampleLabelKey}
       batchIntake={batchIntake}
       createStats={createStats}
       paceUnit={paceUnit}
@@ -183,262 +184,73 @@ export function SessionIdleView({
  * roadmap. The trio follows the open tool: the repair workflow, the
  * share-card workflow, the gap-recovery workflow, or the
  * create-from-stats workflow.
+ *
+ * Phase 21: the copy lives in the dictionary (i18n/dicts/en/
+ * toolpages.ts); these records keep only the ICONS, and the
+ * accessors below resolve the copy per locale at render time.
  */
-const WORKFLOW_STEPS: Record<
+const WORKFLOW_STEP_ICONS: Record<
   LandingMode,
-  readonly {
-    icon: typeof ScanSearch;
-    title: string;
-    description: string;
-  }[]
+  readonly (typeof ScanSearch)[]
 > = {
-  repair: [
-    {
-      icon: ScanSearch,
-      title: "Inspect",
-      description:
-        "See every segment, gap, and anomaly with recorded-only statistics — nothing is invented.",
-    },
-    {
-      icon: Route,
-      title: "Repair",
-      description:
-        "Draw the missing route on the map — clicks follow real roads, drag a curve freehand with the Curve pen, every point adjusts in Move mode, everything undoes.",
-    },
-    {
-      icon: ShieldCheck,
-      title: "Honest by default",
-      description:
-        "Download the repaired GPX with every reconstructed point marked — the original recording is never modified, and repairs stay labelled even after re-uploading.",
-    },
-  ],
-  share: [
-    {
-      icon: Upload,
-      title: "Upload any GPX",
-      description:
-        "Drop an activity file — it is read locally in this tab, and nothing is uploaded anywhere.",
-    },
-    {
-      icon: Eye,
-      title: "See the card",
-      description:
-        "Your route renders on a transparent 9:16 canvas with the distance, pace, and time the file actually records.",
-    },
-    {
-      icon: Download,
-      title: "Download as PNG",
-      description:
-        "Export a 1080×1920 image (2160×3840 optional) — white on transparent, ready for stories and posts.",
-    },
-  ],
-  recovery: [
-    {
-      icon: Clock,
-      title: "Detect the gap",
-      description:
-        "The app finds sections where your watch kept counting time but GPS coordinates went missing — the interval, its duration, and both anchor points.",
-    },
-    {
-      icon: PenLine,
-      title: "Draw the missing route",
-      description:
-        "Trace where you actually went on the map — clicks follow real roads, the Curve pen draws freehand curves, and everything undoes. The original recording is never modified.",
-    },
-    {
-      icon: Download,
-      title: "Export the corrected file",
-      description:
-        "GPS points are generated along your drawing with timestamps fitted into the missing interval, the completed route is previewed with recalculated statistics, and the export marks every generated point as estimated.",
-    },
-  ],
-  create: [
-    {
-      icon: Watch,
-      title: "Enter your statistics",
-      description:
-        "The distance, average pace, total time, and start your watch recorded — no GPX needed. The app checks they agree (time ≈ distance × pace) and never overwrites your numbers.",
-    },
-    {
-      icon: Route,
-      title: "Draw the route",
-      description:
-        "Trace where you went on the map — clicks follow real roads, the Curve pen draws freehand curves, and everything undoes. This is the whole activity, drawn from scratch.",
-    },
-    {
-      icon: Ruler,
-      title: "Export the GPX",
-      description:
-        "The route is scaled to your recorded distance, your recorded time is spread along it as timestamps, and the file imports into Strava and other GPX platforms.",
-    },
-  ],
-  merge: [
-    {
-      icon: Layers,
-      title: "Add your files",
-      description:
-        "Drop two or more GPX files — each is read locally in this tab and inspected before it joins the merge. One bad file never blocks the rest.",
-    },
-    {
-      icon: ListOrdered,
-      title: "Arrange the merge",
-      description:
-        "Set the order the routes join in — or sort by start time — remove any file, and name the combined activity. The map and the statistics follow every change.",
-    },
-    {
-      icon: Download,
-      title: "Download one GPX",
-      description:
-        "One track with every recorded point from every file — elevation, timestamps, and waypoints carried over verbatim, nothing rewritten.",
-    },
-  ],
-  plan: [
-    {
-      icon: PencilRuler,
-      title: "Draw your route",
-      description:
-        "Sketch where you might go — clicks follow real roads, the Curve pen draws freehand curves, Move mode adjusts any point, everything undoes. No file needed.",
-    },
-    {
-      icon: Ruler,
-      title: "Read the estimates",
-      description:
-        "The distance updates live as the line takes shape, terrain elevation is one opt-in lookup away, and the straight-line comparison shows how winding your plan is.",
-    },
-    {
-      icon: TimerReset,
-      title: "Pace from your time",
-      description:
-        "Enter a goal time and see the pace and speed it implies, with even splits along the route. This is a scratchpad — nothing is exported and nothing is shared.",
-    },
-  ],
-  batch: [
-    {
-      icon: Layers,
-      title: "Queue your files",
-      description:
-        "Drop one or many recordings — each parses locally and reports its points, its findings, and its failures. One bad file never blocks the rest.",
-    },
-    {
-      icon: FileCheck2,
-      title: "Preview, then apply",
-      description:
-        "Pick a fix preset and see, per file, exactly what it would change — the same plan words the single-file preview shows — before anything is applied. Every fix undoes.",
-    },
-    {
-      icon: Download,
-      title: "Download the ZIP",
-      description:
-        "One archive with a repaired GPX per file and a manifest stating what changed in each. The originals are never modified — files the fixes cannot help export unchanged.",
-    },
-  ],
+  repair: [ScanSearch, Route, ShieldCheck],
+  share: [Upload, Eye, Download],
+  recovery: [Clock, PenLine, Download],
+  create: [Watch, Route, Ruler],
+  merge: [Layers, ListOrdered, Download],
+  plan: [PencilRuler, Ruler, TimerReset],
+  batch: [Layers, FileCheck2, Download],
 };
 
-const HERO_COPY: Record<
-  LandingMode,
-  { heading: string; description: string }
-> = {
-  repair: {
-    heading: "Repair incomplete GPS recordings",
-    description:
-      "Upload a GPX activity with gaps or damage, inspect exactly what was recorded, then draw the missing route yourself — with a clear line between recorded and reconstructed data.",
-  },
-  share: {
-    heading: "Create a share card from your GPX",
-    description:
-      "Upload an activity and download a Strava-style share graphic — your route with the distance, pace, and time this file records. Need to fix it first? The repair workspace is one click away after upload.",
-  },
-  recovery: {
-    heading: "Recover a missing GPS section",
-    description:
-      "Upload an activity where the recording dropped out mid-workout — the clock kept running but the route has a hole. Draw the part that went missing and get a corrected GPX with the elapsed time untouched.",
-  },
-  create: {
-    heading: "Create an activity from its stats",
-    description:
-      "Your watch recorded the distance, pace, and time — but no map. Enter those statistics, draw the route you took, and download a GPX ready for Strava and every other platform.",
-  },
-  merge: {
-    heading: "Combine GPX files into one route",
-    description:
-      "Upload two or more activities — or several takes of the same one — and merge them into a single GPX. Everything recorded comes along: points, elevation, timestamps, and waypoints. Then arrange the order, name the result, and download one file.",
-  },
-  plan: {
-    heading: "Plan a route, read its numbers",
-    description:
-      "Sketch a route on the map — along real roads, footpaths, or freehand — and watch the distance, the terrain, and the pace take shape. Enter a time and see what it demands. This is a planning scratchpad: nothing is exported, nothing is shared.",
-  },
-  batch: {
-    heading: "Clean up many files in one pass",
-    description:
-      "Queue a folder's worth of recordings, see per file what the deep checks find, run one fix preset across the whole queue — previewed per file before anything is applied — and download a ZIP with a manifest of every change.",
-  },
-};
+export interface WorkflowStep {
+  icon: typeof ScanSearch;
+  title: string;
+  description: string;
+}
+
+/** Resolve one tool's "How it works" trio for the active locale. */
+export function getWorkflowSteps(
+  t: TranslatorArg,
+  mode: LandingMode,
+): readonly WorkflowStep[] {
+  return WORKFLOW_STEP_ICONS[mode].map((icon, index) => ({
+    icon,
+    title: t(`toolpage.${mode}.step${index + 1}.title`),
+    description: t(`toolpage.${mode}.step${index + 1}.description`),
+  }));
+}
+
+export interface ToolHeroCopy {
+  heading: string;
+  description: string;
+}
+
+/** Resolve one tool's hero copy for the active locale. */
+export function getHeroCopy(t: TranslatorArg, mode: LandingMode): ToolHeroCopy {
+  return {
+    heading: t(`toolpage.${mode}.hero.heading`),
+    description: t(`toolpage.${mode}.hero.description`),
+  };
+}
+
+export interface ToolFacts {
+  input: string;
+  output: string;
+  bestFor: string;
+}
 
 /**
- * The tool page's fact strip (Task 42): what goes in, what comes out,
- * and who the tool is for — the concrete contract under the teaching
- * copy, three slots per tool.
+ * Resolve one tool's fact strip (Task 42) for the active locale —
+ * what goes in, what comes out, and who the tool is for.
  */
-const TOOL_FACTS: Record<
-  LandingMode,
-  { input: string; output: string; bestFor: string }
-> = {
-  repair: {
-    input:
-      "Any GPX 1.0 or 1.1 activity file — exported from any watch, phone, or platform.",
-    output:
-      "The same file with your repairs added — every reconstructed point marked, the original recording untouched.",
-    bestFor:
-      "Recordings with missing sections or suspicious stretches you want to see and fix yourself.",
-  },
-  share: {
-    input: "Any GPX activity file — gaps and all, no fixes needed.",
-    output:
-      "A 1080×1920 transparent PNG (2160×3840 at 2×) — route, distance, pace, and time exactly as recorded.",
-    bestFor:
-      "Turning a finished activity into a story-ready graphic for Strava, group chats, or anywhere else.",
-  },
-  recovery: {
-    input:
-      "A GPX with timestamps, where the clock kept running through a GPS dropout.",
-    output:
-      "A corrected .gpx — points generated along your drawing, timestamps fitted into the missing interval, elapsed time untouched.",
-    bestFor:
-      "Mid-activity signal loss — tunnels, downtown canyons, forest trails: the hole in an otherwise good recording.",
-  },
-  create: {
-    input:
-      "No file at all — just the distance, average pace, total time, and start time your watch recorded.",
-    output:
-      "A .gpx scaled to your recorded distance, your time spread along the route as timestamps — imports into Strava and every GPX platform.",
-    bestFor:
-      "Treadmill runs and GPS-less days: the numbers exist, the map does not — until you draw it.",
-  },
-  merge: {
-    input:
-      "Two or more GPX 1.0 or 1.1 activity files — mixed sources welcome (watch, phone, platform exports).",
-    output:
-      "One .gpx with a single track — every point, waypoint, and route from every file, in your chosen order, under your chosen name.",
-    bestFor:
-      "Multi-take recordings, activities a platform split into pieces, or building one route from several days' rides and runs.",
-  },
-  plan: {
-    input: "No file at all — just the map. Draw the route you are considering, with the same pens every editor has.",
-    output:
-      "On-screen estimates only — distance, elevation, the straight-line comparison, and a pace from a time you enter. No export, no share: the plan stays on this page.",
-    bestFor:
-      "Planning tomorrow's run or ride, measuring a commute, comparing route options before recording one for real.",
-  },
-  batch: {
-    input:
-      "One or many GPX, TCX, or FIT files (up to 50) — a folder's worth of exports, mixed sources welcome.",
-    output:
-      "One ZIP: a repaired GPX per file plus MANIFEST.txt stating exactly what changed in each — files the fixes cannot help export unchanged.",
-    bestFor:
-      "Post-migration cleanups, fleet-of-files drift and duplicate sweeps, and anyone who would rather fix twenty recordings in one sitting than one at a time.",
-  },
-};
+export function getToolFacts(t: TranslatorArg, mode: LandingMode): ToolFacts {
+  return {
+    input: t(`toolpage.${mode}.fact.input`),
+    output: t(`toolpage.${mode}.fact.output`),
+    bestFor: t(`toolpage.${mode}.fact.bestFor`),
+  };
+}
+
 
 export interface ToolDetailViewProps {
   /** A failed load attempt, surfaced above the hero; retry stays possible. */
@@ -455,8 +267,8 @@ export interface ToolDetailViewProps {
   onPlanBegin: () => void;
   /** Phase 12 — the file tools' "Try a sample" intent (see UploadZone). */
   onTrySample?: () => void;
-  /** What the sample link calls the sample. */
-  sampleLabel?: string;
+  /** What the sample link calls the sample (a dictionary key). */
+  sampleLabelKey?: string;
   /** Previously confirmed statistics (prefill when returning to the form). */
   createStats: ActivityStats | null;
   /** The app-wide distance/pace unit (the create form's entry unit). */
@@ -485,14 +297,15 @@ export function ToolDetailView({
   onCreateBegin,
   onPlanBegin,
   onTrySample,
-  sampleLabel,
+  sampleLabelKey,
   createStats,
   paceUnit,
   onPaceUnitChange,
   batchIntake,
 }: ToolDetailViewProps) {
-  const hero = HERO_COPY[mode];
-  const facts = TOOL_FACTS[mode];
+  const { t } = useI18n();
+  const hero = getHeroCopy(t, mode);
+  const facts = getToolFacts(t, mode);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   // The page-turn focus (see component doc). The error alert, when
@@ -522,7 +335,7 @@ export function ToolDetailView({
             className="inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            All tools
+            {t("toolpage.backToCards")}
           </button>
         </div>
         <div className="space-y-2 text-center">
@@ -564,7 +377,7 @@ export function ToolDetailView({
           <UploadZone
             onFile={onFile}
             onTrySample={onTrySample}
-            sampleLabel={sampleLabel}
+            sampleLabelKey={sampleLabelKey}
           />
         )}
       </div>
@@ -577,17 +390,16 @@ export function ToolDetailView({
        */}
       <RevealOnScroll className="mx-auto mb-auto mt-12 w-full max-w-4xl">
         <h3 className="text-center font-display text-[2rem] font-bold tracking-[0.01em]">
-          How it works
+          {t("toolpage.howItWorks")}
         </h3>
         <p className="mt-1.5 text-center text-sm text-muted-foreground">
-          The whole workflow runs in this tab — nothing to install, no
-          account.
+          {t("toolpage.howItWorksSub")}
         </p>
         <ol
           className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[repeat(3,minmax(0,1fr))]"
           data-testid="workflow-steps"
         >
-          {WORKFLOW_STEPS[mode].map((step) => (
+          {getWorkflowSteps(t, mode).map((step) => (
             <li
               key={step.title}
               className="rounded-[10px] border-[1.5px] border-ink bg-card p-[18px] transition-[translate,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lift"
@@ -611,7 +423,7 @@ export function ToolDetailView({
         >
           <div>
             <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
-              Input
+              {t("toolpage.factInput")}
             </dt>
             <dd className="mt-1.5 text-pretty text-[13px] leading-relaxed text-muted-foreground">
               {facts.input}
@@ -619,7 +431,7 @@ export function ToolDetailView({
           </div>
           <div>
             <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
-              Output
+              {t("toolpage.factOutput")}
             </dt>
             <dd className="mt-1.5 text-pretty text-[13px] leading-relaxed text-muted-foreground">
               {facts.output}
@@ -627,7 +439,7 @@ export function ToolDetailView({
           </div>
           <div>
             <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
-              Best for
+              {t("toolpage.factBestFor")}
             </dt>
             <dd className="mt-1.5 text-pretty text-[13px] leading-relaxed text-muted-foreground">
               {facts.bestFor}
@@ -650,12 +462,12 @@ export interface SessionLoadingViewProps {
   progress?: { phase: string; fraction: number } | null;
 }
 
-/** Phase labels for the determinate progress readout (Phase 9). */
-const PROGRESS_PHASE_LABELS: Record<string, string> = {
-  parse: "Parsing",
-  validate: "Validating",
-  gaps: "Detecting gaps",
-  transfer: "Preparing view",
+/** Phase-label dictionary keys for the determinate readout (Phase 9). */
+const PROGRESS_PHASE_KEYS: Record<string, string> = {
+  parse: "loading.phase.parse",
+  validate: "loading.phase.validate",
+  gaps: "loading.phase.gaps",
+  transfer: "loading.phase.transfer",
 };
 
 /**
@@ -680,11 +492,12 @@ function SkeletonCard() {
 }
 
 export function SessionLoadingView({ fileName, progress }: SessionLoadingViewProps) {
+  const { t } = useI18n();
   return (
     <div
       role="status"
       data-testid="loading-state"
-      aria-label={`Parsing ${fileName ?? "your file"}`}
+      aria-label={t("loading.aria", { file: fileName ?? t("loading.yourFile") })}
       className="mx-auto w-full max-w-6xl flex-1 py-8"
     >
       {/*
@@ -716,9 +529,9 @@ export function SessionLoadingView({ fileName, progress }: SessionLoadingViewPro
             />
           </svg>
           <div className="relative z-10 flex flex-col items-center gap-3 rounded-[10px] border-[1.5px] border-ink bg-card px-8 py-6 text-center shadow-float">
-            <p className="font-medium">Parsing {fileName ?? "your file"}…</p>
+            <p className="font-medium">{t("loading.parsing", { file: fileName ?? t("loading.yourFile") })}</p>
             <p className="text-sm text-muted-foreground">
-              Everything happens locally in your browser.
+              {t("loading.local")}
             </p>
             {progress ? (
               /* Phase 9 — large files stream through the parse worker: a
@@ -732,7 +545,7 @@ export function SessionLoadingView({ fileName, progress }: SessionLoadingViewPro
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-valuenow={Math.round(progress.fraction * 100)}
-                  aria-label="Parse progress"
+                  aria-label={t("loading.progressA11y")}
                 >
                   <div
                     data-testid="parse-progress-fill"
@@ -744,7 +557,7 @@ export function SessionLoadingView({ fileName, progress }: SessionLoadingViewPro
                   data-testid="parse-progress-label"
                   className="mt-1.5 text-xs tabular-nums text-muted-foreground"
                 >
-                  {PROGRESS_PHASE_LABELS[progress.phase] ?? "Working"} —{" "}
+                  {t(PROGRESS_PHASE_KEYS[progress.phase] ?? "loading.phase.working")} —{" "}
                   {Math.round(progress.fraction * 100)}%
                 </p>
               </div>

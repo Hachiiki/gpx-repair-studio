@@ -19,6 +19,7 @@
 
 import { useState } from "react";
 import { Download, Info, TriangleAlert, Wrench } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   Card,
   CardAction,
@@ -54,6 +55,7 @@ const SCALE_OPTIONS: readonly {
 ];
 
 export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
+  const { t } = useI18n();
   const [scale, setScale] = useState<SharePngScale>(1);
   const content = share.content;
   const spec = share.spec;
@@ -63,7 +65,7 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
   return (
     <section
       id="share"
-      aria-label="Share card"
+      aria-label={t("share.sectionA11y")}
       data-testid="share-section"
       className="scroll-mt-20"
     >
@@ -74,15 +76,17 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
               className="size-[11px] shrink-0 rounded-[1.5px] bg-signal"
               aria-hidden="true"
             />
-            Share card
+            {t("share.title")}
           </h2>
           <p className="mt-1.5 max-w-[62ch] text-sm leading-relaxed text-muted-foreground">
-            A Strava-style graphic of{" "}
-            <span className="font-semibold text-foreground">{fileName ?? "this file"}</span>{" "}
-            — transparent background,{" "}
+            {t("share.intro")}{" "}
+            <span className="font-semibold text-foreground">
+              {fileName ?? t("share.introFileFallback")}
+            </span>{" "}
+            {t("share.introTail")}{" "}
             {includesRepairs
-              ? "rendered from your repaired route — committed repairs are included automatically."
-              : "rendered from the values the file actually records."}
+              ? t("share.introRenderedRepairs")
+              : t("share.introRenderedRecorded")}
           </p>
         </div>
       </div>
@@ -123,7 +127,7 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
             <div
               data-testid="share-card-skeleton"
               role="status"
-              aria-label="Preparing the share card"
+              aria-label={t("share.preparing")}
               className="relative aspect-[9/16] h-full w-auto max-w-full overflow-hidden rounded-[2px] bg-black ring-1 ring-white/10"
             >
               <div className="absolute inset-x-[5.9%] bottom-[38%] top-[11.4%]">
@@ -152,14 +156,14 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
             </div>
           )}
           <p className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-3 py-1 text-[11.5px] text-white/80">
-            Transparent background — shown on dark
+            {t("share.stageNote")}
           </p>
         </div>
 
         <aside
           className="grid min-w-0 content-start gap-4 [&>*]:min-w-0"
           data-testid="share-tools"
-          aria-label="Share card tools"
+          aria-label={t("share.toolsA11y")}
         >
           <Card data-testid="share-summary-card">
             <CardHeader>
@@ -168,12 +172,12 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                   className="size-2 shrink-0 rounded-[1px] bg-signal"
                   aria-hidden="true"
                 />
-                On the card
+                {t("share.onTheCard")}
               </h3>
               <CardDescription>
                 {includesRepairs
-                  ? "Your committed repairs are included — the same totals the statistics panel shows."
-                  : "Recorded values only — the same numbers the statistics panel shows."}
+                  ? t("share.cardDescRepairs")
+                  : t("share.cardDescRecorded")}
               </CardDescription>
               <CardAction>
                 <PaceUnitToggle
@@ -189,7 +193,7 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
               >
                 <div>
                   <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                    Distance
+                    {t("share.colDistance")}
                   </dt>
                   <dd
                     className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
@@ -200,7 +204,7 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                 </div>
                 <div>
                   <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                    Pace
+                    {t("share.colPace")}
                   </dt>
                   <dd
                     className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
@@ -211,7 +215,7 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                 </div>
                 <div>
                   <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                    Time
+                    {t("share.colTime")}
                   </dt>
                   <dd
                     className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
@@ -231,17 +235,18 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                     className="mt-0.5 size-4 shrink-0 text-inkplus"
                     aria-hidden="true"
                   />
-                  This file has no drawable route points — the card will
-                  show the stats block only.
+                  {t("share.routeEmpty")}
                 </p>
               )}
 
               <div className="grid gap-2">
-                <span className="text-sm font-semibold">PNG resolution</span>
+                <span className="text-sm font-semibold">
+                  {t("share.pngResolution")}
+                </span>
                 <div
                   className="inline-flex w-fit gap-[3px] rounded-[7px] border-[1.25px] border-ink/25 bg-card p-[3px]"
                   role="group"
-                  aria-label="PNG resolution"
+                  aria-label={t("share.pngResolution")}
                   data-testid="share-scale-toggle"
                 >
                   {SCALE_OPTIONS.map((option) => (
@@ -274,7 +279,7 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                   onClick={() => share.downloadPng(scale)}
                 >
                   <Download className="size-4" aria-hidden="true" />
-                  Download PNG
+                  {t("share.downloadPng")}
                 </Button>
                 <Button
                   variant="outline"
@@ -283,7 +288,7 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                   onClick={onOpenRepair}
                 >
                   <Wrench className="size-4" aria-hidden="true" />
-                  Repair this file instead
+                  {t("share.openRepair")}
                 </Button>
               </div>
             </CardContent>
@@ -296,10 +301,10 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                   className="size-2 shrink-0 rounded-[1px] bg-signal"
                   aria-hidden="true"
                 />
-                What the numbers mean
+                {t("share.numbersTitle")}
               </h3>
               <CardDescription>
-                The card promises nothing the file does not contain.
+                {t("share.numbersDesc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2 text-sm text-muted-foreground">
@@ -309,8 +314,8 @@ export function ShareView({ fileName, share, onOpenRepair }: ShareViewProps) {
                   aria-hidden="true"
                 />
                 {includesRepairs
-                  ? "Distance includes your committed repairs; pace is the overall pace over moving time plus repair time; time is the recorded elapsed span. Values the file cannot support show “—”."
-                  : "Distance is the recorded route length; pace divides it by the recorded moving time; time is the recorded elapsed span. Values the file cannot support show “—”."}
+                  ? t("share.numbersRepairs")
+                  : t("share.numbersRecorded")}
               </p>
               {(content?.notes ?? []).map((note) => (
                 <p key={note} className="flex items-start gap-2">

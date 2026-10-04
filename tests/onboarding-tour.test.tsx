@@ -39,9 +39,17 @@ import {
 } from "@/hooks/use-onboarding-tour";
 import {
   OnboardingTour,
-  TOUR_STEPS,
+  getTourSteps,
 } from "@/components/layout/onboarding-tour";
+import { enTranslator } from "@/hooks/use-i18n";
 import { clearTourFlag, readTourFlag } from "@/lib/storage/tour-flag";
+
+/*
+ * The tour content resolves through the English translator — tests
+ * stay English-anchored (the en dictionary is the contract the zh
+ * translation is checked against).
+ */
+const TOUR_STEPS = getTourSteps(enTranslator);
 
 /** Stable harness: the SAME component type across rerenders (opts as props), so the hook's state survives. */
 function Harness({

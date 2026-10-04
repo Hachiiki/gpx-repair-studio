@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { ExportDialog } from "@/components/gpx/export-dialog";
+import { useI18n } from "@/hooks/use-i18n";
 import type { GpxExportBinding } from "@/hooks/use-gpx-export";
 import { formatDistanceMeters } from "@/lib/utils/format";
 
@@ -32,6 +33,7 @@ export interface ExportCardProps {
 }
 
 export function ExportCard({ exporter }: ExportCardProps) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const summary = exporter.summary;
   if (!summary) return null;
@@ -47,12 +49,12 @@ export function ExportCard({ exporter }: ExportCardProps) {
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          Export
+          {t("export.card.title")}
         </h3>
           <CardDescription>
             {hasRepairs
-              ? "Your committed repairs, ready to download with their provenance markers."
-              : "Download the file as-is, or after adding repairs."}
+              ? t("export.card.descriptionRepairs")
+              : t("export.card.descriptionPlain")}
           </CardDescription>
           <CardAction>
             <Button
@@ -62,7 +64,7 @@ export function ExportCard({ exporter }: ExportCardProps) {
               onClick={() => setOpen(true)}
             >
               <Download className="size-3.5" aria-hidden="true" />
-              Review &amp; export
+              {t("export.card.reviewButton")}
             </Button>
           </CardAction>
         </CardHeader>
@@ -70,25 +72,29 @@ export function ExportCard({ exporter }: ExportCardProps) {
           <dl className="grid text-[13px]" data-testid="export-card-stats">
             <div className="flex items-center justify-between gap-3 border-b border-ink/[0.08] py-2">
               <dt className="text-muted-foreground">
-                Repairs to include
+                {t("export.card.repairsToInclude")}
               </dt>
               <dd className="text-[13.5px] font-semibold tabular-nums">{summary.repairCount}</dd>
             </div>
             <div className="flex items-center justify-between gap-3 border-b border-ink/[0.08] py-2">
-              <dt className="text-muted-foreground">Distance added</dt>
+              <dt className="text-muted-foreground">
+                {t("export.card.distanceAdded")}
+              </dt>
               <dd className="text-[13.5px] font-semibold tabular-nums">
                 {formatDistanceMeters(summary.addedDistanceM)}
               </dd>
             </div>
             {summary.skippedCount > 0 && (
               <div className="flex items-center justify-between gap-3 border-b border-ink/[0.08] py-2">
-                <dt className="text-muted-foreground">Skipped gaps</dt>
+                <dt className="text-muted-foreground">
+                  {t("export.card.skippedGaps")}
+                </dt>
                 <dd className="text-[13.5px] font-semibold tabular-nums">{summary.skippedCount}</dd>
               </div>
             )}
             {summary.openRepairCount > 0 && (
               <div className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
-                <dt>Open in editor (excluded)</dt>
+                <dt>{t("export.card.openInEditor")}</dt>
                 <dd className="text-[13.5px] font-semibold tabular-nums">{summary.openRepairCount}</dd>
               </div>
             )}

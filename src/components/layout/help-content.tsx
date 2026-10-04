@@ -14,8 +14,9 @@
 "use client";
 
 import { useId } from "react";
-import { TOOL_TOURS } from "@/components/layout/tool-tour";
+import { getToolTours } from "@/components/layout/tool-tour";
 import { shortcutCheatSheet } from "@/hooks/use-commands";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import type { ToolTourId } from "@/lib/storage/tour-flag";
 import { TOOL_TOUR_IDS } from "@/lib/storage/tour-flag";
 
@@ -36,32 +37,44 @@ export interface ShortcutGroup {
  * then the editors' own group), plus the map-gesture rows the
  * registry deliberately does not own (they are pointer actions, not
  * commands).
+ *
+ * The registry's own copy — group titles, keycap chips, command
+ * descriptions — flows through verbatim (the coordinator's domain);
+ * only this file's own sentences are translated here.
  */
-export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
-  ...shortcutCheatSheet().map((group) => ({
-    title: group.title,
-    ...(group.entries.some((entry) => entry.editorOnly)
-      ? {
-          note: "The letter keys do nothing while you are typing in a field.",
-        }
-      : {}),
-    shortcuts: group.entries.map((entry) => ({
-      keys: entry.keys,
-      description: entry.description,
+export function getShortcutGroups(t: TranslatorArg): readonly ShortcutGroup[] {
+  return [
+    ...shortcutCheatSheet(t).map((group) => ({
+      title: group.title,
+      ...(group.entries.some((entry) => entry.editorOnly)
+        ? {
+            note: t("help.keyboard.fieldNote"),
+          }
+        : {}),
+      shortcuts: group.entries.map((entry) => ({
+        keys: entry.keys,
+        description: entry.description,
+      })),
     })),
-  })),
-  {
-    title: "Map",
-    shortcuts: [
-      { keys: ["Scroll", "Pinch"], description: "Zoom in and out" },
-      {
-        keys: ["Drag"],
-        description: "Pan the map (Pan mode in the editors)",
-      },
-      { keys: ["Double-click"], description: "Zoom in one step" },
-    ],
-  },
-];
+    {
+      title: t("help.map.title"),
+      shortcuts: [
+        {
+          keys: [t("help.map.gestureScroll"), t("help.map.gesturePinch")],
+          description: t("help.map.zoom"),
+        },
+        {
+          keys: [t("help.map.gestureDrag")],
+          description: t("help.map.pan"),
+        },
+        {
+          keys: [t("help.map.gestureDoubleClick")],
+          description: t("help.map.zoomStep"),
+        },
+      ],
+    },
+  ];
+}
 
 /** The kbd chip — mono, keycap-bordered, one per key. */
 function KeyCap({ children }: { children: string }) {
@@ -113,12 +126,14 @@ export interface HelpContentProps {
 
 /** The whole cheat sheet + the tool guide (the dialog's body). */
 export function HelpContent({ onStartTour }: HelpContentProps) {
+  const { t } = useI18n();
+  const shortcutGroups = getShortcutGroups(t);
   const listId = useId();
   const toursId = useId();
   return (
     <div className="grid gap-6" data-testid="help-content">
       <div className="grid gap-5">
-        {SHORTCUT_GROUPS.map((group) => (
+        {shortcutGroups.map((group) => (
           <ShortcutGroupBlock key={group.title} group={group} />
         ))}
       </div>
@@ -131,16 +146,14 @@ export function HelpContent({ onStartTour }: HelpContentProps) {
           id={toursId}
           className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade"
         >
-          Guided walkthroughs
+          {t("help.tours.title")}
         </h3>
         <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-          A short, task-based tour for every tool — 3 to 4 steps, with
-          teaching samples you can load along the way. Replay any of
-          them as often as you like.
+          {t("help.tours.blurb")}
         </p>
         <ul className="mt-2.5 grid gap-1.5" data-testid="help-tour-list">
           {TOOL_TOUR_IDS.map((id) => {
-            const tour = TOOL_TOURS[id];
+            const tour = getToolTours(t)[id];
             return (
               <li
                 key={id}
@@ -159,7 +172,7 @@ export function HelpContent({ onStartTour }: HelpContentProps) {
                     onClick={() => onStartTour(id)}
                     className="shrink-0 rounded-[6px] border-[1.25px] border-ink/30 px-2.5 py-1 text-[12px] font-semibold text-ink transition-colors hover:border-signal hover:bg-signal/[0.08] focus-visible:outline-2"
                   >
-                    Start
+                    {t("help.tours.start")}
                   </button>
                 )}
               </li>
@@ -170,19 +183,10 @@ export function HelpContent({ onStartTour }: HelpContentProps) {
 
       <section aria-labelledby={listId} className="border-t-[1.5px] border-ink/15 pt-4">
         <h3 id={listId} className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
-          Where everything lives
+          {t("help.where.title")}
         </h3>
         <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-          The home page is seven tool cards — Repair, Share card, Gap recovery,
-          Create from stats, Merge, Plan a route, and Batch cleanup. Opening a
-          card shows how that tool works and its upload or start controls;
-          “All tools” returns to the cards. New here? The “Take the tour” link
-          on the home page replays the walkthrough anytime, and every tool
-          has its own guided walkthrough in the section above. Your saved
-          sessions live behind the header's “Sessions” button (also the
-          “Continue a saved session” link on the home page) — that dialog
-          saves, reopens, renames, exports, and imports session files
-          (.gpxrepair.json).
+          {t("help.where.body")}
         </p>
       </section>
     </div>

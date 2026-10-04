@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import type { TileProviderId, TileProviderOption } from "@/hooks/use-map-controller";
 import type { PointerMode } from "@/types/domain";
+import { useI18n } from "@/hooks/use-i18n";
 
 /** Shared rail button look: 36px square, quiet until hovered. */
 const RAIL_BUTTON =
@@ -66,6 +67,7 @@ export function MapToolbar({
   pointerMode = null,
   onSetPointerMode,
 }: MapToolbarProps) {
+  const { t } = useI18n();
   const current =
     providers.find((option) => option.id === provider) ?? null;
 
@@ -74,19 +76,19 @@ export function MapToolbar({
       className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-1 rounded-[10px] border-[1.5px] border-ink bg-card p-1 shadow-float"
       data-testid="map-toolbar"
       role="toolbar"
-      aria-label="Map tools"
+      aria-label={t("map.toolbar.railAria")}
     >
       {pointerMode !== null && onSetPointerMode && (
         <div
           className="flex flex-col"
           role="group"
-          aria-label="Pointer mode"
+          aria-label={t("map.toolbar.pointerGroupAria")}
           data-testid="draw-mode-toggle"
         >
           <HintTip
             side="left"
-            title="Draw mode"
-            description="Click anywhere on the map to add points; double-click a point to delete it. With the Curve pen (C), press and drag to draw a curve freehand. The map stops panning while you draw."
+            title={t("map.toolbar.drawTitle")}
+            description={t("map.toolbar.drawDescription")}
             kbd="D"
           >
             <button
@@ -101,13 +103,13 @@ export function MapToolbar({
               onClick={() => onSetPointerMode("draw")}
             >
               <PenLine className="size-4" aria-hidden="true" />
-              <span className="sr-only">Draw mode</span>
+              <span className="sr-only">{t("map.toolbar.drawTitle")}</span>
             </button>
           </HintTip>
           <HintTip
             side="left"
-            title="Move mode"
-            description="Rearrange what you drew — every point grows into a big grab target you can drag anywhere. Clicks add nothing here, and empty-space drags still pan the map."
+            title={t("map.toolbar.moveTitle")}
+            description={t("map.toolbar.moveDescription")}
             kbd="M"
           >
             <button
@@ -122,13 +124,13 @@ export function MapToolbar({
               onClick={() => onSetPointerMode("move")}
             >
               <Move className="size-4" aria-hidden="true" />
-              <span className="sr-only">Move mode</span>
+              <span className="sr-only">{t("map.toolbar.moveTitle")}</span>
             </button>
           </HintTip>
           <HintTip
             side="left"
-            title="Pan mode"
-            description="Normal map navigation — drag to pan, double-click to zoom. Switch to Move (M) to drag a drawn point; drawing new ones needs Draw (D)."
+            title={t("map.toolbar.panTitle")}
+            description={t("map.toolbar.panDescription")}
             kbd="P"
           >
             <button
@@ -143,7 +145,7 @@ export function MapToolbar({
               onClick={() => onSetPointerMode("pan")}
             >
               <Hand className="size-4" aria-hidden="true" />
-              <span className="sr-only">Pan mode</span>
+              <span className="sr-only">{t("map.toolbar.panTitle")}</span>
             </button>
           </HintTip>
         </div>
@@ -156,15 +158,15 @@ export function MapToolbar({
       <Popover>
         <HintTip
           side="left"
-          title="Basemap"
-          description="Switch the background map — vector OpenFreeMap or classic OSM raster. Only tiles are fetched; never your GPX."
+          title={t("map.toolbar.basemapTitle")}
+          description={t("map.toolbar.basemapDescription")}
         >
           <PopoverTrigger asChild>
             <Button
               variant="secondary"
               size="sm"
               className={RAIL_BUTTON}
-              aria-label="Basemap provider"
+              aria-label={t("map.toolbar.basemapAria")}
             >
               <Layers className="size-4" aria-hidden="true" />
             </Button>
@@ -172,7 +174,7 @@ export function MapToolbar({
         </HintTip>
         <PopoverContent align="center" side="left" className="w-72 p-1.5" data-testid="map-provider-menu">
           <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-            Basemap tiles
+            {t("map.toolbar.basemapTiles")}
           </p>
           <ul className="grid gap-0.5">
             {providers.map((option) => {
@@ -206,22 +208,21 @@ export function MapToolbar({
             })}
           </ul>
           <p className="px-2 pb-1 pt-2 text-[11px] leading-snug text-muted-foreground">
-            Only map tiles are fetched from the network — never your GPX
-            data.
+            {t("map.toolbar.basemapFootnote")}
           </p>
         </PopoverContent>
       </Popover>
 
       <HintTip
         side="left"
-        title="Fit activity"
-        description="Zoom back out to the whole recorded route — handy after zooming into a gap."
+        title={t("map.toolbar.fitTitle")}
+        description={t("map.toolbar.fitDescription")}
       >
         <Button
           variant="secondary"
           size="sm"
           className={RAIL_BUTTON}
-          aria-label="Fit activity in view"
+          aria-label={t("map.toolbar.fitAria")}
           onClick={onFitActivity}
         >
           <Maximize className="size-4" aria-hidden="true" />

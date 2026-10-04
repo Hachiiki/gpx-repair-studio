@@ -85,6 +85,7 @@ export class OpenMeteoProvider implements ElevationProvider {
     "Elevation: Open-Meteo (Copernicus DEM GLO-90). Credit: © Open-Meteo.com — contains modified Copernicus data.";
   readonly privacyNote =
     "The coordinates of your reconstructed points are sent to api.open-meteo.com (Open-Meteo Elevation API) in the request URL. Only reconstructed points are sent — never the full file, never the recorded route. The service logs requests like any web server.";
+  readonly privacyNoteKey = "elevation.privacyNote.openMeteo";
 
   readonly #fetchImpl: ElevationFetch;
   readonly #now: () => number;

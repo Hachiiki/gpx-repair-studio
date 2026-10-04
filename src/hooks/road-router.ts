@@ -103,7 +103,9 @@ export function useRouterHostsLabel(): { hostsLabel: string; custom: boolean } {
  */
 export function useRouterSettings(): {
   current: string | null;
-  validate: (raw: string) => { ok: true; value: string | null } | { ok: false; reason: string };
+  validate: (raw: string) =>
+    | { ok: true; value: string | null }
+    | { ok: false; reasonKey: string };
   apply: (raw: string) => boolean;
   reset: () => void;
 } {

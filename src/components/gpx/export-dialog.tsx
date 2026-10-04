@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   EXPORT_FORMAT_OPTIONS,
   type ExportFormat,
@@ -52,18 +53,18 @@ export interface ExportDialogProps {
 
 const MODE_OPTIONS: readonly {
   value: ExportMode;
-  label: string;
-  hint: string;
+  labelKey: string;
+  hintKey: string;
 }[] = [
   {
     value: "structure-preserving",
-    label: "Structure-preserving",
-    hint: "Keep the original segments; each repair becomes its own segment at the gap. Recommended for Strava and Garmin Connect.",
+    labelKey: "export.dialog.modeStructure",
+    hintKey: "export.dialog.modeStructureHint",
   },
   {
     value: "merged",
-    label: "Merged single segment",
-    hint: "One continuous segment per track with the repairs interleaved — for tools that dislike multi-segment tracks.",
+    labelKey: "export.dialog.modeMerged",
+    hintKey: "export.dialog.modeMergedHint",
   },
 ];
 
@@ -79,6 +80,7 @@ export function ExportDialog({
   onExportFormatChange,
   onDownload,
 }: ExportDialogProps) {
+  const { t } = useI18n();
   const hasRepairs = summary.repairCount > 0;
   const formatOption =
     EXPORT_FORMAT_OPTIONS.find((o) => o.value === exportFormat) ??
@@ -89,17 +91,19 @@ export function ExportDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent data-testid="export-dialog" className="max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Export your repaired track</DialogTitle>
+          <DialogTitle>{t("export.dialog.title")}</DialogTitle>
           <DialogDescription>
             {hasRepairs
-              ? "The download includes your committed repairs, marked so re-uploading keeps them distinguishable from the recording."
-              : "No committed repairs yet — the export will be a structure-preserved copy of the original file."}
+              ? t("export.dialog.descriptionRepairs")
+              : t("export.dialog.descriptionPlain")}
           </DialogDescription>
         </DialogHeader>
 
         {/* What will change */}
         <div className="grid gap-2" data-testid="export-changes">
-          <h4 className="text-sm font-semibold">What goes into the file</h4>
+          <h4 className="text-sm font-semibold">
+            {t("export.dialog.whatGoesIn")}
+          </h4>
           <ul className="grid gap-1.5 text-sm text-muted-foreground">
             <li className="flex items-start gap-2">
               <span aria-hidden="true" className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
@@ -107,34 +111,46 @@ export function ExportDialog({
                 {hasRepairs ? (
                   <>
                     <strong className="text-foreground">
-                      {summary.repairCount} repair{summary.repairCount === 1 ? "" : "s"}
+                      {t(
+                        summary.repairCount === 1
+                          ? "export.dialog.repairsOne"
+                          : "export.dialog.repairsMany",
+                        { count: summary.repairCount },
+                      )}
                     </strong>{" "}
-                    inserted —{" "}
-                    {summary.insertedPoints} reconstructed point
-                    {summary.insertedPoints === 1 ? "" : "s"},{" "}
-                    {formatDistanceMeters(summary.addedDistanceM)} added
-                    (per-repair resampling exactly as previewed).
+                    {t("export.dialog.inserted", {
+                      points: t(
+                        summary.insertedPoints === 1
+                          ? "export.dialog.pointsOne"
+                          : "export.dialog.pointsMany",
+                        { count: summary.insertedPoints },
+                      ),
+                      distance: formatDistanceMeters(summary.addedDistanceM),
+                    })}
                   </>
                 ) : (
-                  "Every recorded point, byte-identical to the upload — nothing inserted, nothing rewritten."
+                  t("export.dialog.everyRecordedPoint")
                 )}
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span aria-hidden="true" className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
               <span>
-                Original points are <strong className="text-foreground">never modified</strong>{" "}
-                — values are re-emitted verbatim; repairs only insert.
+                {t("export.dialog.originalPointsPrefix")}{" "}
+                <strong className="text-foreground">
+                  {t("export.dialog.originalPointsStrong")}
+                </strong>{" "}
+                {t("export.dialog.originalPointsRest")}
               </span>
             </li>
             {hasRepairs && (
               <li className="flex items-start gap-2">
                 <span aria-hidden="true" className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
                 <span>
-                  Reconstructed points carry{" "}
-                  <code className="rounded bg-muted px-1 py-0.5 text-xs">gpxr</code>{" "}
-                  provenance markers; a repair note is added to the file
-                  metadata.
+                  {t("export.dialog.reconstructedCarry")}{" "}
+                  {/* gpxr is the marker's machine token — artifact vocabulary, never localized */}
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs">{"gpxr"}</code>{" "}
+                  {t("export.dialog.reconstructedRest")}
                 </span>
               </li>
             )}
@@ -142,8 +158,9 @@ export function ExportDialog({
               <li className="flex items-start gap-2">
                 <span aria-hidden="true" className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
                 <span>
-                  {summary.reimportedPoints} points already marked from a
-                  previous repair keep their markers.
+                  {t("export.dialog.reimportedNote", {
+                    count: summary.reimportedPoints,
+                  })}
                 </span>
               </li>
             )}
@@ -156,30 +173,60 @@ export function ExportDialog({
               <li className="flex items-start gap-2" data-testid="export-working-note">
                 <span aria-hidden="true" className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
                 <span>
-                  Working-copy edits ride along:{" "}
+                  {t("export.dialog.workingPrefix")}{" "}
                   {[
                     summary.workingDeletedPoints > 0
-                      ? `${summary.workingDeletedPoints} point${summary.workingDeletedPoints === 1 ? "" : "s"} removed`
+                      ? t(
+                          summary.workingDeletedPoints === 1
+                            ? "export.dialog.workingPointsRemovedOne"
+                            : "export.dialog.workingPointsRemovedMany",
+                          { count: summary.workingDeletedPoints },
+                        )
                       : null,
                     summary.workingSplitSegments > 0
-                      ? `${summary.workingSplitSegments} segment${summary.workingSplitSegments === 1 ? "" : "s"} split`
+                      ? t(
+                          summary.workingSplitSegments === 1
+                            ? "export.dialog.workingSegmentsSplitOne"
+                            : "export.dialog.workingSegmentsSplitMany",
+                          { count: summary.workingSplitSegments },
+                        )
                       : null,
                     summary.workingDuplicatedSegments > 0
-                      ? `${summary.workingDuplicatedSegments} cop${summary.workingDuplicatedSegments === 1 ? "y" : "ies"} inserted`
+                      ? t(
+                          summary.workingDuplicatedSegments === 1
+                            ? "export.dialog.workingCopiesInsertedOne"
+                            : "export.dialog.workingCopiesInsertedMany",
+                          { count: summary.workingDuplicatedSegments },
+                        )
                       : null,
                     summary.workingReorderedSegments > 0
-                      ? `${summary.workingReorderedSegments} manual reorder${summary.workingReorderedSegments === 1 ? "" : "s"}`
+                      ? t(
+                          summary.workingReorderedSegments === 1
+                            ? "export.dialog.workingManualReordersOne"
+                            : "export.dialog.workingManualReordersMany",
+                          { count: summary.workingReorderedSegments },
+                        )
                       : null,
                     summary.workingSortedSegments > 0
-                      ? `${summary.workingSortedSegments} segment${summary.workingSortedSegments === 1 ? "" : "s"} sorted by time`
+                      ? t(
+                          summary.workingSortedSegments === 1
+                            ? "export.dialog.workingSegmentsSortedOne"
+                            : "export.dialog.workingSegmentsSortedMany",
+                          { count: summary.workingSortedSegments },
+                        )
                       : null,
                     summary.workingSmoothedElevations > 0
-                      ? `${summary.workingSmoothedElevations} elevation${summary.workingSmoothedElevations === 1 ? "" : "s"} smoothed`
+                      ? t(
+                          summary.workingSmoothedElevations === 1
+                            ? "export.dialog.workingElevationsSmoothedOne"
+                            : "export.dialog.workingElevationsSmoothedMany",
+                          { count: summary.workingSmoothedElevations },
+                        )
                       : null,
                   ]
                     .filter((part) => part !== null)
                     .join(", ")}
-                  {" — the repair note and gpxr:modified markers disclose every change."}
+                  {t("export.dialog.workingSuffix")}
                 </span>
               </li>
             )}
@@ -188,14 +235,20 @@ export function ExportDialog({
 
         {/* Final numbers */}
         <div className="grid gap-2">
-          <h4 className="text-sm font-semibold">Final numbers</h4>
+          <h4 className="text-sm font-semibold">
+            {t("export.dialog.finalNumbers")}
+          </h4>
           <dl className="grid gap-1.5 text-sm" data-testid="export-summary-stats">
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-muted-foreground">Repairs included</dt>
+              <dt className="text-muted-foreground">
+                {t("export.dialog.repairsIncluded")}
+              </dt>
               <dd className="tabular-nums">{summary.repairCount}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-muted-foreground">Distance added</dt>
+              <dt className="text-muted-foreground">
+                {t("export.dialog.distanceAdded")}
+              </dt>
               <dd className="flex items-center gap-1.5 tabular-nums">
                 {formatDistanceMeters(summary.addedDistanceM)}
                 <ProvenanceBadge kind={hasRepairs ? "estimated" : "recorded"} />
@@ -203,13 +256,17 @@ export function ExportDialog({
             </div>
             {summary.gapsWithoutDuration > 0 && (
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-muted-foreground">Repairs without a duration</dt>
+                <dt className="text-muted-foreground">
+                  {t("export.dialog.repairsWithoutDuration")}
+                </dt>
                 <dd className="tabular-nums">{summary.gapsWithoutDuration}</dd>
               </div>
             )}
             {summary.repairsWithElevation > 0 && (
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-muted-foreground">Repairs with estimated elevation</dt>
+                <dt className="text-muted-foreground">
+                  {t("export.dialog.repairsWithElevation")}
+                </dt>
                 <dd className="flex items-center gap-1.5 tabular-nums">
                   {summary.repairsWithElevation}
                   <ProvenanceBadge kind="estimated" />
@@ -231,59 +288,58 @@ export function ExportDialog({
           <div className="grid gap-1.5 rounded-md border bg-muted/40 p-3 text-sm" data-testid="export-caveats">
             {summary.openRepairCount > 0 && (
               <p>
-                {summary.openRepairCount} repair
-                {summary.openRepairCount === 1 ? " is" : "s are"} still open
-                in the editor — close the editor to include
-                {summary.openRepairCount === 1 ? " it" : " them"}.
+                {t(
+                  summary.openRepairCount === 1
+                    ? "export.dialog.caveatOpenOne"
+                    : "export.dialog.caveatOpenMany",
+                  { count: summary.openRepairCount },
+                )}
               </p>
             )}
             {summary.gapsWithoutDuration > 0 && (
               <p>
-                {summary.gapsWithoutDuration} repair
-                {summary.gapsWithoutDuration === 1 ? "" : "s"} export
-                {summary.gapsWithoutDuration === 1 ? "s" : ""} without
-                timestamps — no duration was entered and none is invented.
+                {t(
+                  summary.gapsWithoutDuration === 1
+                    ? "export.dialog.caveatNoDurationOne"
+                    : "export.dialog.caveatNoDurationMany",
+                  { count: summary.gapsWithoutDuration },
+                )}
               </p>
             )}
             {summary.discrepancyCount > 0 && (
               <p>
-                {summary.discrepancyCount} manual duration
-                {summary.discrepancyCount === 1 ? "" : "s"} disagree
-                {summary.discrepancyCount === 1 ? "s" : ""} with the
-                recorded gap span — interior timestamps follow the manual
-                value; recorded timestamps stay untouched.
+                {t(
+                  summary.discrepancyCount === 1
+                    ? "export.dialog.caveatDiscrepancyOne"
+                    : "export.dialog.caveatDiscrepancyMany",
+                  { count: summary.discrepancyCount },
+                )}
               </p>
             )}
             {summary.staleElevationCount > 0 && (
               <p data-testid="export-stale-elevation-note">
-                {summary.staleElevationCount} repair
-                {summary.staleElevationCount === 1 ? "'s elevation is" : "s' elevations are"}{" "}
-                from an older route version — those values are excluded
-                (never exported against a moved route). Re-estimate in the
-                editor to include
-                {summary.staleElevationCount === 1 ? " it" : " them"}.
+                {t(
+                  summary.staleElevationCount === 1
+                    ? "export.dialog.caveatStaleOne"
+                    : "export.dialog.caveatStaleMany",
+                  { count: summary.staleElevationCount },
+                )}
               </p>
             )}
             {summary.willUpgradeTo11 && (
-              <p>
-                This GPX 1.0 file will be written as GPX 1.1 — the
-                provenance markers require the 1.1 extension mechanism.
-                All recorded values are preserved verbatim.
-              </p>
+              <p>{t("export.dialog.caveatUpgrade")}</p>
             )}
             {!summary.hasTimingData && summary.fileTiming.startMs === null && hasRepairs && (
-              <p>
-                This file has no timing data and no start time was entered —
-                reconstructed points export without timestamps (valid GPX).
-                Enter a start time in the timing card to spread them.
-              </p>
+              <p>{t("export.dialog.caveatNoTiming")}</p>
             )}
           </div>
         )}
 
         {/* Format picker (§EE 14.4) */}
         <fieldset className="grid gap-2.5" data-testid="export-format-settings">
-          <legend className="text-sm font-semibold">File format</legend>
+          <legend className="text-sm font-semibold">
+            {t("export.dialog.fileFormat")}
+          </legend>
           {EXPORT_FORMAT_OPTIONS.map((option) => (
             <label
               key={option.value}
@@ -302,7 +358,7 @@ export function ExportDialog({
                 {option.label}
               </span>
               <span className="pl-6 text-xs text-muted-foreground">
-                {option.hint}
+                {t(option.hintKey)}
               </span>
             </label>
           ))}
@@ -311,7 +367,9 @@ export function ExportDialog({
         {/* GPX layout (only the GPX export has segment modes) */}
         {exportFormat === "gpx" && (
           <fieldset className="grid gap-2.5" data-testid="export-settings">
-            <legend className="text-sm font-semibold">GPX layout</legend>
+            <legend className="text-sm font-semibold">
+              {t("export.dialog.gpxLayout")}
+            </legend>
             {MODE_OPTIONS.map((option) => (
               <label
                 key={option.value}
@@ -327,10 +385,10 @@ export function ExportDialog({
                     data-testid={`export-mode-${option.value}`}
                     className="accent-primary"
                   />
-                  {option.label}
+                  {t(option.labelKey)}
                 </span>
                 <span className="pl-6 text-xs text-muted-foreground">
-                  {option.hint}
+                  {t(option.hintKey)}
                 </span>
               </label>
             ))}
@@ -338,12 +396,12 @@ export function ExportDialog({
         )}
         {prettyApplies && (
           <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm font-medium">
-            Human-readable formatting
+            {t("export.dialog.prettyPrint")}
             <Switch
               checked={prettyPrint}
               onCheckedChange={onPrettyPrintChange}
               data-testid="export-pretty-print"
-              aria-label="Pretty-print the exported file"
+              aria-label={t("export.dialog.prettyPrintAria")}
             />
           </label>
         )}
@@ -355,7 +413,7 @@ export function ExportDialog({
             data-testid="export-cancel-button"
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("export.dialog.cancel")}
           </Button>
           <Button
             type="button"
@@ -365,7 +423,7 @@ export function ExportDialog({
               onOpenChange(false);
             }}
           >
-            Download {formatOption.label}
+            {t("export.dialog.download", { format: formatOption.label })}
           </Button>
         </DialogFooter>
       </DialogContent>

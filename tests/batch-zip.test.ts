@@ -17,6 +17,9 @@
  *     work can never disagree).
  */
 
+import { translateLabel, translatorFor } from "@/i18n/runtime";
+
+const t = translatorFor("en");
 import { describe, expect, it } from "vitest";
 import { unzipSync, zipSync } from "fflate";
 import {
@@ -165,7 +168,7 @@ describe("batch ZIP integrity", () => {
       entries.at(-1)!.bytes as Uint8Array,
     );
     expect(manifest).toContain("applied: Spike & outlier sweep —");
-    expect(edits[0]!.label.length).toBeGreaterThan(0);
+    expect(translateLabel(t, edits[0]!.label).length).toBeGreaterThan(0);
   });
 });
 

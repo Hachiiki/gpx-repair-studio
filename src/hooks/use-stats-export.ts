@@ -30,6 +30,7 @@ import type { RepairTimeStats } from "@/hooks/use-draw-editor";
 import type { GpxSession } from "@/hooks/use-gpx-session";
 import { downloadTextFile } from "@/lib/utils/download";
 import { announce } from "@/lib/announcements";
+import { useI18n } from "@/hooks/use-i18n";
 
 /** `ride.gpx` → `ride.stats.csv` (the stem rule the other exports use). */
 export function statsFileName(originalName: string): string {
@@ -56,6 +57,7 @@ export interface UseStatsExportInput {
 export function useStatsExport(
   input: UseStatsExportInput,
 ): StatsExportBinding {
+  const { t } = useI18n();
   const { session, splits, motion, elevation, repair } = input;
 
   const downloadStatsCsv = useCallback((): string | null => {
@@ -112,9 +114,9 @@ export function useStatsExport(
     downloadTextFile(fileName, text, "text/csv;charset=utf-8");
     // No visual focus moves on a blob download — the aria-live region
     // speaks it (the Phase 8 export contract).
-    announce(`Stats sheet ready — ${fileName} downloaded.`);
+    announce(t("hook.export.statsReady", { fileName }));
     return fileName;
-  }, [session, splits, motion, elevation, repair]);
+  }, [session, splits, motion, elevation, repair, t]);
 
   const printStats = useCallback(() => {
     if (typeof window === "undefined" || typeof window.print !== "function") {

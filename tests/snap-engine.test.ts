@@ -22,7 +22,7 @@ import {
   requestWaypoints,
   sliceRoutedPolyline,
   snapPreviewNumbers,
-  snapProfileLabel,
+  snapProfileLabelKey,
 } from "@/features/reconstruction/snapEngine";
 import { MAX_VERTICES } from "@/features/reconstruction/drawModel";
 import { polylineLengthMeters } from "@/lib/geo/geodesy";
@@ -252,7 +252,7 @@ describe("planSnapApply (the apply plan)", () => {
 
 describe("snapProfileLabel", () => {
   it("labels the profiles in plain words", () => {
-    expect(snapProfileLabel("car")).toBe("roads");
-    expect(snapProfileLabel("foot")).toBe("footpaths");
+    expect(snapProfileLabelKey("car")).toBe("snap.profile.roads");
+    expect(snapProfileLabelKey("foot")).toBe("snap.profile.footpaths");
   });
 });

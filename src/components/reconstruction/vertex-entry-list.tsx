@@ -22,6 +22,7 @@ import { Fragment, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, X } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   NUDGE_STEP_CHOICES,
   nudgeDelta,
@@ -78,6 +79,7 @@ function CoordForm({
   variant?: "append" | "inline";
   onSubmit: (lat: number, lon: number) => void;
 }) {
+  const { t } = useI18n();
   const [lat, setLat] = useState(
     initialLat !== undefined ? String(initialLat) : "",
   );
@@ -119,17 +121,17 @@ function CoordForm({
       <p className="text-[11px] font-semibold text-ink">{label}</p>
       <div className="grid grid-cols-2 gap-1.5">
         <label className="grid gap-0.5 text-[10.5px] font-semibold text-muted-foreground">
-          Latitude
+          {t("vertexList.latitude")}
           <input
             ref={latRef}
             type="text"
             inputMode="decimal"
             className={INPUT_CLASS}
             data-testid={`${testId}-lat`}
-            aria-label={`${label} — latitude`}
+            aria-label={t("vertexList.fieldAriaLat", { label })}
             aria-invalid={error !== null}
             value={lat}
-            placeholder="52.5206"
+            placeholder={t("vertexList.latPlaceholder")}
             onChange={(event) => {
               setLat(event.target.value);
               setError(null);
@@ -144,16 +146,16 @@ function CoordForm({
           />
         </label>
         <label className="grid gap-0.5 text-[10.5px] font-semibold text-muted-foreground">
-          Longitude
+          {t("vertexList.longitude")}
           <input
             type="text"
             inputMode="decimal"
             className={INPUT_CLASS}
             data-testid={`${testId}-lon`}
-            aria-label={`${label} — longitude`}
+            aria-label={t("vertexList.fieldAriaLon", { label })}
             aria-invalid={error !== null}
             value={lon}
-            placeholder="13.4055"
+            placeholder={t("vertexList.lonPlaceholder")}
             onChange={(event) => {
               setLon(event.target.value);
               setError(null);
@@ -175,8 +177,7 @@ function CoordForm({
       )}
       {error === null && rounded && (
         <p className="text-[10.5px] text-muted-foreground">
-          More than 7 decimals — rounded to 7 (about a centimeter, the
-          export precision).
+          {t("vertexList.roundedNote")}
         </p>
       )}
       <Button
@@ -217,6 +218,7 @@ function VertexRow({
   onToggleInsert: (index: number) => void;
   insertOpen: boolean;
 }) {
+  const { t } = useI18n();
   /*
    * The typing OVERRIDE: the fields show the user's text only while
    * it was typed against the vertex's CURRENT values — an external
@@ -320,15 +322,20 @@ function VertexRow({
         <button
           type="button"
           className="grid size-[18px] shrink-0 cursor-grab place-items-center rounded-[4px] bg-ink/[0.06] text-[10px] font-bold text-shade transition-colors hover:bg-ink/[0.12] focus-visible:outline-2 focus-visible:outline-signal"
-          aria-label={`Nudge point ${index + 1} — arrow keys move it by ${nudgeStepM} m, Shift for ten times that`}
-          title={`Arrow keys nudge this point by ${nudgeStepM} m (Shift = ×10). Up/down = latitude, left/right = longitude.`}
+          aria-label={t("vertexList.nudgeAria", {
+            index: index + 1,
+            step: nudgeStepM,
+          })}
+          title={t("vertexList.nudgeTitle", { step: nudgeStepM })}
           data-testid="vertex-nudge-handle"
           onKeyDown={onHandleKey}
         >
           {index + 1}
         </button>
-        <label className="grid min-w-0 flex-1 gap-0" aria-label={`Point ${index + 1} latitude`}>
-          <span className="sr-only">Point {index + 1} latitude</span>
+        <label className="grid min-w-0 flex-1 gap-0" aria-label={t("vertexList.pointLatitude", { index: index + 1 })}>
+          <span className="sr-only">
+            {t("vertexList.pointLatitude", { index: index + 1 })}
+          </span>
           <input
             type="text"
             inputMode="decimal"
@@ -349,8 +356,10 @@ function VertexRow({
             onBlur={() => commit()}
           />
         </label>
-        <label className="grid min-w-0 flex-1 gap-0" aria-label={`Point ${index + 1} longitude`}>
-          <span className="sr-only">Point {index + 1} longitude</span>
+        <label className="grid min-w-0 flex-1 gap-0" aria-label={t("vertexList.pointLongitude", { index: index + 1 })}>
+          <span className="sr-only">
+            {t("vertexList.pointLongitude", { index: index + 1 })}
+          </span>
           <input
             type="text"
             inputMode="decimal"
@@ -374,9 +383,9 @@ function VertexRow({
         {vertex.snappedTo !== undefined && (
           <span
             className="shrink-0 rounded-[3px] border-[1.25px] border-signal bg-signal/10 px-1 py-px text-[9.5px] font-semibold text-ink"
-            title={`Snapped to recorded point ${vertex.snappedTo} — typing or nudging releases the snap`}
+            title={t("vertexList.snappedTitle", { pointId: vertex.snappedTo })}
           >
-            snapped
+            {t("vertexList.snapped")}
           </span>
         )}
         <Button
@@ -384,7 +393,7 @@ function VertexRow({
           size="sm"
           variant="ghost"
           className="size-5 shrink-0 rounded-[4px] p-0 text-shade hover:bg-inkplus hover:text-paper"
-          aria-label={`Insert a point after point ${index + 1}`}
+          aria-label={t("vertexList.insertAfterAria", { index: index + 1 })}
           aria-expanded={insertOpen}
           data-testid="vertex-insert-toggle"
           onClick={() => onToggleInsert(index)}
@@ -396,7 +405,7 @@ function VertexRow({
           size="sm"
           variant="ghost"
           className="size-5 shrink-0 rounded-[4px] p-0 text-shade hover:bg-inkplus hover:text-paper"
-          aria-label={`Delete point ${index + 1}`}
+          aria-label={t("vertexList.deleteAria", { index: index + 1 })}
           data-testid="delete-vertex-button"
           onClick={() => onDelete(vertex.id)}
         >
@@ -417,6 +426,7 @@ function VertexRow({
 // ---------------------------------------------------------------------------
 
 export function VertexEntryList({ entry }: { entry: VertexEntryBinding }) {
+  const { t } = useI18n();
   const [insertAt, setInsertAt] = useState<number | null>(null);
 
   const { vertices, nudgeStepM } = entry;
@@ -434,14 +444,13 @@ export function VertexEntryList({ entry }: { entry: VertexEntryBinding }) {
     <div className="grid gap-1.5" data-testid="vertex-entry-list">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-medium text-muted-foreground">
-          Drawn points — drag them on the map, or type: every field here
-          is the keyboard twin of the canvas.
+          {t("vertexList.header")}
         </p>
         <label
           className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold"
-          title="How far one arrow-key press moves a focused point"
+          title={t("vertexList.nudgeStepTitle")}
         >
-          Nudge step
+          {t("vertexList.nudgeStep")}
           <select
             className="h-7 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-1.5 text-[11px] font-normal transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
             data-testid="nudge-step-select"
@@ -452,7 +461,7 @@ export function VertexEntryList({ entry }: { entry: VertexEntryBinding }) {
           >
             {NUDGE_STEP_CHOICES.map((step) => (
               <option key={step} value={String(step)}>
-                {step} m
+                {t("vertexList.stepOption", { step })}
               </option>
             ))}
           </select>
@@ -478,10 +487,10 @@ export function VertexEntryList({ entry }: { entry: VertexEntryBinding }) {
               {insertAt === index && (
                 <li className="list-none">
                   <CoordForm
-                    label={`Insert after point ${index + 1}`}
+                    label={t("vertexList.insertAfter", { index: index + 1 })}
                     initialLat={insertPrefill(index)?.lat}
                     initialLon={insertPrefill(index)?.lon}
-                    submitLabel="Insert point"
+                    submitLabel={t("vertexList.insertPoint")}
                     disabled={entry.atVertexCap}
                     testId="vertex-insert-form"
                     variant="inline"
@@ -503,13 +512,12 @@ export function VertexEntryList({ entry }: { entry: VertexEntryBinding }) {
           className="rounded-md border border-signal/40 bg-signal/5 px-3 py-2 text-[11.5px] text-ink"
           role="status"
         >
-          Point limit reached ({entry.maxVertices}) — the line is as
-          dense as this tool allows.
+          {t("vertexList.capNote", { max: entry.maxVertices })}
         </p>
       ) : (
         <CoordForm
-          label="Add a point by coordinates"
-          submitLabel="Add point"
+          label={t("vertexList.addByCoordinates")}
+          submitLabel={t("vertexList.addPoint")}
           testId="vertex-add-form"
           onSubmit={(lat, lon) => entry.addVertexAt(lat, lon)}
         />

@@ -14,6 +14,8 @@
 
 "use client";
 
+import { useI18n } from "@/hooks/use-i18n";
+
 export interface SummaryPrintHeaderProps {
   /** The sheet's subject (a file name or a queue label). */
   subject: string | null;
@@ -25,6 +27,7 @@ export function SummaryPrintHeader({
   subject,
   variant = "repair",
 }: SummaryPrintHeaderProps) {
+  const { t } = useI18n();
   const generated = new Date();
   const dateLabel = generated.toLocaleDateString(undefined, {
     year: "numeric",
@@ -42,19 +45,19 @@ export function SummaryPrintHeader({
       <div className="flex items-end justify-between gap-4 border-b-[2px] border-ink pb-2">
         <div>
           <p className="font-display text-[22px] font-bold leading-none tracking-[0.02em]">
-            GPX REPAIR STUDIO
+            {t("header.wordmark").toUpperCase()}
           </p>
           <p className="mt-1 text-[12px] text-muted-foreground">
             {variant === "batch"
-              ? "Batch repair summary"
-              : "Repair summary sheet"}
+              ? t("compare.print.batchTitle")
+              : t("compare.print.repairTitle")}
             {subject ? ` — ${subject}` : ""}
           </p>
         </div>
         <p className="text-right text-[11px] leading-snug text-muted-foreground">
           {dateLabel}
           <br />
-          Computed locally in the browser — no data left this device.
+          {t("compare.print.privacyLine")}
         </p>
       </div>
     </header>

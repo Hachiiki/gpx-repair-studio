@@ -43,24 +43,42 @@ import {
 } from "@/components/gpx/fix-preview-dialog";
 import type { SegmentRow } from "@/hooks/use-gpx-session";
 import type { SurgeryBinding, SurgeryPick } from "@/hooks/use-surgery";
+import { useI18n } from "@/hooks/use-i18n";
+import { translateLabel } from "@/i18n/runtime";
 import type { FixPlan, PointRef } from "@/types/domain";
 import { formatDistanceMeters, formatLatLon } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
-// Vocabulary
+// Vocabulary (i18n KEYS, rendered via t())
 // ---------------------------------------------------------------------------
 
 type Section = "split" | "range" | "duplicate" | "reorder";
 
 const SECTIONS: readonly {
   value: Section;
-  label: string;
+  labelKey: string;
   icon: typeof Scissors;
 }[] = [
-  { value: "split", label: "Split", icon: SquareSplitHorizontal },
-  { value: "range", label: "Delete range", icon: Trash2 },
-  { value: "duplicate", label: "Duplicate", icon: Copy },
-  { value: "reorder", label: "Reorder", icon: ArrowDown },
+  {
+    value: "split",
+    labelKey: "surgery.section.split",
+    icon: SquareSplitHorizontal,
+  },
+  {
+    value: "range",
+    labelKey: "surgery.section.range",
+    icon: Trash2,
+  },
+  {
+    value: "duplicate",
+    labelKey: "surgery.section.duplicate",
+    icon: Copy,
+  },
+  {
+    value: "reorder",
+    labelKey: "surgery.section.reorder",
+    icon: ArrowDown,
+  },
 ];
 
 /** Parse a 1-based point number from a form field. */
@@ -99,6 +117,7 @@ export function SurgeryCard({
   onJumpToPoint,
   resolvePoint,
 }: SurgeryCardProps) {
+  const { t } = useI18n();
   const [section, setSection] = useState<Section>("split");
   const [preview, setPreview] = useState<FixPlan | null>(null);
 
@@ -161,8 +180,10 @@ export function SurgeryCard({
       } else if (lastPick.slot === "range-to") {
         if (located.segmentId !== effectiveRangeSeg) {
           setPickError(
-            "The range's two ends must sit in the same segment — that pick landed in " +
-              `${located.segmentId}. Pick the second end inside ${effectiveRangeSeg}, or start the range over.`,
+            t("surgery.pickRangeMismatch", {
+              landed: located.segmentId,
+              current: effectiveRangeSeg,
+            }),
           );
         } else {
           setRangeTo(String(located.number));
@@ -183,11 +204,14 @@ export function SurgeryCard({
   let splitError: string | null = null;
   if (splitNum.trim().length > 0) {
     if (splitParsed === null) {
-      splitError = "Enter the point number as a whole number.";
+      splitError = t("surgery.splitInvalidNumber");
     } else if (splitCount < 2) {
-      splitError = "This segment has fewer than two points — nothing to split off.";
+      splitError = t("surgery.splitTooShort");
     } else if (splitParsed >= splitCount) {
-      splitError = `Point #${splitParsed} is the segment's last — a cut after it would be empty. Use 1–${splitCount - 1}.`;
+      splitError = t("surgery.splitAtLast", {
+        number: splitParsed,
+        max: splitCount - 1,
+      });
     }
   }
 
@@ -199,16 +223,26 @@ export function SurgeryCard({
   const rangeToParsed = parsePointNumber(rangeTo);
   let rangeError: string | null = null;
   if (rangeFrom.trim().length > 0 && rangeFromParsed === null) {
-    rangeError = "Enter the start point as a whole number.";
+    rangeError = t("surgery.rangeInvalidStart");
   } else if (rangeTo.trim().length > 0 && rangeToParsed === null) {
-    rangeError = "Enter the end point as a whole number.";
+    rangeError = t("surgery.rangeInvalidEnd");
   } else if (
     rangeFromParsed !== null &&
     rangeFromParsed > rangeCount
   ) {
-    rangeError = `This segment has ${rangeCount} point${rangeCount === 1 ? "" : "s"} — the start can be at most #${rangeCount}.`;
+    rangeError = t(
+      rangeCount === 1
+        ? "surgery.rangeStartTooHighOne"
+        : "surgery.rangeStartTooHighMany",
+      { count: rangeCount, max: rangeCount },
+    );
   } else if (rangeToParsed !== null && rangeToParsed > rangeCount) {
-    rangeError = `This segment has ${rangeCount} point${rangeCount === 1 ? "" : "s"} — the end can be at most #${rangeCount}.`;
+    rangeError = t(
+      rangeCount === 1
+        ? "surgery.rangeEndTooHighOne"
+        : "surgery.rangeEndTooHighMany",
+      { count: rangeCount, max: rangeCount },
+    );
   }
 
   const splitReady =
@@ -279,12 +313,10 @@ export function SurgeryCard({
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <Scissors className="size-4 text-signal" aria-hidden="true" />
-          Track surgery
+          {t("surgery.title")}
         </h3>
         <CardDescription>
-          Cut, trim, copy, and rearrange segments. Every operation
-          previews first and lands in the changes log — one undo step
-          each.
+          {t("surgery.description")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -292,7 +324,7 @@ export function SurgeryCard({
         <div
           className="flex flex-wrap gap-1.5"
           role="group"
-          aria-label="Surgery operation"
+          aria-label={t("surgery.operationAria")}
           data-testid="surgery-section-group"
         >
           {SECTIONS.map((choice) => (
@@ -315,7 +347,7 @@ export function SurgeryCard({
               }}
             >
               <choice.icon className="size-3.5" aria-hidden="true" />
-              {choice.label}
+              {t(choice.labelKey)}
             </Button>
           ))}
         </div>
@@ -327,19 +359,20 @@ export function SurgeryCard({
             data-testid="surgery-pick-status"
             role="status"
           >
-            Click a point on the map to fill{" "}
-            {surgery.pickMode === "split"
-              ? "the split point"
-              : surgery.pickMode === "range-from"
-                ? "the range start"
-                : "the range end"}
-            . Press Esc or{" "}
+            {t("surgery.pickBanner", {
+              slot:
+                surgery.pickMode === "split"
+                  ? t("surgery.pickSlotSplit")
+                  : surgery.pickMode === "range-from"
+                    ? t("surgery.pickSlotRangeFrom")
+                    : t("surgery.pickSlotRangeTo"),
+            })}{" "}
             <button
               type="button"
               className="font-semibold underline underline-offset-2"
               onClick={surgery.cancelPick}
             >
-              cancel
+              {t("surgery.pickCancel")}
             </button>
             .
           </p>
@@ -357,7 +390,7 @@ export function SurgeryCard({
         {section === "split" && (
           <div className="grid gap-2" data-testid="surgery-split-form">
             <label className="grid gap-1 text-xs font-semibold">
-              Segment
+              {t("surgery.segmentLabel")}
               <select
                 className={SEGMENT_SELECT_CLASS}
                 data-testid="surgery-split-segment"
@@ -369,7 +402,8 @@ export function SurgeryCard({
               >
                 {rows.map((row) => (
                   <option key={row.segmentId} value={row.segmentId}>
-                    {row.segmentId} · {row.pointCount} pts ·{" "}
+                    {row.segmentId} ·{" "}
+                    {t("surgery.rowPoints", { count: row.pointCount })} ·{" "}
                     {formatDistanceMeters(row.distanceM)}
                   </option>
                 ))}
@@ -377,7 +411,7 @@ export function SurgeryCard({
             </label>
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
               <label className="grid gap-1 text-xs font-semibold">
-                Cut after point #
+                {t("surgery.cutAfterLabel")}
                 <input
                   type="text"
                   inputMode="numeric"
@@ -399,7 +433,7 @@ export function SurgeryCard({
                 onClick={() => surgery.beginPick("split")}
               >
                 <MapPin className="size-3.5" aria-hidden="true" />
-                Pick on map
+                {t("surgery.pickOnMap")}
               </Button>
             </div>
             {splitError !== null && (
@@ -427,7 +461,7 @@ export function SurgeryCard({
                   className="ml-auto font-semibold text-ink underline underline-offset-2"
                   onClick={() => jumping(effectiveSplitSeg, splitParsed as number)}
                 >
-                  Jump
+                  {t("surgery.jump")}
                 </button>
               </p>
             )}
@@ -440,7 +474,7 @@ export function SurgeryCard({
               onClick={openSplitPreview}
             >
               <SquareSplitHorizontal className="size-3.5" aria-hidden="true" />
-              Split segment…
+              {t("surgery.splitApply")}
             </Button>
           </div>
         )}
@@ -448,7 +482,7 @@ export function SurgeryCard({
         {section === "range" && (
           <div className="grid gap-2" data-testid="surgery-range-form">
             <label className="grid gap-1 text-xs font-semibold">
-              Segment
+              {t("surgery.segmentLabel")}
               <select
                 className={SEGMENT_SELECT_CLASS}
                 data-testid="surgery-range-segment"
@@ -461,7 +495,8 @@ export function SurgeryCard({
               >
                 {rows.map((row) => (
                   <option key={row.segmentId} value={row.segmentId}>
-                    {row.segmentId} · {row.pointCount} pts ·{" "}
+                    {row.segmentId} ·{" "}
+                    {t("surgery.rowPoints", { count: row.pointCount })} ·{" "}
                     {formatDistanceMeters(row.distanceM)}
                   </option>
                 ))}
@@ -469,7 +504,7 @@ export function SurgeryCard({
             </label>
             <div className="grid grid-cols-2 gap-2">
               <label className="grid gap-1 text-xs font-semibold">
-                From point #
+                {t("surgery.fromPointLabel")}
                 <input
                   type="text"
                   inputMode="numeric"
@@ -482,7 +517,7 @@ export function SurgeryCard({
                 />
               </label>
               <label className="grid gap-1 text-xs font-semibold">
-                To point #
+                {t("surgery.toPointLabel")}
                 <input
                   type="text"
                   inputMode="numeric"
@@ -506,7 +541,7 @@ export function SurgeryCard({
                 onClick={() => surgery.beginPick("range-from")}
               >
                 <MapPin className="size-3.5" aria-hidden="true" />
-                Pick start
+                {t("surgery.pickStart")}
               </Button>
               <Button
                 type="button"
@@ -518,7 +553,7 @@ export function SurgeryCard({
                 onClick={() => surgery.beginPick("range-to")}
               >
                 <MapPin className="size-3.5" aria-hidden="true" />
-                Pick end
+                {t("surgery.pickEnd")}
               </Button>
             </div>
             {rangeError !== null && (
@@ -531,9 +566,7 @@ export function SurgeryCard({
               </p>
             )}
             <p className="text-[11px] leading-snug text-muted-foreground">
-              The stretch runs from the start point to the end point,
-              inclusive — either order. The points around it stay
-              exactly as recorded.
+              {t("surgery.rangeNote")}
             </p>
             <Button
               type="button"
@@ -544,7 +577,7 @@ export function SurgeryCard({
               onClick={openRangePreview}
             >
               <Trash2 className="size-3.5" aria-hidden="true" />
-              Delete range…
+              {t("surgery.rangeApply")}
             </Button>
           </div>
         )}
@@ -552,8 +585,7 @@ export function SurgeryCard({
         {section === "duplicate" && (
           <div className="grid gap-2" data-testid="surgery-duplicate-list">
             <p className="text-[11px] leading-snug text-muted-foreground">
-              A copy is inserted directly after its source, inside the
-              same track — fresh ids, identical points.
+              {t("surgery.duplicateNote")}
             </p>
             <ScrollArea className="max-h-56 -mx-2">
               <ul className="grid gap-1 px-2">
@@ -568,7 +600,9 @@ export function SurgeryCard({
                         {row.segmentId}
                       </span>
                       <span className="text-[11px] tabular-nums text-muted-foreground">
-                        {row.pointCount.toLocaleString()} pts ·{" "}
+                        {t("surgery.rowPoints", {
+                          count: row.pointCount.toLocaleString(),
+                        })} ·{" "}
                         {formatDistanceMeters(row.distanceM)}
                       </span>
                     </span>
@@ -582,7 +616,7 @@ export function SurgeryCard({
                       onClick={() => openDuplicatePreview(row.segmentId)}
                     >
                       <Copy className="size-3.5" aria-hidden="true" />
-                      Duplicate…
+                      {t("surgery.duplicateApply")}
                     </Button>
                   </li>
                 ))}
@@ -596,9 +630,7 @@ export function SurgeryCard({
             {reorderDraft === null ? (
               <>
                 <p className="text-[11px] leading-snug text-muted-foreground">
-                  Rearrange segments within their tracks — up/down
-                  buttons, no dragging needed. Tracks themselves are
-                  never crossed.
+                  {t("surgery.reorderNote")}
                 </p>
                 <Button
                   type="button"
@@ -609,7 +641,7 @@ export function SurgeryCard({
                   onClick={() => setReorder({ base: rowsSignature, draft: rows })}
                 >
                   <ArrowDown className="size-3.5" aria-hidden="true" />
-                  Reorder segments…
+                  {t("surgery.reorderStart")}
                 </Button>
               </>
             ) : (
@@ -645,7 +677,9 @@ export function SurgeryCard({
                             size="sm"
                             variant="ghost"
                             className="size-6 shrink-0 rounded-[4px] p-0"
-                            aria-label={`Move ${row.segmentId} up`}
+                            aria-label={t("surgery.moveUpAria", {
+                              segment: row.segmentId,
+                            })}
                             data-testid={`surgery-reorder-up-${row.segmentId}`}
                             disabled={prevTrack !== row.trackIndex}
                             onClick={() => moveDraft(index, -1)}
@@ -657,7 +691,9 @@ export function SurgeryCard({
                             size="sm"
                             variant="ghost"
                             className="size-6 shrink-0 rounded-[4px] p-0"
-                            aria-label={`Move ${row.segmentId} down`}
+                            aria-label={t("surgery.moveDownAria", {
+                              segment: row.segmentId,
+                            })}
                             data-testid={`surgery-reorder-down-${row.segmentId}`}
                             disabled={nextTrack !== row.trackIndex}
                             onClick={() => moveDraft(index, 1)}
@@ -678,7 +714,7 @@ export function SurgeryCard({
                     data-testid="surgery-reorder-cancel"
                     onClick={() => setReorder(null)}
                   >
-                    Cancel
+                    {t("surgery.cancel")}
                   </Button>
                   <Button
                     type="button"
@@ -688,7 +724,7 @@ export function SurgeryCard({
                     onClick={openReorderPreview}
                   >
                     <Crosshair className="size-3.5" aria-hidden="true" />
-                    Apply order…
+                    {t("surgery.applyOrder")}
                   </Button>
                 </div>
               </>
@@ -701,7 +737,7 @@ export function SurgeryCard({
           dialog every fix uses. */}
       <FixPreviewDialog
         plans={preview !== null ? [preview] : null}
-        title={preview?.label ?? ""}
+        title={preview ? translateLabel(t, preview.label) : ""}
         resolvePoint={resolvePoint}
         onConfirm={() => {
           if (preview !== null) surgery.applyPlan(preview);

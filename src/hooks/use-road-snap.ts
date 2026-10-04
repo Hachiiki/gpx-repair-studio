@@ -39,6 +39,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { announce } from "@/lib/announcements";
+import { useI18n } from "@/hooks/use-i18n";
 import { getRoadRouter, requestRouterConsent } from "@/hooks/road-router";
 import { useUiStore } from "@/state/ui-store";
 import {
@@ -46,7 +47,7 @@ import {
   requestWaypoints,
   sliceRoutedPolyline,
   snapPreviewNumbers,
-  snapProfileLabel,
+  snapProfileLabelKey,
   type RoadSnapPreviewNumbers,
 } from "@/features/reconstruction/snapEngine";
 import type { RoutableRoadMode } from "@/features/reconstruction/roadFollow";
@@ -129,6 +130,7 @@ interface VisiblePreview {
 }
 
 export function useRoadSnap(adapter: RoadSnapAdapter): RoadSnapBinding {
+  const { t } = useI18n();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const [visible, setVisible] = useState<VisiblePreview | null>(null);
@@ -190,7 +192,9 @@ export function useRoadSnap(adapter: RoadSnapAdapter): RoadSnapBinding {
       restore(null);
       setFailed(false);
       setPending(true);
-      announce(`Finding the ${snapProfileLabel(mode)} for your line…`);
+      announce(
+        t("hook.roadSnap.finding", { profile: t(snapProfileLabelKey(mode)) }),
+      );
       const waypoints = requestWaypoints(chain.nodes);
       void getRoadRouter()
         .routePolyline(mode, waypoints)
@@ -209,9 +213,7 @@ export function useRoadSnap(adapter: RoadSnapAdapter): RoadSnapBinding {
           setPending(false);
           if (!routed) {
             setFailed(true);
-            announce(
-              "Road snapping is unavailable right now — your line stays as you drew it.",
-            );
+            announce(t("hook.roadSnap.unavailable"));
             return;
           }
           // Re-slice for the FULL node chain (the request may have
@@ -219,9 +221,7 @@ export function useRoadSnap(adapter: RoadSnapAdapter): RoadSnapBinding {
           const legs = sliceRoutedPolyline(chain.nodes, routed.coordinates);
           if (!legs) {
             setFailed(true);
-            announce(
-              "The routing service could not match your line — it stays as you drew it.",
-            );
+            announce(t("hook.roadSnap.noMatch"));
             return;
           }
           const saved = [...live.currentLegs(chain.gapId)];
@@ -246,13 +246,15 @@ export function useRoadSnap(adapter: RoadSnapAdapter): RoadSnapBinding {
             context,
           });
           announce(
-            `Road preview ready — ${Math.round(
-              Math.abs(routed.routeDistanceM),
-            ).toLocaleString()} m on the road.`,
+            t("hook.roadSnap.previewReady", {
+              meters: Math.round(
+                Math.abs(routed.routeDistanceM),
+              ).toLocaleString(),
+            }),
           );
         });
     },
-    [restore],
+    [restore, t],
   );
 
   const cancel = useCallback(() => {
@@ -260,9 +262,9 @@ export function useRoadSnap(adapter: RoadSnapAdapter): RoadSnapBinding {
     restore(context);
     setFailed(false);
     if (context) {
-      announce("Road preview cancelled — your line is back as you drew it.");
+      announce(t("hook.roadSnap.cancelled"));
     }
-  }, [restore, visible]);
+  }, [restore, visible, t]);
 
   const apply = useCallback(() => {
     if (visible === null) return;
@@ -294,10 +296,12 @@ export function useRoadSnap(adapter: RoadSnapAdapter): RoadSnapBinding {
     setFailed(!applied);
     if (applied) {
       announce(
-        `Line snapped to the ${snapProfileLabel(context.profile)} — undo to get your drawing back.`,
+        t("hook.roadSnap.snapped", {
+          profile: t(snapProfileLabelKey(context.profile)),
+        }),
       );
     }
-  }, [restore, visible]);
+  }, [restore, visible, t]);
 
   // The exposed state: derived staleness wins — a preview that no
   // longer belongs to the chain on screen reads as idle, immediately.

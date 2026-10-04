@@ -20,6 +20,7 @@
 
 import { useState } from "react";
 import { ArrowLeft, Download, Info } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   Card,
   CardAction,
@@ -44,17 +45,26 @@ export interface MergeShareViewProps {
 
 const SCALE_OPTIONS: readonly {
   value: MergeSharePngScale;
-  label: string;
-  detail: string;
+  labelKey: string;
+  detailKey: string;
 }[] = [
-  { value: 1, label: "1×", detail: "1080 × 1920" },
-  { value: 2, label: "2×", detail: "2160 × 3840" },
+  {
+    value: 1,
+    labelKey: "merge.shareView.scale1",
+    detailKey: "merge.shareView.scale1Detail",
+  },
+  {
+    value: 2,
+    labelKey: "merge.shareView.scale2",
+    detailKey: "merge.shareView.scale2Detail",
+  },
 ];
 
 export function MergeShareView({
   share,
   onBackToArrangement,
 }: MergeShareViewProps) {
+  const { t } = useI18n();
   const [scale, setScale] = useState<MergeSharePngScale>(1);
   const content = share.content;
   const spec = share.spec;
@@ -62,7 +72,7 @@ export function MergeShareView({
   return (
     <section
       id="merge-share"
-      aria-label="Share card"
+      aria-label={t("merge.shareView.title")}
       data-testid="merge-share-section"
       className="scroll-mt-20"
     >
@@ -73,12 +83,10 @@ export function MergeShareView({
               className="size-[11px] shrink-0 rounded-[1.5px] bg-signal"
               aria-hidden="true"
             />
-            Share card
+            {t("merge.shareView.title")}
           </h2>
           <p className="mt-1.5 max-w-[62ch] text-sm leading-relaxed text-muted-foreground">
-            A Strava-style graphic of your merged recording — transparent
-            background, rendered from the combined route and the time it
-            carries.
+            {t("merge.shareView.intro")}
           </p>
         </div>
       </div>
@@ -107,14 +115,14 @@ export function MergeShareView({
             time={spec.time}
           />
           <p className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-3 py-1 text-[11.5px] text-white/80">
-            Transparent background — shown on dark
+            {t("merge.shareView.transparentNote")}
           </p>
         </div>
 
         <aside
           className="grid min-w-0 content-start gap-4 [&>*]:min-w-0"
           data-testid="merge-share-tools"
-          aria-label="Share card tools"
+          aria-label={t("merge.shareView.toolsLabel")}
         >
           <Card data-testid="merge-share-summary-card">
             <CardHeader>
@@ -123,11 +131,10 @@ export function MergeShareView({
                   className="size-2 shrink-0 rounded-[1px] bg-signal"
                   aria-hidden="true"
                 />
-                On the card
+                {t("merge.shareView.summaryTitle")}
               </h3>
               <CardDescription>
-                The same numbers the statistics panel shows — what the
-                merged file carries.
+                {t("merge.shareView.summaryIntro")}
               </CardDescription>
               <CardAction>
                 <PaceUnitToggle
@@ -143,7 +150,7 @@ export function MergeShareView({
               >
                 <div>
                   <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                    Distance
+                    {t("merge.shareView.statDistance")}
                   </dt>
                   <dd
                     className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
@@ -154,7 +161,7 @@ export function MergeShareView({
                 </div>
                 <div>
                   <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                    Pace
+                    {t("merge.shareView.statPace")}
                   </dt>
                   <dd
                     className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
@@ -165,7 +172,7 @@ export function MergeShareView({
                 </div>
                 <div>
                   <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                    Time
+                    {t("merge.shareView.statTime")}
                   </dt>
                   <dd
                     className="mt-0.5 font-display text-[27px] font-bold leading-[1.1] tabular-nums"
@@ -178,12 +185,12 @@ export function MergeShareView({
 
               <div className="grid gap-2">
                 <span className="text-sm font-semibold">
-                  PNG resolution
+                  {t("merge.shareView.pngResolution")}
                 </span>
                 <div
                   className="inline-flex w-fit gap-[3px] rounded-[7px] border-[1.25px] border-ink/25 bg-card p-[3px]"
                   role="group"
-                  aria-label="PNG resolution"
+                  aria-label={t("merge.shareView.pngResolution")}
                   data-testid="merge-share-scale-toggle"
                 >
                   {SCALE_OPTIONS.map((option) => (
@@ -199,9 +206,9 @@ export function MergeShareView({
                       }
                       onClick={() => setScale(option.value)}
                     >
-                      {option.label}
+                      {t(option.labelKey)}
                       <span className="ml-1.5 opacity-75">
-                        {option.detail}
+                        {t(option.detailKey)}
                       </span>
                     </button>
                   ))}
@@ -215,7 +222,7 @@ export function MergeShareView({
                   onClick={() => share.downloadPng(scale)}
                 >
                   <Download className="size-4" aria-hidden="true" />
-                  Download PNG
+                  {t("merge.shareView.downloadPng")}
                 </Button>
                 <Button
                   variant="outline"
@@ -224,7 +231,7 @@ export function MergeShareView({
                   onClick={onBackToArrangement}
                 >
                   <ArrowLeft className="size-4" aria-hidden="true" />
-                  Back to arrangement
+                  {t("merge.shareView.backToArrangement")}
                 </Button>
               </div>
             </CardContent>
@@ -237,10 +244,10 @@ export function MergeShareView({
                   className="size-2 shrink-0 rounded-[1px] bg-signal"
                   aria-hidden="true"
                 />
-                What the numbers mean
+                {t("merge.shareView.numbersTitle")}
               </h3>
               <CardDescription>
-                A merged recording, honestly labeled.
+                {t("merge.shareView.numbersIntro")}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2 text-sm text-muted-foreground">

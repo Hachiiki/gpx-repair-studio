@@ -45,6 +45,7 @@ import {
   formatDistanceMeters,
   formatLatLon,
 } from "@/lib/utils/format";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 
 /** A signed, compact delta ("+630 m" / "−12 m" / "±0 m"). */
 function formatDeltaMeters(meters: number): string {
@@ -55,34 +56,42 @@ function formatDeltaMeters(meters: number): string {
 }
 
 /** Selectable resample spacings shown in the settings row. */
-const SPACING_CHOICES: readonly { value: string; label: string }[] = [
-  { value: "off", label: "Off (points only)" },
-  { value: "10", label: "Every 10 m" },
-  { value: "25", label: "Every 25 m" },
-  { value: "50", label: "Every 50 m" },
-];
+function getSpacingChoices(
+  t: TranslatorArg,
+): readonly { value: string; label: string }[] {
+  return [
+    { value: "off", label: t("drawEditor.spacing.off") },
+    { value: "10", label: t("drawEditor.spacing.every", { meters: 10 }) },
+    { value: "25", label: t("drawEditor.spacing.every", { meters: 25 }) },
+    { value: "50", label: t("drawEditor.spacing.every", { meters: 50 }) },
+  ];
+}
 
 /**
  * Pen choices (user pass 48 — curve is a PEN, not a path style): how
  * the Draw mode captures points. The test ids follow the pointer-mode
  * family (`pen-mode-*`).
  */
-const PEN_CHOICES: readonly {
+function getPenChoices(
+  t: TranslatorArg,
+): readonly {
   value: DrawEditorBinding["pen"];
   label: string;
   hint: string;
-}[] = [
-  {
-    value: "default",
-    label: "Default pen",
-    hint: "The classic pencil: click to place points one by one — click before and after a bend and the line follows.",
-  },
-  {
-    value: "curve",
-    label: "Curve pen",
-    hint: "Press and drag to draw a curve freehand — the app smooths your stroke into the line. Works with every path style; a quick tap still places a single point.",
-  },
-];
+}[] {
+  return [
+    {
+      value: "default",
+      label: t("drawEditor.pen.default"),
+      hint: t("drawEditor.pen.defaultHint"),
+    },
+    {
+      value: "curve",
+      label: t("drawEditor.pen.curve"),
+      hint: t("drawEditor.pen.curveHint"),
+    },
+  ];
+}
 
 /**
  * Path-style choices (Tasks 46–47 — what the line does between your
@@ -91,27 +100,31 @@ const PEN_CHOICES: readonly {
  * Footpaths / Straight. The test ids keep the historic `road-follow-*`
  * names for e2e compatibility.
  */
-const PATH_STYLE_CHOICES: readonly {
+function getPathStyleChoices(
+  t: TranslatorArg,
+): readonly {
   value: Exclude<DrawEditorBinding["pathStyle"], "curve">;
   label: string;
   hint: string;
-}[] = [
-  {
-    value: "car",
-    label: "Roads",
-    hint: "The line follows drivable roads between your points — click before and after a curve and the bend draws itself.",
-  },
-  {
-    value: "foot",
-    label: "Footpaths",
-    hint: "Same idea, but for pedestrian ways — trails, footpaths, stairs. Better for runs through parks or along rivers.",
-  },
-  {
-    value: "off",
-    label: "Straight lines",
-    hint: "No road snapping — the next segment connects your points directly. Nothing leaves the browser. Segments drawn with the Curve pen stay smooth; switching styles never redraws them.",
-  },
-];
+}[] {
+  return [
+    {
+      value: "car",
+      label: t("drawEditor.pathStyle.roads"),
+      hint: t("drawEditor.pathStyle.roadsHint"),
+    },
+    {
+      value: "foot",
+      label: t("drawEditor.pathStyle.footpaths"),
+      hint: t("drawEditor.pathStyle.footpathsHint"),
+    },
+    {
+      value: "off",
+      label: t("drawEditor.pathStyle.straight"),
+      hint: t("drawEditor.pathStyle.straightHint"),
+    },
+  ];
+}
 
 export function DrawEditorPanel({
   draw,
@@ -121,6 +134,10 @@ export function DrawEditorPanel({
   /** Phase 6: the active gap's elevation controls (null → hidden). */
   elevation?: ElevationControlsBinding | null;
 }) {
+  const { t } = useI18n();
+  const penChoices = getPenChoices(t);
+  const pathStyleChoices = getPathStyleChoices(t);
+  const spacingChoices = getSpacingChoices(t);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const gapId = draw.activeGap?.id ?? null;
   // User pass 52: the pen only lives in Draw mode — Move drags points,
@@ -214,7 +231,7 @@ export function DrawEditorPanel({
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <Crosshair className="size-4 text-signal" aria-hidden="true" />
-          Reconstruct route
+          {t("drawEditor.title")}
         </h3>
         <CardDescription className="flex flex-wrap items-center gap-1.5">
           {!isManual && <GapSeverityBadge severity={gap.severity} />}
@@ -229,7 +246,7 @@ export function DrawEditorPanel({
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
-            aria-label="Close editor (keeps the drawn route)"
+            aria-label={t("drawEditor.closeAria")}
             data-testid="close-editor-button"
             onClick={draw.closeEditor}
           >
@@ -242,23 +259,23 @@ export function DrawEditorPanel({
             the Field Plot boundary box: quiet ink-tinted field. */}
         <div className="grid gap-[3px] rounded-lg border border-ink/15 bg-ink/[0.03] px-2.5 py-2 text-xs text-muted-foreground">
           <p>
-            <span className="font-semibold text-ink">From</span>{" "}
+            <span className="font-semibold text-ink">{t("drawEditor.from")}</span>{" "}
             {gap.before ? (
               <span className="font-mono text-[11px]">
                 {formatLatLon(gap.before.lat, gap.before.lon)}
               </span>
             ) : (
-              <span className="italic">route start (open)</span>
+              <span className="italic">{t("drawEditor.fromOpen")}</span>
             )}
           </p>
           <p>
-            <span className="font-semibold text-ink">To</span>{" "}
+            <span className="font-semibold text-ink">{t("drawEditor.to")}</span>{" "}
             {gap.after ? (
               <span className="font-mono text-[11px]">
                 {formatLatLon(gap.after.lat, gap.after.lon)}
               </span>
             ) : (
-              <span className="italic">open — your clicks extend the route</span>
+              <span className="italic">{t("drawEditor.toOpen")}</span>
             )}
           </p>
         </div>
@@ -269,10 +286,9 @@ export function DrawEditorPanel({
             data-testid="open-end-instructions"
             role="status"
           >
-            Click anywhere on the map to add the missing route — each click
-            extends the line from {formatLatLon(near.lat, near.lon)}. What you
-            see is exactly what the repair will be; nothing connects on its
-            own.
+            {t("drawEditor.openEndInstructions", {
+              coords: formatLatLon(near.lat, near.lon),
+            })}
           </p>
         )}
 
@@ -286,14 +302,14 @@ export function DrawEditorPanel({
           className="grid gap-2"
           data-testid="pen-mode-group"
           role="group"
-          aria-label="Pen"
+          aria-label={t("drawEditor.pen.groupAria")}
         >
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
-            Pen
+            {t("drawEditor.pen.label")}
             <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {PEN_CHOICES.map((choice) =>
+            {penChoices.map((choice) =>
               penLive ? (
                 <HintTip
                   key={choice.value}
@@ -347,9 +363,7 @@ export function DrawEditorPanel({
               data-testid="pen-curve-hint"
               role="status"
             >
-              Drag on the map to draw your curve — release to place it. A
-              quick tap still adds a single point. (C toggles pens, D/M/P
-              switch modes.)
+              {t("drawEditor.pen.curveActiveHint")}
             </p>
           )}
           {!penLive && (
@@ -358,11 +372,12 @@ export function DrawEditorPanel({
               data-testid="pen-inactive-note"
               role="status"
             >
-              The pen works in Draw mode only — press D (or the pencil tool)
-              to draw. Right now the pointer {draw.pointerMode === "move"
-                ? "drags your points"
-                : "navigates the map"}
-              .
+              {t("drawEditor.pen.inactiveNote", {
+                action:
+                  draw.pointerMode === "move"
+                    ? t("drawEditor.pen.actionDrag")
+                    : t("drawEditor.pen.actionNavigate"),
+              })}
             </p>
           )}
         </div>
@@ -373,18 +388,17 @@ export function DrawEditorPanel({
           className="grid gap-2"
           data-testid="road-follow-group"
           role="group"
-          aria-label="Path style"
+          aria-label={t("drawEditor.pathStyle.groupAria")}
         >
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
-            New points follow
+            {t("drawEditor.pathStyle.label")}
             <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
           </p>
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Each segment keeps the style it was drawn with — switch any
-            time, nothing you placed redraws.
+            {t("drawEditor.pathStyle.perSegmentNote")}
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {PATH_STYLE_CHOICES.map((choice) => (
+            {pathStyleChoices.map((choice) => (
               <HintTip
                 key={choice.value}
                 side="left"
@@ -416,11 +430,7 @@ export function DrawEditorPanel({
             ))}
           </div>
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Click or drag before and after a curve — the line snaps to the
-            road between your points. Roads/Footpaths send only the points
-            you place to a public routing service (OSRM / Valhalla); your
-            GPX file never leaves this browser. The Curve pen and Straight
-            lines are fully local.
+            {t("drawEditor.pathStyle.privacyNote")}
           </p>
           {(draw.pathStyle === "car" ||
             draw.pathStyle === "foot" ||
@@ -432,12 +442,12 @@ export function DrawEditorPanel({
               role="status"
             >
               {draw.routingPending
-                ? "Finding the road…"
+                ? t("drawEditor.roadStatus.finding")
                 : draw.routingFailed
-                  ? "Road follow unavailable right now — straight lines until it recovers."
+                  ? t("drawEditor.roadStatus.unavailable")
                   : draw.pointerMode === "move"
-                    ? "Drag any point to adjust it — the road re-finds itself."
-                    : "Switch to Move (M) to drag a point — the road re-finds itself."}
+                    ? t("drawEditor.roadStatus.dragHint")
+                    : t("drawEditor.roadStatus.switchToMove")}
             </p>
           )}
           {/*
@@ -453,9 +463,7 @@ export function DrawEditorPanel({
               data-testid="road-consent-notice"
             >
               <p className="text-[11.5px] leading-snug text-ink">
-                Road snapping sends the points you draw to a public
-                routing service — never your file. It is off until you
-                enable it.
+                {t("drawEditor.consent.notice")}
               </p>
               <Button
                 type="button"
@@ -464,7 +472,7 @@ export function DrawEditorPanel({
                 data-testid="road-consent-enable"
                 onClick={draw.requestRoadConsent}
               >
-                Enable road snapping…
+                {t("drawEditor.consent.enable")}
               </Button>
             </div>
           )}
@@ -474,15 +482,15 @@ export function DrawEditorPanel({
                 className="text-[11px] leading-snug text-muted-foreground"
                 data-testid="road-consent-on-note"
               >
-                Road snapping is on for this session —{" "}
+                {t("drawEditor.consent.onForSession")}{" "}
                 <button
                   type="button"
                   className="font-semibold text-foreground underline decoration-ink/25 underline-offset-2 hover:decoration-ink"
                   onClick={draw.requestRoadConsent}
                 >
-                  turn it off
+                  {t("drawEditor.consent.turnItOff")}
                 </button>{" "}
-                any time.
+                {t("drawEditor.consent.anyTime")}
               </p>
             )}
           {/*
@@ -513,7 +521,7 @@ export function DrawEditorPanel({
                 onClick={() => draw.startRoadSnap()}
               >
                 <Milestone className="size-3.5" aria-hidden="true" />
-                Snap to road
+                {t("drawEditor.snap.button")}
               </Button>
               <p
                 className="text-[11px] leading-snug text-muted-foreground"
@@ -521,14 +529,14 @@ export function DrawEditorPanel({
                 data-testid="snap-status"
               >
                 {!draw.online
-                  ? "Offline — road snapping needs the network; straight and curve lines keep working."
+                  ? t("drawEditor.snap.offline")
                   : !draw.snapCanRun
-                    ? "Draw at least one point, then snap the whole line onto roads."
+                    ? t("drawEditor.snap.needPoints")
                     : draw.snapState === "pending"
-                      ? "Finding the road…"
+                      ? t("drawEditor.roadStatus.finding")
                       : draw.snapState === "failed"
-                        ? "Could not match this line to a road — it stays as drawn."
-                        : "Match the whole line onto roads in one go — preview first, undo after."}
+                        ? t("drawEditor.snap.failed")
+                        : t("drawEditor.snap.idle")}
               </p>
             </div>
             {draw.snapState === "preview" && draw.snapPreviewNumbers && (
@@ -537,16 +545,20 @@ export function DrawEditorPanel({
                 data-testid="snap-preview-box"
               >
                 <p className="text-[12px] font-bold text-ink">
-                  Road preview
+                  {t("drawEditor.snap.previewTitle")}
                 </p>
                 <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-0.5 text-[12px] tabular-nums">
-                  <dt className="text-muted-foreground">Your line</dt>
+                  <dt className="text-muted-foreground">
+                    {t("drawEditor.snap.yourLine")}
+                  </dt>
                   <dd className="font-semibold">
                     {formatDistanceMeters(
                       draw.snapPreviewNumbers.drawnDistanceM,
                     )}
                   </dd>
-                  <dt className="text-muted-foreground">On the road</dt>
+                  <dt className="text-muted-foreground">
+                    {t("drawEditor.snap.onTheRoad")}
+                  </dt>
                   <dd className="font-semibold">
                     {formatDistanceMeters(
                       draw.snapPreviewNumbers.routedDistanceM,
@@ -570,7 +582,7 @@ export function DrawEditorPanel({
                     data-testid="snap-apply-button"
                     onClick={draw.applyRoadSnap}
                   >
-                    Apply — keep the road line
+                    {t("drawEditor.snap.apply")}
                   </Button>
                   <Button
                     type="button"
@@ -580,13 +592,11 @@ export function DrawEditorPanel({
                     data-testid="snap-cancel-button"
                     onClick={draw.cancelRoadSnap}
                   >
-                    Keep my drawing
+                    {t("drawEditor.snap.keepDrawing")}
                   </Button>
                 </div>
                 <p className="text-[11px] leading-snug text-muted-foreground">
-                  The line you see is the line you get. Applying replaces
-                  your drawn points with road waypoints — one undo step
-                  brings your drawing back.
+                  {t("drawEditor.snap.previewNote")}
                 </p>
               </div>
             )}
@@ -627,8 +637,15 @@ export function DrawEditorPanel({
             className="text-[11.5px] tabular-nums text-muted-foreground"
             data-testid="vertex-count"
           >
-            {draw.vertexCount} / {draw.maxVertices} points
-            {draw.atVertexCap ? " — limit reached" : ""}
+            {draw.atVertexCap
+              ? t("drawEditor.vertexCountLimit", {
+                  count: draw.vertexCount,
+                  max: draw.maxVertices,
+                })
+              : t("drawEditor.vertexCount", {
+                  count: draw.vertexCount,
+                  max: draw.maxVertices,
+                })}
           </p>
         </div>
 
@@ -638,11 +655,9 @@ export function DrawEditorPanel({
             data-testid="straight-line-warning"
           >
             <TriangleAlert className="size-4" aria-hidden="true" />
-            <AlertTitle>Nearly a straight line</AlertTitle>
+            <AlertTitle>{t("drawEditor.straightWarning.title")}</AlertTitle>
             <AlertDescription>
-              Every point sits almost exactly between the two anchors. That
-              is fine if you ran straight — otherwise trace the actual route
-              on the map so the repair stays honest.
+              {t("drawEditor.straightWarning.body")}
             </AlertDescription>
           </Alert>
         )}
@@ -663,9 +678,9 @@ export function DrawEditorPanel({
           <label
             className="grid gap-1 text-xs font-semibold"
             data-testid="spacing-select-label"
-            title="After you finish, the app densifies your drawing into evenly spaced points with this spacing — some platforms want regular points."
+            title={t("drawEditor.spacing.title")}
           >
-            Resample spacing
+            {t("drawEditor.spacing.label")}
             <select
               className="h-8 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2.5 text-xs font-normal transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
               data-testid="spacing-select"
@@ -675,7 +690,7 @@ export function DrawEditorPanel({
                 draw.setResampleSpacing(raw === "off" ? "off" : Number(raw));
               }}
             >
-              {SPACING_CHOICES.map((choice) => (
+              {spacingChoices.map((choice) => (
                 <option key={choice.value} value={choice.value}>
                   {choice.label}
                 </option>
@@ -685,15 +700,15 @@ export function DrawEditorPanel({
           <label
             className="flex items-center gap-2 self-end text-xs font-medium"
             data-testid="snap-toggle-label"
-            title="Clicks near a recorded point land exactly on it — handy when tying your repair into the original route."
+            title={t("drawEditor.snapToggle.title")}
           >
             <Checkbox
               checked={draw.snapEnabled}
               onCheckedChange={(checked) => draw.setSnapEnabled(checked === true)}
-              aria-label="Snap drawn points to recorded route points"
+              aria-label={t("drawEditor.snapToggle.ariaLabel")}
               data-testid="snap-toggle"
             />
-            Snap to recorded points
+            {t("drawEditor.snapToggle.label")}
           </label>
         </div>
 
@@ -718,7 +733,7 @@ export function DrawEditorPanel({
               onClick={() => draw.removeManualSpan(gap.id)}
             >
               <Trash2 className="size-3.5" aria-hidden="true" />
-              Remove repair span
+              {t("drawEditor.removeSpan")}
             </Button>
           ) : (
             <Button
@@ -729,7 +744,7 @@ export function DrawEditorPanel({
               data-testid="skip-gap-button"
               onClick={draw.toggleSkip}
             >
-              Mark as skipped
+              {t("drawEditor.markSkipped")}
             </Button>
           )}
           <Button
@@ -739,7 +754,7 @@ export function DrawEditorPanel({
             data-testid="done-editing-button"
             onClick={draw.closeEditor}
           >
-            Done
+            {t("drawEditor.done")}
           </Button>
         </div>
       </CardContent>

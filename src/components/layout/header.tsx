@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, BookmarkPlus, ImageUp, RotateCcw, Wrench } from "lucide-react";
 import { SHELL_CONTAINER } from "@/components/layout/shell-container";
+import { useI18n } from "@/hooks/use-i18n";
 import { cn } from "@/lib/utils";
 import type { SessionStatus, SessionView } from "@/state/session-store";
 import type { AppSection } from "@/state/ui-store";
@@ -42,10 +43,12 @@ export interface AppHeaderProps {
    */
   section?: AppSection;
   /**
-   * The reset button's label ("New file" by default). The create
-   * section has no file — it says "Start over".
+   * The reset button's DICTIONARY KEY ("header.newFile" by default).
+   * The create section has no file — it says "Start over"
+   * ("header.startOver"). Keys, not strings: the label renders
+   * through t() like all app copy.
    */
-  resetLabel?: string;
+  resetLabelKey?: string;
   /**
    * Create section: open the share flow — the warning dialog that
    * gates "export the GPX + open the share card". Provided (and so
@@ -77,13 +80,14 @@ export function AppHeader({
   view = "repair",
   onSwitchView,
   section = "repair",
-  resetLabel = "New file",
+  resetLabelKey = "header.newFile",
   onShare,
   onLeaveShare,
   onMergeShare,
   onLeaveMergeShare,
   onOpenSessions,
 }: AppHeaderProps) {
+  const { t } = useI18n();
   const showSession = status === "parsed" && fileName !== null;
 
   return (
@@ -110,10 +114,10 @@ export function AppHeader({
             className="hidden size-8 rounded-lg border-[1.5px] border-ink shadow-key sm:block"
           />
           <h1 className="truncate font-display text-[21px] font-bold tracking-[0.02em]">
-            GPX Repair Studio
+            {t("header.wordmark")}
           </h1>
           <Badge variant="secondary" className="hidden sm:inline-flex">
-            Local-first
+            {t("header.badgeLocalFirst")}
           </Badge>
           {showSession && (
             <span
@@ -134,7 +138,7 @@ export function AppHeader({
               onClick={onShare}
             >
               <ImageUp className="size-3.5" aria-hidden="true" />
-              Share card
+              {t("header.shareCard")}
             </Button>
           )}
           {section === "create" && onLeaveShare && (
@@ -146,7 +150,7 @@ export function AppHeader({
               onClick={onLeaveShare}
             >
               <ArrowLeft className="size-3.5" aria-hidden="true" />
-              Back to review
+              {t("header.backToReview")}
             </Button>
           )}
           {section === "merge" && onMergeShare && (
@@ -158,7 +162,7 @@ export function AppHeader({
               onClick={onMergeShare}
             >
               <ImageUp className="size-3.5" aria-hidden="true" />
-              Share card
+              {t("header.shareCard")}
             </Button>
           )}
           {section === "merge" && onLeaveMergeShare && (
@@ -170,7 +174,7 @@ export function AppHeader({
               onClick={onLeaveMergeShare}
             >
               <ArrowLeft className="size-3.5" aria-hidden="true" />
-              Back to arrangement
+              {t("header.backToArrangement")}
             </Button>
           )}
           {section === "repair" && showSession && view === "share" && onSwitchView && (
@@ -182,7 +186,7 @@ export function AppHeader({
               onClick={() => onSwitchView("repair")}
             >
               <Wrench className="size-3.5" aria-hidden="true" />
-              Repair map
+              {t("header.repairMap")}
             </Button>
           )}
           {section === "repair" && showSession && view === "repair" && onSwitchView && (
@@ -194,66 +198,66 @@ export function AppHeader({
               onClick={() => onSwitchView("share")}
             >
               <ImageUp className="size-3.5" aria-hidden="true" />
-              Share card
+              {t("header.shareCard")}
             </Button>
           )}
           {section === "repair" && showSession && view === "repair" && (
             <nav
               className="hidden items-center gap-1 text-sm md:flex"
-              aria-label="Workspace sections"
+              aria-label={t("header.navWorkspace")}
               data-testid="section-nav"
             >
               <a
                 href="#repair"
                 className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
               >
-                Map &amp; tools
+                {t("header.mapTools")}
               </a>
               <a
                 href="#details"
                 className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
               >
-                Statistics
+                {t("header.statistics")}
               </a>
             </nav>
           )}
           {section === "recovery" && showSession && (
             <nav
               className="hidden items-center gap-1 text-sm md:flex"
-              aria-label="Recovery sections"
+              aria-label={t("header.navRecovery")}
               data-testid="recovery-section-nav"
             >
               <a
                 href="#recovery"
                 className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
               >
-                Map &amp; tools
+                {t("header.mapTools")}
               </a>
               <a
                 href="#recovery-details"
                 className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
               >
-                Preview &amp; stats
+                {t("header.previewStats")}
               </a>
             </nav>
           )}
           {section === "merge" && showSession && (
             <nav
               className="hidden items-center gap-1 text-sm md:flex"
-              aria-label="Merge sections"
+              aria-label={t("header.navMerge")}
               data-testid="merge-section-nav"
             >
               <a
                 href="#merge"
                 className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
               >
-                Map &amp; order
+                {t("header.mapOrder")}
               </a>
               <a
                 href="#details"
                 className="rounded-[5px] px-2.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
               >
-                Statistics
+                {t("header.statistics")}
               </a>
             </nav>
           )}
@@ -266,7 +270,7 @@ export function AppHeader({
               data-testid="header-sessions-button"
             >
               <BookmarkPlus className="size-3.5" aria-hidden="true" />
-              Sessions
+              {t("header.sessions")}
             </Button>
           )}
           {showSession && (
@@ -278,7 +282,7 @@ export function AppHeader({
               data-testid="header-reset-button"
             >
               <RotateCcw className="size-3.5" aria-hidden="true" />
-              {resetLabel}
+              {t(resetLabelKey)}
             </Button>
           )}
         </div>

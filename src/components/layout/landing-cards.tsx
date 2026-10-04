@@ -48,6 +48,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import type { LandingMode } from "@/state/ui-store";
 
 /** One tool tile: everything the home page knows about a destination. */
@@ -68,84 +69,97 @@ export interface LandingTool {
   icon: LucideIcon;
 }
 
+/** The dictionary keys one tile's copy lives under. */
+interface LandingToolCopy {
+  mode: LandingMode;
+  kickerKey: string;
+  titleKey: string;
+  blurbKey: string;
+  imageAltKey: string;
+  icon: LucideIcon;
+}
+
 /**
  * The seven destinations, in the order users already know (repair first —
  * the app's core flow and the default remembered intent; batch last —
  * Phase 18's bulk door). Seven tiles in the 3-column grid leave a lone
  * last tile on row three, so the grid centers it there (a deliberate
  * full stop under the six — see the className note below).
+ *
+ * Phase 21: the list is KEYS + icons (pure data); the copy is
+ * resolved at render time through the translator, so a locale switch
+ * re-renders the tiles like every other surface.
  */
-export const LANDING_TOOLS: readonly LandingTool[] = [
+const LANDING_TOOL_COPY: readonly LandingToolCopy[] = [
   {
     mode: "repair",
-    kicker: "Repair",
-    title: "Repair a recording",
-    blurb:
-      "Inspect a GPX with gaps or damage, then draw the missing route yourself.",
-    imageAlt:
-      "Illustration of a map route with a missing section being redrawn in orange",
+    kickerKey: "landing.repair.kicker",
+    titleKey: "landing.repair.title",
+    blurbKey: "landing.repair.blurb",
+    imageAltKey: "landing.repair.imageAlt",
     icon: Wrench,
   },
   {
     mode: "share",
-    kicker: "Share",
-    title: "Create a share card",
-    blurb:
-      "Turn any activity into a Strava-style share graphic — a transparent PNG.",
-    imageAlt:
-      "Illustration of a phone displaying a share card with a route and stats",
+    kickerKey: "landing.share.kicker",
+    titleKey: "landing.share.title",
+    blurbKey: "landing.share.blurb",
+    imageAltKey: "landing.share.imageAlt",
     icon: ImageUp,
   },
   {
     mode: "recovery",
-    kicker: "Recovery",
-    title: "Recover a GPS gap",
-    blurb:
-      "The clock kept running while GPS dropped out — draw what went missing.",
-    imageAlt:
-      "Illustration of a GPS watch and a route with a dotted missing segment between two pins",
+    kickerKey: "landing.recovery.kicker",
+    titleKey: "landing.recovery.title",
+    blurbKey: "landing.recovery.blurb",
+    imageAltKey: "landing.recovery.imageAlt",
     icon: History,
   },
   {
     mode: "create",
-    kicker: "Create",
-    title: "Create from stats",
-    blurb:
-      "Your watch recorded the numbers but no map — enter them, draw the route.",
-    imageAlt:
-      "Illustration of a sports watch beside a pencil drawing a brand-new route",
+    kickerKey: "landing.create.kicker",
+    titleKey: "landing.create.title",
+    blurbKey: "landing.create.blurb",
+    imageAltKey: "landing.create.imageAlt",
     icon: Watch,
   },
   {
     mode: "merge",
-    kicker: "Merge",
-    title: "Combine recordings",
-    blurb: "Two or more GPX files become one route — every point preserved.",
-    imageAlt:
-      "Illustration of two separate map routes converging into one continuous line",
+    kickerKey: "landing.merge.kicker",
+    titleKey: "landing.merge.title",
+    blurbKey: "landing.merge.blurb",
+    imageAltKey: "landing.merge.imageAlt",
     icon: Combine,
   },
   {
     mode: "plan",
-    kicker: "Plan",
-    title: "Plan a route",
-    blurb:
-      "Sketch a route on the map and read its distance, elevation, and pace.",
-    imageAlt:
-      "Illustration of a winding route being measured with ruler ticks and a drafting compass",
+    kickerKey: "landing.plan.kicker",
+    titleKey: "landing.plan.title",
+    blurbKey: "landing.plan.blurb",
+    imageAltKey: "landing.plan.imageAlt",
     icon: PencilRuler,
   },
   {
     mode: "batch",
-    kicker: "Batch",
-    title: "Clean up many files",
-    blurb:
-      "Queue dozens of recordings, run one fix preset across them, export a ZIP.",
-    imageAlt:
-      "Illustration of a stack of file cards with route lines, one being stamped with a checkmark",
+    kickerKey: "landing.batch.kicker",
+    titleKey: "landing.batch.title",
+    blurbKey: "landing.batch.blurb",
+    imageAltKey: "landing.batch.imageAlt",
     icon: Layers,
   },
 ];
+
+/** Resolve the tile list for one locale (the component's render path). */
+export function getLandingTools(t: TranslatorArg): readonly LandingTool[] {
+  return LANDING_TOOL_COPY.map((tool) => ({
+    mode: tool.mode,
+    kicker: t(tool.kickerKey),
+    title: t(tool.titleKey),
+    blurb: t(tool.blurbKey),
+    imageAlt: t(tool.imageAltKey),
+    icon: tool.icon,
+  }));
+}
 
 export interface LandingCardsViewProps {
   /** Open a tool's detail page — also becomes the remembered intent. */
@@ -181,6 +195,8 @@ export function LandingCardsView({
   onStartTour,
   onOpenSessions,
 }: LandingCardsViewProps) {
+  const { t } = useI18n();
+  const tools = getLandingTools(t);
   // Tile refs keyed by mode — the focus-return target (see header).
   const cardRefs = useRef<
     Partial<Record<LandingMode, HTMLButtonElement | null>>
@@ -197,12 +213,10 @@ export function LandingCardsView({
       {restorePrompt}
       <div className="space-y-2 text-center">
         <h2 className="font-display text-[clamp(2.25rem,5vw,3.25rem)] font-extrabold leading-[1.02] tracking-[0.012em] text-balance">
-          What would you like to do?
+          {t("landing.heading")}
         </h2>
         <p className="mx-auto max-w-[56ch] text-balance text-[15.5px] leading-relaxed text-muted-foreground">
-          Six tools, one workbench — pick one to see how it works and
-          start. Everything runs in this browser, and your files never
-          leave this device.
+          {t("landing.subline")}
         </p>
         {onStartTour && (
           <button
@@ -212,7 +226,7 @@ export function LandingCardsView({
             className="mx-auto mt-1 inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
           >
             <CircleHelp className="size-3.5" aria-hidden="true" />
-            New here? Take the tour
+            {t("landing.startTour")}
           </button>
         )}
         {onOpenSessions && (
@@ -223,7 +237,7 @@ export function LandingCardsView({
             className="mx-auto mt-1 inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
           >
             <FolderOpen className="size-3.5" aria-hidden="true" />
-            Continue a saved session — or open a session file
+            {t("landing.continueSession")}
           </button>
         )}
       </div>
@@ -247,7 +261,7 @@ export function LandingCardsView({
         data-testid="landing-mode-toggle"
         className="grid grid-cols-[minmax(0,1fr)] gap-3.5 sm:grid-cols-[repeat(2,minmax(0,1fr))] md:grid-cols-[repeat(3,minmax(0,1fr))] md:[&>li:last-child]:col-start-2"
       >
-        {LANDING_TOOLS.map((tool) => {
+        {tools.map((tool) => {
           return (
             <li key={tool.mode}>
               <button
@@ -256,7 +270,7 @@ export function LandingCardsView({
                   cardRefs.current[tool.mode] = node;
                 }}
                 data-testid={`landing-mode-${tool.mode}`}
-                aria-label={`${tool.title} — open this tool`}
+                aria-label={t("landing.tileA11y", { title: tool.title })}
                 onClick={() => onOpenTool(tool.mode)}
                 className="group flex h-full w-full flex-col overflow-hidden rounded-[10px] border-[1.5px] border-ink bg-card text-left transition-[translate,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lift focus-visible:outline-2"
               >
@@ -296,7 +310,7 @@ export function LandingCardsView({
                   {/* The affordance row — pinned to the tile's floor so
                       all the tiles align, the orange spent once. */}
                   <span className="mt-auto inline-flex items-center gap-1.5 pt-2 text-[12.5px] font-semibold text-signal-ink">
-                    Open
+                    {t("landing.open")}
                     <ArrowRight
                       className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
                       aria-hidden="true"

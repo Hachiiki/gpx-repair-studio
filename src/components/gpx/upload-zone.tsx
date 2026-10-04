@@ -19,6 +19,7 @@
 
 import { useId, useState } from "react";
 import { FileUp, ShieldCheck, Sparkles } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import { cn } from "@/lib/utils";
 
 export interface UploadZoneProps {
@@ -28,15 +29,16 @@ export interface UploadZoneProps {
   /** Phase 12 — load the tool's bundled sample (the same onFile path). */
   onTrySample?: () => void;
   /** What the sample link says it loads (e.g. "a sample ride"). */
-  sampleLabel?: string;
+  sampleLabelKey?: string;
 }
 
 export function UploadZone({
   onFile,
   disabled = false,
   onTrySample,
-  sampleLabel = "a sample file",
+  sampleLabelKey = "sample.ride",
 }: UploadZoneProps) {
+  const { t } = useI18n();
   const [dragging, setDragging] = useState(false);
   const inputId = useId();
 
@@ -75,24 +77,23 @@ export function UploadZone({
         </span>
         <span className="space-y-1">
           <span className="block text-lg font-bold tracking-tight">
-            Drop your GPX, TCX, or FIT file here
+            {t("upload.title")}
           </span>
           <span className="block text-[13.5px] text-muted-foreground">
-            or{" "}
+            {t("upload.or")}{" "}
             <span className="font-semibold text-ink underline underline-offset-[3px]">
-              click to browse
+              {t("upload.browse")}
             </span>
           </span>
         </span>
         <span className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
           <ShieldCheck className="size-3.5 shrink-0 text-ink/55" aria-hidden="true" />
-          Processed entirely in your browser — the file never leaves this
-          device.
+          {t("upload.privacyLine")}
         </span>
       </label>
       {onTrySample && !disabled && (
         <div className="mt-3.5 flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
-          <span>No file handy?</span>
+          <span>{t("upload.noFileHandy")}</span>
           <button
             type="button"
             data-testid="try-sample"
@@ -100,7 +101,7 @@ export function UploadZone({
             className="inline-flex items-center gap-1 rounded-[5px] px-1.5 py-1 font-semibold text-signal-ink underline decoration-signal/40 underline-offset-[3px] transition-colors hover:bg-signal/[0.08] focus-visible:outline-2"
           >
             <Sparkles className="size-3.5" aria-hidden="true" />
-            Try {sampleLabel}
+            {t("upload.trySample", { label: t(sampleLabelKey) })}
           </button>
         </div>
       )}

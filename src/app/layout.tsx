@@ -61,10 +61,19 @@ export default function RootLayout({
          * light flash. suppressHydrationWarning on <html> above absorbs
          * the class the script adds ahead of React. This is the classic
          * hand-rolled next-themes pattern — no dependency, no flash.
+         *
+         * Phase 21 — the same script also stamps <html lang> from the
+         * locale key (?lang= beats storage, mirroring
+         * src/i18n/locale.ts's resolution order), so assistive tech
+         * hears the right language from the first accessible paint.
+         * The prerendered TEXT is still English (the static export's
+         * build locale); React settles the translated copy right after
+         * hydration through useSyncExternalStore's designed snapshot
+         * swap — no mismatch errors, at most one English frame.
          */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var s=localStorage.getItem("gpx-repair-studio.theme.v1");var p=s==="light"||s==="dark"||s==="system"?s:"system";var d=p==="dark"||(p==="system"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;if(d)r.classList.add("dark");r.style.colorScheme=d?"dark":"light";}catch(e){}})();`,
+            __html: `(function(){try{var s=localStorage.getItem("gpx-repair-studio.theme.v1");var p=s==="light"||s==="dark"||s==="system"?s:"system";var d=p==="dark"||(p==="system"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;if(d)r.classList.add("dark");r.style.colorScheme=d?"dark":"light";}catch(e){}try{var q=new URLSearchParams(window.location.search).get("lang");var l=q==="en"||q==="zh-CN"||q==="pseudo"?q:null;if(!l){var v=localStorage.getItem("gpx-repair-studio.locale.v1");if(v==="en"||v==="zh-CN")l=v;}if(l)document.documentElement.setAttribute("lang",l==="pseudo"?"en":l);}catch(e){}})();`,
           }}
         />
       </head>

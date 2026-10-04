@@ -31,6 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Download, ImageUp } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import type { CreateShareContent } from "@/hooks/use-create-share";
 
 export interface ShareCreateDialogProps {
@@ -52,6 +53,10 @@ export function ShareCreateDialog({
   content,
   onConfirm,
 }: ShareCreateDialogProps) {
+  const { t } = useI18n();
+  const elevationSuffix = content?.includesEstimatedElevation
+    ? t("create.shareDialog.inclElevation")
+    : "";
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent
@@ -61,11 +66,10 @@ export function ShareCreateDialog({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 text-left">
             <ImageUp className="size-4 text-signal" aria-hidden="true" />
-            Share your created activity
+            {t("create.shareDialog.title")}
           </AlertDialogTitle>
           <AlertDialogDescription className="text-left">
-            Here is exactly what happens next — nothing leaves this browser
-            either way.
+            {t("create.shareDialog.blurb")}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -77,14 +81,12 @@ export function ShareCreateDialog({
             />
             <span>
               <span className="font-semibold">
-                Your GPX downloads now
+                {t("create.shareDialog.step1Title")}
               </span>{" "}
-              — <span className="font-semibold">{fileName}</span>, the same
-              file the Export button produces
-              {content?.includesEstimatedElevation
-                ? ", including the estimated elevation"
-                : ""}
-              . Import it into Strava or any GPX platform.
+              — <span className="font-semibold">{fileName}</span>
+              {t("create.shareDialog.step1Tail", {
+                elevation: elevationSuffix,
+              })}
             </span>
           </li>
           <li className="flex items-start gap-2.5 rounded-[10px] border-[1.5px] border-ink/15 bg-ink/[0.03] px-3 py-2.5">
@@ -94,27 +96,26 @@ export function ShareCreateDialog({
             />
             <span>
               <span className="font-semibold">
-                The share card opens
+                {t("create.shareDialog.step2Title")}
               </span>{" "}
-              — your drawn route as a Strava-style graphic with{" "}
+              {t("create.shareDialog.step2Lead")}{" "}
               {content ? (
                 <>
                   <span className="font-semibold">{content.distance}</span>,{" "}
-                  <span className="font-semibold">{content.pace}</span>, and{" "}
+                  <span className="font-semibold">{content.pace}</span>
+                  {t("create.shareDialog.andGlue")}
                   <span className="font-semibold">{content.time}</span>
                 </>
               ) : (
-                "the file's distance, pace, and time"
+                t("create.shareDialog.trioFallback")
               )}
-              . Download it as a PNG from there.
+              {t("create.shareDialog.step2Tail")}
             </span>
           </li>
         </ol>
 
         <p className="text-left text-xs leading-relaxed text-muted-foreground">
-          Every point in the file is marked as reconstructed — platforms will
-          know the route was rebuilt, not recorded. You can come straight back
-          to this review from the share view.
+          {t("create.shareDialog.footer")}
         </p>
 
         <AlertDialogFooter className="sm:flex-col sm:items-stretch">
@@ -124,13 +125,13 @@ export function ShareCreateDialog({
             onClick={onConfirm}
           >
             <Download className="size-4" aria-hidden="true" />
-            Download GPX &amp; open share card
+            {t("create.shareDialog.confirm")}
           </AlertDialogAction>
           <AlertDialogCancel
             className="h-10 gap-1.5 border-[1.5px] font-semibold"
             data-testid="create-share-cancel"
           >
-            Not now
+            {t("create.shareDialog.cancel")}
           </AlertDialogCancel>
         </AlertDialogFooter>
       </AlertDialogContent>

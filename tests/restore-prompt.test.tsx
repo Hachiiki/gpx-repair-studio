@@ -42,14 +42,17 @@ const REPAIR_OFFER: SessionOffer = {
   section: "repair",
   savedAt: Date.now() - 5 * 60_000,
   label: "morning-run.gpx",
-  detail: "4 points drawn · 1 manual span",
+  detail: [
+    { key: "restore.desc.drawn.many", params: { count: 4 } },
+    { key: "restore.desc.manualSpans.one", params: { count: 1 } },
+  ],
 };
 
 const PLAN_OFFER: SessionOffer = {
   section: "plan",
   savedAt: Date.now() - 60 * 60_000,
   label: "Route plan",
-  detail: "12 points drawn",
+  detail: [{ key: "restore.desc.drawn.many", params: { count: 12 } }],
 };
 
 describe("empty state", () => {

@@ -64,15 +64,18 @@ export function planFix(
       if (!issue) return null;
       return {
         kind,
-        label: `Remove ${issue.count} speed spike${issue.count === 1 ? "" : "s"}`,
+        label: { key: issue.count === 1 ? "fix.removeSpikes.label.one" : "fix.removeSpikes.label.many", params: { count: issue.count } },
         entries: issue.points.map((ref) => ({
           kind: "point-deletion" as const,
           pointId: ref.pointId,
         })),
         points: issue.points,
         summary: [
-          `${issue.count === 1 ? "1 recorded point leaves" : `${issue.count} recorded points leave`} the working copy — the later point of each teleport leg.`,
-          "The surrounding recorded points stay byte-original; nothing is rewritten.",
+          {
+            key: issue.count === 1 ? "fix.removeSpikes.s1.one" : "fix.removeSpikes.s1.many",
+            params: { count: issue.count },
+          },
+          { key: "fix.removeSpikes.s2" },
         ],
       };
     }
@@ -81,15 +84,18 @@ export function planFix(
       if (!issue) return null;
       return {
         kind,
-        label: `Collapse ${issue.count} drift point${issue.count === 1 ? "" : "s"}`,
+        label: { key: issue.count === 1 ? "fix.removeDrift.label.one" : "fix.removeDrift.label.many", params: { count: issue.count } },
         entries: issue.points.map((ref) => ({
           kind: "point-deletion" as const,
           pointId: ref.pointId,
         })),
         points: issue.points,
         summary: [
-          `${issue.count === 1 ? "1 stop-and-wander point leaves" : `${issue.count} stop-and-wander points leave`} the working copy; each run's first point stays as the honest "we were here" marker.`,
-          "Distances and durations recompute from the working copy afterwards.",
+          {
+            key: issue.count === 1 ? "fix.removeDrift.s1.one" : "fix.removeDrift.s1.many",
+            params: { count: issue.count },
+          },
+          { key: "fix.removeDrift.s2" },
         ],
       };
     }
@@ -120,12 +126,15 @@ export function planFix(
       if (entries.length === 0) return null;
       return {
         kind,
-        label: `Dedupe ${entries.length} point${entries.length === 1 ? "" : "s"}`,
+        label: { key: entries.length === 1 ? "fix.dedupe.label.one" : "fix.dedupe.label.many", params: { count: entries.length } },
         entries,
         points: touched,
         summary: [
-          `${entries.length === 1 ? "1 near-duplicate point leaves" : `${entries.length} near-duplicate points leave`} the working copy — each cluster keeps its first point.`,
-          "Only points the duplicate check flagged are removed; healthy density is untouched.",
+          {
+            key: entries.length === 1 ? "fix.dedupe.s1.one" : "fix.dedupe.s1.many",
+            params: { count: entries.length },
+          },
+          { key: "fix.dedupe.s2" },
         ],
       };
     }
@@ -136,20 +145,26 @@ export function planFix(
       const untimed = countUntimed(data, segmentIds);
       return {
         kind,
-        label: `Sort ${segmentIds.length} segment${segmentIds.length === 1 ? "" : "s"} by time`,
+        label: { key: segmentIds.length === 1 ? "fix.sortByTime.label.one" : "fix.sortByTime.label.many", params: { count: segmentIds.length } },
         entries: segmentIds.map((segmentId) => ({
           kind: "segment-sort" as const,
           segmentId,
         })),
         points: issue.points,
         summary: [
-          `${segmentIds.length} segment${segmentIds.length === 1 ? " is" : "s are"} stably reordered by timestamp — equal times keep their current order.`,
+          {
+            key: segmentIds.length === 1 ? "fix.sortByTime.s1.one" : "fix.sortByTime.s1.many",
+            params: { count: segmentIds.length },
+          },
           ...(untimed > 0
             ? [
-                `${untimed} point${untimed === 1 ? " without a usable timestamp moves" : "s without a usable timestamp move"} to the segment end.`,
+                {
+                  key: untimed === 1 ? "fix.sortByTime.s2.one" : "fix.sortByTime.s2.many",
+                  params: { count: untimed },
+                },
               ]
             : []),
-          "The file's point order becomes estimated — the export notes it.",
+          { key: "fix.sortByTime.s3" },
         ],
       };
     }
@@ -176,12 +191,15 @@ export function planFix(
       if (entries.length === 0) return null;
       return {
         kind,
-        label: `Smooth ${entries.length} elevation${entries.length === 1 ? "" : "s"}`,
+        label: { key: entries.length === 1 ? "fix.smoothEle.label.one" : "fix.smoothEle.label.many", params: { count: entries.length } },
         entries,
         points: issue.points,
         summary: [
-          `${entries.length} outlying elevation${entries.length === 1 ? " is" : "s are"} replaced by linear interpolation between the nearest healthy neighbors.`,
-          "Each replacement is labeled in the export (gpxr marker) — the recorded values stay in the original.",
+          {
+            key: entries.length === 1 ? "fix.smoothEle.s1.one" : "fix.smoothEle.s1.many",
+            params: { count: entries.length },
+          },
+          { key: "fix.smoothEle.s2" },
         ],
       };
     }
@@ -211,12 +229,15 @@ export function planFix(
       if (entries.length === 0) return null;
       return {
         kind,
-        label: `Thin the recording to ${spacing} m+`,
+        label: { key: "fix.thin.label", params: { spacing } },
         entries,
         points: touched,
         summary: [
-          `${entries.length} point${entries.length === 1 ? "" : "s"} closer than ${spacing} m to their kept predecessor leave the working copy.`,
-          "Every kept point stays byte-original — nothing is interpolated or invented (decimation, not resampling). Each segment keeps its first and last point.",
+          {
+            key: entries.length === 1 ? "fix.thin.s1.one" : "fix.thin.s1.many",
+            params: { count: entries.length, spacing },
+          },
+          { key: "fix.thin.s2" },
         ],
       };
     }

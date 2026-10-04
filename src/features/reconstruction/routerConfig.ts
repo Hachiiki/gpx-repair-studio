@@ -117,20 +117,19 @@ export function routerHostsLabel(endpoints: ResolvedRouterEndpoints): string {
 /** An honest, sentence-form validation verdict for the settings input. */
 export function validateCustomRouterUrlInput(
   raw: string,
-): { ok: true; value: string | null } | { ok: false; reason: string } {
+): { ok: true; value: string | null } | { ok: false; reasonKey: string } {
   const trimmed = raw.trim();
   if (trimmed === "") return { ok: true, value: null };
   if (!/^https?:\/\//i.test(trimmed)) {
     return {
       ok: false,
-      reason:
-        "The URL must start with https:// (or http:// for a local test server).",
+      reasonKey: "router.reason.scheme",
     };
   }
   if (normalizeCustomRouterUrl(trimmed) === null) {
     return {
       ok: false,
-      reason: "That does not parse as a URL — check the host name.",
+      reasonKey: "router.reason.parse",
     };
   }
   return { ok: true, value: normalizeCustomRouterUrl(trimmed) };

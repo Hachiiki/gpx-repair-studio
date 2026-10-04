@@ -38,6 +38,9 @@ import {
 } from "@testing-library/react";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { COMMANDS, filterCommands } from "@/features/commands/registry";
+import { translatorFor } from "@/i18n/runtime";
+
+const t = translatorFor("en");
 import type { BoundCommand } from "@/hooks/use-commands";
 import type { SavedSessionRow } from "@/hooks/use-saved-sessions";
 import type { CommandContext } from "@/features/commands/registry";
@@ -60,7 +63,7 @@ function makeCommands(context: CommandContext): BoundCommand[] {
 function makeFilter(context: CommandContext) {
   return (query: string) => {
     const ids = new Set(
-      filterCommands(COMMANDS, query, context).map((def) => def.id),
+      filterCommands(COMMANDS, query, context, t).map((def) => def.id),
     );
     return COMMANDS.filter((def) => ids.has(def.id)).map((def) => ({
       def,

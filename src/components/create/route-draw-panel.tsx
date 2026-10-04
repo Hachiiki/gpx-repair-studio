@@ -32,6 +32,8 @@ import { Check, Crosshair, X } from "lucide-react";
 import type { CreateDrawBinding } from "@/hooks/use-create-draw";
 import type { ActivityStats } from "@/hooks/use-create-session";
 import { RECONCILE_NOTICE_RATIO } from "@/hooks/use-create-session";
+import { useI18n } from "@/hooks/use-i18n";
+import { UNIT_WORDS } from "@/i18n/units";
 import type { DrawVertex } from "@/types/domain";
 import {
   formatDistanceForUnit,
@@ -39,63 +41,107 @@ import {
   type PaceUnit,
 } from "@/lib/utils/format";
 
-/** Selectable resample spacings shown in the settings row. */
-const SPACING_CHOICES: readonly { value: string; label: string }[] = [
-  { value: "off", label: "Off (clicked points only)" },
-  { value: "10", label: "Every 10 m" },
-  { value: "25", label: "Every 25 m" },
-  { value: "50", label: "Every 50 m" },
-];
+/**
+ * Selectable resample spacings shown in the settings row (labels
+ * resolved per locale through the translator — Phase 21).
+ */
+interface SpacingChoice {
+  value: string;
+  label: string;
+}
+
+/** Resolve the spacing options for the active locale. */
+function getSpacingChoices(
+  t: ReturnType<typeof useI18n>["t"],
+  unitWord: string,
+): readonly SpacingChoice[] {
+  return [
+    { value: "off", label: t("create.drawPanel.spacingOff") },
+    {
+      value: "10",
+      label: t("create.drawPanel.spacingEvery", {
+        meters: 10,
+        unit: unitWord,
+      }),
+    },
+    {
+      value: "25",
+      label: t("create.drawPanel.spacingEvery", {
+        meters: 25,
+        unit: unitWord,
+      }),
+    },
+    {
+      value: "50",
+      label: t("create.drawPanel.spacingEvery", {
+        meters: 50,
+        unit: unitWord,
+      }),
+    },
+  ];
+}
 
 /**
  * Pen choices (user pass 48 — curve is a PEN, not a path style): how
- * the Draw mode captures points.
+ * the Draw mode captures points. Labels resolved per locale.
  */
-const PEN_CHOICES: readonly {
+interface PenChoice {
   value: CreateDrawBinding["pen"];
   label: string;
   hint: string;
-}[] = [
-  {
-    value: "default",
-    label: "Default pen",
-    hint: "The classic pencil: click to place points one by one — click before and after a bend and the line follows.",
-  },
-  {
-    value: "curve",
-    label: "Curve pen",
-    hint: "Press and drag to draw a curve freehand — the app smooths your stroke into the route. Works with every path style; a quick tap still places a single point.",
-  },
-];
+}
+
+/** Resolve the pen choices for the active locale. */
+function getPenChoices(t: ReturnType<typeof useI18n>["t"]): readonly PenChoice[] {
+  return [
+    {
+      value: "default",
+      label: t("create.drawPanel.penDefault"),
+      hint: t("create.drawPanel.penDefaultHint"),
+    },
+    {
+      value: "curve",
+      label: t("create.drawPanel.penCurve"),
+      hint: t("create.drawPanel.penCurveHint"),
+    },
+  ];
+}
 
 /**
  * Path-style choices (Tasks 46–47 — what the line does between your
  * points, remembered per line). User pass 48: Curves left the group —
  * it is the Curve pen's doing now, so the choices are Roads /
  * Footpaths / Straight. The test ids keep the historic `road-follow-*`
- * names for e2e compatibility.
+ * names for e2e compatibility. Labels resolved per locale.
  */
-const PATH_STYLE_CHOICES: readonly {
+interface PathStyleChoice {
   value: Exclude<CreateDrawBinding["pathStyle"], "curve">;
   label: string;
   hint: string;
-}[] = [
-  {
-    value: "car",
-    label: "Roads",
-    hint: "The line follows drivable roads between your points — click before and after a curve and the bend draws itself.",
-  },
-  {
-    value: "foot",
-    label: "Footpaths",
-    hint: "Same idea, but for pedestrian ways — trails, footpaths, stairs. Better for runs through parks or along rivers.",
-  },
-  {
-    value: "off",
-    label: "Straight lines",
-    hint: "No road snapping — the next segment connects your points directly. Nothing leaves the browser. Segments drawn with the Curve pen stay smooth; switching styles never redraws them.",
-  },
-];
+}
+
+/** Resolve the path-style choices for the active locale. */
+function getPathStyleChoices(
+  t: ReturnType<typeof useI18n>["t"],
+): readonly PathStyleChoice[] {
+  return [
+    {
+      value: "car",
+      label: t("create.drawPanel.roads"),
+      hint: t("create.drawPanel.roadsHint"),
+    },
+    {
+      value: "foot",
+      label: t("create.drawPanel.footpaths"),
+      hint: t("create.drawPanel.footpathsHint"),
+    },
+    {
+      value: "off",
+      label: t("create.drawPanel.straight"),
+      hint: t("create.drawPanel.straightHint"),
+    },
+  ];
+}
 
 function VertexRow({
   vertex,
@@ -106,6 +152,7 @@ function VertexRow({
   index: number;
   onDelete: (vertexId: DrawVertex["id"]) => void;
 }) {
+  const { t } = useI18n();
   return (
     <li
       className="flex items-center gap-2 rounded-[6px] border border-ink/10 bg-card px-2 py-1.5 text-xs transition-colors hover:bg-ink/[0.04]"
@@ -122,7 +169,7 @@ function VertexRow({
         variant="ghost"
         size="sm"
         className="ml-auto size-5 shrink-0 rounded-[4px] p-0 text-shade hover:bg-inkplus hover:text-paper"
-        aria-label={`Delete point ${index + 1}`}
+        aria-label={t("create.drawPanel.deletePoint", { index: index + 1 })}
         data-testid="create-delete-vertex-button"
         onClick={() => onDelete(vertex.id)}
       >
@@ -139,11 +186,18 @@ export interface RouteDrawPanelProps {
 }
 
 export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
+  const { t, locale } = useI18n();
   if (!draw.active) return null;
 
   // User pass 52: the pen only lives in Draw mode — Move drags points,
   // Pan navigates. Outside Draw the pen group renders inert.
   const penLive = draw.pointerMode === "draw";
+
+  // The per-locale chip/option tables (Phase 21: the module constants
+  // became translator-fed resolvers).
+  const spacingChoices = getSpacingChoices(t, UNIT_WORDS[locale].m);
+  const penChoices = getPenChoices(t);
+  const pathStyleChoices = getPathStyleChoices(t);
 
   // The live drawn-vs-recorded comparison — the reconciliation's
   // pre-announcement (the review phase formalizes it). The same 2% ratio
@@ -152,27 +206,37 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
   const differenceM = drawnM - stats.distanceM;
   const comparison =
     draw.distanceM === null
-      ? "Click on the map to place your first point."
+      ? t("create.drawPanel.compareFirst")
       : drawnM === 0
-        ? "Keep going — one more point makes the first leg."
+        ? t("create.drawPanel.compareFirstLeg")
         : Math.abs(differenceM) / Math.max(stats.distanceM, 1) <=
             RECONCILE_NOTICE_RATIO
-          ? "Matches your recorded distance."
-          : `${differenceM > 0 ? "Longer" : "Shorter"} than your recorded ${formatDistanceForUnit(
-              stats.distanceM,
-              paceUnit,
-            )} by ${formatDistanceForUnit(Math.abs(differenceM), paceUnit)} — the file will carry what you draw.`;
+          ? t("create.drawPanel.compareMatches")
+          : differenceM > 0
+            ? t("create.drawPanel.compareLonger", {
+                recorded: formatDistanceForUnit(stats.distanceM, paceUnit),
+                difference: formatDistanceForUnit(
+                  Math.abs(differenceM),
+                  paceUnit,
+                ),
+              })
+            : t("create.drawPanel.compareShorter", {
+                recorded: formatDistanceForUnit(stats.distanceM, paceUnit),
+                difference: formatDistanceForUnit(
+                  Math.abs(differenceM),
+                  paceUnit,
+                ),
+              });
 
   return (
     <Card className="border-[1.5px] border-ink" data-testid="route-draw-panel">
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <Crosshair className="size-4 text-signal" aria-hidden="true" />
-          Your route
+          {t("create.drawPanel.title")}
         </h3>
         <CardDescription>
-          Click to add points — switch to Move (M) to drag any of them,
-          everything undoes.
+          {t("create.drawPanel.blurb")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -185,14 +249,14 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
           className="grid gap-2"
           data-testid="pen-mode-group"
           role="group"
-          aria-label="Pen"
+          aria-label={t("create.drawPanel.penGroup")}
         >
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
-            Pen
+            {t("create.drawPanel.penGroup")}
             <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {PEN_CHOICES.map((choice) =>
+            {penChoices.map((choice) =>
               penLive ? (
                 <HintTip
                   key={choice.value}
@@ -246,9 +310,7 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
               data-testid="pen-curve-hint"
               role="status"
             >
-              Drag on the map to draw your curve — release to place it. A
-              quick tap still adds a single point. (C toggles pens, D/M/P
-              switch modes.)
+              {t("create.drawPanel.curveHint")}
             </p>
           )}
           {!penLive && (
@@ -257,11 +319,10 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
               data-testid="pen-inactive-note"
               role="status"
             >
-              The pen works in Draw mode only — press D (or the pencil tool)
-              to draw. Right now the pointer{" "}
+              {t("create.drawPanel.penInactiveLead")}{" "}
               {draw.pointerMode === "move"
-                ? "drags your points"
-                : "navigates the map"}
+                ? t("create.drawPanel.pointerDrags")
+                : t("create.drawPanel.pointerNavigates")}
               .
             </p>
           )}
@@ -273,18 +334,17 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
           className="grid gap-2"
           data-testid="road-follow-group"
           role="group"
-          aria-label="Path style"
+          aria-label={t("create.drawPanel.pathStyleGroup")}
         >
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.01em]">
-            New points follow
+            {t("create.drawPanel.newPointsFollow")}
             <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
           </p>
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Each segment keeps the style it was drawn with — switch any
-            time, nothing you placed redraws.
+            {t("create.drawPanel.pathStyleNote")}
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {PATH_STYLE_CHOICES.map((choice) => (
+            {pathStyleChoices.map((choice) => (
               <HintTip
                 key={choice.value}
                 side="left"
@@ -325,12 +385,12 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
               role="status"
             >
               {draw.routingPending
-                ? "Finding the road…"
+                ? t("create.drawPanel.findingRoad")
                 : draw.routingFailed
-                  ? "Road follow unavailable right now — straight lines until it recovers."
+                  ? t("create.drawPanel.roadUnavailable")
                   : draw.pointerMode === "move"
-                    ? "Drag any point to adjust it — the road re-finds itself."
-                    : "Switch to Move (M) to drag a point — the road re-finds itself."}
+                    ? t("create.drawPanel.dragAdjust")
+                    : t("create.drawPanel.switchToDrag")}
             </p>
           )}
           {
@@ -347,9 +407,7 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
               data-testid="road-consent-notice"
             >
               <p className="text-[11.5px] leading-snug text-ink">
-                Road snapping sends the points you draw to a public
-                routing service — never your file. It is off until you
-                enable it.
+                {t("create.drawPanel.consentNotice")}
               </p>
               <Button
                 type="button"
@@ -358,7 +416,7 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
                 data-testid="road-consent-enable"
                 onClick={draw.requestRoadConsent}
               >
-                Enable road snapping…
+                {t("create.drawPanel.consentEnable")}
               </Button>
             </div>
           )}
@@ -368,15 +426,15 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
                 className="text-[11px] leading-snug text-muted-foreground"
                 data-testid="road-consent-on-note"
               >
-                Road snapping is on for this session —{" "}
+                {t("create.drawPanel.consentOnLead")}{" "}
                 <button
                   type="button"
                   className="font-semibold text-foreground underline decoration-ink/25 underline-offset-2 hover:decoration-ink"
                   onClick={draw.requestRoadConsent}
                 >
-                  turn it off
+                  {t("create.drawPanel.turnItOff")}
                 </button>{" "}
-                any time.
+                {t("create.drawPanel.consentOnTail")}
               </p>
             )}
         </div>
@@ -401,8 +459,11 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
             className="text-[11.5px] tabular-nums text-muted-foreground"
             data-testid="vertex-count"
           >
-            {draw.vertexCount} / {draw.maxVertices} points
-            {draw.atVertexCap ? " — limit reached" : ""}
+            {t("create.drawPanel.vertexCount", {
+              count: draw.vertexCount,
+              max: draw.maxVertices,
+            })}
+            {draw.atVertexCap ? t("create.drawPanel.vertexLimit") : ""}
           </p>
         </div>
 
@@ -421,9 +482,9 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
         <label
           className="grid gap-1 text-xs font-semibold"
           data-testid="spacing-select-label"
-          title="The track is generated with evenly spaced points at this spacing — some platforms want regular points rather than only your clicks."
+          title={t("create.drawPanel.spacingHint")}
         >
-          Track point spacing
+          {t("create.drawPanel.spacingLabel")}
           <select
             className="h-8 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2.5 text-xs font-normal transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
             data-testid="spacing-select"
@@ -433,7 +494,7 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
               draw.setResampleSpacing(raw === "off" ? "off" : Number(raw));
             }}
           >
-            {SPACING_CHOICES.map((choice) => (
+            {spacingChoices.map((choice) => (
               <option key={choice.value} value={choice.value}>
                 {choice.label}
               </option>
@@ -445,9 +506,7 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
         {draw.vertexCount > 0 && (
           <div className="grid gap-1.5">
             <p className="text-xs font-medium text-muted-foreground">
-              Drawn points — switch to Move (M) and drag any of them on the
-              map, double-click to remove. Drawing (D) adds points only —
-              the pencil never drags.
+              {t("create.drawPanel.drawnPointsNote")}
             </p>
             <ScrollArea className="max-h-40 -mx-2">
               <ul className="grid gap-0.5 px-2">
@@ -474,12 +533,12 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
             disabled={!draw.canFinish}
             title={
               draw.canFinish
-                ? "End the drawing and review the result"
-                : "Place at least two points to finish the route"
+                ? t("create.drawPanel.finishTitle")
+                : t("create.drawPanel.finishDisabledTitle")
             }
           >
             <Check className="size-4" aria-hidden="true" />
-            Finish route
+            {t("create.drawPanel.finish")}
           </Button>
         </div>
       </CardContent>

@@ -9,6 +9,9 @@
  * total counts modifications but never the skipped gaps.
  */
 
+import { translatorFor } from "@/i18n/runtime";
+
+const t = translatorFor("en");
 import { describe, expect, it } from "vitest";
 import { buildRepairSummary } from "@/features/compare/repairSummary";
 import type { WorkingEdit } from "@/types/domain";
@@ -68,7 +71,7 @@ describe("buildRepairSummary — working-copy rows", () => {
     const kinds = summary.rows.map((row) => row.kind);
     expect(kinds).toEqual(["filtered", "sorted", "estimated"]);
     expect(summary.rows[0]).toMatchObject({
-      label: "Points removed by fixes",
+      labelKey: "summary.row.filtered",
       count: 2,
       provenance: "modified",
     });
@@ -86,7 +89,7 @@ describe("buildRepairSummary — working-copy rows", () => {
       "test fix",
       "sort fix",
       "smooth fix",
-    ]);
+    ]); // legacy string labels render verbatim (LocalLabel passthrough)
   });
 
   it("structural entries surface as structure rows", () => {
@@ -103,7 +106,7 @@ describe("buildRepairSummary — working-copy rows", () => {
         ]),
       ],
     });
-    const labels = summary.rows.map((row) => row.label);
+    const labels = summary.rows.map((row) => t(row.labelKey));
     expect(labels).toEqual([
       "Segments split",
       "Segment copies inserted",

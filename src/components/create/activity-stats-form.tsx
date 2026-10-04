@@ -27,6 +27,8 @@ import { ArrowRight, Sparkles, Watch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PaceUnitToggle } from "@/components/shared/pace-unit-toggle";
+import { useI18n } from "@/hooks/use-i18n";
+import { UNIT_WORDS } from "@/i18n/units";
 import {
   validateStatsEntry,
   type ActivityStats,
@@ -113,6 +115,7 @@ export function ActivityStatsForm({
   onPaceUnitChange,
   onBegin,
 }: ActivityStatsFormProps) {
+  const { t, locale } = useI18n();
   // Prefill from a previous confirmation (the user returned to tweak) —
   // the entered values are the user's facts; they survive navigation.
   const prefill = useMemo(() => {
@@ -212,24 +215,25 @@ export function ActivityStatsForm({
     onBegin(result.stats);
   };
 
-  const unitSuffix = paceUnit === "km" ? "km" : "mi";
+  // The distance unit word rides alongside the number — it comes from
+  // the locale-aware units table (i18n/units), never the dictionary.
+  const unitSuffix = UNIT_WORDS[locale][paceUnit];
 
   return (
     <form
       className="grid gap-4 rounded-[10px] border-[1.5px] border-ink bg-card p-[18px] text-left shadow-float"
       data-testid="activity-stats-form"
-      aria-label="Activity statistics"
+      aria-label={t("create.statsForm.title")}
       onSubmit={onSubmit}
       noValidate
     >
       <div className="grid gap-1">
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <Watch className="size-4 text-signal" aria-hidden="true" />
-          Activity statistics
+          {t("create.statsForm.title")}
         </h3>
         <p className="text-[13px] leading-relaxed text-muted-foreground">
-          What your watch recorded — the distance, pace, and time of the
-          workout whose map went missing.
+          {t("create.statsForm.blurb")}
         </p>
         <button
           type="button"
@@ -238,14 +242,14 @@ export function ActivityStatsForm({
           className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-[5px] px-1.5 py-1 text-[12.5px] font-semibold text-signal-ink underline decoration-signal/40 underline-offset-[3px] transition-colors hover:bg-signal/[0.08] focus-visible:outline-2"
         >
           <Sparkles className="size-3.5" aria-hidden="true" />
-          Use example numbers
+          {t("create.statsForm.example")}
         </button>
       </div>
 
       {/* Unit preference — the app-wide km/mi segmented control. */}
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-semibold text-muted-foreground">
-          Units
+          {t("create.statsForm.units")}
         </span>
         <PaceUnitToggle unit={paceUnit} onChange={onPaceUnitChange} />
       </div>
@@ -254,14 +258,14 @@ export function ActivityStatsForm({
         {/* Distance */}
         <div className="grid gap-1.5">
           <Label htmlFor="stats-distance" className="text-xs font-semibold">
-            Distance
+            {t("create.statsForm.distance")}
           </Label>
           <NumberField
             id="stats-distance"
             value={distance}
             onChange={setDistance}
             placeholder="5.23"
-            ariaLabel="Distance recorded by your watch"
+            ariaLabel={t("create.statsForm.distanceA11y")}
             suffix={unitSuffix}
             step="0.01"
             max={9999}
@@ -272,9 +276,9 @@ export function ActivityStatsForm({
         {/* Average pace — minutes : seconds per unit */}
         <div className="grid gap-1.5">
           <span className="text-xs font-semibold" id="stats-pace-label">
-            Average pace{" "}
+            {t("create.statsForm.pace")}{" "}
             <span className="font-normal text-muted-foreground">
-              (minutes : seconds /{unitSuffix})
+              {t("create.statsForm.paceHint", { unit: unitSuffix })}
             </span>
           </span>
           <div
@@ -287,14 +291,14 @@ export function ActivityStatsForm({
               value={paceMinutes}
               onChange={setPaceMinutes}
               placeholder="6"
-              ariaLabel="Pace minutes per unit"
+              ariaLabel={t("create.statsForm.paceMinutesA11y")}
             />
             <NumberField
               id="stats-pace-seconds"
               value={paceSeconds}
               onChange={setPaceSeconds}
               placeholder="14"
-              ariaLabel="Pace seconds per unit"
+              ariaLabel={t("create.statsForm.paceSecondsA11y")}
               max={59}
             />
           </div>
@@ -304,9 +308,9 @@ export function ActivityStatsForm({
         {/* Total time — h : m : s (the manual-duration language) */}
         <div className="grid gap-1.5">
           <span className="text-xs font-semibold" id="stats-time-label">
-            Total time{" "}
+            {t("create.statsForm.time")}{" "}
             <span className="font-normal text-muted-foreground">
-              (hours : minutes : seconds)
+              {t("create.statsForm.timeHint")}
             </span>
           </span>
           <div
@@ -319,14 +323,14 @@ export function ActivityStatsForm({
               value={hours}
               onChange={setHours}
               placeholder="0"
-              ariaLabel="Total time hours"
+              ariaLabel={t("create.statsForm.hoursA11y")}
             />
             <NumberField
               id="stats-minutes"
               value={minutes}
               onChange={setMinutes}
               placeholder="32"
-              ariaLabel="Total time minutes"
+              ariaLabel={t("create.statsForm.minutesA11y")}
               max={59}
             />
             <NumberField
@@ -334,7 +338,7 @@ export function ActivityStatsForm({
               value={seconds}
               onChange={setSeconds}
               placeholder="35"
-              ariaLabel="Total time seconds"
+              ariaLabel={t("create.statsForm.secondsA11y")}
               max={59}
             />
           </div>
@@ -344,9 +348,9 @@ export function ActivityStatsForm({
         {/* Start — when the activity began */}
         <div className="grid gap-1.5">
           <Label htmlFor="stats-start" className="text-xs font-semibold">
-            Start{" "}
+            {t("create.statsForm.start")}{" "}
             <span className="font-normal text-muted-foreground">
-              — platforms use it to place the activity
+              {t("create.statsForm.startHint")}
             </span>
           </Label>
           <input
@@ -365,12 +369,12 @@ export function ActivityStatsForm({
         className="h-11 w-full text-[15px] font-bold"
         data-testid="begin-drawing-button"
       >
-        Draw the route
+        {t("create.statsForm.begin")}
         <ArrowRight className="size-4" aria-hidden="true" />
       </Button>
 
       <p className="text-center text-[11.5px] text-muted-foreground">
-        No file needed — everything happens in your browser.
+        {t("create.statsForm.noFile")}
       </p>
     </form>
   );

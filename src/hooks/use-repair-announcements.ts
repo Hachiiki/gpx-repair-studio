@@ -22,6 +22,7 @@
 
 import { useEffect, useRef } from "react";
 import { announce } from "@/lib/announcements";
+import { useI18n } from "@/hooks/use-i18n";
 import type { GapStatus } from "@/state/editor-store";
 import type { SessionStatus } from "@/state/session-store";
 import type { OriginalTrackData } from "@/types/domain";
@@ -36,6 +37,7 @@ export interface RepairAnnouncementsInput {
 }
 
 export function useRepairAnnouncements(input: RepairAnnouncementsInput): void {
+  const { t } = useI18n();
   const { status, fileName, data, gapCount, statusById } = input;
 
   // -- gaps detected (once per parsed model) --------------------------------
@@ -46,10 +48,20 @@ export function useRepairAnnouncements(input: RepairAnnouncementsInput): void {
     lastAnnouncedData.current = data;
     announce(
       gapCount > 0
-        ? `${gapCount} gap${gapCount === 1 ? "" : "s"} detected in ${fileName ?? "the file"} — open one to draw its route.`
-        : `${fileName ?? "File"} loaded — no gaps detected.`,
+        ? t(
+            gapCount === 1
+              ? "hook.repairAnnounce.gapsOne"
+              : "hook.repairAnnounce.gapsMany",
+            {
+              count: gapCount,
+              file: fileName ?? t("hook.repairAnnounce.theFile"),
+            },
+          )
+        : t("hook.repairAnnounce.loadedNoGaps", {
+            file: fileName ?? t("hook.repairAnnounce.fileFallback"),
+          }),
     );
-  }, [status, data, gapCount, fileName]);
+  }, [status, data, gapCount, fileName, t]);
 
   // -- reconstruction finished (status transitions) -------------------------
   const previousStatuses = useRef<Readonly<Record<string, GapStatus>>>({});
@@ -72,8 +84,15 @@ export function useRepairAnnouncements(input: RepairAnnouncementsInput): void {
     ).length;
     announce(
       finished.length === 1
-        ? `Gap reconstructed — ${repaired} of ${total} gaps repaired.`
-        : `${finished.length} gaps reconstructed — ${repaired} of ${total} gaps repaired.`,
+        ? t("hook.repairAnnounce.reconstructedOne", {
+            repaired,
+            total,
+          })
+        : t("hook.repairAnnounce.reconstructedMany", {
+            count: finished.length,
+            repaired,
+            total,
+          }),
     );
-  }, [statusById]);
+  }, [statusById, t]);
 }

@@ -38,16 +38,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Printer } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
+import { translateLabel } from "@/i18n/runtime";
 import {
   formatCompareCell,
   type CompareBinding,
 } from "@/hooks/use-compare";
 import { cn } from "@/lib/utils";
 
-const KIND_LABELS: Record<string, string> = {
-  recorded: "Recorded",
-  modified: "Modified",
-  estimated: "Estimated",
+/** The provenance-table's kind word (row.provenance → a key). */
+const KIND_LABEL_KEYS: Record<string, string> = {
+  recorded: "compare.flag.recorded",
+  modified: "compare.flag.modified",
+  estimated: "compare.flag.estimated",
 };
 
 function timeLabel(epochMs: number): string {
@@ -62,6 +65,7 @@ export interface RepairSummaryCardProps {
 }
 
 export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
+  const { t } = useI18n();
   const stats = compare.stats;
   const summary = compare.summary;
   if (!stats || !summary) return null;
@@ -80,12 +84,17 @@ export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          Repair summary
+          {t("compare.summary.title")}
         </h3>
         <CardDescription>
           {hasAnyChange
-            ? `Every modification, counted and disclosed — ${summary.totalChanges} change${summary.totalChanges === 1 ? "" : "s"} in total.`
-            : "No modifications yet — the export will match the original recording."}
+            ? t(
+                summary.totalChanges === 1
+                  ? "compare.summary.desc.one"
+                  : "compare.summary.desc.many",
+                { count: summary.totalChanges },
+              )
+            : t("compare.summary.descNone")}
         </CardDescription>
         <CardAction>
           <button
@@ -96,7 +105,7 @@ export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
             className="inline-flex items-center gap-1.5 rounded-[5px] border-[1.25px] border-ink/30 px-2 py-1 text-[12px] font-semibold text-ink transition-colors hover:border-signal hover:bg-signal/[0.08] focus-visible:outline-2"
           >
             <Printer className="size-3.5" aria-hidden="true" />
-            Print
+            {t("compare.summary.print")}
           </button>
         </CardAction>
       </CardHeader>
@@ -105,10 +114,18 @@ export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
         <Table data-testid="repair-summary-delta">
           <TableHeader>
             <TableRow>
-              <TableHead className="h-9 pl-3 text-left">Metric</TableHead>
-              <TableHead className="h-9 px-2 text-right">Original</TableHead>
-              <TableHead className="h-9 px-2 text-right">After</TableHead>
-              <TableHead className="h-9 pl-2 pr-3 text-right">Change</TableHead>
+              <TableHead className="h-9 pl-3 text-left">
+                {t("compare.table.metric")}
+              </TableHead>
+              <TableHead className="h-9 px-2 text-right">
+                {t("compare.table.original")}
+              </TableHead>
+              <TableHead className="h-9 px-2 text-right">
+                {t("compare.table.after")}
+              </TableHead>
+              <TableHead className="h-9 pl-2 pr-3 text-right">
+                {t("compare.table.change")}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -117,7 +134,7 @@ export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
               return (
                 <TableRow key={row.id} data-testid={`summary-delta-${row.id}`}>
                   <TableCell className="py-2.5 pl-3">
-                    <span className="font-medium">{row.label}</span>
+                    <span className="font-medium">{t(row.labelKey)}</span>
                     {row.note && (
                       <span className="mt-0.5 block text-[11.5px] leading-snug text-muted-foreground">
                         {row.note}
@@ -150,15 +167,19 @@ export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
         {summary.rows.length > 0 ? (
           <div className="mt-4">
             <h4 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
-              Modifications
+              {t("compare.summary.modifications")}
             </h4>
             <Table data-testid="repair-summary-table" className="mt-1.5">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="h-9 pl-3 text-left">What</TableHead>
-                  <TableHead className="h-9 px-2 text-right">Count</TableHead>
+                  <TableHead className="h-9 pl-3 text-left">
+                    {t("compare.summary.colWhat")}
+                  </TableHead>
+                  <TableHead className="h-9 px-2 text-right">
+                    {t("compare.summary.colCount")}
+                  </TableHead>
                   <TableHead className="h-9 pl-2 pr-3 text-left">
-                    Disclosure
+                    {t("compare.summary.colDisclosure")}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -169,16 +190,19 @@ export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
                     data-testid={`repair-summary-row-${row.kind}`}
                   >
                     <TableCell className="py-2.5 pl-3">
-                      <span className="font-medium">{row.label}</span>
+                      <span className="font-medium">{t(row.labelKey)}</span>
                       <span className="mt-0.5 block text-[11px] font-medium uppercase tracking-[0.12em] text-shade">
-                        {KIND_LABELS[row.provenance] ?? "Modified"}
+                        {t(
+                          KIND_LABEL_KEYS[row.provenance] ??
+                            "compare.flag.modified",
+                        )}
                       </span>
                     </TableCell>
                     <TableCell className="px-2 py-2.5 text-right font-semibold tabular-nums">
                       {row.count.toLocaleString()}
                     </TableCell>
                     <TableCell className="py-2.5 pl-2 pr-3 text-[12.5px] leading-snug text-muted-foreground">
-                      {row.detail}
+                      {row.detailKey ? t(row.detailKey) : null}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -190,16 +214,14 @@ export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
             className="mt-4 text-[13px] leading-relaxed text-muted-foreground"
             data-testid="repair-summary-empty"
           >
-            No fixes, surgery, or repairs have been applied to this file
-            yet. Anything you confirm will be counted here — and the
-            original file on disk is never touched.
+            {t("compare.summary.empty")}
           </p>
         )}
 
         {summary.history.length > 0 && (
           <div className="mt-4">
             <h4 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
-              Applied fixes, in order
+              {t("compare.summary.appliedFixes")}
             </h4>
             <ol
               className="mt-1.5 grid gap-1 text-[12.5px] text-muted-foreground"
@@ -214,7 +236,7 @@ export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
                   <span className="w-14 shrink-0 font-mono text-[11px] tabular-nums text-shade">
                     {timeLabel(entry.appliedAt)}
                   </span>
-                  <span className="text-ink">{entry.label}</span>
+                  <span className="text-ink">{translateLabel(t, entry.label)}</span>
                 </li>
               ))}
             </ol>
@@ -224,25 +246,25 @@ export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
         {/* 3 — the track snapshot. */}
         <div className="mt-4">
           <h4 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-shade">
-            Track snapshot
+            {t("compare.summary.snapshot")}
           </h4>
           {compare.summarySvg !== null ? (
             <div
               role="img"
-              aria-label="Track snapshot: the working copy in ink, the original ghosted underneath, changed stretches in orange"
+              aria-label={t("compare.summary.snapshotA11y")}
               data-testid="repair-summary-snapshot"
               className="mt-1.5 overflow-hidden rounded-[10px] border-[1.5px] border-ink/15 bg-card [&>svg]:block [&>svg]:h-auto [&>svg]:w-full"
               dangerouslySetInnerHTML={{ __html: compare.summarySvg }}
             />
           ) : (
             <p className="mt-1.5 text-[12.5px] text-muted-foreground">
-              No renderable track geometry.
+              {t("compare.summary.snapshotFallback")}
             </p>
           )}
           <ul className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
             <li className="flex items-center gap-1.5">
               <span className="h-1 w-6 rounded-full bg-ink/70" aria-hidden="true" />
-              Working copy
+              {t("compare.summary.legendWorking")}
             </li>
             <li className="flex items-center gap-1.5">
               <span
@@ -253,7 +275,7 @@ export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
                 }}
                 aria-hidden="true"
               />
-              Original (ghost)
+              {t("compare.summary.legendGhost")}
             </li>
             <li className="flex items-center gap-1.5">
               <span
@@ -264,7 +286,7 @@ export function RepairSummaryCard({ compare }: RepairSummaryCardProps) {
                 }}
                 aria-hidden="true"
               />
-              Changed / repaired
+              {t("compare.legendChanged")}
             </li>
           </ul>
         </div>

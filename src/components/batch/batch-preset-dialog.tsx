@@ -21,6 +21,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import type { BatchPresetFilePlan } from "@/hooks/use-batch-session";
+import { useI18n } from "@/hooks/use-i18n";
+import { translateLabel } from "@/i18n/runtime";
 
 export interface BatchPresetDialogProps {
   /** The pending flow (null = closed). */
@@ -34,6 +36,7 @@ export function BatchPresetDialog({
   onConfirm,
   onClose,
 }: BatchPresetDialogProps) {
+  const { t } = useI18n();
   const open = pending !== null;
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
@@ -44,12 +47,16 @@ export function BatchPresetDialog({
         <div className="border-b-[1.5px] border-ink pl-5 pr-12 pt-4">
           <DialogTitle className="flex items-center gap-2 text-left text-[17px] font-bold tracking-tight">
             <Wrench className="size-4 text-signal" aria-hidden="true" />
-            {pending?.name} — {pending?.perFile.length ?? 0} file
-            {(pending?.perFile.length ?? 0) === 1 ? "" : "s"}
+            {pending?.name} —{" "}
+            {t(
+              (pending?.perFile.length ?? 0) === 1
+                ? "batch.preset.dialogTitleOne"
+                : "batch.preset.dialogTitleMany",
+              { count: pending?.perFile.length ?? 0 },
+            )}
           </DialogTitle>
           <DialogDescription className="mt-0.5 pb-3 text-left text-[13px] text-muted-foreground">
-            Preview what would change in every file. Nothing is applied
-            until you confirm — the originals are never rewritten.
+            {t("batch.preset.dialogDescription")}
           </DialogDescription>
         </div>
         <div className="max-h-[min(70vh,640px)] overflow-y-auto overscroll-contain p-5">
@@ -69,8 +76,13 @@ export function BatchPresetDialog({
                     }
                   >
                     {file.plans !== null && file.plans.length > 0
-                      ? `${file.plans.length} step${file.plans.length === 1 ? "" : "s"}`
-                      : "nothing to do"}
+                      ? t(
+                          file.plans.length === 1
+                            ? "batch.preset.stepOne"
+                            : "batch.preset.stepMany",
+                          { count: file.plans.length },
+                        )
+                      : t("batch.preset.nothingToDo")}
                   </StatusBadge>
                   <span
                     className="min-w-0 flex-1 truncate text-[13px] font-semibold"
@@ -85,9 +97,9 @@ export function BatchPresetDialog({
                     className="text-[11.5px] leading-relaxed text-muted-foreground"
                   >
                     <span className="font-semibold text-ink">
-                      {plan.label}.
+                      {translateLabel(t, plan.label)}.
                     </span>{" "}
-                    {plan.summary[0]}
+                    {translateLabel(t, plan.summary[0] ?? "")}
                   </p>
                 ))}
               </li>
@@ -96,14 +108,14 @@ export function BatchPresetDialog({
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 border-t-[1.5px] border-ink px-5 py-3.5">
           <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
+            {t("batch.preset.cancel")}
           </Button>
           <Button
             type="button"
             data-testid="batch-preset-confirm"
             onClick={onConfirm}
           >
-            Apply to the queue
+            {t("batch.preset.apply")}
           </Button>
         </div>
       </DialogContent>

@@ -36,6 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import type { SplitsResult, SplitRow } from "@/hooks/use-splits";
 import { splitPaceMsPerMeter } from "@/hooks/use-splits";
 import type { PaceUnit } from "@/lib/utils/format";
@@ -81,23 +82,61 @@ function rangeLabel(fromM: number, toM: number, unit: PaceUnit): string {
   return `${label(fromM)}–${label(toM)}`;
 }
 
+/** The split provenance vocabulary, inline (lowercase, per bar title). */
+const SPLIT_PROVENANCE_WORD_KEYS: Record<
+  SplitRow["provenance"],
+  string
+> = {
+  recorded: "stats.provenanceWord.recorded",
+  estimated: "stats.provenanceWord.estimated",
+  mixed: "stats.provenanceWord.mixed",
+};
+
 /** The per-split honesty flags as one muted line ("" when clean). */
-function flagLabel(row: SplitRow): string {
+function flagLabel(t: TranslatorArg, row: SplitRow): string {
   const parts: string[] = [];
-  if (row.gapLegs > 0) parts.push(`${row.gapLegs} gap leg${row.gapLegs === 1 ? "" : "s"}`);
+  if (row.gapLegs > 0)
+    parts.push(
+      t(row.gapLegs === 1 ? "stats.flags.gapLeg.one" : "stats.flags.gapLeg.many", {
+        count: row.gapLegs,
+      }),
+    );
   if (row.untimedLegs > 0)
-    parts.push(`${row.untimedLegs} untimed leg${row.untimedLegs === 1 ? "" : "s"}`);
+    parts.push(
+      t(
+        row.untimedLegs === 1
+          ? "stats.flags.untimedLeg.one"
+          : "stats.flags.untimedLeg.many",
+        { count: row.untimedLegs },
+      ),
+    );
   if (row.reversedLegs > 0)
-    parts.push(`${row.reversedLegs} reversed leg${row.reversedLegs === 1 ? "" : "s"}`);
+    parts.push(
+      t(
+        row.reversedLegs === 1
+          ? "stats.flags.reversedLeg.one"
+          : "stats.flags.reversedLeg.many",
+        { count: row.reversedLegs },
+      ),
+    );
   return parts.join(" · ");
 }
 
 /** One split's bar title (hover + SR text). */
-function barTitle(row: SplitRow, unit: PaceUnit): string {
+function barTitle(
+  t: TranslatorArg,
+  row: SplitRow,
+  unit: PaceUnit,
+): string {
   const pace = splitPaceMsPerMeter(row);
-  return `Split ${row.index} — ${
-    pace === undefined ? "no time" : formatPace(row.timeMs, row.distanceM, unit)
-  } (${row.provenance})`;
+  return t("splits.barTitle", {
+    index: row.index,
+    pace:
+      pace === undefined
+        ? t("splits.barNoTime")
+        : formatPace(row.timeMs, row.distanceM, unit),
+    provenance: t(SPLIT_PROVENANCE_WORD_KEYS[row.provenance]),
+  });
 }
 
 function PaceChart({
@@ -107,6 +146,7 @@ function PaceChart({
   splits: SplitsResult;
   unit: PaceUnit;
 }) {
+  const { t } = useI18n();
   const bars = splits.rows.filter((row) => splitPaceMsPerMeter(row) !== undefined);
   if (bars.length === 0) return null;
 
@@ -133,7 +173,9 @@ function PaceChart({
       className="h-[150px] w-full"
       data-testid="splits-pace-chart"
       role="img"
-      aria-label={`Average pace per ${unit === "km" ? "kilometer" : "mile"} — slower splits draw taller bars; signal-orange bars include reconstructed (estimated) stretches.`}
+      aria-label={t("splits.ariaPaceChart", {
+        unit: t(unit === "km" ? "splits.kilometer" : "splits.mile"),
+      })}
     >
       {/* Y axis: 0 (floor), the mid, and the slowest pace labels. */}
       {[0, maxPace / 2, maxPace].map((pace, index) => {
@@ -193,7 +235,7 @@ function PaceChart({
               strokeWidth={2.5}
               strokeDasharray="2 2"
             >
-              {!dense && <title>{barTitle(row, unit)}</title>}
+              {!dense && <title>{barTitle(t, row, unit)}</title>}
             </line>
           );
         }
@@ -216,7 +258,7 @@ function PaceChart({
               : {})}
             rx={1}
           >
-            {!dense && <title>{barTitle(row, unit)}</title>}
+            {!dense && <title>{barTitle(t, row, unit)}</title>}
           </rect>
         );
       })}
@@ -227,7 +269,7 @@ function PaceChart({
           textAnchor="end"
           className="fill-muted-foreground text-[9px]"
         >
-          {splits.rows.length} bars — hover readouts off at this density
+          {t("splits.denseNote", { count: splits.rows.length })}
         </text>
       )}
     </svg>
@@ -240,6 +282,7 @@ export interface SplitsCardProps {
 }
 
 export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
+  const { t } = useI18n();
   const [tableOpen, setTableOpen] = useState(true);
   const [rowsShown, setRowsShown] = useState(TABLE_PAGE);
   const rows = splits.rows;
@@ -254,13 +297,12 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          Splits &amp; pace
+          {t("splits.title")}
         </h3>
         <CardDescription>
-          Every {paceUnit === "km" ? "kilometer" : "mile"} of the route as it
-          would export — working copy plus committed repairs. Splits crossing
-          reconstructed stretches are flagged; the unit follows the pace
-          toggle above.
+          {t("splits.desc", {
+            unit: t(paceUnit === "km" ? "splits.kilometer" : "splits.mile"),
+          })}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -268,8 +310,7 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
           <PaceChart splits={splits} unit={paceUnit} />
         ) : (
           <p className="mb-3 text-[12.5px] leading-relaxed text-muted-foreground">
-            No timing data in this file — the splits below show distance and
-            elevation only.
+            {t("splits.noTiming")}
           </p>
         )}
 
@@ -282,7 +323,7 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
             className="rounded-[5px] px-2 py-1 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2"
             onClick={() => setTableOpen((open) => !open)}
           >
-            {tableOpen ? "Hide split table" : "Show split table"}
+            {tableOpen ? t("splits.hideTable") : t("splits.showTable")}
           </button>
         </div>
 
@@ -291,8 +332,10 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
             data-testid="splits-cap-note"
             className="mt-1.5 text-[11.5px] leading-snug text-muted-foreground"
           >
-            Showing {visibleRows.length} of {rows.length} splits — the
-            stats CSV carries every one.
+            {t("splits.capNote", {
+              shown: visibleRows.length,
+              total: rows.length,
+            })}
           </p>
         )}
 
@@ -305,43 +348,43 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
                     scope="col"
                     className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                   >
-                    Split
+                    {t("splits.colSplit")}
                   </TableHead>
                   <TableHead
                     scope="col"
                     className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                   >
-                    Distance
+                    {t("splits.colDistance")}
                   </TableHead>
                   <TableHead
                     scope="col"
                     className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                   >
-                    Time
+                    {t("splits.colTime")}
                   </TableHead>
                   <TableHead
                     scope="col"
                     className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                   >
-                    Avg pace
+                    {t("splits.colAvgPace")}
                   </TableHead>
                   <TableHead
                     scope="col"
                     className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                   >
-                    Gain
+                    {t("splits.colGain")}
                   </TableHead>
                   <TableHead
                     scope="col"
                     className="h-auto pb-2 text-right text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
                   >
-                    Source
+                    {t("stats.source")}
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visibleRows.map((row) => {
-                  const flags = flagLabel(row);
+                  const flags = flagLabel(t, row);
                   return (
                     <TableRow key={row.index} data-testid={`split-row-${row.index}`}>
                       <TableCell className="whitespace-nowrap font-mono text-[12px]">
@@ -357,7 +400,7 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
                         {flags !== "" && (
                           <span
                             className="block text-[10.5px] leading-snug text-muted-foreground"
-                            title="Partial time — these legs contributed distance but no time"
+                            title={t("splits.partialTimeTitle")}
                           >
                             {flags}
                           </span>
@@ -374,7 +417,7 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
                           : formatElevationMeters(row.eleGainM)}
                         {row.eleEstimated && row.eleGainM !== null && (
                           <span className="ml-1 align-super text-[9px] font-bold text-signal-ink">
-                            est
+                            {t("splits.est")}
                           </span>
                         )}
                       </TableCell>
@@ -399,14 +442,14 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
                           setRowsShown((shown) => shown + TABLE_PAGE)
                         }
                       >
-                        Show {TABLE_PAGE} more splits
+                        {t("splits.showMore", { count: TABLE_PAGE })}
                       </button>
                     </TableCell>
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-transparent">
                   <TableCell className="border-t-[1.5px] border-ink/25 pt-2 font-semibold">
-                    Total
+                    {t("splits.total")}
                   </TableCell>
                   <TableCell className="border-t-[1.5px] border-ink/25 pt-2 tabular-nums font-semibold">
                     {formatDistanceForUnit(totalDistance, paceUnit)}
@@ -415,10 +458,16 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
                     colSpan={4}
                     className="border-t-[1.5px] border-ink/25 pt-2 text-[11px] text-muted-foreground"
                   >
-                    {rows.length} split{rows.length === 1 ? "" : "s"} of 1{" "}
-                    {paceUnit} — gains use the{" "}
-                    {splits.hysteresisThresholdM} m hysteresis deadband,
-                    attributed where each climb completes.
+                    {t(
+                      rows.length === 1
+                        ? "splits.totalRow.one"
+                        : "splits.totalRow.many",
+                      {
+                        count: rows.length,
+                        unit: paceUnit,
+                        threshold: splits.hysteresisThresholdM,
+                      },
+                    )}
                   </TableCell>
                 </TableRow>
               </TableBody>

@@ -11,10 +11,11 @@
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import {
-  GAP_KIND_LABELS,
+  GAP_KIND_LABEL_KEYS,
   GapSeverityBadge,
 } from "@/components/shared/gap-vocabulary";
 import type { GapRow } from "@/hooks/use-gpx-session";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   formatDistanceMeters,
   formatDurationMs,
@@ -27,6 +28,7 @@ export interface GapHighlightOverlayProps {
 }
 
 export function GapHighlightOverlay({ gap, onClear }: GapHighlightOverlayProps) {
+  const { t } = useI18n();
   return (
     <div
       className="absolute left-2 top-2 z-10 w-[264px] overflow-hidden rounded-[10px] border-[1.5px] border-ink bg-card shadow-float"
@@ -37,12 +39,12 @@ export function GapHighlightOverlay({ gap, onClear }: GapHighlightOverlayProps) 
           <div className="flex flex-wrap items-center gap-1.5">
             <GapSeverityBadge severity={gap.severity} />
             <span className="text-xs font-semibold">
-              {GAP_KIND_LABELS[gap.kind]}
+              {t(GAP_KIND_LABEL_KEYS[gap.kind])}
             </span>
           </div>
           <dl className="grid gap-0.5 text-[11px] text-muted-foreground">
             <div className="flex justify-between gap-2">
-              <dt>Elapsed</dt>
+              <dt>{t("map.gapChip.elapsed")}</dt>
               <dd className="tabular-nums text-foreground">
                 {gap.elapsedMs !== undefined
                   ? formatDurationMs(gap.elapsedMs)
@@ -50,7 +52,7 @@ export function GapHighlightOverlay({ gap, onClear }: GapHighlightOverlayProps) 
               </dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt>Straight-line</dt>
+              <dt>{t("map.gapChip.straightLine")}</dt>
               <dd className="tabular-nums text-foreground">
                 {gap.impliedDistanceM !== undefined
                   ? formatDistanceMeters(gap.impliedDistanceM)
@@ -59,7 +61,7 @@ export function GapHighlightOverlay({ gap, onClear }: GapHighlightOverlayProps) 
             </div>
             {gap.impliedSpeed !== undefined && (
               <div className="flex justify-between gap-2">
-                <dt>Implied speed</dt>
+                <dt>{t("map.gapChip.impliedSpeed")}</dt>
                 <dd className="tabular-nums text-foreground">
                   {formatSpeedKmh(gap.impliedSpeed * 3.6)}
                 </dd>
@@ -67,15 +69,14 @@ export function GapHighlightOverlay({ gap, onClear }: GapHighlightOverlayProps) 
             )}
           </dl>
           <p className="text-[10px] leading-snug text-muted-foreground">
-            The path between the markers was not recorded — it will be drawn
-            in a later step.
+            {t("map.gapChip.note")}
           </p>
         </div>
         <Button
           variant="ghost"
           size="sm"
           className="size-5.5 shrink-0 rounded-[5px] p-0"
-          aria-label="Clear gap selection"
+          aria-label={t("map.gapChip.clearAria")}
           onClick={onClear}
         >
           <X className="size-3.5" aria-hidden="true" />

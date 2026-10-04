@@ -51,6 +51,8 @@ import {
 import { DEFAULT_HYSTERESIS_THRESHOLD_M } from "@/features/elevation/smoothing";
 import { useEditorStore } from "@/state/editor-store";
 import { useElevationStore } from "@/state/elevation-store";
+import { translateNow } from "@/i18n/runtime";
+import { useI18n } from "@/hooks/use-i18n";
 import type { GapId, LatLon } from "@/types/domain";
 import type { DrawEditorBinding } from "@/hooks/use-draw-editor";
 import type { GpxSession } from "@/hooks/use-gpx-session";
@@ -108,15 +110,15 @@ function requestCountFor(sentPoints: number): number {
 function elevationFailureMessage(reason: ElevationFailureReason | null): string {
   switch (reason) {
     case "network":
-      return "The elevation service could not be reached — check your connection and try again.";
+      return translateNow("hook.elevation.errorNetwork");
     case "throttled":
-      return "The elevation service is rate-limiting requests — wait a few seconds and try again.";
+      return translateNow("hook.elevation.errorThrottled");
     case "server":
-      return "The elevation service is having trouble right now — try again in a moment.";
+      return translateNow("hook.elevation.errorServer");
     case "bad-response":
-      return "The elevation service returned an unexpected response — try again in a moment.";
+      return translateNow("hook.elevation.errorBadResponse");
     default:
-      return "The elevation service returned no usable data — try again in a moment.";
+      return translateNow("hook.elevation.errorNoData");
   }
 }
 
@@ -152,10 +154,11 @@ export interface ElevationControlsBinding {
     totalPoints: number;
     requestCount: number;
   } | null;
-  /** Provider copy (disclosure + attribution). */
+  /** Provider copy (disclosure + attribution). Phase 21: the privacy
+   * note rides as a KEY — the disclosure dialog translates it. */
   providerName: string;
   attribution: string;
-  privacyNote: string;
+  privacyNoteKey: string;
   /** Per-gap summary of the fetched samples (fresh complete/partial only). */
   summary: {
     minEleM: number;
@@ -199,6 +202,7 @@ export function useElevation(
 
   const provider = getElevationProvider();
   const activeGap = draw.activeGap;
+  const { t } = useI18n();
 
   // -- lifecycle hygiene (same contract as useDrawEditor) ------------------
 
@@ -389,7 +393,7 @@ export function useElevation(
     blockedReason: !draw.active
       ? null
       : (activeRecon?.vertices.length ?? 0) === 0
-        ? "Draw the missing route first — elevation is estimated for the points you draw."
+        ? t("hook.elevation.blockedDrawRoute")
         : null,
     status,
     stale,
@@ -401,7 +405,7 @@ export function useElevation(
     disclosure,
     providerName: provider.name,
     attribution: provider.attribution,
-    privacyNote: provider.privacyNote,
+    privacyNoteKey: provider.privacyNoteKey,
     summary,
     error: activeRecord?.error ?? null,
     confirmFetch,

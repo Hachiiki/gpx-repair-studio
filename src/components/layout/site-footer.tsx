@@ -26,7 +26,9 @@
 
 import { Keyboard, Milestone, ShieldCheck } from "lucide-react";
 import { SHELL_CONTAINER } from "@/components/layout/shell-container";
+import { LanguageToggle } from "@/components/layout/language-toggle";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { useI18n } from "@/hooks/use-i18n";
 import type { InfoPane } from "@/components/layout/info-dialog";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +55,7 @@ export function SiteFooter({
   routerHostsLabel,
   onOpenRouterConsent,
 }: SiteFooterProps) {
+  const { t } = useI18n();
   return (
     <footer
       data-print-hide
@@ -67,10 +70,7 @@ export function SiteFooter({
       >
         <p className="flex items-center gap-1.5">
           <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>
-            All processing happens in your browser — the file never
-            leaves this device.
-          </span>
+          <span>{t("footer.privacyLine")}</span>
         </p>
         {/*
          * §EE 17.2 — the consent state, shown while active: the one
@@ -90,7 +90,7 @@ export function SiteFooter({
               className="inline-flex items-center gap-1.5 rounded-[4px] border border-signal/40 bg-signal/[0.07] px-2 py-0.5 text-[11.5px] font-semibold text-ink transition-colors hover:bg-signal/[0.14] focus-visible:outline-2"
             >
               <Milestone className="size-3.5 shrink-0 text-signal" aria-hidden="true" />
-              Road snapping on — drawn points go to{" "}
+              {t("footer.routerConsentPrefix")}{" "}
               <span className="font-mono text-[10.5px]">{routerHostsLabel}</span>
             </button>
           </>
@@ -104,8 +104,13 @@ export function SiteFooter({
           className="hidden h-3.5 w-px bg-ink/20 sm:block"
           aria-hidden="true"
         />
+        <LanguageToggle />
+        <span
+          className="hidden h-3.5 w-px bg-ink/20 sm:block"
+          aria-hidden="true"
+        />
         <nav
-          aria-label="About, help, and privacy"
+          aria-label={t("footer.navA11y")}
           className="flex items-center gap-3"
         >
           <button
@@ -114,7 +119,7 @@ export function SiteFooter({
             onClick={() => onOpenInfo("about")}
             className={LINK_CLASS}
           >
-            About
+            {t("footer.about")}
           </button>
           <button
             type="button"
@@ -123,7 +128,7 @@ export function SiteFooter({
             className={cn(LINK_CLASS, "inline-flex items-center gap-1")}
           >
             <Keyboard className="size-3.5" aria-hidden="true" />
-            Shortcuts &amp; help
+            {t("footer.help")}
           </button>
           <button
             type="button"
@@ -131,7 +136,7 @@ export function SiteFooter({
             onClick={() => onOpenInfo("privacy")}
             className={LINK_CLASS}
           >
-            Privacy &amp; data
+            {t("footer.privacy")}
           </button>
         </nav>
       </div>

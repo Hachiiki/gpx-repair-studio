@@ -28,6 +28,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useI18n } from "@/hooks/use-i18n";
 import { AppHeader } from "@/components/layout/header";
 import {
   SessionIdleView,
@@ -121,6 +122,7 @@ import type { PointRef } from "@/types/domain";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
+  const { t } = useI18n();
   const session = useGpxSession();
   /*
    * Phase 19 — the compare overlay joins BEFORE the map (the map
@@ -251,7 +253,10 @@ export function AppShell() {
     s.items.length === 1
       ? s.items[0]!.fileName
       : s.items.length > 0
-        ? `${s.items.length} files`
+        ? // t runs inside the selector on purpose: the label is a
+          // primitive, and a locale change re-renders the shell (the
+          // new t re-runs it with the fresh dictionary).
+          t("shell.header.batchFiles", { count: s.items.length })
         : null,
   );
   const section: AppSection =
@@ -483,6 +488,7 @@ export function AppShell() {
     (query: string) => {
       const ids = new Set(
         searchCommands(
+          t,
           commands.commands.map((command) => command.def),
           query,
           commands.context,
@@ -490,7 +496,7 @@ export function AppShell() {
       );
       return commands.commands.filter((command) => ids.has(command.def.id));
     },
-    [commands],
+    [commands, t],
   );
   const paletteSessions = useMemo(
     () =>
@@ -620,8 +626,8 @@ export function AppShell() {
       void session.loadFile(file);
     }
   };
-  const sampleLabel =
-    landingMode === "share" ? "a sample run" : "a sample ride";
+  const sampleLabelKey =
+    landingMode === "share" ? "sample.run" : "sample.ride";
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -630,7 +636,7 @@ export function AppShell() {
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-lg"
       >
-        Skip to content
+        {t("shell.skipToContent")}
       </a>
 
       {/* Phase 8 — the single polite aria-live region (app-wide). */}
@@ -641,14 +647,16 @@ export function AppShell() {
           section === "recovery"
             ? recoveryFileName
             : section === "create"
-              ? "Activity from stats"
+              ? t("shell.header.createFileName")
               : section === "merge"
                 ? mergeCombinedName.trim() ||
-                  `${mergeParsedCount} recordings merged`
+                  t("shell.header.mergedRecordings", {
+                    count: mergeParsedCount,
+                  })
                 : section === "plan"
-                  ? "Route plan"
+                  ? t("shell.header.planFileName")
                   : section === "batch"
-                    ? (batchFileName ?? "Batch queue")
+                    ? (batchFileName ?? t("shell.header.batchFallback"))
                     : session.fileName
         }
         status={
@@ -677,12 +685,12 @@ export function AppShell() {
         view={session.view}
         onSwitchView={session.setView}
         section={section}
-        resetLabel={
+        resetLabelKey={
           section === "create" ||
           section === "merge" ||
           section === "plan" ||
           section === "batch"
-            ? "Start over"
+            ? "header.startOver"
             : undefined
         }
         /*
@@ -924,11 +932,14 @@ export function AppShell() {
                           profile={elevationStats.profile}
                           gainLossSummary={
                             elevationStats.rows.mixed
-                              ? `${Math.round(
-                                  elevationStats.rows.mixed.gainM,
-                                )} m up, ${Math.round(
-                                  elevationStats.rows.mixed.lossM,
-                                )} m down`
+                              ? t("shell.elevation.gainLoss", {
+                                  gain: Math.round(
+                                    elevationStats.rows.mixed.gainM,
+                                  ),
+                                  loss: Math.round(
+                                    elevationStats.rows.mixed.lossM,
+                                  ),
+                                })
                               : null
                           }
                         />
@@ -992,7 +1003,7 @@ export function AppShell() {
                 ? trySample
                 : undefined
             }
-            sampleLabel={sampleLabel}
+            sampleLabelKey={sampleLabelKey}
             batchIntake={<BatchIntake session={batchSession} />}
             createStats={createStats}
             paceUnit={paceUnit}

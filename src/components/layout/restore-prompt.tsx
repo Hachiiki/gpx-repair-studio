@@ -32,30 +32,38 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
+import { translateLabel } from "@/i18n/runtime";
 import type { SessionRecoveryController } from "@/hooks/use-session-recovery";
 import type { SessionSection } from "@/lib/storage/sessionStore";
 
 const SECTION_META: Record<
   SessionSection,
-  { kicker: string; icon: LucideIcon }
+  { kickerKey: string; icon: LucideIcon }
 > = {
-  repair: { kicker: "Repair", icon: Wrench },
-  recovery: { kicker: "Gap recovery", icon: History },
-  create: { kicker: "Create from stats", icon: Watch },
-  plan: { kicker: "Route plan", icon: PencilRuler },
+  repair: { kickerKey: "restore.kicker.repair", icon: Wrench },
+  recovery: { kickerKey: "restore.kicker.recovery", icon: History },
+  create: { kickerKey: "restore.kicker.create", icon: Watch },
+  plan: { kickerKey: "restore.kicker.plan", icon: PencilRuler },
 };
 
-/** Plain-language "saved X ago" — no locale machinery for one string. */
-function savedAgo(savedAt: number): string {
+/**
+ * Plain-language "saved X ago" — one/many key pairs per unit, with
+ * {count} interpolation (Phase 21: the locale machinery is here now,
+ * so the string rides the tours dictionary like everything else).
+ */
+function savedAgo(t: TranslatorArg, savedAt: number): string {
   const minutes = Math.max(0, Math.round((Date.now() - savedAt) / 60_000));
-  if (minutes < 1) return "saved just now";
-  if (minutes === 1) return "saved 1 minute ago";
-  if (minutes < 60) return `saved ${minutes} minutes ago`;
+  if (minutes < 1) return t("restore.savedJustNow");
+  if (minutes === 1) return t("restore.savedMinuteOne");
+  if (minutes < 60) return t("restore.savedMinuteMany", { count: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours === 1) return "saved 1 hour ago";
-  if (hours < 24) return `saved ${hours} hours ago`;
+  if (hours === 1) return t("restore.savedHourOne");
+  if (hours < 24) return t("restore.savedHourMany", { count: hours });
   const days = Math.round(hours / 24);
-  return days === 1 ? "saved 1 day ago" : `saved ${days} days ago`;
+  return days === 1
+    ? t("restore.savedDayOne")
+    : t("restore.savedDayMany", { count: days });
 }
 
 export interface RestorePromptProps {
@@ -73,11 +81,12 @@ export function RestorePrompt({
   recovery,
   onOpenPrivacy,
 }: RestorePromptProps): ReactNode {
+  const { t } = useI18n();
   if (recovery.offers.length === 0) return null;
   return (
     <section
       data-testid="restore-prompt"
-      aria-label="Unsaved sessions on this device"
+      aria-label={t("restore.ariaLabel")}
       className="rounded-[10px] border-[1.5px] border-ink bg-card text-left"
     >
       <div className="flex items-start gap-3 border-b-[1.5px] border-ink/15 p-4">
@@ -89,11 +98,10 @@ export function RestorePrompt({
         </span>
         <div className="min-w-0">
           <h3 className="text-[16px] font-bold tracking-tight">
-            Unfinished work on this device
+            {t("restore.title")}
           </h3>
           <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">
-            A browser reload or closed tab would lose it. Restore to pick
-            up exactly where you left off.
+            {t("restore.blurb")}
           </p>
         </div>
       </div>
@@ -116,17 +124,17 @@ export function RestorePrompt({
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-baseline gap-x-2">
                     <span className="font-mono text-[10.5px] font-medium uppercase tracking-[0.16em] text-shade">
-                      {meta.kicker}
+                      {t(meta.kickerKey)}
                     </span>
                     <span
                       className="truncate text-[14.5px] font-semibold"
                       data-testid={`restore-label-${offer.section}`}
                     >
-                      {offer.label}
+                      {translateLabel(t, offer.label)}
                     </span>
                   </p>
                   <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
-                    {offer.detail} · {savedAgo(offer.savedAt)}
+                    {offer.detail.map((part) => translateLabel(t, part)).join(t("restore.desc.join"))} · {savedAgo(t, offer.savedAt)}
                   </p>
                 </div>
               </div>
@@ -144,12 +152,12 @@ export function RestorePrompt({
                         className="size-4 animate-spin"
                         aria-hidden="true"
                       />
-                      Restoring…
+                      {t("restore.restoring")}
                     </>
                   ) : (
                     <>
                       <RotateCcw className="size-4" aria-hidden="true" />
-                      Restore
+                      {t("restore.restore")}
                     </>
                   )}
                 </Button>
@@ -162,7 +170,7 @@ export function RestorePrompt({
                   onClick={() => recovery.discard(offer.section)}
                 >
                   <Trash2 className="size-4" aria-hidden="true" />
-                  Discard
+                  {t("restore.discard")}
                 </Button>
               </div>
             </li>
@@ -177,9 +185,7 @@ export function RestorePrompt({
        */}
       <div className="flex flex-col gap-2 border-t-[1.5px] border-ink/15 p-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-[52ch] text-[12px] leading-relaxed text-muted-foreground">
-          Saved sessions — your file and the edits you drew — stay in this
-          browser&apos;s storage on this device. They are never uploaded,
-          and restoring re-opens them exactly as they were.
+          {t("restore.privacy")}
           {onOpenPrivacy && (
             <>
               {" "}
@@ -189,7 +195,7 @@ export function RestorePrompt({
                 onClick={onOpenPrivacy}
                 className="rounded-[4px] font-semibold text-muted-foreground underline decoration-ink/25 underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-2"
               >
-                More about privacy and data
+                {t("restore.morePrivacy")}
               </button>
             </>
           )}
@@ -204,7 +210,7 @@ export function RestorePrompt({
           onClick={() => recovery.clearAll()}
         >
           <Trash2 className="size-4" aria-hidden="true" />
-          Clear all saved sessions
+          {t("restore.clearAll")}
         </Button>
       </div>
     </section>

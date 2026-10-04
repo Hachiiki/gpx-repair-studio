@@ -119,6 +119,38 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   },
 },
 
+
+// ---------------------------------------------------------------------------
+// Phase 21 — no hard-coded UI strings (docs/MASTER_PLAN.md §EE 21.1).
+// JSX text and text-bearing props must flow through the i18n runtime
+// (useI18n().t / translateNow / translateLabel), never ship as raw
+// literals. Scope: the app's own surfaces — components (minus the
+// dormant shadcn boilerplate in ui/, never rendered), hooks, state,
+// and the app shell. esquery selectors keep this dependency-free.
+//
+// Legitimate non-copy (machine values, single letters like the
+// compass "N", punctuation-only nodes) never matches. Genuinely
+// untranslatable text (artifact vocabulary shown as an example) may
+// carry an inline eslint-disable with a reason — reviewable diffs.
+{
+  files: ["src/components/**/*.{ts,tsx}", "src/hooks/**/*.{ts,tsx}", "src/state/**/*.{ts,tsx}", "src/app/**/*.{ts,tsx}"],
+  ignores: ["src/components/ui/**"],
+  rules: {
+    "no-restricted-syntax": ["error",
+      {
+        selector: "JSXText[value=/[A-Za-z]{2,}/]",
+        message:
+          "Hard-coded UI text — move it to the dictionary and render t('your.key') (Phase 21 §EE 21.1).",
+      },
+      {
+        selector: "JSXAttribute[name.name=/^(label|title|placeholder|alt|aria-label|aria-description|description|kicker|blurb|heading|summary|message|text|caption|hint|prompt)$/] > Literal[value=/[A-Za-z]{2,}/]",
+        message:
+          "Text-bearing prop with a hard-coded string — pass a dictionary key and resolve it through t() at render (Phase 21 §EE 21.1).",
+      },
+    ],
+  },
+},
+
 // 4) Composition rule: app/page.tsx composes layout components and hooks only.
 {
   files: ["src/app/page.tsx"],

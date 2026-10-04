@@ -22,6 +22,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useI18n } from "@/hooks/use-i18n";
+import { translateLabel } from "@/i18n/runtime";
 import type { FixPlan } from "@/types/domain";
 import { formatDateTime, formatLatLon } from "@/lib/utils/format";
 
@@ -58,6 +60,7 @@ export function FixPreviewDialog({
   onConfirm,
   onClose,
 }: FixPreviewDialogProps) {
+  const { t } = useI18n();
   const open = plans !== null && plans.length > 0;
   const touched = plans?.flatMap((plan) => plan.points) ?? [];
   const shown = touched.slice(0, LISTED_POINTS_CAP);
@@ -74,8 +77,7 @@ export function FixPreviewDialog({
             {title}
           </DialogTitle>
           <DialogDescription className="mt-0.5 pb-3 text-left text-[13px] text-muted-foreground">
-            Preview what would change. Nothing is applied until you confirm —
-            the original file is never rewritten.
+            {t("fixPreview.description")}
           </DialogDescription>
         </div>
 
@@ -86,13 +88,13 @@ export function FixPreviewDialog({
                 key={`${plan.kind}-${index}`}
                 data-testid="fix-preview-plan"
                 className="grid gap-2"
-                aria-label={plan.label}
+                aria-label={translateLabel(t, plan.label)}
               >
                 <h3 className="text-[13.5px] font-bold">
                   <span className="mr-1.5 inline-flex size-[18px] items-center justify-center rounded-[4px] border-[1.25px] border-ink/40 font-mono text-[10.5px] font-semibold">
                     {index + 1}
                   </span>
-                  {plan.label}
+                  {translateLabel(t, plan.label)}
                 </h3>
                 <ul className="grid gap-1.5">
                   {plan.summary.map((line, lineIndex) => (
@@ -105,7 +107,7 @@ export function FixPreviewDialog({
                         aria-hidden="true"
                       />
                       <span className="min-w-0 [overflow-wrap:anywhere]">
-                        {line}
+                        {translateLabel(t, line)}
                       </span>
                     </li>
                   ))}
@@ -114,9 +116,12 @@ export function FixPreviewDialog({
             ))}
 
             {shown.length > 0 && (
-              <section aria-label="Affected points" className="grid gap-2">
+              <section
+                aria-label={t("fixPreview.affectedAria")}
+                className="grid gap-2"
+              >
                 <h3 className="text-[13.5px] font-bold">
-                  Affected points{" "}
+                  {t("fixPreview.affectedPoints")}{" "}
                   <span className="font-normal text-muted-foreground">
                     ({touched.length})
                   </span>
@@ -146,20 +151,21 @@ export function FixPreviewDialog({
                               : ""}
                           </>
                         ) : (
-                          " · unknown position"
+                          t("fixPreview.unknownPosition")
                         )}
                       </li>
                     );
                   })}
                   {touched.length > shown.length && (
                     <li className="text-[11.5px] text-muted-foreground">
-                      …and {touched.length - shown.length} more
+                      {t("fixPreview.andMore", {
+                        count: touched.length - shown.length,
+                      })}
                     </li>
                   )}
                 </ul>
                 <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-                  The list above is the text equivalent of the map view —
-                  every affected point is identifiable without the map.
+                  {t("fixPreview.textEquivalent")}
                 </p>
               </section>
             )}
@@ -173,7 +179,7 @@ export function FixPreviewDialog({
             className="rounded-[8px] border-[1.5px] border-ink/35 bg-card px-3.5 py-2 text-[13px] font-semibold text-muted-foreground transition-colors hover:border-ink hover:text-foreground focus-visible:outline-2"
             onClick={onClose}
           >
-            Cancel
+            {t("fixPreview.cancel")}
           </button>
           <button
             type="button"
@@ -181,8 +187,9 @@ export function FixPreviewDialog({
             className="rounded-[8px] border-[1.5px] border-signal bg-signal px-3.5 py-2 text-[13px] font-bold text-inkplus transition-colors hover:bg-signal/90 focus-visible:outline-2"
             onClick={onConfirm}
           >
-            Apply{" "}
-            {plans && plans.length > 1 ? `${plans.length} fixes` : "fix"}
+            {plans && plans.length > 1
+              ? t("fixPreview.applyFixes", { count: plans.length })
+              : t("fixPreview.applyFix")}
           </button>
         </div>
       </DialogContent>

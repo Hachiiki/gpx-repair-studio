@@ -44,6 +44,7 @@ import {
   exportMimeType,
 } from "@/lib/utils/download";
 import { announce } from "@/lib/announcements";
+import { useI18n } from "@/hooks/use-i18n";
 import { useEditorStore } from "@/state/editor-store";
 import { useUiStore } from "@/state/ui-store";
 import type { DrawEditorBinding, RepairRow } from "@/hooks/use-draw-editor";
@@ -144,6 +145,7 @@ export function useGpxExport(
   draw: DrawEditorBinding,
   elevation: ElevationAttachmentInput = null,
 ): GpxExportBinding {
+  const { t } = useI18n();
   const reconstructions = useEditorStore((s) => s.reconstructions);
   const roadLegs = useEditorStore((s) => s.roadLegs);
   const skippedGapIds = useEditorStore((s) => s.skippedGapIds);
@@ -334,7 +336,7 @@ export function useGpxExport(
     downloadTextFile(fileName, text, exportMimeType(exportFormat));
     // Phase 8: no visual focus moves on a blob download — the
     // aria-live region speaks it.
-    announce(`Export ready — ${fileName} downloaded.`);
+    announce(t("hook.export.ready", { fileName }));
     return fileName;
   }, [
     workingData,
@@ -345,6 +347,7 @@ export function useGpxExport(
     session.fileName,
     session.distanceStats,
     session.timeStats,
+    t,
   ]);
 
   return {

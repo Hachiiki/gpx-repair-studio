@@ -19,28 +19,29 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { BatchSessionBinding, ExportMode } from "@/hooks/use-batch-session";
+import { useI18n } from "@/hooks/use-i18n";
 
-const MODE_OPTIONS: readonly { value: ExportMode; label: string }[] = [
-  { value: "structure-preserving", label: "Structure-preserving" },
-  { value: "merged", label: "Merged single segment" },
+const MODE_OPTIONS: readonly { value: ExportMode; labelKey: string }[] = [
+  { value: "structure-preserving", labelKey: "batch.export.modeStructure" },
+  { value: "merged", labelKey: "batch.export.modeMerged" },
 ];
 
 export function BatchExportCard({ session }: { session: BatchSessionBinding }) {
+  const { t } = useI18n();
   const parsed = session.aggregate.parsed;
   return (
     <Card data-testid="batch-export-card">
       <CardHeader>
         <h3 className="flex items-center gap-2 text-[15.5px] font-bold leading-tight">
           <FileArchive className="size-4 shrink-0 text-signal" aria-hidden="true" />
-          Export the batch
+          {t("batch.export.title")}
         </h3>
         <CardDescription>
-          One ZIP: a repaired GPX per parsed file + a manifest of what
-          changed.
+          {t("batch.export.description")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
-        <fieldset className="grid gap-1.5" aria-label="Export mode">
+        <fieldset className="grid gap-1.5" aria-label={t("batch.export.modeAria")}>
           {MODE_OPTIONS.map((option) => (
             <label
               key={option.value}
@@ -54,7 +55,9 @@ export function BatchExportCard({ session }: { session: BatchSessionBinding }) {
                 onChange={() => session.setExportMode(option.value)}
                 className="size-3.5 accent-signal"
               />
-              <span className="text-[13px] font-semibold">{option.label}</span>
+              <span className="text-[13px] font-semibold">
+                {t(option.labelKey)}
+              </span>
             </label>
           ))}
           <label className="mt-0.5 flex cursor-pointer items-center gap-2.5 rounded-[9px] border-[1.25px] border-ink/15 px-3 py-2 transition-colors has-checked:border-signal has-checked:bg-signal/[0.05]">
@@ -68,15 +71,13 @@ export function BatchExportCard({ session }: { session: BatchSessionBinding }) {
               data-testid="batch-export-pretty"
             />
             <span className="text-[13px] font-semibold">
-              Pretty-print the XML
+              {t("batch.export.prettyPrint")}
             </span>
           </label>
         </fieldset>
 
         <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-          Files with no applied fixes export unchanged (byte-identical to
-          the identity export). Duplicate names get a suffix — nothing is
-          overwritten. Everything is zipped in this tab.
+          {t("batch.export.note")}
         </p>
 
         <Button
@@ -87,13 +88,21 @@ export function BatchExportCard({ session }: { session: BatchSessionBinding }) {
           onClick={() => session.downloadZip()}
         >
           <Download className="size-4" aria-hidden="true" />
-          Download the ZIP ({parsed} file{parsed === 1 ? "" : "s"})
+          {t(
+            parsed === 1
+              ? "batch.export.downloadOne"
+              : "batch.export.downloadMany",
+            { count: parsed },
+          )}
         </Button>
         {session.aggregate.exported > 0 && (
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-            Last export covered {session.aggregate.exported} file
-            {session.aggregate.exported === 1 ? "" : "s"} — you can export
-            again anytime (files with later fixes are simply re-zipped).
+            {t(
+              session.aggregate.exported === 1
+                ? "batch.export.lastExportOne"
+                : "batch.export.lastExportMany",
+              { count: session.aggregate.exported },
+            )}
           </p>
         )}
       </CardContent>

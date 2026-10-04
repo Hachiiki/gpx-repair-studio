@@ -12,9 +12,11 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import { CircleAlert } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import type { SessionError } from "@/state/session-store";
 
 export function SessionErrorAlert({ error }: { error: SessionError }) {
+  const { t } = useI18n();
   return (
     <Alert variant="destructive" data-testid="session-error">
       <CircleAlert aria-hidden="true" />
@@ -23,8 +25,10 @@ export function SessionErrorAlert({ error }: { error: SessionError }) {
         <p>{error.detail}</p>
         {error.line !== undefined && (
           <p className="font-mono text-xs">
-            at line {error.line}
-            {error.column !== undefined ? `, column ${error.column}` : ""}
+            {t("sessionError.atLine", { line: error.line })}
+            {error.column !== undefined
+              ? t("sessionError.atColumn", { column: error.column })
+              : ""}
           </p>
         )}
       </AlertDescription>

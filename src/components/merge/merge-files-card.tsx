@@ -29,6 +29,7 @@ import {
   Locate,
   X,
 } from "lucide-react";
+import { useI18n } from "@/hooks/use-i18n";
 import {
   Card,
   CardContent,
@@ -63,6 +64,7 @@ export function MergeFilesCard({
   onAddFiles,
   onSortByStartTime,
 }: MergeFilesCardProps) {
+  const { t } = useI18n();
   const inputId = useId();
 
   const handleFiles = (list: FileList | null) => {
@@ -78,18 +80,17 @@ export function MergeFilesCard({
             className="size-2 shrink-0 rounded-[1px] bg-signal"
             aria-hidden="true"
           />
-          Files in this merge
+          {t("merge.arrangement.title")}
         </h3>
         <CardDescription>
-          They join in this order — top to bottom, one route. Rearrange,
-          remove, or add more; the map and the export follow along.
+          {t("merge.arrangement.intro")}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <ol
           className="flex flex-col gap-1.5"
           data-testid="merge-files-list"
-          aria-label="Merge order"
+          aria-label={t("merge.arrangement.orderLabel")}
         >
           {files.map((file, index) => (
             <li
@@ -100,7 +101,9 @@ export function MergeFilesCard({
               {/* The merge position — the number the order is. */}
               <span
                 className="mt-0.5 w-4 shrink-0 text-right font-mono text-[12px] font-semibold text-shade"
-                aria-label={`Position ${index + 1}`}
+                aria-label={t("merge.arrangement.position", {
+                  index: index + 1,
+                })}
               >
                 {index + 1}.
               </span>
@@ -113,14 +116,17 @@ export function MergeFilesCard({
                 </span>
                 {file.status === "parsing" && (
                   <span className="block text-[12px] text-muted-foreground">
-                    Reading…
+                    {t("merge.arrangement.reading")}
                   </span>
                 )}
                 {file.status === "parsed" && file.summary && (
                   <span className="block text-[12px] text-muted-foreground">
-                    {file.summary.pointCount} points ·{" "}
+                    {t("merge.arrangement.filePoints", {
+                      count: file.summary.pointCount,
+                    })} ·{" "}
                     {formatDistanceMeters(file.distanceM ?? 0)}
-                    {!file.summary.hasTimingData && " · no timestamps"}
+                    {!file.summary.hasTimingData &&
+                      ` · ${t("merge.arrangement.noTimestamps")}`}
                   </span>
                 )}
                 {file.status === "error" && file.error && (
@@ -132,7 +138,9 @@ export function MergeFilesCard({
               <span className="flex shrink-0 items-center gap-0.5">
                 <button
                   type="button"
-                  aria-label={`Move ${file.fileName} up`}
+                  aria-label={t("merge.arrangement.moveUp", {
+                    fileName: file.fileName,
+                  })}
                   disabled={index === 0}
                   onClick={() => onMove(file.id, -1)}
                   className="rounded-[5px] p-1.5 text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-30"
@@ -141,7 +149,9 @@ export function MergeFilesCard({
                 </button>
                 <button
                   type="button"
-                  aria-label={`Move ${file.fileName} down`}
+                  aria-label={t("merge.arrangement.moveDown", {
+                    fileName: file.fileName,
+                  })}
                   disabled={index === files.length - 1}
                   onClick={() => onMove(file.id, 1)}
                   className="rounded-[5px] p-1.5 text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-30"
@@ -150,7 +160,9 @@ export function MergeFilesCard({
                 </button>
                 <button
                   type="button"
-                  aria-label={`Show ${file.fileName} on the map`}
+                  aria-label={t("merge.arrangement.showOnMap", {
+                    fileName: file.fileName,
+                  })}
                   disabled={file.status !== "parsed"}
                   onClick={() => onFocusFile(file.id)}
                   className="rounded-[5px] p-1.5 text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-30"
@@ -159,7 +171,9 @@ export function MergeFilesCard({
                 </button>
                 <button
                   type="button"
-                  aria-label={`Remove ${file.fileName} from the merge`}
+                  aria-label={t("merge.arrangement.removeFile", {
+                    fileName: file.fileName,
+                  })}
                   onClick={() => onRemove(file.id)}
                   className="rounded-[5px] p-1.5 text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
                 >
@@ -179,7 +193,7 @@ export function MergeFilesCard({
             )}
           >
             <FileUp className="size-4" aria-hidden="true" />
-            Add files
+            {t("merge.arrangement.addFiles")}
           </label>
           <input
             id={inputId}
@@ -200,7 +214,7 @@ export function MergeFilesCard({
             className="inline-flex h-9 items-center gap-1.5 rounded-[7px] border-[1.5px] border-ink/25 bg-card px-3 text-[13px] font-semibold transition-colors hover:border-ink/45 focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-40"
           >
             <Clock className="size-4" aria-hidden="true" />
-            Sort by start time
+            {t("merge.arrangement.sortByTime")}
           </button>
         </div>
       </CardContent>

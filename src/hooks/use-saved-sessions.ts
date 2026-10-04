@@ -55,6 +55,7 @@ import { restoreSessionFromRecord } from "@/hooks/restore-session";
 import { sessionSectionHasWork } from "@/hooks/use-session-recovery";
 import { downloadTextFile } from "@/lib/utils/download";
 import { announce } from "@/lib/announcements";
+import { useI18n } from "@/hooks/use-i18n";
 import { useCreateStore } from "@/state/create-store";
 import { useEditorStore } from "@/state/editor-store";
 import { usePlanStore } from "@/state/plan-store";
@@ -66,7 +67,19 @@ import { useWorkingStore } from "@/state/working-store";
 /** One shelf row as the manager renders it (the storage entry + derived). */
 export type SavedSessionRow = SavedSessionEntry;
 
-/** The section labels the manager shows (the landing's vocabulary). */
+/**
+ * The sections' DICTIONARY KEYS (Phase 21) — UI surfaces (the palette
+ * rows, the manager) translate them; the canonical English labels
+ * below stay for FILE-NAME bases (an export's name is an artifact:
+ * "Plan a route.gpxrepair.json" must not become machine-locale).
+ */
+const SECTION_LABEL_KEYS: Record<SessionSection, string> = {
+  repair: "shell.section.repair",
+  recovery: "shell.section.recovery",
+  create: "shell.section.create",
+  plan: "shell.section.plan",
+};
+
 const SECTION_LABELS: Record<SessionSection, string> = {
   repair: "Repair",
   recovery: "Gap recovery",
@@ -76,6 +89,11 @@ const SECTION_LABELS: Record<SessionSection, string> = {
 
 export function savedSessionSectionLabel(section: SessionSection): string {
   return SECTION_LABELS[section];
+}
+
+/** The UI-facing key (translate at render). */
+export function savedSessionSectionKey(section: SessionSection): string {
+  return SECTION_LABEL_KEYS[section];
 }
 
 /** What the current capture holds (the save dialog's honesty line). */
@@ -255,6 +273,7 @@ export interface SavedSessionsBinding {
 }
 
 export function useSavedSessions(): SavedSessionsBinding {
+  const { t } = useI18n();
   const [rows, setRows] = useState<readonly SavedSessionRow[]>([]);
   const [hasScanned, setHasScanned] = useState(false);
   const [available, setAvailable] = useState(true);
@@ -280,7 +299,7 @@ export function useSavedSessions(): SavedSessionsBinding {
       if (trimmed.length === 0) return false;
       const capture = captureCurrentSession();
       if (capture === null) {
-        announce("Nothing to save yet — draw or fix something first.");
+        announce(t("hook.savedSessions.nothingToSave"));
         return false;
       }
       if (busyRef.current) return false;
@@ -302,25 +321,25 @@ export function useSavedSessions(): SavedSessionsBinding {
             : {}),
         });
         if (id === null) {
-          announce(
-            "Could not save the session — storage is unavailable or full.",
-          );
+          announce(t("hook.savedSessions.saveFailed"));
           return false;
         }
         await refresh();
-        announce(`Saved — "${trimmed}" is on your sessions shelf.`);
+        announce(
+          t("hook.savedSessions.saved", { name: trimmed }),
+        );
         return true;
       } finally {
         busyRef.current = false;
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const exportCurrent = useCallback(async () => {
     const capture = captureCurrentSession();
     if (capture === null) {
-      announce("Nothing to export yet — draw or fix something first.");
+      announce(t("hook.savedSessions.nothingToExport"));
       return false;
     }
     const doc = buildPortableSession(
@@ -346,9 +365,9 @@ export function useSavedSessions(): SavedSessionsBinding {
         : savedSessionSectionLabel(capture.section);
     const fileName = portableSessionFileName(base);
     downloadTextFile(fileName, json, "application/json");
-    announce(`Export ready — ${fileName} downloaded.`);
+    announce(t("hook.export.ready", { fileName }));
     return true;
-  }, []);
+  }, [t]);
 
   const renameRow = useCallback(
     async (id: string, name: string) => {
@@ -356,25 +375,25 @@ export function useSavedSessions(): SavedSessionsBinding {
       if (trimmed.length === 0) return;
       const done = await renameSavedSession(id, trimmed);
       if (!done) {
-        announce("Could not rename the session.");
+        announce(t("hook.savedSessions.renameFailed"));
         return;
       }
       await refresh();
     },
-    [refresh],
+    [refresh, t],
   );
 
   const deleteRow = useCallback(
     async (id: string) => {
       const done = await deleteSavedSession(id);
       if (!done) {
-        announce("Could not delete the session.");
+        announce(t("hook.savedSessions.deleteFailed"));
         return;
       }
       await refresh();
-      announce("Session deleted.");
+      announce(t("hook.savedSessions.deleted"));
     },
-    [refresh],
+    [refresh, t],
   );
 
   const exportRow = useCallback(async (id: string) => {
@@ -383,9 +402,7 @@ export function useSavedSessions(): SavedSessionsBinding {
     if (!entry) return;
     const record = readSessionRecord(entry.record);
     if (record === null) {
-      announce(
-        "This saved session can no longer be read — its record is unreadable.",
-      );
+      announce(t("hook.savedSessions.unreadableRecord"));
       return;
     }
     const doc = buildPortableSession(
@@ -405,8 +422,8 @@ export function useSavedSessions(): SavedSessionsBinding {
     );
     const fileName = portableSessionFileName(entry.name);
     downloadTextFile(fileName, json, "application/json");
-    announce(`Export ready — ${fileName} downloaded.`);
-  }, []);
+    announce(t("hook.export.ready", { fileName }));
+  }, [t]);
 
   const openRow = useCallback(async (id: string) => {
     if (busyRef.current) return false;
@@ -415,14 +432,12 @@ export function useSavedSessions(): SavedSessionsBinding {
       const listed = await listSavedSessions();
       const entry = listed.find((row) => row.id === id);
       if (!entry) {
-        announce("That session is no longer on the shelf.");
+        announce(t("hook.savedSessions.offShelf"));
         return false;
       }
       const record = readSessionRecord(entry.record);
       if (record === null) {
-        announce(
-          "This saved session can no longer be read — its record is unreadable.",
-        );
+        announce(t("hook.savedSessions.unreadableRecord"));
         return false;
       }
       const outcome = await restoreSessionFromRecord(
@@ -439,8 +454,8 @@ export function useSavedSessions(): SavedSessionsBinding {
       if (outcome.status !== "restored") {
         announce(
           outcome.reason === "missing-source"
-            ? "This session is missing its original file — it cannot be reopened."
-            : "The original file no longer parses — the session cannot be reopened.",
+            ? t("hook.savedSessions.missingSource")
+            : t("hook.savedSessions.parseFailed"),
         );
         return false;
       }
@@ -448,7 +463,7 @@ export function useSavedSessions(): SavedSessionsBinding {
     } finally {
       busyRef.current = false;
     }
-  }, []);
+  }, [t]);
 
   const importPortableFile = useCallback(
     async (file: File, openNow: boolean): Promise<ImportPortableOutcome> => {
@@ -456,20 +471,22 @@ export function useSavedSessions(): SavedSessionsBinding {
       try {
         json = await file.text();
       } catch {
-        return { status: "error", message: "The file could not be read." };
+        return { status: "error", message: t("hook.savedSessions.importUnreadable") };
       }
       const result: ReadPortableSessionResult = readPortableSession(json);
       if (!result.ok) {
         const message =
           result.error.kind === "not-json"
-            ? "This file is not a session file — it is not valid JSON."
+            ? t("hook.savedSessions.importNotJson")
             : result.error.kind === "wrong-format"
-              ? "This file is not a GPX Repair Studio session file."
+              ? t("hook.savedSessions.importNotSession")
               : result.error.kind === "newer-version"
-                ? `This session file was written by a newer version (v${result.error.version}) — update the app to open it.`
+                ? t("hook.savedSessions.importNewerVersion", {
+                    version: result.error.version,
+                  })
                 : result.error.kind === "bad-session"
-                  ? "The session inside this file is unreadable."
-                  : "The original recording inside this session file is unreadable.";
+                  ? t("hook.savedSessions.importBadSession")
+                  : t("hook.savedSessions.importBadRecording");
         announce(message);
         return { status: "error", message };
       }
@@ -477,7 +494,7 @@ export function useSavedSessions(): SavedSessionsBinding {
       const stem = file.name
         .replace(/\.gpxrepair\.json$/i, "")
         .replace(/\.json$/i, "");
-      const name = stem.trim().length > 0 ? stem : "Imported session";
+      const name = stem.trim().length > 0 ? stem : t("hook.savedSessions.importedName");
       const id = await saveSessionEntry({
         name,
         section: result.file.record.section,
@@ -496,13 +513,12 @@ export function useSavedSessions(): SavedSessionsBinding {
       if (id === null) {
         return {
           status: "error",
-          message:
-            "Could not add the session to the shelf — storage is unavailable or full.",
+          message: t("hook.savedSessions.importShelfFailed"),
         };
       }
       await refresh();
       if (!openNow) {
-        announce(`Imported — "${name}" is on your sessions shelf.`);
+        announce(t("hook.savedSessions.imported", { name }));
         return { status: "imported", name };
       }
       const opened = await openRow(id);
@@ -510,11 +526,10 @@ export function useSavedSessions(): SavedSessionsBinding {
         ? { status: "opened", name }
         : {
             status: "error",
-            message:
-              "The session was imported but could not be opened — its file no longer parses.",
+            message: t("hook.savedSessions.importOpenFailed"),
           };
     },
-    [openRow, refresh],
+    [openRow, refresh, t],
   );
 
   return {

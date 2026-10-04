@@ -53,6 +53,9 @@ import type {
   WorkingTrackData,
 } from "@/types/domain";
 import { parsePointIdRef } from "@/types/ids";
+import { translateNow } from "@/i18n/runtime";
+import { useI18n } from "@/hooks/use-i18n";
+import type { TranslatorArg } from "@/hooks/use-i18n";
 import type { BBox } from "@/lib/geo/bbox";
 import { bboxOf } from "@/lib/geo/bbox";
 
@@ -152,50 +155,56 @@ export function describeParseError(
   switch (error.kind) {
     case "malformed-xml":
       return {
-        title: "Not well-formed XML",
-        detail:
-          `"${fileName}" could not be parsed as XML. The file may be ` +
-          `truncated or not a GPX export at all. ${error.message}`,
+        title: translateNow("hook.parse.malformedXml.title"),
+        detail: translateNow("hook.parse.malformedXml.detail", {
+          fileName,
+          message: error.message,
+        }),
         ...(error.line !== undefined ? { line: error.line } : {}),
         ...(error.column !== undefined ? { column: error.column } : {}),
       };
     case "not-a-gpx-document":
       return {
-        title: "Not a GPX file",
-        detail:
-          `Expected a <gpx> root element but found ` +
-          `${error.rootElement ? `<${error.rootElement}>` : "no root element"}. ` +
-          `Re-export the activity as a GPX file and try again.`,
+        title: translateNow("hook.parse.notGpx.title"),
+        detail: translateNow("hook.parse.notGpx.detail", {
+          found: error.rootElement
+            ? `<${error.rootElement}>`
+            : translateNow("hook.parse.noRootElement"),
+        }),
       };
     case "invalid-version":
       return {
-        title: "Unsupported GPX version",
-        detail:
-          `GPX files must declare version "1.0" or "1.1"; this file ` +
-          `declares ${error.found ? `"${error.found}"` : "no version"}. ` +
-          `Re-export from your device or platform with a standard GPX version.`,
+        title: translateNow("hook.parse.invalidVersion.title"),
+        detail: translateNow("hook.parse.invalidVersion.detail", {
+          found: error.found
+            ? `"${error.found}"`
+            : translateNow("hook.parse.noVersion"),
+        }),
       };
     case "unsupported-format":
       return {
-        title: "Unsupported file format",
-        detail:
-          `"${fileName}" is not a GPX, TCX, or FIT track file (${error.detail}). ` +
-          `Re-export the activity in one of those formats and try again.`,
+        title: translateNow("hook.parse.unsupportedFormat.title"),
+        detail: translateNow("hook.parse.unsupportedFormat.detail", {
+          fileName,
+          reason: error.detail,
+        }),
       };
     case "not-a-tcx-document":
       return {
-        title: "Not a TCX file",
-        detail:
-          `Expected a <TrainingCenterDatabase> root element but found ` +
-          `${error.rootElement ? `<${error.rootElement}>` : "no root element"}. ` +
-          `Re-export the activity as a TCX file and try again.`,
+        title: translateNow("hook.parse.notTcx.title"),
+        detail: translateNow("hook.parse.notTcx.detail", {
+          found: error.rootElement
+            ? `<${error.rootElement}>`
+            : translateNow("hook.parse.noRootElement"),
+        }),
       };
     case "malformed-fitness-file":
       return {
-        title: "Unreadable FIT file",
-        detail:
-          `"${fileName}" could not be decoded as a FIT file (${error.message}). ` +
-          `The file may be corrupted or not a FIT export at all.`,
+        title: translateNow("hook.parse.malformedFit.title"),
+        detail: translateNow("hook.parse.malformedFit.detail", {
+          fileName,
+          message: error.message,
+        }),
       };
   }
 }
@@ -267,12 +276,15 @@ function buildGapRows(
 function buildSegmentRows(
   data: OriginalTrackData,
   distance: DistanceStats,
+  t: TranslatorArg,
 ): SegmentRow[] {
   const trackNames = new Map<number, string>();
   for (const track of data.tracks) {
     trackNames.set(
       track.trackIndex,
-      track.name ?? `Track ${track.trackIndex + 1}`,
+      track.name ?? t("segmentList.trackFallback", {
+        number: track.trackIndex + 1,
+      }),
     );
   }
 
@@ -295,7 +307,9 @@ function buildSegmentRows(
     return {
       segmentId: segment.id,
       trackIndex: segment.trackIndex,
-      trackName: trackNames.get(segment.trackIndex) ?? `Track ${segment.trackIndex + 1}`,
+      trackName:
+        trackNames.get(segment.trackIndex) ??
+        t("segmentList.trackFallback", { number: segment.trackIndex + 1 }),
       pointCount: segment.points.length,
       flaggedPoints: segment.points.filter((p) => p.flags.length > 0).length,
       distanceM: dist.distanceM,
@@ -330,8 +344,10 @@ export async function loadGpxFile(file: File): Promise<void> {
 
   if (file.size === 0) {
     session.fail({
-      title: "Empty file",
-      detail: `"${file.name}" contains no data. Choose a non-empty GPX, TCX, or FIT export.`,
+      title: translateNow("hook.parse.emptyTitle"),
+      detail: translateNow("hook.parse.emptyDetailFormats", {
+        fileName: file.name,
+      }),
     });
     return;
   }
@@ -359,15 +375,17 @@ export async function loadGpxFile(file: File): Promise<void> {
     session.setParsed(file.name, result.data, result.gaps);
   } catch (err) {
     session.fail({
-      title: "Could not read file",
-      detail:
-        `"${file.name}" could not be read: ` +
-        `${err instanceof Error ? err.message : String(err)}`,
+      title: translateNow("hook.parse.readTitle"),
+      detail: translateNow("hook.parse.readDetail", {
+        fileName: file.name,
+        reason: err instanceof Error ? err.message : String(err),
+      }),
     });
   }
 }
 
 export function useGpxSession(): GpxSession {
+  const { t } = useI18n();
   const status = useSessionStore((s) => s.status);
   const fileName = useSessionStore((s) => s.fileName);
   const data = useSessionStore((s) => s.data);
@@ -445,9 +463,9 @@ export function useGpxSession(): GpxSession {
   const segmentRows = useMemo(
     () =>
       workingData && distanceStats
-        ? buildSegmentRows(workingData, distanceStats)
+        ? buildSegmentRows(workingData, distanceStats, t)
         : [],
-    [workingData, distanceStats],
+    [workingData, distanceStats, t],
   );
   const extent = useMemo(() => {
     if (!data) return null;

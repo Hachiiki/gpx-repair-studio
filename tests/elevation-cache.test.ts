@@ -74,7 +74,8 @@ describe("withCache (provider decorator)", () => {
       id: "test",
       name: "Test DEM",
       attribution: "test",
-      privacyNote: "test",
+      privacyNote: "The coordinates of your reconstructed points are sent to api.open-meteo.com (Open-Meteo Elevation API) in the request URL.",
+    privacyNoteKey: "elevation.privacyNote.openMeteo",
       getElevations,
     };
   }

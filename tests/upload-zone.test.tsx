@@ -75,7 +75,7 @@ describe("UploadZone", () => {
 
   it("Phase 12: offers the sample link when provided and dispatches it", () => {
     const onTrySample = vi.fn();
-    render(<UploadZone onFile={vi.fn()} onTrySample={onTrySample} sampleLabel="a sample ride" />);
+    render(<UploadZone onFile={vi.fn()} onTrySample={onTrySample} sampleLabelKey="sample.ride" />);
 
     const link = screen.getByTestId("try-sample");
     expect(link).toBeInTheDocument();
