@@ -117,6 +117,11 @@ test.describe("accessibility — desktop", () => {
     await upload(page);
     await settleMap(page);
     await page.getByTestId("gap-list").waitFor({ state: "visible" });
+    /* Phase 19 — the details column (gpx-summary etc.) sits below the
+     * fold once the compare card joined the tools column; settle the
+     * scroll reveals before scanning (the Task 53 rule — a scrubbed
+     * reveal reads as phantom low-contrast text). */
+    await revealSettled(page);
     const results = await scan(page).analyze();
     report(results);
     expect(criticals(results)).toEqual([]);
@@ -132,6 +137,7 @@ test.describe("accessibility — desktop", () => {
     await page
       .getByTestId("pen-mode-group")
       .waitFor({ state: "visible" });
+    await revealSettled(page);
     const results = await scan(page).analyze();
     report(results);
     expect(criticals(results)).toEqual([]);
@@ -145,6 +151,7 @@ test.describe("accessibility — desktop", () => {
     await settleMap(page);
     await page.getByTestId("open-export-button").click();
     await page.getByTestId("export-dialog").waitFor({ state: "visible" });
+    await revealSettled(page);
     const results = await scan(page).analyze();
     report(results);
     expect(criticals(results)).toEqual([]);
@@ -164,6 +171,7 @@ test.describe("accessibility — mobile (the tools sheet)", () => {
     await page
       .getByTestId("pen-mode-group")
       .waitFor({ state: "visible" });
+    await revealSettled(page);
     const results = await scan(page).analyze();
     report(results);
     expect(criticals(results)).toEqual([]);

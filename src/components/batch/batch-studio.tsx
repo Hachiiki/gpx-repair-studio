@@ -26,6 +26,7 @@ import { BatchQueueCard } from "@/components/batch/batch-queue-card";
 import { BatchPresetCard } from "@/components/batch/batch-preset-card";
 import { BatchPresetDialog } from "@/components/batch/batch-preset-dialog";
 import { BatchExportCard } from "@/components/batch/batch-export-card";
+import { BatchSummarySection } from "@/components/compare/batch-summary-section";
 import type { BatchSessionBinding } from "@/hooks/use-batch-session";
 import { useBatchStore } from "@/state/batch-store";
 import type { PresetId } from "@/types/domain";
@@ -78,6 +79,12 @@ export function BatchStudio({ session }: { session: BatchSessionBinding }) {
       id="batch"
     >
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 py-8">
+        {/*
+         * Phase 19 — the studio's interactive furniture hides under
+         * print; the batch summary region below carries the sheet (the
+         * stats print flow's discipline, applied to the batch studio).
+         */}
+        <div data-print-hide className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2.5 font-display text-[30px] font-bold leading-[1.05] tracking-[0.01em]">
@@ -117,6 +124,16 @@ export function BatchStudio({ session }: { session: BatchSessionBinding }) {
           onOpenPreset={openPreset}
         />
         <BatchExportCard session={session} />
+        </div>
+
+        {/*
+         * Phase 19 — the per-batch summary sheet (§EE 19.2): on screen
+         * a card under the export; on paper the whole show (masthead +
+         * one row per file, thumbnails included).
+         */}
+        <div data-print-region="batch-summary">
+          <BatchSummarySection session={session} />
+        </div>
 
         <BatchPresetDialog
           pending={pending}

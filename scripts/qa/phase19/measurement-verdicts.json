@@ -1,0 +1,36 @@
+{
+  "measured_claims": [
+    {
+      "claim": "delta table header/cell misalignment (3 variants)",
+      "verdict": "DISPROVEN \u2014 every header aligns exactly with its cells (identical edges, matching text-align: Change is right-aligned in both)"
+    },
+    {
+      "claim": "side-by-side panels asymmetric padding",
+      "verdict": "DISPROVEN \u2014 identical 355px widths, identical 1px svg insets on both sides of both panels"
+    },
+    {
+      "claim": "sub-labels fail contrast",
+      "verdict": "DISPROVEN \u2014 muted-foreground on card measures 7.57:1 (AA needs 4.5:1)"
+    },
+    {
+      "claim": "'missing head or tail' is an orphaned clipped fragment",
+      "verdict": "DISPROVEN \u2014 the manual-repairs card's intended sentence, renders complete (no scroll overflow)"
+    },
+    {
+      "claim": "overlay note color clash",
+      "verdict": "DISPROVEN \u2014 bg-signal/[0.06], the same tint family as the stats working-note (code-identical)"
+    },
+    {
+      "claim": "mobile offer banner text wrapping/overflow",
+      "verdict": "DISPROVEN \u2014 pageOverflow 0, banner fits 390px (live QA)"
+    },
+    {
+      "claim": "pristine overlay: ghost sits exactly under the route",
+      "verdict": "ACCEPTED (honest observation, by design) \u2014 addressed: the overlay note now states the coincidence explicitly when nothing has changed"
+    },
+    {
+      "claim": "tour dots faint / modal body grey / zoom control contrast / header icon weight / sidebar button alignment",
+      "verdict": "PRE-EXISTING design surfaces (onboarding tour dots, MapLibre zoom controls, header chrome) \u2014 out of Phase 19 scope, unchanged"
+    }
+  ]
+}

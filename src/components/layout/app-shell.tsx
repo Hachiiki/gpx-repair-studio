@@ -27,7 +27,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/layout/header";
 import {
   SessionIdleView,
@@ -59,6 +59,22 @@ import { SplitsCard } from "@/components/statistics/splits-card";
 import { StatsPanel } from "@/components/statistics/stats-panel";
 import { StatsPrintHeader } from "@/components/statistics/stats-print-header";
 import { TimeInMotionCard } from "@/components/statistics/time-in-motion-card";
+import { CompareCard } from "@/components/compare/compare-card";
+import { RepairSummaryCard } from "@/components/compare/repair-summary-card";
+import { SummaryPrintHeader } from "@/components/compare/summary-print-header";
+import {
+  buildCompareOverlay,
+  useCompareView,
+} from "@/hooks/use-compare";
+import { useCompareStore } from "@/state/compare-store";
+import { useWorkingStore } from "@/state/working-store";
+import { useToolTours } from "@/hooks/use-tool-tours";
+import {
+  ToolTourDialog,
+  ToolTourOffer,
+} from "@/components/layout/tool-tour";
+import { addMergeFiles } from "@/hooks/use-merge-session";
+import type { ToolTourId } from "@/lib/storage/tour-flag";
 import { useDrawEditor } from "@/hooks/use-draw-editor";
 import { useRepairAnnouncements } from "@/hooks/use-repair-announcements";
 import { useDeepValidation } from "@/hooks/use-deep-validation";
@@ -100,7 +116,23 @@ import { cn } from "@/lib/utils";
 
 export function AppShell() {
   const session = useGpxSession();
-  const map = useMapController(session);
+  /*
+   * Phase 19 — the compare overlay joins BEFORE the map (the map
+   * renders the ghost while the draw/elevation bindings it depends on
+   * do not exist yet): the mode lives in its own store, and the pure
+   * `buildCompareOverlay` join runs on the session + edit log alone.
+   */
+  const compareMode = useCompareStore((s) => s.mode);
+  const compareEdits = useWorkingStore((s) => s.edits);
+  const compareSessionSlice = {
+    data: session.data,
+    gapRows: session.gapRows,
+  };
+  const compareOverlay = useMemo(
+    () => buildCompareOverlay(compareMode, compareSessionSlice, compareEdits),
+    [compareMode, compareSessionSlice, compareEdits],
+  );
+  const map = useMapController(session, { compare: compareOverlay });
   const draw = useDrawEditor(session, map);
   /*
    * Phase 13 — the deep-validation binding: the working copy's
@@ -133,6 +165,16 @@ export function AppShell() {
     motion,
     elevation: elevationStats.rows,
     repair: draw.repairTimeStats,
+  });
+  /*
+   * Phase 19 — the before/after compare binding (§EE 19.1): the
+   * delta table, the side-by-side snapshots, the repair summary and
+   * its print intent. Mounted after the stats joins it reuses (the
+   * one-merge rule: its numbers ARE the panel's numbers).
+   */
+  const compare = useCompareView(session, {
+    repair: draw.repairTimeStats,
+    elevation: elevationStats.rows,
   });
   /*
    * Task 35 — the share card renders the EDITED route: the committed
@@ -244,6 +286,95 @@ export function AppShell() {
     enabled: landingView === "home" && session.status === "idle",
     storageScanDone: sessionRecovery.hasScanned,
     hasRestoreOffers: sessionRecovery.offers.length > 0,
+  });
+
+  /*
+   * Phase 19 — the per-tool guided walkthroughs (§EE 19.3): a
+   * dismissible first-visit offer above whichever tool's page or
+   * workspace is showing, and the replayable dialog itself. The action
+   * loads that tool's teaching sample through the SAME pipeline as an
+   * upload (nothing is special-cased downstream).
+   */
+  const recoveryStatusForTours = recoveryStatus;
+  const canRunToolTourAction = useCallback(
+    (id: ToolTourId): boolean => {
+      switch (id) {
+        case "repair":
+        case "share":
+          return session.status === "idle";
+        case "recovery":
+          return recoveryStatusForTours === "idle";
+        case "merge":
+          return mergePhase === "intake";
+        case "batch":
+          return batchPhase === "intake";
+        default:
+          return false; // create and plan carry no file payload
+      }
+    },
+    [session.status, recoveryStatusForTours, mergePhase, batchPhase],
+  );
+  const loadSessionFile = session.loadFile;
+  const batchAddFiles = batchSession.addFiles;
+  const runToolTourAction = useCallback(
+    (id: ToolTourId) => {
+      switch (id) {
+        case "repair":
+          void loadSessionFile(makeSampleFile("repair-ride"));
+          break;
+        case "share":
+          void loadSessionFile(makeSampleFile("clean-run"));
+          break;
+        case "recovery":
+          void loadRecoveryFile(makeSampleFile("repair-ride"));
+          break;
+        case "merge":
+          void addMergeFiles([
+            makeSampleFile("merge-a"),
+            makeSampleFile("merge-b"),
+          ]);
+          break;
+        case "batch":
+          batchAddFiles([
+            makeSampleFile("repair-ride"),
+            makeSampleFile("clean-run"),
+          ]);
+          break;
+        default:
+          break;
+      }
+    },
+    [loadSessionFile, batchAddFiles],
+  );
+  const activeTool = useMemo<ToolTourId | null>(() => {
+    if (landingView === "tool" && session.status === "idle") {
+      return landingMode;
+    }
+    if (landingView === "home") return null;
+    if (section === "repair") {
+      return session.view === "share" ? "share" : "repair";
+    }
+    if (
+      section === "recovery" ||
+      section === "create" ||
+      section === "merge" ||
+      section === "plan" ||
+      section === "batch"
+    ) {
+      return section;
+    }
+    return null;
+  }, [
+    landingView,
+    session.status,
+    session.view,
+    section,
+    landingMode,
+  ]);
+  const tours = useToolTours({
+    canRunAction: canRunToolTourAction,
+    onAction: runToolTourAction,
+    activeTool,
   });
 
   /*
@@ -507,6 +638,12 @@ export function AppShell() {
         tabIndex={-1}
         className={cn(SHELL_CONTAINER, "flex flex-1 flex-col py-6")}
       >
+        {/*
+         * Phase 19 — the per-tool tour offer (§EE 19.3): a strip, not
+         * a modal — first visit to a tool, dismissible, replayable from
+         * the help dialog.
+         */}
+        <ToolTourOffer tour={tours} />
         {section === "create" ? (
           /*
            * The Create-from-stats section: no file was uploaded — the
@@ -628,6 +765,12 @@ export function AppShell() {
                     />
                   )}
                 {/*
+                 * Phase 19 — the before/after compare (§EE 19.1): the
+                 * trust surface right before the export — what changed,
+                 * where, and by how much.
+                 */}
+                <CompareCard compare={compare} />
+                {/*
                  * The workflow's end: review the repair summary and
                  * download the repaired file (§H-7/8).
                  */}
@@ -701,6 +844,17 @@ export function AppShell() {
                     )}
                   </div>
                 )}
+                {/*
+                 * Phase 19 — the repair-summary sheet (§EE 19.2): the
+                 * delta table, the provenance table, and the track
+                 * snapshot — on screen here, on paper through the
+                 * printing-summary flow (the stats region above hides
+                 * while THIS region prints, and vice versa).
+                 */}
+                <div data-print-region="summary" className="mt-4">
+                  <SummaryPrintHeader subject={session.fileName} />
+                  <RepairSummaryCard compare={compare} />
+                </div>
               </RevealOnScroll>
             }
             />
@@ -781,12 +935,26 @@ export function AppShell() {
        * the shell level so they sit above every view. Phase 12 adds
        * the shortcuts & help dialog. */}
       <OnboardingTour tour={tour} />
+      {/* Phase 19 — the per-tool guided walkthrough (§EE 19.3). */}
+      <ToolTourDialog
+        tour={tours}
+        actionAvailable={
+          tours.active !== null && canRunToolTourAction(tours.active)
+        }
+      />
       <InfoDialog
         pane={infoPane}
         onPaneChange={setInfoPane}
         onClose={() => setInfoPane(null)}
       />
-      <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <HelpDialog
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        onStartTour={(id) => {
+          setHelpOpen(false);
+          tours.start(id);
+        }}
+      />
       {/*
        * Phase 18 — the sessions manager (the header's "Sessions" door
        * and every open-session path), above every view like the info

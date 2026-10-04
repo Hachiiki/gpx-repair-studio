@@ -60,6 +60,7 @@ import type {
   RoadLeg,
 } from "@/types/domain";
 import type { GapRow, GpxSession } from "@/hooks/use-gpx-session";
+import type { CompareOverlayData } from "@/lib/map/mapController";
 
 // App-layer facade re-exports (components may not import lib/map directly).
 export type { MapControllerStatus };
@@ -68,6 +69,9 @@ export type { RouteViewData };
 // Phase 12 — the theme-dependent overlay palette (the legend mirrors
 // the map layers' colors with it).
 export { mapOverlayPalette, type MapOverlayPalette } from "@/lib/map/palette";
+// Phase 19 — the compare overlay's data shape (the compare hook builds
+// it; the map renders it). Re-exported so components stay off lib/map.
+export type { CompareOverlayData };
 
 // ---------------------------------------------------------------------------
 // Route view building (pure; exported for node-side unit tests)
@@ -554,9 +558,27 @@ export interface MapBinding {
    * never call this).
    */
   getController: () => MapController | null;
+  /**
+   * Phase 19 — the compare overlay is on (the legend gains the ghost
+   * + changed entries; MapCanvas passes it down). Optional: sections
+   * without a compare view omit it (absent = never).
+   */
+  compareGhost?: boolean;
 }
 
-export function useMapController(session: GpxSession): MapBinding {
+/**
+ * Phase 19 — the optional compare overlay input: null/undefined keeps
+ * the map exactly as before; a live value renders the original ghost
+ * + changed stretches while the working copy keeps its own route.
+ */
+export interface UseMapControllerOptions {
+  compare?: CompareOverlayData | null;
+}
+
+export function useMapController(
+  session: GpxSession,
+  options?: UseMapControllerOptions,
+): MapBinding {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<MapController | null>(null);
   const [status, setStatus] = useState<MapControllerStatus>("initializing");
@@ -670,6 +692,16 @@ export function useMapController(session: GpxSession): MapBinding {
   useEffect(() => {
     controllerRef.current?.setRoute(route);
   }, [route]);
+
+  // Phase 19 — the compare overlay (ghost original + changed
+  // stretches). The overlay object is rebuilt by the compare hook only
+  // when its inputs change, so this effect is quiet while compare is
+  // off (null) or unchanged. Applied after the route so a style swap
+  // restores both in order.
+  const compareOverlay = options?.compare ?? null;
+  useEffect(() => {
+    controllerRef.current?.setCompareOverlay(compareOverlay);
+  }, [compareOverlay]);
 
   // Frame the whole activity whenever a new file's data lands. Deferred by
   // the controller until the map is ready; never re-run on re-detection
@@ -814,5 +846,6 @@ export function useMapController(session: GpxSession): MapBinding {
     fitToActivity,
     focusPoint,
     getController,
+    compareGhost: compareOverlay !== null,
   };
 }

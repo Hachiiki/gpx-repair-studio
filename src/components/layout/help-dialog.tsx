@@ -21,15 +21,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { HelpContent } from "@/components/layout/help-content";
+import type { ToolTourId } from "@/lib/storage/tour-flag";
 
 export interface HelpDialogProps {
   /** Whether the dialog is open. */
   open: boolean;
   /** Close (Esc, X, or a click on the backdrop). */
   onClose: () => void;
+  /**
+   * Phase 19 — replay a tool's guided walkthrough (closes the help
+   * dialog first: one dialog at a time, the "?"-key rule's
+   * discipline).
+   */
+  onStartTour?: (id: ToolTourId) => void;
 }
 
-export function HelpDialog({ open, onClose }: HelpDialogProps) {
+export function HelpDialog({ open, onClose, onStartTour }: HelpDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent
@@ -48,7 +55,7 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
           </DialogDescription>
         </div>
         <div className="max-h-[min(70vh,640px)] overflow-y-auto p-5">
-          <HelpContent />
+          <HelpContent onStartTour={onStartTour} />
         </div>
       </DialogContent>
     </Dialog>

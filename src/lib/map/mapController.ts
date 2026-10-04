@@ -74,6 +74,7 @@ import {
   routeLineCollection,
   type DrawHandleData,
   type DrawMidpointData,
+  type RouteLinePart,
   type RouteViewData,
 } from "./geojson";
 import { decimateForZoom, decimationStride } from "./decimate";
@@ -107,6 +108,19 @@ export interface MapControllerCallbacks {
   onGapSelected?: (gapId: string) => void;
 }
 
+/**
+ * Phase 19 — the compare overlay's data: the ORIGINAL track as a
+ * ghost under the working copy, plus the changed stretches of that
+ * original rendered in signal (what the edit log touched). Null data
+ * hides both layers (the compare card's "off" mode).
+ */
+export interface CompareOverlayData {
+  /** The original's line pieces (gap/damage breaks like the route). */
+  ghost: readonly RouteLinePart[];
+  /** The changed stretches, in ORIGINAL coordinate space. */
+  changed: readonly RouteLinePart[];
+}
+
 /** Serializable snapshot for E2E assertions (no pixel diffs). */
 export interface MapTestState {
   status: MapControllerStatus;
@@ -123,6 +137,14 @@ export interface MapTestState {
   boundaryMarkerCount: number;
   /** Committed reconstruction lines rendered via the route view. */
   reconstructionLineCount: number;
+  /** Phase 19 — the compare overlay (ghost + changed) observables. */
+  compareOverlay: {
+    visible: boolean;
+    ghostLineCount: number;
+    changedLineCount: number;
+    /** The ghost layer's live paint (theme assertions); null pre-add. */
+    ghostPaint: string | null;
+  };
   selectedGapId: string | null;
   zoom: number;
   center: { lat: number; lon: number } | null;
@@ -177,6 +199,8 @@ export interface DrawSessionTestState {
 
 /** Layer ids — `gpxr` prefix mirrors the export provenance namespace. */
 export const MAP_LAYER_IDS = [
+  "gpxr-ghost",
+  "gpxr-changed",
   "gpxr-route",
   "gpxr-gap-span-selected",
   "gpxr-recon",
@@ -210,6 +234,8 @@ const SOURCE = {
   handles: "gpxr-draft-handles",
   midpoints: "gpxr-draft-midpoints",
   pickAnchor: "gpxr-pick-anchor",
+  ghost: "gpxr-ghost",
+  changed: "gpxr-changed",
 } as const;
 
 const LAYER = {
@@ -232,6 +258,8 @@ const LAYER = {
   draftHandleHit: "gpxr-draft-handle-hit",
   draftMidpointHit: "gpxr-draft-midpoint-hit",
   pickAnchor: "gpxr-pick-anchor",
+  ghost: "gpxr-ghost",
+  changed: "gpxr-changed",
 } as const;
 
 /*
@@ -599,6 +627,9 @@ export class MapController {
   #pendingFocus: FocusTarget | null = null;
   #lastCameraAction: string | null = null;
 
+  /** Phase 19 — the compare overlay's data (null = hidden). */
+  #compare: CompareOverlayData | null = null;
+
   // Phase 9 — zoom-dependent render decimation. #routeStride is the
   // stride currently rendered into SOURCE.route; a zoom band change
   // re-decimates, everything else reuses the applied data.
@@ -901,6 +932,17 @@ export class MapController {
   setRoute(route: RouteViewData | null): void {
     this.#route = route;
     if (this.#ready) this.#applyRoute();
+  }
+
+  /**
+   * Phase 19 — set (or clear, with null) the compare overlay: the
+   * original as a dashed ghost under the working copy's route, with
+   * the changed stretches of that original in signal. Idempotent,
+   * deferred until ready; style swaps re-apply it (see #onStyleLoad).
+   */
+  setCompareOverlay(overlay: CompareOverlayData | null): void {
+    this.#compare = overlay;
+    if (this.#ready) this.#applyCompare();
   }
 
   /** Highlight one gap (or none) with a white casing + boundary halo. */
@@ -1400,6 +1442,17 @@ export class MapController {
       gapSpanCount: route?.spans.length ?? 0,
       boundaryMarkerCount: route?.markers.length ?? 0,
       reconstructionLineCount: route?.reconstructions.length ?? 0,
+      /** Phase 19 — the compare overlay's observables. */
+      compareOverlay: {
+        visible: this.#compare !== null,
+        ghostLineCount: this.#compare?.ghost.length ?? 0,
+        changedLineCount: this.#compare?.changed.length ?? 0,
+        ghostPaint:
+          map && map.getLayer(LAYER.ghost)
+            ? ((map.getPaintProperty(LAYER.ghost, "line-color") as string) ??
+              null)
+            : null,
+      },
       selectedGapId: this.#selectedGapId,
       zoom: map ? map.getZoom() : 0,
       center: map
@@ -1478,6 +1531,7 @@ export class MapController {
     if (this.#darkTheme) this.#darkenBasemap();
     this.#addLayers();
     this.#applyRoute();
+    this.#applyCompare();
     this.#applySelection();
     this.#applyDrawSession();
     if (this.#pickSession) {
@@ -1579,7 +1633,61 @@ export class MapController {
       });
     }
 
-    if (map.getLayer(LAYER.route)) return;
+    if (!map.getSource(SOURCE.ghost)) {
+      // Phase 19 — the compare overlay's two sources (the ghost
+      // original + its changed stretches). Same GeoJSON shape as the
+      // route source; routeLineCollection serves both.
+      map.addSource(SOURCE.ghost, {
+        type: "geojson",
+        data: routeLineCollection([]),
+      });
+      map.addSource(SOURCE.changed, {
+        type: "geojson",
+        data: routeLineCollection([]),
+      });
+    }
+
+    if (map.getLayer(LAYER.ghost)) return;
+
+    // Phase 19 — the ghost ORIGINAL under everything: a thin dashed
+    // muted line that reads as "the recording as it was" beneath the
+    // working copy's solid ink. Below the route layer by add order.
+    map.addLayer({
+      id: LAYER.ghost,
+      type: "line",
+      source: SOURCE.ghost,
+      layout: {
+        "line-join": "round",
+        "line-cap": "round",
+        visibility: "none",
+      },
+      paint: {
+        "line-color": palette.ghost,
+        "line-width": 2,
+        "line-opacity": 0.75,
+        "line-dasharray": [1.5, 2.5],
+      },
+    });
+
+    // The changed stretches OF that original, in signal — "here is
+    // what the edit log touched". Dashed to stay readable under the
+    // working copy's solid route where they coincide.
+    map.addLayer({
+      id: LAYER.changed,
+      type: "line",
+      source: SOURCE.changed,
+      layout: {
+        "line-join": "round",
+        "line-cap": "round",
+        visibility: "none",
+      },
+      paint: {
+        "line-color": palette.recon,
+        "line-width": 3.5,
+        "line-opacity": 0.9,
+        "line-dasharray": [2.5, 2],
+      },
+    });
 
     // Recorded route — solid blue (§I-3).
     map.addLayer({
@@ -1877,6 +1985,37 @@ export class MapController {
     );
   }
 
+  /**
+   * Phase 19 — push the compare overlay's data + visibility. The ghost
+   * renders decimated like the route (it is the same shape at the same
+   * zoom; the changed stretches are tiny by construction and stay
+   * full-resolution so short fixes never vanish at low zoom).
+   */
+  #applyCompare(): void {
+    const map = this.#map;
+    if (!map) return;
+    const compare = this.#compare;
+    const visible = compare !== null ? "visible" : "none";
+    if (map.getLayer(LAYER.ghost)) {
+      map.setLayoutProperty(LAYER.ghost, "visibility", visible);
+    }
+    if (map.getLayer(LAYER.changed)) {
+      map.setLayoutProperty(LAYER.changed, "visibility", visible);
+    }
+    const ghostSource = map.getSource(SOURCE.ghost) as
+      | GeoJSONSource
+      | undefined;
+    const { lines: renderedGhost } = decimateForZoom(
+      compare?.ghost ?? [],
+      map.getZoom(),
+    );
+    ghostSource?.setData(routeLineCollection(renderedGhost));
+    const changedSource = map.getSource(SOURCE.changed) as
+      | GeoJSONSource
+      | undefined;
+    changedSource?.setData(routeLineCollection(compare?.changed ?? []));
+  }
+
   #applySelection(): void {
     const map = this.#map;
     if (!map) return;
@@ -1894,13 +2033,18 @@ export class MapController {
   /**
    * Phase 9 — a zoom gesture ended: re-decimate the recorded route only
    * when the stride band actually changed (powers of two ⇒ a handful of
-   * rebuilds across the whole zoom range).
+   * rebuilds across the whole zoom range). Phase 19: the compare ghost
+   * decimates on the same bands (it is the same shape at the same
+   * zoom).
    */
   #onZoomBandChange(): void {
     const map = this.#map;
     if (!map || !this.#route) return;
     const stride = decimationStride(this.#route.lines, map.getZoom());
-    if (stride !== this.#routeStride) this.#applyRoute();
+    if (stride !== this.#routeStride) {
+      this.#applyRoute();
+      this.#applyCompare();
+    }
   }
 
   #fit(target: FocusTarget): void {

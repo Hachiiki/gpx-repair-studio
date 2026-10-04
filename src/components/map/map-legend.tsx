@@ -30,10 +30,47 @@ import { cn } from "@/lib/utils";
 
 const SAMPLE_LINE_CLASS = "h-1 w-7 rounded-full";
 
-/** The six encoding entries — unchanged vocabulary, always mounted. */
-function renderEntries(palette: MapOverlayPalette) {
+/** The encoding entries — unchanged vocabulary, always mounted. */
+function renderEntries(
+  palette: MapOverlayPalette,
+  compareGhost: boolean,
+) {
   return (
     <ul className="grid gap-1.5">
+      {compareGhost && (
+        /* Phase 19 — the compare overlay's two entries (rendered only
+         * while the ghost is on the canvas; the encoding contract
+         * stays honest about what is currently drawn). */
+        <li
+          className="flex items-center gap-2"
+          data-testid="map-legend-ghost"
+        >
+          <span
+            className={SAMPLE_LINE_CLASS}
+            style={{
+              backgroundImage: `repeating-linear-gradient(90deg,${palette.ghost} 0 5px,transparent 5px 9px)`,
+            }}
+            aria-hidden="true"
+          />
+          Original track (ghost — before edits)
+        </li>
+      )}
+      {compareGhost && (
+        <li
+          className="flex items-center gap-2"
+          data-testid="map-legend-changed"
+        >
+          <span
+            className={SAMPLE_LINE_CLASS}
+            style={{
+              backgroundImage: `repeating-linear-gradient(90deg,${palette.recon} 0 6px,transparent 6px 10px)`,
+              opacity: 0.9,
+            }}
+            aria-hidden="true"
+          />
+          Changed stretch of the original
+        </li>
+      )}
       <li className="flex items-center gap-2">
         <span
           className={SAMPLE_LINE_CLASS}
@@ -112,7 +149,7 @@ function renderEntries(palette: MapOverlayPalette) {
   );
 }
 
-export function MapLegend() {
+export function MapLegend({ compareGhost = false }: { compareGhost?: boolean }) {
   // Pinned = clicked open (stays until clicked again). Hover and keyboard
   // focus open it transiently through the same CSS group.
   const [pinned, setPinned] = useState(false);
@@ -141,7 +178,7 @@ export function MapLegend() {
         )}
       >
         <div className="rounded-lg border border-ink/20 bg-paper/90 px-2.5 py-2.5 text-[11px] leading-tight text-ink/70 shadow-float backdrop-blur-[3px]">
-          {renderEntries(palette)}
+          {renderEntries(palette, compareGhost)}
         </div>
       </div>
       <button

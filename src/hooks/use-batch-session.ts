@@ -44,6 +44,8 @@ import {
   buildBatchZipEntries,
   type BatchExportItem,
 } from "@/features/batch/batchZip";
+import { buildBatchSummary } from "@/features/compare/batchSummary";
+import type { BatchSummary } from "@/features/compare/batchSummary";
 import { originalDistanceStats } from "@/features/statistics/distance";
 import { runParsePipeline } from "@/lib/gpx/parse-client";
 import { createDomXmlIo } from "@/lib/utils/xml";
@@ -147,6 +149,11 @@ export interface BatchSessionBinding {
   downloadZip: () => string | null;
   /** Enter the studio (needs ≥ 1 parsed file; announced when refused). */
   enterStudio: () => void;
+  /**
+   * Phase 19 — the printable batch summary (rows + aggregate), built
+   * pure from the queue's views (§EE 19.2 per-batch variant).
+   */
+  summary: BatchSummary;
 }
 
 export function useBatchSession(): BatchSessionBinding {
@@ -278,6 +285,29 @@ export function useBatchSession(): BatchSessionBinding {
     };
   }, [views, items.length]);
 
+  // ---- Phase 19 — the printable batch summary (§EE 19.2) ---------------
+
+  /*
+   * The summary rows run the SAME derivations the queue renders —
+   * working-meta counts + recorded distance + a simplified SVG
+   * thumbnail per file. Pure + memoized on the queue; ≤ 50 rows of
+   * string building, cheap by construction.
+   */
+  const summary = useMemo<BatchSummary>(
+    () =>
+      buildBatchSummary(
+        views.map((view) => ({
+          fileName: view.item.fileName,
+          status: view.item.status,
+          data: view.item.data,
+          edits: view.item.edits,
+          working: view.working,
+          presetName: view.item.presetName,
+        })),
+      ),
+    [views],
+  );
+
   // ---- the preset flow (pure planning, confirmed apply) ------------------
 
   const planBatchPreset = useCallback(
@@ -407,5 +437,6 @@ export function useBatchSession(): BatchSessionBinding {
     setPrettyPrint,
     downloadZip,
     enterStudio,
+    summary,
   };
 }

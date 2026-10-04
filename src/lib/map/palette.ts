@@ -30,6 +30,12 @@ export interface MapOverlayPalette {
   readonly recon: string;
   /** The draft chain — the same signal at reduced alpha. */
   readonly reconDraft: string;
+  /**
+   * Phase 19 — the ORIGINAL track's ghost (compare overlay): a muted
+   * theme-dependent gray that reads as "was here" under the working
+   * copy's ink without competing with the severity ramp.
+   */
+  readonly ghost: string;
   /** Gap-span + boundary-marker severity ramp. */
   readonly severity: MapSeverityRamp;
   /**
@@ -45,6 +51,7 @@ export const MAP_OVERLAY_PALETTE_LIGHT: MapOverlayPalette = {
   route: "#222222",
   recon: "#FC4C02",
   reconDraft: "rgba(252,76,2,0.85)",
+  ghost: "#75706B",
   severity: {
     severe: "#000000",
     suspect: "#5A5A5A",
@@ -57,6 +64,7 @@ export const MAP_OVERLAY_PALETTE_DARK: MapOverlayPalette = {
   route: "#EDEBE8",
   recon: "#FC4C02",
   reconDraft: "rgba(252,76,2,0.9)",
+  ghost: "#C7C2BB",
   severity: {
     severe: "#FFFFFF",
     suspect: "#A8A8A8",

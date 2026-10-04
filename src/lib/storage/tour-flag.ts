@@ -53,3 +53,95 @@ export function clearTourFlag(): void {
     // Never throws — same contract as the session store guards.
   }
 }
+
+// ---------------------------------------------------------------------------
+// Phase 19 — per-tool guided walkthrough flags (§EE 19.3)
+// ---------------------------------------------------------------------------
+
+/**
+ * One JSON key for every tool tour's seen-flag (a map of tool id →
+ * "seen"). JSON, not one key per tool, so the e2e storageState seed
+ * and future tools stay one entry wide; the value is written whole.
+ */
+export const TOOL_TOUR_FLAGS_KEY = "gpx-repair-studio.tool-tours.v1";
+
+/** The tool ids that own a guided walkthrough (one source). */
+export const TOOL_TOUR_IDS = [
+  "repair",
+  "share",
+  "recovery",
+  "create",
+  "merge",
+  "plan",
+  "batch",
+] as const;
+
+export type ToolTourId = (typeof TOOL_TOUR_IDS)[number];
+
+type ToolTourFlagMap = Partial<Record<ToolTourId, "seen">>;
+
+function readFlagMap(): ToolTourFlagMap | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(TOOL_TOUR_FLAGS_KEY);
+    if (raw === null) return {};
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return {}; // corrupted value → a fresh map (unseen), never a throw
+    }
+    if (parsed === null || typeof parsed !== "object") return {};
+    return parsed as ToolTourFlagMap;
+  } catch {
+    return null; // storage itself unreadable — callers suppress the offer
+  }
+}
+
+/**
+ * Has this browser seen this tool's tour? Storage that cannot remember
+ * reads as "seen" for the AUTO-offer (a greeting that cannot remember
+ * would nag on every entry — the Phase 11 rule, applied per tool).
+ */
+export function hasSeenToolTour(id: ToolTourId): boolean {
+  const map = readFlagMap();
+  if (map === null) return true;
+  return map[id] === "seen";
+}
+
+/** Remember one tool's tour (finish, skip, Esc, or offer dismissed). */
+export function writeToolTourSeen(id: ToolTourId): void {
+  try {
+    const map = readFlagMap();
+    if (map === null) return; // dead storage — nothing to remember
+    map[id] = "seen";
+    window.localStorage.setItem(
+      TOOL_TOUR_FLAGS_KEY,
+      JSON.stringify(map),
+    );
+  } catch {
+    // Never throws — same contract as every storage guard.
+  }
+}
+
+/** The seen-state of every tool tour at once (the e2e seed's shape). */
+export function allToolToursSeen(): Record<ToolTourId, "seen"> {
+  return {
+    repair: "seen",
+    share: "seen",
+    recovery: "seen",
+    create: "seen",
+    merge: "seen",
+    plan: "seen",
+    batch: "seen",
+  };
+}
+
+/** Test helper — forget every tool tour flag. */
+export function clearToolTourFlags(): void {
+  try {
+    window.localStorage.removeItem(TOOL_TOUR_FLAGS_KEY);
+  } catch {
+    // Never throws.
+  }
+}

@@ -195,8 +195,24 @@ test.describe("map display", () => {
     const box = await page.locator(".maplibregl-canvas").boundingBox();
     expect(box).not.toBeNull();
     const { x, y } = state.spanScreenPositions[0];
-    await page.mouse.click(box!.x + x, box!.y + y);
 
+    /*
+     * The bridge reports projected span positions from route DATA the
+     * moment the camera settles — but MapLibre only fires a layer
+     * click when the WebGL frame that contains the span layer has
+     * COMMITTED. A click in that window hits the canvas before the
+     * span layer is queryable and selects nothing (a pre-existing
+     * race, reproduced on the Phase 18 baseline at ~1 run in 4; the
+     * bridge's ready/moving flags cannot see it). A settle wait plus
+     * one retry at the same, unchanged coordinates closes it.
+     */
+    let selected = false;
+    for (let attempt = 0; attempt < 3 && !selected; attempt++) {
+      await page.waitForTimeout(attempt === 0 ? 400 : 250);
+      await page.mouse.click(box!.x + x, box!.y + y);
+      selected = await bridge(page).then((s) => s?.selectedGapId != null);
+    }
+    expect(selected).toBe(true);
     await pollBridge(page, (s) => s.selectedGapId !== null);
     await expect(page.getByTestId("gap-row")).toHaveAttribute(
       "aria-pressed",

@@ -25,6 +25,22 @@ const SEEN_TOUR_STATE = {
       origin: "http://localhost:3000",
       localStorage: [
         { name: "gpx-repair-studio.tour.v1", value: "seen" },
+        /* Phase 19 — every per-tool tour marked seen too, so the
+         * existing suites never meet the offer banner (the tool-tour
+         * specs opt out with test-local overrides, same as the
+         * onboarding spec). */
+        {
+          name: "gpx-repair-studio.tool-tours.v1",
+          value: JSON.stringify({
+            repair: "seen",
+            share: "seen",
+            recovery: "seen",
+            create: "seen",
+            merge: "seen",
+            plan: "seen",
+            batch: "seen",
+          }),
+        },
       ],
     },
   ],

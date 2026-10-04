@@ -68,9 +68,21 @@ export interface MapCanvasProps {
    * shared wording assumes a parsed file; sections without one say so).
    */
   srNote?: string;
+  /**
+   * Phase 19 — force the legend's compare entries on (used by sections
+   * that render a ghost through other means). Defaults to the binding's
+   * own `compareGhost`.
+   */
+  compareGhost?: boolean;
 }
 
-export function MapCanvas({ map, attachContainer, draw = null, srNote }: MapCanvasProps) {
+export function MapCanvas({
+  map,
+  attachContainer,
+  draw = null,
+  srNote,
+  compareGhost,
+}: MapCanvasProps) {
   // "Nothing renderable at all" — recorded lines AND committed
   // reconstructions are empty. Reconstruction-only views (the create
   // workflow's review track, re-imported repairs on a fully damaged
@@ -294,7 +306,7 @@ export function MapCanvas({ map, attachContainer, draw = null, srNote }: MapCanv
                 editorActive && draw ? draw.setPointerMode : undefined
               }
             />
-            <MapLegend />
+            <MapLegend compareGhost={compareGhost ?? map.compareGhost} />
             {map.selectedGap && !editorActive && (
               <GapHighlightOverlay
                 gap={map.selectedGap}

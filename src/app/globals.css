@@ -377,16 +377,32 @@
  * re-pins to the LIGHT anchors regardless of the active theme — ink on
  * paper is what a printer is. Cards keep their ink borders (they read
  * as ruled tables) and never split across pages.
+ *
+ * Phase 19 (§EE 19.2) — the same flow drives TWO more sheets, each with
+ * its own body class and its own print region: `printing-summary` (the
+ * repair summary: delta table + provenance table + track snapshot) and
+ * `printing-batch-summary` (the per-file batch table with thumbnails).
+ * The three classes share the palette re-pin and the chrome hiding; the
+ * region rule is EXCLUSIVE — each sheet hides the other regions, so the
+ * stats sheet never bleeds into the summary sheet and vice versa.
  */
 .stats-print-only {
   display: none;
 }
 
+.summary-print-only {
+  display: none;
+}
+
+/* The three print flows share one body-class list (the selector the
+ * shared rules below key on). */
 @media print {
   /* The bench re-pins to the light anchors: body-level vars win the
    * inheritance race over the .dark <html> overrides, so a dark-mode
    * user still prints an ink-on-white sheet. */
-  body.printing-stats {
+  body.printing-stats,
+  body.printing-summary,
+  body.printing-batch-summary {
     color-scheme: light;
     --signal: #fc4c02;
     --signal-ink: #c43d00;
@@ -405,7 +421,9 @@
     background-image: none;
   }
 
-  body.printing-stats [data-print-hide] {
+  body.printing-stats [data-print-hide],
+  body.printing-summary [data-print-hide],
+  body.printing-batch-summary [data-print-hide] {
     display: none !important;
   }
 
@@ -413,21 +431,46 @@
     display: block;
   }
 
-  /* The stats region prints edge-to-edge of the @page box, cards keep
+  body.printing-summary .summary-print-only,
+  body.printing-batch-summary .summary-print-only {
+    display: block;
+  }
+
+  /* Each sheet shows exactly its own region: the stats flow hides the
+   * Phase 19 regions, the summary flow hides the stats region, and the
+   * batch flow (whose studio hides everything but its region) hides
+   * both repair-studio regions — which are not mounted in the batch
+   * section anyway, but the rule keeps the contract shape one place. */
+  body.printing-stats
+    [data-print-region]:not([data-print-region="stats"]),
+  body.printing-summary
+    [data-print-region]:not([data-print-region="summary"]),
+  body.printing-batch-summary
+    [data-print-region]:not([data-print-region="batch-summary"]) {
+    display: none !important;
+  }
+
+  /* The printing region prints edge-to-edge of the @page box, cards keep
    * their internal padding, and no card splits across a page break. */
-  body.printing-stats [data-print-region] {
+  body.printing-stats [data-print-region],
+  body.printing-summary [data-print-region],
+  body.printing-batch-summary [data-print-region] {
     width: 100%;
     max-width: none;
     margin: 0;
     padding: 0;
   }
-  body.printing-stats [data-print-region] > * {
+  body.printing-stats [data-print-region] > *,
+  body.printing-summary [data-print-region] > *,
+  body.printing-batch-summary [data-print-region] > * {
     break-inside: avoid;
   }
 
   /* Interactive furniture never prints: toggles, download buttons, the
    * profile table's disclosure chevrons stay on screen only. */
-  body.printing-stats [data-print-hide-on-print] {
+  body.printing-stats [data-print-hide-on-print],
+  body.printing-summary [data-print-hide-on-print],
+  body.printing-batch-summary [data-print-hide-on-print] {
     display: none !important;
   }
 

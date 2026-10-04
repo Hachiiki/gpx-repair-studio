@@ -343,8 +343,12 @@ test.describe("the keyboard-only milestone (zero pointer events)", () => {
  * Press Tab until the focused element satisfies `isMatch` (a string
  * evaluated in the page with `el` = document.activeElement) — the
  * keyboard spec's helper, copied for this spec's zero-pointer rule.
+ *
+ * The budget is generous (not a tight count): Phase 19's Before/after
+ * card added focusable stops to the tools column, and the milestone's
+ * contract is reachability, not an exact tab index.
  */
-async function tabUntil(page: Page, isMatch: string, max = 80): Promise<void> {
+async function tabUntil(page: Page, isMatch: string, max = 140): Promise<void> {
   for (let i = 0; i < max; i += 1) {
     const matched = await page.evaluate(
       (code) => {
