@@ -2,7 +2,7 @@
 
 A local-first workbench for repairing, recovering, creating, combining, and sharing GPX activity files — entirely in the browser. **No account, no server-side processing, no analytics, no cookies.** A GPX file you open here is parsed, edited, and exported on your device and never uploaded anywhere.
 
-Six tools, one workbench:
+Six tools, one workbench — and a seventh for the folder-sized chores:
 
 | Tool | What it does |
 |------|--------------|
@@ -12,8 +12,9 @@ Six tools, one workbench:
 | **Create from stats** | A watch that recorded the numbers but no map: enter the statistics, draw the route, download a GPX scaled to your recorded distance. |
 | **Combine recordings** | Merge two or more GPX files into one route — every point, elevation, and waypoint preserved, in your chosen order. |
 | **Plan a route** | A draw-and-measure scratchpad: sketch a route, read distance and elevation, see the pace a goal time implies. Nothing is exported or shared. |
+| **Clean up many files** | Queue up to 50 recordings, run one fix preset across them (previewed per file), export a ZIP with a manifest of every change. |
 
-The design principle underneath all six: **recorded data and reconstructed data never mix.** Statistics label what was measured and what was drawn, exports mark every reconstructed point (so Strava and other platforms can see the difference), and the original recording is never modified.
+The design principle underneath all of them: **recorded data and reconstructed data never mix.** Statistics label what was measured and what was drawn, exports mark every reconstructed point (so Strava and other platforms can see the difference), and the original recording is never modified.
 
 **No file handy?** Every file tool's intake carries a **“Try a sample”** link — a small synthetic recording bundled inside the app (the repair sample has two GPS gaps to fix; the merge sample is a two-part commute). The create form has **“Use example numbers.”** Everything runs the same pipeline as a real upload.
 
@@ -30,6 +31,10 @@ The design principle underneath all six: **recorded data and reconstructed data 
 **Keyboard-only drawing:** the draw editor's point list is now the canvas's full keyboard twin — add points by typing lat/lng, edit any point's coordinates in place, insert between two points (prefilled with the geodesic midpoint), and **nudge a focused point with the arrow keys** at a 1/10/100 m step (Shift = ×10; a whole nudge run is one undo). A complete gap repair can be finished without touching the mouse — the v1 limitation ("drawing required a pointing device") is closed. Typed coordinates are validated honestly: bounds are named, over-precise values round to 7 decimals (~1 cm) with a note, and DMS or scientific notation is refused with the expectation.
 
 **Road snapping, opt-in (consent-gated):** every routing request is now behind an explicit per-session opt-in — nothing is sent until you enable road snapping, the footer states the on state with the exact hosts, and every fresh page load asks again. The one-shot **Snap to road** command matches a whole drawn line onto the road network in a single request, previews it on the line itself with an honest distance delta, and applies as ONE undo step (geometry and path style together). Offline, the snap control disables with an explanation; straight and curve lines never stop working.
+
+**Batch cleanup** (the seventh tool): drop one or many GPX/TCX/FIT files (up to 50) into the queue — each parses locally and reports its points, its deep-check findings, or its typed failure (one bad file never blocks the rest). Pick a fix preset and see, per file, exactly what it would change — the same plan words the single-file preview shows — before anything is applied; every fix undoes per file. The export is one **ZIP**: a repaired GPX per file plus `MANIFEST.txt` stating what changed in each (files the fixes cannot help export unchanged, byte-identical to the identity export). Batch operations use the shipped deep-check settings; tune an individual file in the repair studio.
+
+**Portable sessions & the sessions shelf:** your work is yours to keep. The header's **Sessions** door (and the landing's "Continue a saved session" link) opens the manager: save the current session under a name, reopen it later, rename or delete it, or export it as a **`.gpxrepair.json` session file** — a versioned document carrying the whole thing (the original recording's bytes, every confirmed fix, every drawn repair, the view) that opens straight back into the app on any device. No accounts, ever: the file *is* the session. Named saves live in this browser's IndexedDB alongside the crash-recovery autosave (the shelf is your explicit snapshot; the autosave is the net).
 
 ---
 

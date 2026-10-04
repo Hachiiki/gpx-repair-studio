@@ -240,9 +240,17 @@ describe("SessionIdleView — tool pages (Task 20 + 26 + 42)", () => {
 });
 
 describe("SessionIdleView — the tool cards home (Task 42)", () => {
-  const CARD_MODES = ["repair", "share", "recovery", "create", "merge", "plan"] as const;
+  const CARD_MODES = [
+    "repair",
+    "share",
+    "recovery",
+    "create",
+    "merge",
+    "plan",
+    "batch",
+  ] as const;
 
-  it("asks the opening question and offers all six tools as tiles", () => {
+  it("asks the opening question and offers all seven tools as tiles", () => {
     renderIdle({ view: "home" });
 
     expect(
@@ -251,7 +259,7 @@ describe("SessionIdleView — the tool cards home (Task 42)", () => {
 
     const grid = screen.getByTestId("landing-mode-toggle");
     const tiles = grid.querySelectorAll("button");
-    expect(tiles).toHaveLength(6);
+    expect(tiles).toHaveLength(7);
     for (const mode of CARD_MODES) {
       expect(screen.getByTestId(`landing-mode-${mode}`)).toBeVisible();
     }
@@ -278,14 +286,14 @@ describe("SessionIdleView — the tool cards home (Task 42)", () => {
 
     const grid = screen.getByTestId("landing-mode-toggle");
     const images = grid.querySelectorAll("img");
-    expect(images).toHaveLength(6);
+    expect(images).toHaveLength(7);
     for (const image of Array.from(images)) {
       expect(image.getAttribute("alt")).toBeTruthy();
       expect(image.getAttribute("src")).toMatch(/^\/cards\/\w+\.webp$/);
     }
     // Task 56: the plates stay, on the shorter 2:1 tile crop.
     const plates = grid.querySelectorAll("[class*='aspect-[2/1]']");
-    expect(plates).toHaveLength(6);
+    expect(plates).toHaveLength(7);
   });
 
   it("dispatches the open intent when a tile is clicked", () => {

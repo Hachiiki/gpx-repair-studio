@@ -126,11 +126,15 @@ export function HelpContent() {
           Where everything lives
         </h3>
         <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-          The home page is six tool cards — Repair, Share card, Gap recovery,
-          Create from stats, Merge, and Plan a route. Opening a card shows how
-          that tool works and its upload or start controls; “All tools”
-          returns to the cards. New here? The “Take the tour” link on the
-          home page replays the walkthrough anytime.
+          The home page is seven tool cards — Repair, Share card, Gap recovery,
+          Create from stats, Merge, Plan a route, and Batch cleanup. Opening a
+          card shows how that tool works and its upload or start controls;
+          “All tools” returns to the cards. New here? The “Take the tour” link
+          on the home page replays the walkthrough anytime. Your saved
+          sessions live behind the header's “Sessions” button (also the
+          “Continue a saved session” link on the home page) — that dialog
+          saves, reopens, renames, exports, and imports session files
+          (.gpxrepair.json).
         </p>
       </section>
     </div>

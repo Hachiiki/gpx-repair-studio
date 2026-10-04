@@ -259,6 +259,28 @@ function planHasWork(): boolean {
   return store.phase === "studio" && store.reconstruction.vertices.length > 0;
 }
 
+/**
+ * Phase 18 — the WORK predicate, exported for the saved-sessions manager
+ * (the same rule gates "Save current session as…"): one definition, so
+ * what autosaves and what a user may name-and-keep can never disagree.
+ * Merge stays excluded (the Phase 10 decision gate); batch has no
+ * sessions (a queue is not a session — recorded scope decision).
+ */
+export function sessionSectionHasWork(
+  section: SessionSection,
+): boolean {
+  switch (section) {
+    case "repair":
+      return repairHasWork();
+    case "recovery":
+      return recoveryHasWork();
+    case "create":
+      return createHasWork();
+    case "plan":
+      return planHasWork();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // The hook
 // ---------------------------------------------------------------------------

@@ -39,8 +39,10 @@ import {
   ArrowRight,
   CircleHelp,
   Combine,
+  FolderOpen,
   History,
   ImageUp,
+  Layers,
   PencilRuler,
   Watch,
   Wrench,
@@ -67,9 +69,11 @@ export interface LandingTool {
 }
 
 /**
- * The six destinations, in the order users already know (repair first —
- * the app's core flow and the default remembered intent; plan last —
- * the newest tool, Task 50). Six tiles fill the 3-column grid evenly.
+ * The seven destinations, in the order users already know (repair first —
+ * the app's core flow and the default remembered intent; batch last —
+ * Phase 18's bulk door). Seven tiles in the 3-column grid leave a lone
+ * last tile on row three, so the grid centers it there (a deliberate
+ * full stop under the six — see the className note below).
  */
 export const LANDING_TOOLS: readonly LandingTool[] = [
   {
@@ -131,6 +135,16 @@ export const LANDING_TOOLS: readonly LandingTool[] = [
       "Illustration of a winding route being measured with ruler ticks and a drafting compass",
     icon: PencilRuler,
   },
+  {
+    mode: "batch",
+    kicker: "Batch",
+    title: "Clean up many files",
+    blurb:
+      "Queue dozens of recordings, run one fix preset across them, export a ZIP.",
+    imageAlt:
+      "Illustration of a stack of file cards with route lines, one being stamped with a checkmark",
+    icon: Layers,
+  },
 ];
 
 export interface LandingCardsViewProps {
@@ -152,6 +166,12 @@ export interface LandingCardsViewProps {
    * controller). Optional so tests can render the tiles bare.
    */
   onStartTour?: () => void;
+  /**
+   * Phase 18 — open the sessions manager (the named-session shelf +
+   * the open-a-session-file door). Optional so tests render the tiles
+   * bare.
+   */
+  onOpenSessions?: () => void;
 }
 
 export function LandingCardsView({
@@ -159,6 +179,7 @@ export function LandingCardsView({
   returnFocusTo,
   restorePrompt,
   onStartTour,
+  onOpenSessions,
 }: LandingCardsViewProps) {
   // Tile refs keyed by mode — the focus-return target (see header).
   const cardRefs = useRef<
@@ -194,6 +215,17 @@ export function LandingCardsView({
             New here? Take the tour
           </button>
         )}
+        {onOpenSessions && (
+          <button
+            type="button"
+            data-testid="landing-open-session"
+            onClick={onOpenSessions}
+            className="mx-auto mt-1 inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-ink/[0.06] hover:text-foreground focus-visible:outline-2"
+          >
+            <FolderOpen className="size-3.5" aria-hidden="true" />
+            Continue a saved session — or open a session file
+          </button>
+        )}
       </div>
 
       {/*
@@ -203,14 +235,17 @@ export function LandingCardsView({
        * landing's single mode picker, so the contract carries over).
        *
        * Density (Task 56): three columns from tablet up, two on small
-       * screens, one on phones — six tiles in two rows where the old
-       * cards needed three. The blurb clamps to three rendered lines
-       * so the narrowest three-column tiles never overflow.
+       * screens, one on phones. Seven tiles (Phase 18) leave a lone
+       * seventh on the desktop grid's third row — the
+       * `[&>li:last-child]:md:col-start-2` rule centers it there so the
+       * row reads as a deliberate full stop, not a gap. The blurb clamps
+       * to three rendered lines so the narrowest three-column tiles never
+       * overflow.
        */}
       <ul
         role="list"
         data-testid="landing-mode-toggle"
-        className="grid grid-cols-[minmax(0,1fr)] gap-3.5 sm:grid-cols-[repeat(2,minmax(0,1fr))] md:grid-cols-[repeat(3,minmax(0,1fr))]"
+        className="grid grid-cols-[minmax(0,1fr)] gap-3.5 sm:grid-cols-[repeat(2,minmax(0,1fr))] md:grid-cols-[repeat(3,minmax(0,1fr))] md:[&>li:last-child]:col-start-2"
       >
         {LANDING_TOOLS.map((tool) => {
           return (

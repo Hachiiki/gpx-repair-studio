@@ -38,7 +38,7 @@ describe("HelpContent / SHORTCUT_GROUPS (the keyboard map contract)", () => {
     for (const group of SHORTCUT_GROUPS) {
       expect(screen.getByText(group.title)).toBeInTheDocument();
     }
-    expect(screen.getByText(/six tool cards/i)).toBeInTheDocument();
+    expect(screen.getByText(/seven tool cards/i)).toBeInTheDocument();
   });
 });
 

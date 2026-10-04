@@ -21,7 +21,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ImageUp, RotateCcw, Wrench } from "lucide-react";
+import { ArrowLeft, BookmarkPlus, ImageUp, RotateCcw, Wrench } from "lucide-react";
 import { SHELL_CONTAINER } from "@/components/layout/shell-container";
 import { cn } from "@/lib/utils";
 import type { SessionStatus, SessionView } from "@/state/session-store";
@@ -62,6 +62,12 @@ export interface AppHeaderProps {
   onMergeShare?: () => void;
   /** Merge section: leave the share view, back to the arrangement. */
   onLeaveMergeShare?: () => void;
+  /**
+   * Phase 18 — open the sessions manager (the named-session shelf +
+   * the portable-file doors). Always rendered when provided: the shelf
+   * is app-level, not section-level.
+   */
+  onOpenSessions?: () => void;
 }
 
 export function AppHeader({
@@ -76,6 +82,7 @@ export function AppHeader({
   onLeaveShare,
   onMergeShare,
   onLeaveMergeShare,
+  onOpenSessions,
 }: AppHeaderProps) {
   const showSession = status === "parsed" && fileName !== null;
 
@@ -249,6 +256,18 @@ export function AppHeader({
                 Statistics
               </a>
             </nav>
+          )}
+          {onOpenSessions && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOpenSessions}
+              className="gap-1.5"
+              data-testid="header-sessions-button"
+            >
+              <BookmarkPlus className="size-3.5" aria-hidden="true" />
+              Sessions
+            </Button>
           )}
           {showSession && (
             <Button

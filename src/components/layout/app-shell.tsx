@@ -47,6 +47,9 @@ import { RecoveryStudio } from "@/components/recovery/recovery-studio";
 import { CreateStudio } from "@/components/create/create-studio";
 import { MergeStudio } from "@/components/merge/merge-studio";
 import { PlanStudio } from "@/components/plan/plan-studio";
+import { BatchIntake } from "@/components/batch/batch-intake";
+import { BatchStudio } from "@/components/batch/batch-studio";
+import { SessionsManagerDialog } from "@/components/shared/sessions-manager";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import { FileTimingCard } from "@/components/reconstruction/file-timing-card";
 import { GapList } from "@/components/reconstruction/gap-list";
@@ -76,6 +79,9 @@ import { useRecoveryStore } from "@/state/recovery-store";
 import { useCreateStore } from "@/state/create-store";
 import { useMergeStore } from "@/state/merge-store";
 import { usePlanStore } from "@/state/plan-store";
+import { useBatchStore } from "@/state/batch-store";
+import { useBatchSession } from "@/hooks/use-batch-session";
+import { useSavedSessions } from "@/hooks/use-saved-sessions";
 import { loadRecoveryFile } from "@/hooks/use-recovery-session";
 import { useSessionRecovery } from "@/hooks/use-session-recovery";
 import { useOnboardingTour } from "@/hooks/use-onboarding-tour";
@@ -185,16 +191,33 @@ export function AppShell() {
     s.files.filter((file) => file.status === "parsed").length,
   );
   const planPhase = usePlanStore((s) => s.phase);
+  const batchPhase = useBatchStore((s) => s.phase);
+  /*
+   * Phase 18 — ONE use-batch-session instance for the whole shell: the
+   * landing's batch tool page (BatchIntake) and the batch studio share
+   * it, so there is exactly one parse pump alive at any moment (two
+   * instances would race the queue's one-at-a-time contract).
+   */
+  const batchSession = useBatchSession();
+  const batchFileName = useBatchStore((s) =>
+    s.items.length === 1
+      ? s.items[0]!.fileName
+      : s.items.length > 0
+        ? `${s.items.length} files`
+        : null,
+  );
   const section: AppSection =
     mergePhase === "studio"
       ? "merge"
       : planPhase === "studio"
         ? "plan"
-        : createPhase !== "form"
-          ? "create"
-          : recoveryStatus === "loading" || recoveryStatus === "parsed"
-            ? "recovery"
-            : "repair";
+        : batchPhase === "studio"
+          ? "batch"
+          : createPhase !== "form"
+            ? "create"
+            : recoveryStatus === "loading" || recoveryStatus === "parsed"
+              ? "recovery"
+              : "repair";
 
   // Rehydrate persisted settings after mount — the prerendered HTML and
   // the first client render both use defaults, so there is no hydration
@@ -247,6 +270,14 @@ export function AppShell() {
     useUiStore.getState().setRouterConsentDialogOpen(false);
   const answerRouterConsent = (consent: "granted" | "declined") =>
     useUiStore.getState().setRouterConsent(consent);
+
+  /*
+   * Phase 18 — the named-sessions shelf (§EE 18.3/18.4): the header's
+   * always-present "Sessions" door opens the manager; one instance,
+   * one IndexedDB scan, mounted for the page's life.
+   */
+  const savedSessions = useSavedSessions();
+  const [sessionsOpen, setSessionsOpen] = useState(false);
 
   /*
    * Phase 12 — the shortcuts & help dialog: the footer button and the
@@ -393,12 +424,17 @@ export function AppShell() {
                   `${mergeParsedCount} recordings merged`
                 : section === "plan"
                   ? "Route plan"
-                  : session.fileName
+                  : section === "batch"
+                    ? (batchFileName ?? "Batch queue")
+                    : session.fileName
         }
         status={
           section === "recovery"
             ? recoveryStatus
-            : section === "create" || section === "merge" || section === "plan"
+            : section === "create" ||
+                section === "merge" ||
+                section === "plan" ||
+                section === "batch"
               ? "parsed"
               : session.status
         }
@@ -411,16 +447,26 @@ export function AppShell() {
                 ? () => useMergeStore.getState().reset()
                 : section === "plan"
                   ? () => usePlanStore.getState().reset()
-                  : session.reset
+                  : section === "batch"
+                    ? () => useBatchStore.getState().reset()
+                    : session.reset
         }
         view={session.view}
         onSwitchView={session.setView}
         section={section}
         resetLabel={
-          section === "create" || section === "merge" || section === "plan"
+          section === "create" ||
+          section === "merge" ||
+          section === "plan" ||
+          section === "batch"
             ? "Start over"
             : undefined
         }
+        /*
+         * Phase 18 — the sessions door (§EE 18.3/18.4): always in the
+         * header, whatever section is active (the shelf is app-level).
+         */
+        onOpenSessions={() => setSessionsOpen(true)}
         /*
          * The create section's Share flow: the header button appears
          * in the review phase (a finishable route exists) and opens the
@@ -487,6 +533,14 @@ export function AppShell() {
            * no export card, no share dialog, no share view.
            */
           <PlanStudio />
+        ) : section === "batch" ? (
+          /*
+           * Phase 18 — the Batch section: the queue workflow (no map —
+           * a table by design). Own store; the entry is the landing's
+           * batch tool page (the multi-file intake), and the binding is
+           * the shell's single use-batch-session instance.
+           */
+          <BatchStudio session={batchSession} />
         ) : section === "recovery" ? (
           /*
            * Task 26 — the Gap Recovery section: a separate workflow for
@@ -693,6 +747,7 @@ export function AppShell() {
                 : undefined
             }
             sampleLabel={sampleLabel}
+            batchIntake={<BatchIntake session={batchSession} />}
             createStats={createStats}
             paceUnit={paceUnit}
             onPaceUnitChange={setPaceUnit}
@@ -703,6 +758,7 @@ export function AppShell() {
               />
             }
             onStartTour={tour.start}
+            onOpenSessions={() => setSessionsOpen(true)}
           />
         )}
       </main>
@@ -731,6 +787,16 @@ export function AppShell() {
         onClose={() => setInfoPane(null)}
       />
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+      {/*
+       * Phase 18 — the sessions manager (the header's "Sessions" door
+       * and every open-session path), above every view like the info
+       * and help dialogs.
+       */}
+      <SessionsManagerDialog
+        open={sessionsOpen}
+        onOpenChange={setSessionsOpen}
+        sessions={savedSessions}
+      />
       {/*
        * Phase 17 — the consent dialog, above every view like the info
        * and help dialogs; opening the privacy pane from it closes it

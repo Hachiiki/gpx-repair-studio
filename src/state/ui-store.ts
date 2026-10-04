@@ -81,7 +81,13 @@ export const UI_SETTINGS_STORAGE_KEY = "gpx-repair-studio.settings.v1";
  * no switcher — the landing-page cards are the only front door, Task
  * 26/42 revisions).
  */
-export type AppSection = "repair" | "recovery" | "create" | "merge" | "plan";
+export type AppSection =
+  | "repair"
+  | "recovery"
+  | "create"
+  | "merge"
+  | "plan"
+  | "batch";
 
 /**
  * The landing's page (Task 42): "home" shows the tool cards; "tool"
@@ -106,7 +112,8 @@ export type LandingMode =
   | "recovery"
   | "create"
   | "merge"
-  | "plan";
+  | "plan"
+  | "batch";
 
 /**
  * The road-snapping consent state (§EE 17.2): "unknown" until the

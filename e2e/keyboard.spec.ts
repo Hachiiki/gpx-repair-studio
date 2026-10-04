@@ -112,6 +112,11 @@ test.describe("keyboard — the repair flow without a mouse", () => {
   });
 
   test("the whole repair flow is drivable by keyboard", async ({ page }) => {
+    // Phase 18: the flow's tab journey legitimately grew again (the
+    // header's Sessions door adds a stop to every wrap) and the whole
+    // keyboard pass now runs past the default 30 s — reachability is
+    // the contract, not brevity, so the test takes the time it takes.
+    test.setTimeout(90_000);
     await page.goto("/");
     await page.getByTestId("landing-mode-repair").waitFor({ state: "visible" });
 

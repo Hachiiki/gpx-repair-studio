@@ -1,13 +1,15 @@
 /**
  * Session storage (Phase 10 — docs/MASTER_PLAN.md Phase 10, §M-1/M-3) —
- * the IndexedDB home of crash/reload recovery.
+ * the IndexedDB home of crash/reload recovery, and (Phase 18 §EE 18.4)
+ * of the user's named saved sessions.
  *
  * What this module owns: opening one small database and reading/writing
- * per-section records. NOTHING else. Records are validated, captured and
+ * records. NOTHING else. Records are validated, captured and
  * hydrated by `lib/storage/session-record.ts` (pure); the autosave/restore
- * orchestration lives in `hooks/use-session-recovery.ts`.
+ * orchestration lives in `hooks/use-session-recovery.ts`, and the
+ * saved-session orchestration in `hooks/use-saved-sessions.ts`.
  *
- * Layout — `gpx-repair-studio.sessions` v1, two object stores:
+ * Layout — `gpx-repair-studio.sessions` v2, three object stores:
  *   - `state` — one SMALL record per section ("repair" | "recovery" |
  *     "create" | "plan"): the drawn vertices, settings, spans, resolved
  *     road legs. A geometry edit rewrites ~10–50 KB.
@@ -15,9 +17,16 @@
  *     ONCE per session (the bytes never change after upload). Splitting
  *     the blob out keeps the debounced autosave cheap even for a 24 MB
  *     250k-point file.
+ *   - `saved` (Phase 18, DB v2) — the named-session snapshots: one entry
+ *     per user save, keyed by generated id, holding the same record
+ *     shape (plus the section's original blob, so a named save is
+ *     self-sufficient). Explicit snapshots coexist with the `state`
+ *     autosave by design: the autosave is the crash net, the named save
+ *     is the user's own shelf.
  *
- * Single record per section, no history (the plan's explicit non-goal);
- * at most 4 records + 2 file blobs exist at any time.
+ * Single record per section in `state` (no history — the plan's explicit
+ * non-goal); the `saved` store holds as many as the user keeps. At most
+ * 4 autosave records + 2 autosave blobs + N saved sessions exist.
  *
  * Failure contract (the phase's "app functions identically with storage
  * disabled/blocked" criterion): every operation is guarded. No
@@ -66,9 +75,10 @@ export interface StoredSessionFile {
 export const MAX_SESSION_FILE_BYTES = 64 * 1024 * 1024;
 
 const DB_NAME = "gpx-repair-studio.sessions";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STATE_STORE = "state";
 const FILE_STORE = "files";
+const SAVED_STORE = "saved";
 
 /**
  * The async key/value seam the public functions operate on. The real
@@ -136,6 +146,10 @@ function getBackend(): SessionStorageBackend | null {
       }
       if (!db.objectStoreNames.contains(FILE_STORE)) {
         db.createObjectStore(FILE_STORE);
+      }
+      // v2 (Phase 18) — the named saved sessions, keyed by generated id.
+      if (!db.objectStoreNames.contains(SAVED_STORE)) {
+        db.createObjectStore(SAVED_STORE);
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -301,6 +315,166 @@ export async function storedSessionSections(): Promise<SessionSection[]> {
   } catch (error) {
     fail("list", error);
     return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Named saved sessions (Phase 18 §EE 18.4) — the `saved` store (DB v2).
+// Same failure contract as above: silent, null/[]-typed, never throwing.
+// Record validation is the ORCHESTRATOR's job (hooks/use-saved-sessions)
+// — this layer only moves entries, exactly like the section records.
+// ---------------------------------------------------------------------------
+
+/** One named saved session as it sits in IndexedDB. */
+export interface SavedSessionEntry {
+  /** Generated id (`crypto.randomUUID` when available, else time+counter). */
+  id: string;
+  /** The user's name (never empty — the writer enforces it). */
+  name: string;
+  /** When the snapshot was first saved (epoch ms). */
+  createdAt: number;
+  /** When the snapshot was last renamed/overwritten (epoch ms). */
+  updatedAt: number;
+  /** Which section's work this holds (record.section mirrored). */
+  section: SessionSection;
+  /** The same validated record shape the autosave persists. */
+  record: object;
+  /** The repair session's workspace view, when it matters. */
+  view?: "repair" | "share";
+  /** The section's original file (file-backed sections: repair/recovery). */
+  source?: StoredSessionFile;
+}
+
+/** Generate an id without depending on crypto.randomUUID's availability. */
+function generateSavedId(): string {
+  const uuid =
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function" &&
+    crypto.randomUUID();
+  if (uuid) return uuid;
+  return `s${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Save (or overwrite, when `id` matches) one named session. */
+export async function saveSessionEntry(
+  entry: Omit<SavedSessionEntry, "id" | "createdAt" | "updatedAt"> & {
+    id?: string;
+    createdAt?: number;
+  },
+): Promise<string | null> {
+  const active = getBackend();
+  if (!active) return null;
+  const now = Date.now();
+  const id = entry.id ?? generateSavedId();
+  const full: SavedSessionEntry = {
+    id,
+    name: entry.name,
+    createdAt: entry.createdAt ?? now,
+    updatedAt: now,
+    section: entry.section,
+    record: entry.record,
+    ...(entry.view !== undefined ? { view: entry.view } : {}),
+    ...(entry.source !== undefined ? { source: entry.source } : {}),
+  };
+  try {
+    await active.put(SAVED_STORE, id, full);
+    return id;
+  } catch (error) {
+    fail("save session", error);
+    return null;
+  }
+}
+
+/** Read one saved session by id (null when absent, unreadable, or shaped wrong). */
+export async function readSavedSession(
+  id: string,
+): Promise<SavedSessionEntry | null> {
+  const active = getBackend();
+  if (!active) return null;
+  try {
+    const raw: unknown = await active.get(SAVED_STORE, id);
+    if (typeof raw !== "object" || raw === null) return null;
+    const entry = raw as SavedSessionEntry;
+    if (
+      typeof entry.id !== "string" ||
+      typeof entry.name !== "string" ||
+      !isSessionSection(entry.section) ||
+      typeof entry.record !== "object" ||
+      entry.record === null ||
+      typeof entry.createdAt !== "number" ||
+      typeof entry.updatedAt !== "number"
+    ) {
+      return null;
+    }
+    return entry;
+  } catch (error) {
+    fail("read session", error);
+    return null;
+  }
+}
+
+/**
+ * List every saved session, newest-updated first (the manager's order).
+ * Entries whose shape drifted are skipped, never guessed into place.
+ */
+export async function listSavedSessions(): Promise<SavedSessionEntry[]> {
+  const active = getBackend();
+  if (!active) return [];
+  try {
+    const keys = await active.keys(SAVED_STORE);
+    const entries: SavedSessionEntry[] = [];
+    for (const key of keys) {
+      const raw: unknown = await active.get(SAVED_STORE, key);
+      if (typeof raw !== "object" || raw === null) continue;
+      const entry = raw as SavedSessionEntry;
+      if (
+        typeof entry.id !== "string" ||
+        typeof entry.name !== "string" ||
+        !isSessionSection(entry.section) ||
+        typeof entry.record !== "object" ||
+        entry.record === null ||
+        typeof entry.updatedAt !== "number"
+      ) {
+        continue;
+      }
+      entries.push(entry);
+    }
+    entries.sort((a, b) => b.updatedAt - a.updatedAt);
+    return entries;
+  } catch (error) {
+    fail("list sessions", error);
+    return [];
+  }
+}
+
+/** Rename one saved session (a plain patch — returns whether it landed). */
+export async function renameSavedSession(
+  id: string,
+  name: string,
+): Promise<boolean> {
+  const current = await readSavedSession(id);
+  if (current === null) return false;
+  const active = getBackend();
+  if (!active) return false;
+  try {
+    await active.put(SAVED_STORE, id, { ...current, name, updatedAt: Date.now() });
+    return true;
+  } catch (error) {
+    fail("rename session", error);
+    return false;
+  }
+}
+
+/** Delete one saved session. */
+export async function deleteSavedSession(id: string): Promise<boolean> {
+  const active = getBackend();
+  if (!active) return false;
+  try {
+    await active.delete(SAVED_STORE, id);
+    return true;
+  } catch (error) {
+    fail("delete session", error);
+    return false;
   }
 }
 

@@ -32,6 +32,7 @@ import {
   Clock,
   Download,
   Eye,
+  FileCheck2,
   Layers,
   ListOrdered,
   PenLine,
@@ -89,6 +90,11 @@ export interface SessionIdleViewProps {
   onTrySample?: () => void;
   /** What the sample link calls the sample ("a sample ride", …). */
   sampleLabel?: string;
+  /**
+   * Phase 18 — the batch tool's intake node (the shell owns the
+   * use-batch-session instance; see ToolDetailViewProps.batchIntake).
+   */
+  batchIntake?: ReactNode;
   /** Previously confirmed statistics (prefill when returning to the form). */
   createStats: ActivityStats | null;
   /** The app-wide distance/pace unit (the create form's entry unit). */
@@ -104,6 +110,11 @@ export interface SessionIdleViewProps {
    * "Take the tour" link (the shell owns the tour controller).
    */
   onStartTour?: () => void;
+  /**
+   * Phase 18 — the cards page's "Continue a saved session" link (the
+   * shell owns the sessions manager).
+   */
+  onOpenSessions?: () => void;
 }
 
 export function SessionIdleView({
@@ -117,11 +128,13 @@ export function SessionIdleView({
   onPlanBegin,
   onTrySample,
   sampleLabel,
+  batchIntake,
   createStats,
   paceUnit,
   onPaceUnitChange,
   restorePrompt,
   onStartTour,
+  onOpenSessions,
 }: SessionIdleViewProps) {
   /*
    * Focus return (Task 42): remember which card opened the tool page,
@@ -138,6 +151,7 @@ export function SessionIdleView({
         returnFocusTo={returnFocus}
         restorePrompt={restorePrompt}
         onStartTour={onStartTour}
+        onOpenSessions={onOpenSessions}
         onOpenTool={(tool) => {
           setReturnFocus(tool);
           onOpenTool(tool);
@@ -155,6 +169,7 @@ export function SessionIdleView({
       onPlanBegin={onPlanBegin}
       onTrySample={onTrySample}
       sampleLabel={sampleLabel}
+      batchIntake={batchIntake}
       createStats={createStats}
       paceUnit={paceUnit}
       onPaceUnitChange={onPaceUnitChange}
@@ -297,6 +312,26 @@ const WORKFLOW_STEPS: Record<
         "Enter a goal time and see the pace and speed it implies, with even splits along the route. This is a scratchpad — nothing is exported and nothing is shared.",
     },
   ],
+  batch: [
+    {
+      icon: Layers,
+      title: "Queue your files",
+      description:
+        "Drop one or many recordings — each parses locally and reports its points, its findings, and its failures. One bad file never blocks the rest.",
+    },
+    {
+      icon: FileCheck2,
+      title: "Preview, then apply",
+      description:
+        "Pick a fix preset and see, per file, exactly what it would change — the same plan words the single-file preview shows — before anything is applied. Every fix undoes.",
+    },
+    {
+      icon: Download,
+      title: "Download the ZIP",
+      description:
+        "One archive with a repaired GPX per file and a manifest stating what changed in each. The originals are never modified — files the fixes cannot help export unchanged.",
+    },
+  ],
 };
 
 const HERO_COPY: Record<
@@ -332,6 +367,11 @@ const HERO_COPY: Record<
     heading: "Plan a route, read its numbers",
     description:
       "Sketch a route on the map — along real roads, footpaths, or freehand — and watch the distance, the terrain, and the pace take shape. Enter a time and see what it demands. This is a planning scratchpad: nothing is exported, nothing is shared.",
+  },
+  batch: {
+    heading: "Clean up many files in one pass",
+    description:
+      "Queue a folder's worth of recordings, see per file what the deep checks find, run one fix preset across the whole queue — previewed per file before anything is applied — and download a ZIP with a manifest of every change.",
   },
 };
 
@@ -390,6 +430,14 @@ const TOOL_FACTS: Record<
     bestFor:
       "Planning tomorrow's run or ride, measuring a commute, comparing route options before recording one for real.",
   },
+  batch: {
+    input:
+      "One or many GPX, TCX, or FIT files (up to 50) — a folder's worth of exports, mixed sources welcome.",
+    output:
+      "One ZIP: a repaired GPX per file plus MANIFEST.txt stating exactly what changed in each — files the fixes cannot help export unchanged.",
+    bestFor:
+      "Post-migration cleanups, fleet-of-files drift and duplicate sweeps, and anyone who would rather fix twenty recordings in one sitting than one at a time.",
+  },
 };
 
 export interface ToolDetailViewProps {
@@ -414,6 +462,12 @@ export interface ToolDetailViewProps {
   /** The app-wide distance/pace unit (the create form's entry unit). */
   paceUnit: PaceUnit;
   onPaceUnitChange: (unit: PaceUnit) => void;
+  /**
+   * Phase 18 — the batch tool's intake (the multi-file queue door). A
+   * node so the shell owns the use-batch-session instance (one parse
+   * pump for the intake AND the studio — two would race the queue).
+   */
+  batchIntake?: ReactNode;
 }
 
 /**
@@ -435,6 +489,7 @@ export function ToolDetailView({
   createStats,
   paceUnit,
   onPaceUnitChange,
+  batchIntake,
 }: ToolDetailViewProps) {
   const hero = HERO_COPY[mode];
   const facts = TOOL_FACTS[mode];
@@ -503,6 +558,8 @@ export function ToolDetailView({
           <MergeIntake />
         ) : mode === "plan" ? (
           <PlanStartCard onBegin={onPlanBegin} />
+        ) : mode === "batch" ? (
+          (batchIntake ?? null)
         ) : (
           <UploadZone
             onFile={onFile}

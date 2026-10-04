@@ -22,15 +22,15 @@ test.describe("app shell", () => {
     await expect(main).toBeVisible();
 
     // Task 42: the landing opens on the tool cards — five doors (the
-    // merge card joined in Task 43), each with its illustration,
-    // instead of the tab switcher.
+    // merge card joined in Task 43; the batch card in Phase 18), each
+    // with its illustration, instead of the tab switcher.
     await expect(
       page.getByRole("heading", { name: "What would you like to do?" }),
     ).toBeVisible();
     const cards = page.getByTestId("landing-mode-toggle");
     await expect(cards).toBeVisible();
-    await expect(cards.locator("button")).toHaveCount(6);
-    await expect(cards.locator("img")).toHaveCount(6);
+    await expect(cards.locator("button")).toHaveCount(7);
+    await expect(cards.locator("img")).toHaveCount(7);
 
     // Opening the repair card enters its page: hero, intake, and the
     // three-step workflow (Inspect, Repair, and the honesty promise).
