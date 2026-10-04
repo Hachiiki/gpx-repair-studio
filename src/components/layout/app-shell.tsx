@@ -92,12 +92,18 @@ import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { Announcer } from "@/components/layout/announcer";
 import { useUiStore, type AppSection } from "@/state/ui-store";
 import { useRecoveryStore } from "@/state/recovery-store";
+import { useEditorStore } from "@/state/editor-store";
 import { useCreateStore } from "@/state/create-store";
 import { useMergeStore } from "@/state/merge-store";
 import { usePlanStore } from "@/state/plan-store";
 import { useBatchStore } from "@/state/batch-store";
 import { useBatchSession } from "@/hooks/use-batch-session";
 import { useSavedSessions } from "@/hooks/use-saved-sessions";
+import {
+  searchCommands,
+  useCommands,
+} from "@/hooks/use-commands";
+import { CommandPalette } from "@/components/layout/command-palette";
 import { loadRecoveryFile } from "@/hooks/use-recovery-session";
 import { useSessionRecovery } from "@/hooks/use-session-recovery";
 import { useOnboardingTour } from "@/hooks/use-onboarding-tour";
@@ -260,6 +266,22 @@ export function AppShell() {
             : recoveryStatus === "loading" || recoveryStatus === "parsed"
               ? "recovery"
               : "repair";
+
+  /*
+   * Phase 20 — the command layer's availability context: the landing
+   * holds the stage (no section), and a drawing editor session is
+   * live (the repair/recovery gap editor, or the create/plan studios).
+   */
+  const landingActive = section === "repair" && session.status === "idle";
+  const editorSessionOpen = useEditorStore((s) => s.activeGapId !== null);
+  const recoverySessionOpen = useRecoveryStore(
+    (s) => s.activeGapId !== null,
+  );
+  const editing =
+    editorSessionOpen ||
+    recoverySessionOpen ||
+    createPhase === "draw" ||
+    planPhase === "studio";
 
   // Rehydrate persisted settings after mount — the prerendered HTML and
   // the first client render both use defaults, so there is no hydration
@@ -437,6 +459,76 @@ export function AppShell() {
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
   }, []);
+
+  /*
+   * Phase 20 — the command palette (§EE 20.2) and the shortcut audit's
+   * new global bindings (§EE 20.3). Ctrl/Cmd+K opens the palette from
+   * anywhere EXCEPT over another open dialog (the "?"-key discipline:
+   * one dialog at a time — with the palette itself open, the same
+   * chord closes it). Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z / Ctrl+Y route to
+   * the active editor's undo/redo (never while typing in a field —
+   * native input undo always wins).
+   */
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const commands = useCommands({
+    section: landingActive ? null : section,
+    editing,
+    hasSavedSessions: savedSessions.rows.length > 0,
+    onOpenHelp: () => setHelpOpen(true),
+    onOpenInfo: (pane) => openInfo(pane),
+    onStartTour: (id) => tours.start(id),
+    onOpenSessions: () => setSessionsOpen(true),
+  });
+  const paletteFilter = useCallback(
+    (query: string) => {
+      const ids = new Set(
+        searchCommands(
+          commands.commands.map((command) => command.def),
+          query,
+          commands.context,
+        ).map((def) => def.id),
+      );
+      return commands.commands.filter((command) => ids.has(command.def.id));
+    },
+    [commands],
+  );
+  const paletteSessions = useMemo(
+    () =>
+      [...savedSessions.rows]
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, 4)
+        .map((row) => ({
+          row,
+          onRestore: (id: string) => {
+            void savedSessions.openRow(id);
+          },
+        })),
+    [savedSessions],
+  );
+  useEffect(() => {
+    const onKeydown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && key === "k") {
+        // With the palette open, the chord closes it (a toggle).
+        if (paletteOpen) {
+          event.preventDefault();
+          setPaletteOpen(false);
+          return;
+        }
+        // One dialog at a time — never stack the palette on another.
+        if (document.querySelector("[role='dialog']")) return;
+        event.preventDefault();
+        setPaletteOpen(true);
+        return;
+      }
+      // §EE 20.3 — the audited undo/redo pair (editor-scoped).
+      if (commands.runShortcut(event)) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", onKeydown);
+    return () => window.removeEventListener("keydown", onKeydown);
+  }, [paletteOpen, commands]);
 
   /*
    * Phase 12 — the theme binding (dark mode). Mounted at the shell so
@@ -954,6 +1046,16 @@ export function AppShell() {
           setHelpOpen(false);
           tours.start(id);
         }}
+      />
+      {/*
+       * Phase 20 — the command palette (Ctrl/Cmd+K): every action +
+       * the recent-session shelf, one fuzzy search away.
+       */}
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        filter={paletteFilter}
+        sessions={paletteSessions}
       />
       {/*
        * Phase 18 — the sessions manager (the header's "Sessions" door

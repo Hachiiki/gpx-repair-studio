@@ -1,13 +1,12 @@
 /**
  * HelpContent (Phase 12) — the shortcuts cheat sheet + tool guide.
  *
- * The keyboard map is a CONTRACT, not documentation: every entry must
- * exist in the shipped bindings (the draw editors' D/M/P/C handlers,
- * the pick sessions' Esc, the gap-threshold Enter commit, and this
- * dialog's own "?" listener in AppShell). When Phase 20's command
- * registry lands, this table should be generated from that single
- * source instead of maintained by hand (noted here so the migration
- * is not forgotten).
+ * Phase 20: the keyboard map is now GENERATED from the command
+ * registry (features/commands/registry.ts) — the single source the
+ * palette also renders from. The contract stays the Phase 12 one:
+ * every entry must exist in the shipped bindings; adding a binding to
+ * the registry is now the only way it appears here (removing one
+ * removes it everywhere at once).
  *
  * Pure data + presentation; no behavior of its own.
  */
@@ -16,6 +15,7 @@
 
 import { useId } from "react";
 import { TOOL_TOURS } from "@/components/layout/tool-tour";
+import { shortcutCheatSheet } from "@/hooks/use-commands";
 import type { ToolTourId } from "@/lib/storage/tour-flag";
 import { TOOL_TOUR_IDS } from "@/lib/storage/tour-flag";
 
@@ -31,43 +31,33 @@ export interface ShortcutGroup {
   shortcuts: readonly ShortcutEntry[];
 }
 
+/**
+ * The keyboard map, generated from the registry (global bindings,
+ * then the editors' own group), plus the map-gesture rows the
+ * registry deliberately does not own (they are pointer actions, not
+ * commands).
+ */
 export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
-  {
-    title: "Everywhere",
-    shortcuts: [
-      { keys: ["?"], description: "Open this shortcuts & help dialog" },
-      {
-        keys: ["Esc"],
-        description: "Close a dialog, or cancel the current pick / edit",
-      },
-      {
-        keys: ["Tab"],
-        description:
-          "Move through the controls — the “Skip to content” link is first from the page top",
-      },
-    ],
-  },
-  {
-    title: "Drawing editors (Repair, Recovery, Create, Plan)",
-    shortcuts: [
-      { keys: ["D"], description: "Draw mode — click to place points" },
-      {
-        keys: ["M"],
-        description: "Move mode — drag any placed point to adjust it",
-      },
-      { keys: ["P"], description: "Pan mode — normal map navigation" },
-      {
-        keys: ["C"],
-        description: "Toggle the Curve pen (while in Draw mode) — draw freehand",
-      },
-    ],
-    note: "The letter keys do nothing while you are typing in a field.",
-  },
+  ...shortcutCheatSheet().map((group) => ({
+    title: group.title,
+    ...(group.entries.some((entry) => entry.editorOnly)
+      ? {
+          note: "The letter keys do nothing while you are typing in a field.",
+        }
+      : {}),
+    shortcuts: group.entries.map((entry) => ({
+      keys: entry.keys,
+      description: entry.description,
+    })),
+  })),
   {
     title: "Map",
     shortcuts: [
       { keys: ["Scroll", "Pinch"], description: "Zoom in and out" },
-      { keys: ["Drag"], description: "Pan the map (Pan mode in the editors)" },
+      {
+        keys: ["Drag"],
+        description: "Pan the map (Pan mode in the editors)",
+      },
       { keys: ["Double-click"], description: "Zoom in one step" },
     ],
   },
