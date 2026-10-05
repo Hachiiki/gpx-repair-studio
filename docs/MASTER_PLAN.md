@@ -3616,3 +3616,287 @@ leading at 1.63.
   build artifacts, never committed; the repo's `public/sw.js` is
   the readable source of truth.
 - Non-goals held: no background sync, no push notifications.
+
+---
+
+## QQ. v3 Roadmap — proposed (phases 23–32)
+
+Where v1 repaired a file and v2 became a workbench (formats in and
+out, stats, surgery, snapping, batch, compare, the palette, two
+languages, offline), v3 makes the library *mean something*. The app
+already parses heart rate, cadence, and power on every TCX/FIT file
+and keeps named sessions on the device — v3 turns that into zones,
+records, trends, and heatmaps without a byte leaving the browser,
+then deepens authoring (cue sheets, waypoints, routes), interchange
+(TCX/FIT writing), and the last hard repair cases (forensics for
+the file broken beyond parsing).
+
+The constitution carries through every phase unchanged: no accounts,
+no cloud, no telemetry, no push, no background sync, and user files
+never leave the device. Recorded data stays sacred — reconstructed
+stretches are flagged, and where honesty matters they do not count
+(a personal record set on a drawn-in gap is not a record).
+
+Baselines entering v3: 1889 unit tests (134 files), 201 e2e, eslint
+and tsc clean, static-exportability guarded, both themes, two
+locales, offline PWA shipped (tag `v2` → `d3af7ef`). Conventions
+carry over from §EE: each phase ends committed and green
+(`phase(N): …`), the full QA ritual per delivery, no unrelated
+refactors, future-phase features stay explicit non-goals.
+
+### Phase 23 — Fitness zones & metrics (Task 68)
+
+**Objective:** the hr/cad/power that has ridden along as read-only
+passthrough since Phase 14 gets its analysis — honest, in the stats
+dashboard.
+
+- **23.1 Zone sets.** Heart-rate zones (the classic five-band
+  preset, boundaries editable), power zones (FTP-based percentages),
+  cadence ranges; persisted beside the pace toggle.
+- **23.2 Time-in-zone.** Distribution bars plus the table, and a
+  per-split zone breakdown; a metrics-free file renders "—" with
+  the reason — the §L-2 honesty rules apply to zones exactly as
+  they apply to pace.
+- **23.3 Metrics charts.** hr/cad/power over distance on the pace
+  chart's axis, lightly smoothed with the smoothing disclosed; the
+  profile's keyboard discipline (the textual table twin) applies.
+- **23.4 Stopped-time refinement.** The 0.5 m/s stop threshold
+  becomes configurable (default unchanged, disclosed in place).
+- **23.5 Export.** Zone rows join the stats CSV and the print
+  sheet.
+
+**Non-goals:** editing hr/cad/power values (passthrough stays
+read-only), VO2max/calorie estimation (fabrication-adjacent),
+fitness modeling (Phase 24).
+**Verification:** zone boundary tests (exact-at-limit), no-data
+honesty cases, chart a11y and textual twins, e2e on a
+metrics-bearing sample, VLM on both themes.
+
+### Phase 24 — Activity library, records & trends (Task 69)
+
+**Objective:** the sessions shelf grows into the local training
+library — the history view a training platform would give you,
+computed on-device.
+
+- **24.1 Library view.** A card per saved session (distance, moving
+  time, pace, gain, avg hr when present), sort and filter,
+  multi-select bulk delete and portable export.
+- **24.2 Personal records.** Farthest, longest, most gain, fastest
+  pace at 5k/10k/HM/M where a recorded track covers the distance
+  (interpolated markers flagged); efforts over reconstructed
+  stretches are excluded, stated as a rule, not a footnote.
+- **24.3 Trends.** Weekly/monthly volume charts; the
+  fitness-fatigue line (CTL/ATL/form) once enough history exists —
+  honest minimum counts, plain-language framing, explicitly not
+  training advice.
+- **24.4 Privacy.** Derived indexes live beside the sessions in
+  IndexedDB, disclosed in the privacy pane, clearable with the
+  shelf.
+
+**Non-goals:** cloud sync, share links, sport auto-classification.
+**Verification:** record goldens (including the
+reconstructed-exclusion rule), trend math vectors, e2e over a
+seeded library, VLM on library and trends.
+
+### Phase 25 — Heatmap & personal segments (Task 70)
+
+**Objective:** your own history on the map — where you have been,
+and how fast you have covered the stretches you repeat.
+
+- **25.1 Heatmap layer.** Density rendering of every library track,
+  worker-computed, a map-toolbar toggle, theme-aware ramp; large
+  libraries decimate the way the 250k profile taught.
+- **25.2 Segments.** Define one by selecting a stretch of any track
+  or drawing it; the matcher finds your efforts across the library
+  (geometric containment with a distance tolerance) and keeps a PR
+  table with dates.
+- **25.3 The honesty rule.** Segment efforts count recorded data
+  only — a stretch repaired by drawing is flagged and never a PR
+  (Phase 24's rule, restated where it bites hardest).
+
+**Non-goals:** leaderboards, network matching, importing others'
+segments.
+**Verification:** matcher goldens (overlap, dedup, tolerance
+boundaries), heatmap perf budget, e2e segment create → match → PR,
+VLM on both themes.
+
+### Phase 26 — Photo geotagging (Task 71)
+
+**Objective:** the photos taken on the activity, pinned to where
+you were — EXIF written back on-device, never uploaded anywhere.
+
+- **26.1 Matching.** EXIF DateTimeOriginal against track time, an
+  offset-calibration control (camera clocks drift — a live match
+  preview with a nudge slider), explicit timezone handling with the
+  offset matrix documented.
+- **26.2 Write-back.** GPS IFD injection into JPEG bytes locally;
+  pins previewed on the map; Save As by default, in-place edits
+  only through the File System Access API with an explicit choice.
+- **26.3 Honesty.** HEIC/RAW refused with the reason stated;
+  timestamp-less photos listed as unmatched; the footer says
+  photos never leave the device.
+- **26.4 Batch.** Many photos, one pass, a ZIP out with a manifest —
+  the Phase 18 pattern applied to images.
+
+**Non-goals:** face or scene AI, XMP sidecars (candidate), video.
+**Verification:** EXIF round-trip property tests (bytes in, tagged
+bytes out, originals untouched by default), timezone matrix units,
+e2e with synthetic JPEGs, VLM on the match preview.
+
+### Phase 27 — Cue sheets & turn-by-turn (Task 72)
+
+**Objective:** the plan tool's route becomes a printable sheet of
+instructions — the §EE non-goal deferred at Phase 15, buildable
+now.
+
+- **27.1 Instructions.** Bearing-change detection with distance
+  thresholds; street names on road-followed legs (the routers
+  return them and the app discards them today — Phase 27 preserves
+  them on the leg); "Turn left onto X", "Continue", "Arrive", in
+  every shipped locale's words.
+- **27.2 The sheet.** Numbered rows — cumulative distance,
+  instruction, elevation at the turn, a notes column — with print
+  CSS like the stats sheet and a text/CSV export.
+- **27.3 Elevation-aware ETA.** Per-waypoint ETA from a goal time
+  or a pace, with grade-adjusted slowdown on climbs — a simple,
+  disclosed model, not a physiology engine.
+
+**Non-goals:** voice output, live navigation, geocoding.
+**Verification:** instruction goldens (bearing thresholds
+exact-at-limit), street-name preservation round-trips, print e2e
+plus a PDF snapshot, VLM on the sheet.
+
+### Phase 28 — Waypoints & routes authoring (Task 73)
+
+**Objective:** wpt and rte ride through today as preserved bytes —
+v3 makes them first-class authored objects.
+
+- **28.1 Waypoint authoring.** Create, edit, delete, and reorder in
+  the repair working copy, merge, and plan; name, symbol, and
+  description fields; a picker over the GPX 1.1 standard symbols.
+- **28.2 Route objects.** `<rte>` graduates from verbatim snapshot
+  to an editable route — the plan tool's natural timestamp-less
+  export twin.
+- **28.3 Export fidelity.** Authored wpt/rte in every format's
+  writer; authored objects are user data, never marked
+  reconstructed.
+
+**Non-goals:** geocoding (network), proximity alarms.
+**Verification:** authoring state machines, export round-trips per
+format, surgery interplay (split and reorder against waypoints),
+e2e and VLM.
+
+### Phase 29 — True resample & simplify (Task 74)
+
+**Objective:** the twice-deferred upgrade from thinning to real
+geometry work — as working-copy fixes with previews, like the rest
+of the deep-validation set.
+
+- **29.1 Simplify.** Douglas-Peucker with an epsilon in meters; the
+  preview states point count and distance error percent; one undo
+  step.
+- **29.2 Resample.** True interpolation to a target spacing, with
+  timestamps interpolated under the reconstruction engine's rules.
+- **29.3 Preset refresh.** "Resample (thin)" gains a mode choice —
+  thin, simplify, resample — and stays batch-safe.
+
+**Non-goals:** touching the original (the working copy only, as
+ever), lossless claims (the preview's error percent is the
+honesty).
+**Verification:** algorithm goldens against reference
+implementations, error-bound tests, preview and undo e2e, batch
+regression.
+
+### Phase 30 — TCX & FIT export (Task 75)
+
+**Objective:** the export dialog stops being one-way — TCX and FIT
+join GPX, KML, GeoJSON, and CSV out.
+
+- **30.1 TCX writer.** Activity with laps (auto-lap per kilometer
+  or per segment), hr/cad on the trackpoints; the round-trip proof
+  is the shipped TCX parser re-reading the writer's output.
+- **30.2 FIT writer.** A hand-rolled minimal encoder (file_id,
+  activity, record, lap, session messages — no SDK dependency);
+  the round-trip proof is the shipped FIT reader; gpxr provenance
+  survives where the format allows and the export dialog says
+  where it cannot.
+- **30.3 Surface.** The export matrix and the batch ZIP gain the
+  two formats; the README's format table updated.
+
+**Non-goals:** FIT Courses, TCX Courses (candidates).
+**Verification:** writer-reader round-trip properties per format,
+golden bytes for one canonical file, e2e export and re-import, VLM
+on the updated dialog.
+
+### Phase 31 — Locales & RTL (Task 76)
+
+**Objective:** the recorded Phase 22+ candidate — more languages,
+and the first right-to-left one.
+
+- **31.1 Four locales.** ja, de, fr, es — full-surface typed
+  dictionaries under the Phase 21 discipline (no bare strings, the
+  lint rule already enforces it), a pseudo-length sweep before each
+  ships.
+- **31.2 RTL.** ar or he first: a logical-property sweep, mirrored
+  charts and editors, a pseudo-RTL harness mirroring the
+  pseudo-length one.
+- **31.3 The chip.** The EN/中文 footer chip becomes a locale sheet;
+  persistence behavior unchanged.
+
+**Non-goals:** machine translation of user data; exported artifacts
+stay canonical English.
+**Verification:** missing-key gates per locale, the pseudo-RTL VLM
+sweep, e2e switch persistence across all locales, palette search
+per locale.
+
+### Phase 32 — Repair forensics (Task 77)
+
+**Objective:** for the file the parser cannot save — see the bytes,
+patch the break, salvage the complete parts.
+
+- **32.1 Hex viewer.** A byte-level view with the parse error
+  mapped to its offset wherever the error carries one; region
+  selection.
+- **32.2 Manual patch.** A constrained editor for the broken
+  fragment (well-formedness checked on keystroke), applied through
+  the real parse pipeline; patches disclose in export metadata like
+  any fix.
+- **32.3 Truncation salvage.** Recover every complete trkseg from a
+  cut stream; count and disclose the dropped tail.
+- **32.4 Archive intake.** .zip and .tar holding GPX/TCX/FIT,
+  extracted locally (fflate is already aboard) into the batch
+  queue.
+
+**Non-goals:** guessing beyond the existing repair engine, binary
+FIT forensics.
+**Verification:** salvage goldens (synthetic truncations at every
+structure level), patch round-trips, archive e2e, VLM on the hex
+view.
+
+### v3 release
+
+After Phase 32: full regression (typecheck, eslint, unit, Playwright,
+static export), a VLM sweep across both themes and every locale
+including RTL, README refresh, worklog closeout — **tag `v3`**,
+push.
+
+### Candidates, deliberately unscheduled
+
+Recorded so they are not lost, scheduled by nobody: WASM parse
+experiments (only behind a measured budget miss); a 3D terrain
+flythrough (opt-in, cached, heavy); the user macro/scripting
+console (Phase 20's deferred non-goal — sandboxing is the whole
+project); DTW track alignment for compare; the Terrarium elevation
+provider (schema reserved since v1); XMP sidecar export for photos;
+FIT/TCX Courses; OpenTopoData behind a server-side relay (likely
+never — a relay breaks the promise the app is named for).
+
+### Standing non-goals (permanent)
+
+Accounts, cloud sync, telemetry or analytics of any kind, push
+notifications, background sync, machine translation of user data,
+and uploading user files anywhere, ever.
+
+Per the v1 discipline: **implementation has not begun.** This
+section is the proposed plan; execution starts only on explicit
+user instruction, phase by phase.

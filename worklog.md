@@ -1739,3 +1739,20 @@ Stage Summary:
 - Phase 22 shipped complete: installable PWA with dual-theme chrome, an atomic-precaching service worker with never-silent updates, persistent elevation terrain with the same LRU discipline, both caches disclosed and clearable in the privacy pane, and the zero-request offline proof as an e2e.
 - All gates green: 1889 unit, 201 e2e, lint, tsc, build+PWA, live QA 25/25, VLM 11/11 disproven.
 - v2 roadmap COMPLETE (phases 12–22). Baseline for any v3: 1889 unit + 201 e2e.
+
+---
+Task ID: 68 (planning)
+Agent: Super Z (main agent)
+Task: v3 roadmap proposal — docs/MASTER_PLAN.md §QQ (phases 23–32), drafted on the user's ask ("what are some good v3 updates we can do more?") after the v2 closeout
+
+Work Log:
+- Verified v2 closure first: tag `v2` → d3af7ef, both tags on origin, working tree clean, worklog already carrying the Phase 22 record ("v2 roadmap COMPLETE").
+- Harvested the deferred surface: the v1 deferred backlog (§"Deferred backlog"), per-phase non-goals across §EE (hr/power analytics deferred at 15; turn-by-turn at 15; macros at 20; RTL + more locales recorded as Phase 22+ candidates), the twice-deferred true resampling (§GG / §KK), and the v1-shelved WASM / Terrarium items.
+- Verified code facts before writing claims: `<rte>` today parses only as a verbatim passthrough snapshot (parse.ts, domain.ts — authoring genuinely absent); road-follow extracts no street names from router payloads (no name handling in features/reconstruction — Phase 27's "preserve them on the leg" is a real gap, not a re-description).
+- Wrote §QQ: phases 23–32 + v3 release closeout + unscheduled candidates + standing non-goals. 23 fitness zones & metrics (hr/cad/power analysis on the passthrough data), 24 activity library / records / trends (the shelf becomes the local training library), 25 heatmap & personal segments (recorded-data-only PR rule), 26 photo geotagging (local EXIF write-back), 27 cue sheets & turn-by-turn, 28 waypoints & routes authoring, 29 true resample & simplify (Douglas-Peucker), 30 TCX & FIT export (round-trip-proven writers), 31 locales & RTL (ja/de/fr/es + ar-or-he), 32 repair forensics (hex view, manual patch, truncation salvage, archive intake).
+- Discipline note embedded at section end: implementation has NOT begun; execution starts only on explicit user instruction, mirroring the v1 closing-note rule.
+
+Stage Summary:
+- v3 roadmap proposed and committed as MASTER_PLAN.md §QQ. Throughline: the app already parses hr/cad/power and keeps named sessions — v3 turns that into zones, records, trends, and heatmaps (all on-device), then deepens authoring, interchange, and the last hard repair cases.
+- Every phase carries sub-items, non-goals, and verification in §EE's conventions; entering baselines recorded (1889 unit / 201 e2e / tag v2 → d3af7ef).
+- Task numbering: planning = Task 68 (shared with Phase 23, the v2 pattern); phases 24–32 = Tasks 69–77.
