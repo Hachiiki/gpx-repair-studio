@@ -3619,7 +3619,7 @@ leading at 1.63.
 
 ---
 
-## QQ. v3 Roadmap — proposed (phases 23–32)
+## QQ. v3 Roadmap — proposed (phases 23–33)
 
 Where v1 repaired a file and v2 became a workbench (formats in and
 out, stats, surgery, snapping, batch, compare, the palette, two
@@ -3629,7 +3629,10 @@ and keeps named sessions on the device — v3 turns that into zones,
 records, trends, and heatmaps without a byte leaving the browser,
 then deepens authoring (cue sheets, waypoints, routes), interchange
 (TCX/FIT writing), and the last hard repair cases (forensics for
-the file broken beyond parsing).
+the file broken beyond parsing) — and, informed by the §RR Strava
+interop research, it speaks Strava's language end to end: zone and
+metric parity where the models are public, and a pre-upload preview
+of what Strava will do with the file (Phase 33).
 
 The constitution carries through every phase unchanged: no accounts,
 no cloud, no telemetry, no push, no background sync, and user files
@@ -3652,22 +3655,40 @@ dashboard.
 
 - **23.1 Zone sets.** Heart-rate zones (the classic five-band
   preset, boundaries editable), power zones (FTP-based percentages),
-  cadence ranges; persisted beside the pace toggle.
+  cadence ranges; persisted beside the pace toggle. Defaults mirror
+  the documented Strava set (§RR): heart-rate zones derive from max
+  HR (220 − age, editable — their exact default and fallback), power
+  zones are seven from FTP, pace zones are six set from a recent
+  race result; their guardrails adopted too (no overlap, adjacent
+  zones differ by at least one unit).
 - **23.2 Time-in-zone.** Distribution bars plus the table, and a
   per-split zone breakdown; a metrics-free file renders "—" with
   the reason — the §L-2 honesty rules apply to zones exactly as
   they apply to pace.
-- **23.3 Metrics charts.** hr/cad/power over distance on the pace
-  chart's axis, lightly smoothed with the smoothing disclosed; the
-  profile's keyboard discipline (the textual table twin) applies.
+- **23.3 Metrics charts.** hr/cad/power over distance, drawn over
+  the elevation profile — Strava's own documented chart pattern for
+  all three metrics — lightly smoothed with the smoothing disclosed;
+  the profile's keyboard discipline (the textual table twin) applies.
 - **23.4 Stopped-time refinement.** The 0.5 m/s stop threshold
   becomes configurable (default unchanged, disclosed in place).
 - **23.5 Export.** Zone rows join the stats CSV and the print
   sheet.
+- **23.6 Grade-adjusted pace (running).** GAP as a first-class
+  metric from the published Minetti grade-energy curve — our model,
+  named as ours (Strava's curve is proprietary; both agree the
+  downhill adjustment peaks near −10%): GAP per split, GAP for the
+  whole run, and pace-zone bucketing by GAP, exactly the Strava
+  semantics.
 
 **Non-goals:** editing hr/cad/power values (passthrough stays
-read-only), VO2max/calorie estimation (fabrication-adjacent),
-fitness modeling (Phase 24).
+read-only), VO2max estimation (fabrication-adjacent), fitness
+modeling (Phase 24).
+**Amended on the §RR research:** an energy (calorie) estimate
+joins as an opt-in sub-item — Strava's own documented approach is
+an estimate with named inputs (rides: power with a human efficiency
+coefficient; runs: weight, GAP speed, moving time), so ours ships
+the same way: opt-in, weight stored locally only, formula disclosed
+in place, labeled an estimate everywhere it appears.
 **Verification:** zone boundary tests (exact-at-limit), no-data
 honesty cases, chart a11y and textual twins, e2e on a
 metrics-bearing sample, VLM on both themes.
@@ -3681,17 +3702,30 @@ computed on-device.
 - **24.1 Library view.** A card per saved session (distance, moving
   time, pace, gain, avg hr when present), sort and filter,
   multi-select bulk delete and portable export.
-- **24.2 Personal records.** Farthest, longest, most gain, fastest
-  pace at 5k/10k/HM/M where a recorded track covers the distance
-  (interpolated markers flagged); efforts over reconstructed
-  stretches are excluded, stated as a rule, not a footnote.
+- **24.2 Personal records.** Farthest, longest, most gain, and
+  best efforts over the Strava benchmark ladder (400 m, 1 k,
+  1/2 mi, 1 mi, 2 mi, 5 k, 10 k, 15 k, 10 mi, 20 k, HM, 30 k,
+  marathon, 50 k) where a recorded track covers the distance
+  (interpolated markers flagged); elapsed-time semantics — the
+  clock does not stop, matching Strava's documented rule — and the
+  top three lifetime efforts per distance. Efforts over
+  reconstructed stretches are excluded, stated as a rule, not a
+  footnote.
 - **24.3 Trends.** Weekly/monthly volume charts; the
-  fitness-fatigue line (CTL/ATL/form) once enough history exists —
-  honest minimum counts, plain-language framing, explicitly not
-  training advice.
+  fitness-fatigue line once enough history exists — the Banister
+  1975 impulse-response model as Coggan applied it (fitness on the
+  long timescale, fatigue short, form the difference), public
+  science, cited in place — honest minimum counts, plain-language
+  framing, explicitly not training advice.
 - **24.4 Privacy.** Derived indexes live beside the sessions in
   IndexedDB, disclosed in the privacy pane, clearable with the
   shelf.
+- **24.5 Race-time predictions (opt-in).** Riegel's classic
+  exponent model (t₂ = t₁·(d₂/d₁)^1.06) over the Phase 24 best
+  efforts — the honest local alternative to Strava's cloud ML
+  predictions: no cohort, no upload, the formula shown, the
+  caveats stated (it knows nothing about terrain or training
+  history, and says so).
 
 **Non-goals:** cloud sync, share links, sport auto-classification.
 **Verification:** record goldens (including the
@@ -3708,11 +3742,18 @@ and how fast you have covered the stretches you repeat.
   libraries decimate the way the 250k profile taught.
 - **25.2 Segments.** Define one by selecting a stretch of any track
   or drawing it; the matcher finds your efforts across the library
-  (geometric containment with a distance tolerance) and keeps a PR
-  table with dates.
+  and keeps a PR table with dates. Matching follows Strava's
+  documented semantics (§RR): an effort is timed from the nearest
+  recorded points crossing the segment's start and end, on elapsed
+  time, with a drift tolerance — more points mean finer timing.
 - **25.3 The honesty rule.** Segment efforts count recorded data
   only — a stretch repaired by drawing is flagged and never a PR
   (Phase 24's rule, restated where it bites hardest).
+- **25.4 The repair dividend, disclosed.** On Strava, a mid-segment
+  data gap breaks matching (their documented "Gap Threshold") — the
+  gap-repair tool restores segment eligibility, and the segment
+  view says so: repaired tracks match again; drawn stretches still
+  never set PRs here.
 
 **Non-goals:** leaderboards, network matching, importing others'
 segments.
@@ -3799,6 +3840,11 @@ of the deep-validation set.
   timestamps interpolated under the reconstruction engine's rules.
 - **29.3 Preset refresh.** "Resample (thin)" gains a mode choice —
   thin, simplify, resample — and stays batch-safe.
+- **29.4 The trade-off, disclosed.** Thinning trades point density
+  for size, and Strava's own matching docs recommend MORE points
+  for finer segment timing (§RR) — every thin/simplify preview
+  states the point count and names what coarser timing costs on
+  platforms that match nearest points.
 
 **Non-goals:** touching the original (the working copy only, as
 ever), lossless claims (the preview's error percent is the
@@ -3822,6 +3868,14 @@ join GPX, KML, GeoJSON, and CSV out.
   where it cannot.
 - **30.3 Surface.** The export matrix and the batch ZIP gain the
   two formats; the README's format table updated.
+- **30.4 Device-info preservation (the elevation authority).** FIT
+  export carries the original file's device identity when intake
+  was FIT — under Strava's documented rule (§RR), a recognized
+  barometric device's file elevation is used as recorded, while a
+  file without device identity (every GPX) gets its elevation
+  discarded and recomputed from their basemap. Preserving device
+  info keeps the repaired elevation authoritative; when absent,
+  the export dialog says plainly that Strava will recompute it.
 
 **Non-goals:** FIT Courses, TCX Courses (candidates).
 **Verification:** writer-reader round-trip properties per format,
@@ -3866,6 +3920,13 @@ patch the break, salvage the complete parts.
 - **32.4 Archive intake.** .zip and .tar holding GPX/TCX/FIT,
   extracted locally (fflate is already aboard) into the batch
   queue.
+- **32.5 Strava's rejection vocabulary.** The upload preflight
+  (Phase 33) names Strava's exact documented errors — "Corrupted
+  time data" (future-dated timestamps), "Time information is
+  missing" (time-less points), "Not an Activity" (course-shaped
+  files), "Improperly formatted data" (strict-parse failures) — so
+  the app tells you the rejection before Strava does; truncation
+  salvage answers their "no way to recover the remainder".
 
 **Non-goals:** guessing beyond the existing repair engine, binary
 FIT forensics.
@@ -3873,9 +3934,58 @@ FIT forensics.
 structure level), patch round-trips, archive e2e, VLM on the hex
 view.
 
+### Phase 33 — Strava preview & upload guard (Task 78)
+
+**Objective:** the app doesn't just fix files — it tells you what
+Strava will do with them, before you upload. Every rule below is
+documented public behavior (§RR), not reverse-engineered
+guesswork, and none of it contacts strava.com — the guard runs on
+the same no-network constitution as everything else.
+
+- **33.1 Upload preflight.** The 25 MB cap check; timestamps
+  present, UTC, monotonic, no future-dated jumps (the exact class
+  Strava's "Corrupted time data" rejects); time-less detection
+  (their "Time information is missing"); course-shaped detection
+  ("Not an Activity"); a strict-syntax lint standing in for their
+  "Improperly formatted data". Each finding names the Strava error
+  it would produce, in the user's locale.
+- **33.2 The "what Strava will show" panel.** A preview beside the
+  export: corrected-elevation estimate via the app's existing DEM
+  provider as the local stand-in for their basemap, with gain
+  counted under both documented sustained-climb thresholds (2 m
+  barometric / 10 m corrected) beside the file's own gain;
+  distance recomputed the way Strava does it when no distance
+  stream exists (their connect-the-dots post-upload math, which
+  the geodesy core already computes); moving time under their
+  documented pause rules — pause events respected verbatim, no
+  pauses → speed-threshold stop detection. Every number labeled an
+  estimate with its rule named.
+- **33.3 Honesty at export.** The panel states plainly that gpxr
+  provenance markers do not survive upload (unknown extensions are
+  ignored by their parser), so Strava will count reconstructed
+  stretches toward distance, best efforts, and segment times —
+  what our side marks, their side cannot see. The FIT route
+  (Phase 30.4) is offered as the elevation-authoritative path.
+- **33.4 The time-less intake.** A GPX without timestamps (another
+  athlete's route download — Strava strips time from those by
+  design — or a MapMyFitness export) opens in the create-from-stats
+  flow: geometry imported as the drawing, timestamps synthesized
+  under the create engine's provenance rules and marked as
+  synthesized everywhere. The legitimate repair of "the file that
+  cannot upload" — not a fabricator of activities never ridden.
+
+**Non-goals:** uploading to Strava or any API contact (never —
+strava.com joins the egress blocklist in tests), claiming to
+match proprietary models number-for-number (estimates are labeled
+estimates, the model named).
+**Verification:** preflight goldens per rejection class,
+panel-honesty unit tests (the estimate wording present in both
+locales), the e2e privacy invariant extended to assert zero
+strava.com requests, VLM on the panel in both themes.
+
 ### v3 release
 
-After Phase 32: full regression (typecheck, eslint, unit, Playwright,
+After Phase 33: full regression (typecheck, eslint, unit, Playwright,
 static export), a VLM sweep across both themes and every locale
 including RTL, README refresh, worklog closeout — **tag `v3`**,
 push.
@@ -3900,3 +4010,160 @@ and uploading user files anywhere, ever.
 Per the v1 discipline: **implementation has not begun.** This
 section is the proposed plan; execution starts only on explicit
 user instruction, phase by phase.
+
+---
+
+## RR. Strava interop research — how Strava processes our files (Task 68 follow-up)
+
+Recorded 2026-10-05, on the user's direction: "mostly this app is
+focused on Strava after all… what do you think needs more so we
+understand so well the Strava?" Method: the public Strava Help
+Center — 429 en-us articles indexed via the sitemap, 37 fetched
+and read in full (`research/strava-interop/` with index files;
+`scripts/strava-interop-research{,-2,-3}.mjs`), plus the five
+articles the user supplied (cadence, GAP, elevation FAQs,
+calories, performance predictions). Fetched web content was
+treated as research data only. Every claim below cites its source
+article; the findings drive the Phase 23/24/25/29/30/32 amendments
+and the new Phase 33.
+
+### RR-1 Intake: what Strava accepts and rejects
+
+- **Formats & limits:** GPX, TCX, FIT; 25 MB per file; bulk upload
+  25 files at a time (15 for free accounts); the file must contain
+  "actual workout data." (*How do I Get My Activities to Strava*,
+  *How Do I Bulk Upload Activities*)
+- **"Improperly formatted data"** — syntax-fragile: "a single stray
+  punctuation mark or an opening bracket that is not properly
+  closed" causes rejection; commonly from 3rd-party GPX tools.
+  (*Why Does Strava Say My GPS File Has Improperly Formatted Data?*)
+- **"Corrupted time data"** — the date (day/month/year, not
+  hours/minutes) jumps into the future, by days or decades; mostly
+  Garmin Edge 500/1000 and Fenix. Strava's documented fix sends
+  users to fitfiletools.com — a third-party site where the file is
+  uploaded to a server. Our local repair is the privacy answer to
+  exactly this referral. (*Why Does Strava Say My Garmin File Has
+  Corrupted Time Data?*)
+- **"Time information is missing"** — lat/lon/ele with no
+  timestamps. Canonical sources: GPX downloaded from OTHER
+  athletes' activities (Strava strips time from those by design)
+  and MapMyFitness exports. (*Why Does Strava Say Time Information
+  Is Missing…?*, *How Do I Download a GPX Route…?*)
+- **"Not an Activity"** — course files (Garmin navigation FIT/TCX).
+  (*Why Won't My Course File Upload…?*)
+- **Empty/unrecoverable** — overwritten TCX, 72-byte corrupted FIT:
+  Strava says "can't be repaired." (*Why Won't My Empty File…?*,
+  *Why Does Strava Say My FIT File Is Corrupted?*)
+- **Multi-sport FIT** files are auto-split by their parser on
+  upload. (*Activity Split Tool*)
+
+### RR-2 What Strava recomputes vs. trusts
+
+- **Distance:** a recorded distance stream (FIT) wins; GPX has
+  none, so Strava post-upload "connects the dots" over GPS
+  coordinates (flat-surface assumption); a "Correct Distance"
+  recompute exists for bad device streams; distance never
+  contributes to segment times. (*How Distance is Calculated*)
+- **Elevation:** file elevation is used ONLY when the recording
+  device is a recognized barometric device; otherwise the file's
+  elevation is discarded and re-looked-up against the community
+  elevation basemap (public-database fallback), with heavier
+  smoothing and a sustained-climb gain threshold — 2 m
+  (barometric) vs 10 m (corrected). GPX files carry no device
+  identity, so a GPX export's elevation is effectively always
+  recomputed: our repaired elevation is advisory to Strava. A FIT
+  export that preserves device info keeps it authoritative — the
+  Phase 30.4 amendment. (*Elevation*, *Elevation on Strava FAQs*,
+  *Strava's Elevation Basemap*)
+- **Time:** pause events in the file are respected verbatim — and
+  then Strava performs NO further stop filtering; with no pause
+  events, server-side speed-threshold stop detection. Races,
+  segments, and best efforts run on ELAPSED time. Max speed is the
+  raw fastest pair-of-points — GPS teleports inflate it (our
+  teleport detector guards the same failure). (*Moving Time,
+  Speed, and Pace Calculations*, *Auto-Pause*, *How Does Strava
+  Calculate Activity Time?*)
+- **Sensors:** hr/cad/power read from the file (the gpxtpx
+  passthrough is already right); the hr, cadence, AND power charts
+  are each overlaid on the elevation profile; heart rate CANNOT be
+  merged into an activity from another device on Strava — a local
+  merge is a capability their stack refuses. (*Heart Rate*,
+  *Cadence*, *Power*)
+
+### RR-3 Metrics: the parity targets (and their public science)
+
+- **Zones:** HR five zones from max HR (default 220 − age,
+  fallback 190 bpm, updates on birthdays, run/ride sets
+  separate); power seven zones from FTP (auto-estimated from
+  weight/gender when unset, 60 kg default); pace six zones set
+  from a recent race result, bucketed by GAP; guardrails: zones
+  cannot overlap, adjacent zones differ by ≥1 unit, caps FTP 500
+  W / max HR 230 bpm. (*Training Zones on Strava*, *How Do I
+  Customize My Heart Rate Zones…?*)
+- **GAP:** grade-adjusted pace; uphill GAP faster than actual,
+  downhill slower, difference growing with grade, downhill
+  adjustment peaking near −10%. Their curve is proprietary;
+  Minetti's published grade-energy curve is the public-science
+  stand-in (Phase 23.6). Pace-zone bucketing uses GAP. (*What is
+  Grade-Adjusted Pace (GAP)?*, *How Does Pace Zone Analysis
+  Work?*)
+- **Best Efforts:** 400 m → 50 k ladder (400 m, 1 k, 1/2 mi,
+  1 mi, 2 mi, 5 k, 10 k, 15 k, 10 mi, 20 k, HM, 30 k, marathon,
+  50 k), elapsed-time semantics, top three lifetime + top ten
+  annual per distance, editable when GPS corrupts them.
+  (*How Do Best Efforts Work for Running on Strava?*, *What Are
+  Best Efforts on Strava?*)
+- **Fitness & Freshness:** the Banister 1975 impulse-response
+  model as Coggan applied it — fitness long-timescale, fatigue
+  short, form the difference; inputs Training Load (power) and/or
+  Relative Effort (HR). Public science: implementable faithfully
+  with citation (Phase 24.3). (*How Fitness & Freshness is
+  Calculated*)
+- **Calories:** rides — power output with a human efficiency
+  coefficient; runs — weight × grade-adjusted speed × moving time
+  × a scaling factor; explicitly estimates. This is why the
+  Phase 23 calorie non-goal was amended to an opt-in disclosed
+  estimate. (*How Does Strava Calculate Calories*)
+- **Performance Predictions:** cloud ML over 100+ attributes,
+  ≥20 runs in a 24-week window, per-distance independent. Our
+  honest local alternative is Riegel's exponent model over the
+  user's own best efforts (Phase 24.5). (*Performance
+  Predictions*)
+- **Segments:** efforts timed from the nearest recorded points
+  crossing the segment's start/end (elapsed time, drift-tolerant
+  matching — sometimes falsely); a mid-segment data gap breaks
+  matching (the "Gap Threshold"); more GPS points = finer timing,
+  1-second recording recommended — over-thinning a file degrades
+  segment timing (Phase 29.4); the Crop and Split tools exist for
+  bad sections. (*Segment Matching Issues*, *What's a Segment?*)
+- **Merging on Strava:** their own docs direct users to
+  third-party server-side tools (gotoes et al.) to combine files,
+  then delete-and-re-upload. Our local merge is the privacy
+  answer; the README copy can say so. (*How Do I Merge or Combine
+  Activities on Strava?*)
+
+### RR-4 What we still cannot know (and how the plan handles it)
+
+Their basemap, GAP curve, stop thresholds, and prediction model
+are proprietary. The plan's stance: approximate each with named
+public science or the app's existing providers (Copernicus DEM as
+the corrected-elevation stand-in), label every such number an
+estimate, name the model in place, and never claim parity
+number-for-number. Where behavior is unknowable, the app says
+"estimate" rather than pretending.
+
+### RR-5 Sources
+
+The five user-supplied articles plus the 37 fetched (full texts
+and URLs in `research/strava-interop/INDEX*.md`): moving time &
+pace calculations, auto-pause, activity time, distance
+calculation, elevation, elevation basemap, elevation FAQs,
+training zones, HR-zone customization, pace zone analysis, GAP,
+best efforts (running + overview), all-time PRs, fitness &
+freshness, relative effort, heart rate, cadence, power, calories,
+performance predictions, segments (overview, matching issues),
+activity split tool, merge/combine, bulk upload, GPX route
+download, route-from-GPX, wrong date/start time, activity flags,
+and the five upload-rejection articles (improperly formatted,
+corrupted time, missing time, course file, empty file, FIT
+corrupted).
