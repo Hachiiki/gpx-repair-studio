@@ -24,6 +24,7 @@ import { useState } from "react";
 import { APP_VERSION } from "@/components/layout/app-version";
 import { Button } from "@/components/ui/button";
 import { useRouterSettings } from "@/hooks/road-router";
+import { useOfflineCaches } from "@/hooks/use-offline-caches";
 import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 
 /* ------------------------------------------------------------------ */
@@ -237,11 +238,117 @@ export function PrivacyPane() {
             </p>
           </li>
         </ul>
+        {/*
+         * §EE 22.3 — the Phase 22 caches: persisted elevation terrain
+         * and the service worker's offline copies, each disclosed and
+         * each clearable right here, where the storage disclosure
+         * lives. The controls are one hook; the rows are copy.
+         */}
+        <OfflineCachesControl />
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">
           {t("info.privacy.storage.footnote")}
         </p>
       </section>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Offline caches control (§EE 22.3)                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The two Phase 22 cache rows — persisted elevation terrain and the
+ * service worker's offline app/tile copies — each with its live
+ * count (when the platform allows one) and its Clear button. Uses the
+ * RouterSettingsControl's saved/error pattern: inline role=status
+ * confirmations, no toasts, no reloads.
+ */
+function OfflineCachesControl() {
+  const { t } = useI18n();
+  const cachesState = useOfflineCaches();
+
+  return (
+    <ul role="list" className="space-y-2" data-testid="privacy-storage-caches">
+      <li className="rounded-[10px] border-[1.5px] border-ink/15 p-3">
+        <p className="text-[13px] font-semibold">
+          {t("info.privacy.storage.elevationTitle")}
+        </p>
+        <p className="mt-1 font-mono text-[11px] text-shade">
+          {"gpx-repair-studio.elevation"}
+        </p>
+        <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
+          {t("info.privacy.storage.elevationBody")}
+        </p>
+        <p
+          className="mt-1 font-mono text-[11px] text-shade"
+          data-testid="privacy-elevation-count"
+        >
+          {cachesState.elevationCount === null
+            ? t("info.privacy.storage.unavailable")
+            : t("info.privacy.storage.elevationCount", {
+                count: cachesState.elevationCount.toLocaleString(),
+              })}
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 text-[12px] text-muted-foreground"
+            data-testid="privacy-elevation-clear"
+            disabled={cachesState.clearing || cachesState.elevationCount === 0}
+            onClick={cachesState.clearElevation}
+          >
+            {t("info.privacy.storage.elevationClear")}
+          </Button>
+          {cachesState.elevationClearedCount !== null && (
+            <p
+              className="text-[11.5px] font-medium text-muted-foreground"
+              data-testid="privacy-elevation-cleared"
+              role="status"
+            >
+              {t("info.privacy.storage.elevationCleared", {
+                count: cachesState.elevationClearedCount.toLocaleString(),
+              })}
+            </p>
+          )}
+        </div>
+      </li>
+      <li className="rounded-[10px] border-[1.5px] border-ink/15 p-3">
+        <p className="text-[13px] font-semibold">
+          {t("info.privacy.storage.offlineTitle")}
+        </p>
+        <p className="mt-1 font-mono text-[11px] text-shade">
+          {"gpx-repair-studio.precache / .runtime / .tiles"}
+        </p>
+        <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
+          {t("info.privacy.storage.offlineBody")}
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 text-[12px] text-muted-foreground"
+            data-testid="privacy-offline-clear"
+            disabled={cachesState.clearing}
+            onClick={cachesState.clearOffline}
+          >
+            {t("info.privacy.storage.offlineClear")}
+          </Button>
+          {cachesState.offlineCleared && (
+            <p
+              className="text-[11.5px] font-medium text-muted-foreground"
+              data-testid="privacy-offline-cleared"
+              role="status"
+            >
+              {t("info.privacy.storage.offlineCleared")}
+            </p>
+          )}
+        </div>
+      </li>
+    </ul>
   );
 }
 

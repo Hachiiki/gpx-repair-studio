@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Archivo, Big_Shoulders, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { ServiceWorkerRegistrar } from "@/components/layout/sw-registrar";
 
 /*
  * Field Plot type system (Task 33):
@@ -54,6 +55,27 @@ export default function RootLayout({
     >
       <head>
         {/*
+         * Phase 22 — the dual theme-color pair. The manifest itself
+         * cannot switch on the OS theme, so it carries the light
+         * values; these two metas follow prefers-color-scheme and set
+         * the standalone-window / mobile-toolbar chrome to the same
+         * --background the app paints (hexes are the exact sRGB render
+         * of globals.css's oklch values, printed by
+         * scripts/generate-pwa-icons.mjs). An explicit in-app theme
+         * choice still honors the OS query at the window chrome — the
+         * only place localStorage cannot reach before paint.
+         */}
+        <meta
+          name="theme-color"
+          media="(prefers-color-scheme: light)"
+          content="#F1F1F2"
+        />
+        <meta
+          name="theme-color"
+          media="(prefers-color-scheme: dark)"
+          content="#151516"
+        />
+        {/*
          * Phase 12 — the pre-paint theme script. It reads the same raw
          * localStorage key src/state/theme-store.ts writes (kept in sync
          * by tests/theme.test.ts) and sets the .dark class + color-scheme
@@ -80,6 +102,12 @@ export default function RootLayout({
       <body className="antialiased bg-background text-foreground">
         {children}
         <Toaster />
+        {/*
+         * Phase 22 — the offline boot: service-worker registration,
+         * the asks-before-reloading update toast, and the persistent
+         * elevation cache's hydrate/flush lifecycle. Renders nothing.
+         */}
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

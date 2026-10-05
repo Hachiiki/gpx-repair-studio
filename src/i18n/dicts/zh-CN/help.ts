@@ -79,10 +79,10 @@ export const zhHelp: Record<string, string> = {
   "info.privacy.egress.footnote":
     "以上就是全部清单。核心流程 — 上传、检查、用直线或曲线绘制、时间重建、统计、合并、导出、分享卡片 — 不发出任何请求；而且有一个自动化测试用严格的网络白名单运行这条流程，一旦联系了其他任何东西就会失败。道路吸附是唯一由你自己打开的一行：它保持关闭、不发送任何内容，直到你为某个会话启用它。",
 
-  /** PrivacyPane — offline behavior. */
+  /** PrivacyPane — offline behavior（阶段 22：Service Worker 把应用本身与看过的瓦片留在设备上）。 */
   "info.privacy.offline.title": "离线使用",
   "info.privacy.offline.body":
-    "除上面三行以外的一切都可以在断网时使用：上传、解析、检查、绘制（直线与曲线）、时间重建、统计、合并、导出，以及分享卡片。没有瓦片时，底图会退回纯色背景 — 路线、缺口和每一条画出的线仍会渲染在上面，离线时工作照常进行。",
+    "首次访问之后，应用本身会保存在这台设备上，断网也能打开 — 在浏览器菜单里“安装应用 / 添加到主屏幕”，它就能独立运行，山里也一样。你看过的底图瓦片也会保留（有上限），所以浏览过的地图离线时依然清晰；缺少瓦片时，底图会退回纯色背景 — 路线、缺口和每一条画出的线仍会渲染在上面。除上面三行以外的一切都可以在断网时使用：上传、解析、检查、绘制（直线与曲线）、时间重建、统计、合并、导出，以及分享卡片。",
 
   /** PrivacyPane — provider switching. */
   "info.privacy.providers.title": "选择服务提供方",
@@ -104,6 +104,21 @@ export const zhHelp: Record<string, string> = {
   "info.privacy.storage.sessionsTitle": "未完成的工作 — IndexedDB",
   "info.privacy.storage.sessionsBody":
     "在你绘制期间，原始文件的字节和你的编辑（点、范围、设置）会自动保存 — 每个工具一条记录，最多四条，这样重新加载或关闭标签页时会帮你找回工作，而不是丢失它。绝不会上传。可以用“放弃”或首页的“清除所有已保存的会话”、工作区里的“重新开始”，或在浏览器中清除本站数据来清空它。",
+
+  /** PrivacyPane — 阶段 22 的两个设备端缓存（海拔地形 + Service Worker 的离线副本），各带清除按钮。 */
+  "info.privacy.storage.elevationTitle": "海拔地形 — IndexedDB",
+  "info.privacy.storage.elevationBody":
+    "海拔工具解析过的每个点都保存在这台设备上 — 坐标四舍五入到约一米，上限 5,000 个点 — 这样同一片山坡不会被重复获取（也不会被重复发送），重新加载后也一样。清除它不会影响其他任何数据；新的获取只是从头开始积累。",
+  "info.privacy.storage.elevationCount": "已存储 {count} 个点",
+  "info.privacy.storage.elevationClear": "清除地形缓存",
+  "info.privacy.storage.elevationCleared": "已清除 — 移除了 {count} 个点。",
+  "info.privacy.storage.offlineTitle": "离线应用与看过的瓦片 — Cache Storage",
+  "info.privacy.storage.offlineBody":
+    "Service Worker 会保留应用自身的文件（预缓存 + 运行时缓存）和你看过的底图瓦片（上限 800 块），工作室因此可以断网打开并继续工作。清除时也会注销该 Worker — 下次联网访问时会重新安装并重新下载所需的内容。",
+  "info.privacy.storage.offlineClear": "清除离线缓存",
+  "info.privacy.storage.offlineCleared": "已清除 — 应用会在下次联网访问时重新安装。",
+  "info.privacy.storage.unavailable":
+    "此浏览器无法使用持久化存储（无痕模式或存储被阻止）— 缓存仅存在于本次会话的内存中。",
   "info.privacy.storage.footnote":
     "没有 Cookie，没有数据分析，没有账户。如果你清除站点数据并关闭标签页，任何地方都不会留下任何东西。",
 

@@ -1720,3 +1720,22 @@ Work Log:
 Stage Summary:
 - Phase 21 confirmed DONE and pushed (f05df99). All gates green: 1867 unit, 199 e2e, lint, tsc, static export.
 - v2 roadmap state: phases 12–21 shipped; Phase 22 is the only remaining phase.
+
+---
+Task ID: 67
+Agent: Super Z (coordinator — full implementation, no subagents)
+Task: Phase 22 — Offline PWA & persistent caches (§EE 22.1–22.4), then the v2 release ritual (regression, README, tag v2, push).
+
+Work Log:
+- 22.1: scripts/generate-pwa-icons.mjs (Playwright rasterizes the route mark; oklch→sRGB prints the theme hexes #F1F1F2/#151516), public/icons/{icon-192,icon-512,maskable-512}.png, src/app/manifest.ts (standalone, id/start/scope "/", light chrome colors), dual prefers-color-scheme theme-color metas in layout.tsx.
+- 22.3: features/elevation/persistent-cache.ts (pure PersistentElevationCache — write-through buffer + debounce, newest-first hydrate, dual-layer 5,000 cap with oldest-write eviction, latched failure; injectable backend + clock + scheduler), lib/storage/elevationCacheStore.ts (guarded IDB backend, gpx-repair-studio.elevation v1, sessionStore failure contract, throws to the pure latch), wired once in use-elevation.ts getElevationProvider + hydrate/flush/export accessors; hooks/use-offline-caches.ts drives the privacy pane's two new cache rows with live counts + Clear buttons + confirmations (offline clear also unregisters the worker).
+- 22.2: public/sw.js (precache from the generated manifest, atomic install, activate purge + claim, SWR runtime with precache fallthrough + offline-skip, cache-first tiles on the two egress hosts capped at 800 with honest-503 fallback, network-first navigations with app-shell fallback, SKIP_WAITING message), scripts/build-pwa.mjs into npm run build (71-URL precache manifest + BUILD_ID-stamped served sw.js), components/layout/sw-registrar.tsx (production-only registration, updateViaCache none, asks-before-reloading toast with duration Infinity, elevation hydrate + pagehide flush) mounted in layout.tsx.
+- i18n: shell.pwa.* (en + zh) for the toast; info.privacy.offline.body rewritten for the SW reality (kept the pinned tile-fallback phrases); info.privacy.storage.{elevation,offline,unavailable}* rows in both dicts.
+- 22.4: e2e/prod-server.ts + e2e/phase22-offline.spec.ts (prod server :3100, online warm-up incl. tile settle, setOffline, reload-from-cache, typed-coordinate repair via the Phase 16 keyboard path, GPX export bytes asserted, ZERO page-attributed network failures; the designed tile-503 console signature excluded with rationale) + e2e/phase22-update.spec.ts (:3101, real build-id deploy, toast asks, in-progress flag survives, Reload applies once, no second toast; sw.js restored in finally).
+- QA ritual: unit 1889/1889 (134 files; +22 persistent-cache/manifest tests, info-content extended), e2e FULL regression 201/201 in five chunks (one real find: tile-warm timing window under batch load → 2s settle + documented exclusion; re-run green), eslint clean, tsc clean, npm run build PASS with the PWA step, live QA scripts/phase22-live-qa.mjs 25/25 (manifest/icons at true PNG dimensions, BUILD_ID↔manifest match, precache spot-checks, elevation DB opens, offline reload, seeded count 5 → clear → 0, both confirmations, zero console/page errors), VLM: 5 critiques saved, 11 measurable claims ALL DISPROVEN by scripts/phase22-vlm-measure.mjs (overflow 0/0, tails inside, gap exactly 8px, center delta 0px — first run's 12px was a description-vs-block measurement artifact, line-height 1.33 = the design system step, egress table loses nothing, leading 1.63).
+- Docs: MASTER_PLAN §EE 22 marked DONE + §PP delivery report (story, verification, seven decisions incl. the tile cache-first deviation + the honest-503 rule); README: the install/offline paragraph + build/e2e notes for the PWA step and the prod-booting specs.
+
+Stage Summary:
+- Phase 22 shipped complete: installable PWA with dual-theme chrome, an atomic-precaching service worker with never-silent updates, persistent elevation terrain with the same LRU discipline, both caches disclosed and clearable in the privacy pane, and the zero-request offline proof as an e2e.
+- All gates green: 1889 unit, 201 e2e, lint, tsc, build+PWA, live QA 25/25, VLM 11/11 disproven.
+- v2 roadmap COMPLETE (phases 12–22). Baseline for any v3: 1889 unit + 201 e2e.

@@ -33,4 +33,13 @@ export const shell = {
   "shell.section.recovery": "Gap recovery",
   "shell.section.create": "Create from stats",
   "shell.section.plan": "Plan a route",
+
+  /**
+   * Phase 22 — the update-available toast (sw-registrar.tsx). Asks,
+   * never swaps: the reload happens only on the action click.
+   */
+  "shell.pwa.updateTitle": "Update available",
+  "shell.pwa.updateBody":
+    "A new version of GPX Repair Studio is installed and ready. It will apply only when you reload — nothing reloads behind your back, so finish what you are doing first.",
+  "shell.pwa.updateAction": "Reload",
 } as const;

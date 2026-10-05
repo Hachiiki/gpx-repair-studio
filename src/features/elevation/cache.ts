@@ -75,6 +75,11 @@ export class ElevationCache {
     return this.#map.size;
   }
 
+  /** The configured entry cap (Phase 22.3 — the persistent twin needs it). */
+  get capacity(): number {
+    return this.#capacity;
+  }
+
   clear(): void {
     this.#map.clear();
   }

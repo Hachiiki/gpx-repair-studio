@@ -20,4 +20,10 @@ export const zhShell: Record<string, string> = {
   "shell.section.recovery": "缺口找回",
   "shell.section.create": "从数据创建",
   "shell.section.plan": "路线规划",
+
+  /** sw-registrar.tsx — 更新提示（征询，绝不静默切换）。 */
+  "shell.pwa.updateTitle": "有可用更新",
+  "shell.pwa.updateBody":
+    "GPX Repair Studio 的新版本已下载就绪。只有您手动重新加载后才会生效——绝不会在您背后悄悄刷新，请先完成手头的操作。",
+  "shell.pwa.updateAction": "重新加载",
 };

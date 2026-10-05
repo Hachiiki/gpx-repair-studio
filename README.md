@@ -42,6 +42,8 @@ The design principle underneath all of them: **recorded data and reconstructed d
 
 **Portable sessions & the sessions shelf:** your work is yours to keep. The header's **Sessions** door (and the landing's "Continue a saved session" link) opens the manager: save the current session under a name, reopen it later, rename or delete it, or export it as a **`.gpxrepair.json` session file** — a versioned document carrying the whole thing (the original recording's bytes, every confirmed fix, every drawn repair, the view) that opens straight back into the app on any device. No accounts, ever: the file *is* the session. Named saves live in this browser's IndexedDB alongside the crash-recovery autosave (the shelf is your explicit snapshot; the autosave is the net).
 
+**Install it. Use it in the mountains.** The app is a PWA: after your first visit, a service worker keeps the whole studio (every chunk, font, and asset) on the device, and **Install app / Add to Home Screen** (your browser's menu) runs it standalone, offline. The basemap tiles you have viewed are kept too (capped), so the map you panned through stays sharp with the network off — and the full repair journey is proven offline by an automated test that cuts the network and still uploads, repairs, and exports with zero requests leaving the browser. **Never wait twice:** elevation terrain you have fetched once is kept in a persistent on-device cache (rounded to ~1 m, capped at 5,000 points) and rehydrates on every visit — the same hillside is never fetched, or sent, again. Updates ask before they apply: a toast offers **Reload**, nothing swaps mid-edit, and both caches are disclosed in the privacy pane with their own Clear buttons.
+
 ---
 
 ## Privacy in one paragraph
@@ -97,7 +99,8 @@ npm run dev          # http://localhost:3000
 Other commands:
 
 ```bash
-npm run build        # production build (standalone output)
+npm run build        # production build (standalone output + the PWA step:
+                     #   precache manifest + the versioned service worker)
 npm run start        # serve the production build
 npm run lint         # ESLint (includes the architecture boundary rules)
 npm run typecheck    # tsc --noEmit
@@ -105,7 +108,7 @@ npm test             # Vitest unit + component suites
 npm run test:e2e     # Playwright e2e (expects dev server on :3000)
 ```
 
-The Playwright config deliberately runs **no webServer** — start `npm run dev` first, then run e2e. The existing suite already accounts for the first-run onboarding tour (the tour flag is pre-seeded in `playwright.config.ts`'s storageState); `e2e/onboarding-tour.spec.ts` opts out to test the tour itself.
+The Playwright config deliberately runs **no webServer** — start `npm run dev` first, then run e2e. The existing suite already accounts for the first-run onboarding tour (the tour flag is pre-seeded in `playwright.config.ts`'s storageState); `e2e/onboarding-tour.spec.ts` opts out to test the tour itself. The two Phase 22 specs (`e2e/phase22-*.spec.ts`) are the exception: they boot the **production** build on their own ports (a service worker must never control the dev server), so they need `npm run build` first and skip with instructions when it is missing.
 
 ---
 

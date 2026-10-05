@@ -86,6 +86,36 @@ describe("privacy copy is pinned to the real providers", () => {
     expect(screen.getByText("gpx-repair-studio.settings.v1")).toBeInTheDocument();
     expect(screen.getByText("gpx-repair-studio.sessions")).toBeInTheDocument();
   });
+
+  it("discloses the Phase 22 caches with their real storage names", () => {
+    render(<PrivacyPane />);
+    // The elevation terrain store (Phase 22.3).
+    expect(
+      screen.getByText("gpx-repair-studio.elevation"),
+    ).toBeInTheDocument();
+    // The service worker's three caches (Phase 22.2), named together.
+    expect(
+      screen.getByText("gpx-repair-studio.precache / .runtime / .tiles"),
+    ).toBeInTheDocument();
+    // Both Clear buttons exist.
+    expect(
+      screen.getByTestId("privacy-elevation-clear"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("privacy-offline-clear")).toBeInTheDocument();
+  });
+
+  it("the offline section still teaches the tile-less fallback", () => {
+    render(<PrivacyPane />);
+    expect(
+      screen.getByText(/falls back to a plain background/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/still render on it/i)).toBeInTheDocument();
+    // Phase 22: the app itself now opens offline after the first visit.
+    expect(
+      screen.getByText(/opens with the network off/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/mountains included/i)).toBeInTheDocument();
+  });
 });
 
 describe("about copy is pinned to the real credits", () => {

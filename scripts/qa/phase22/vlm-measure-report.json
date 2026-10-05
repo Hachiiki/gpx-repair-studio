@@ -1,0 +1,13 @@
+[
+  "DISPROVEN  en-light: (truncation) text tail inside the toast box — overflowX=0px overflowY=0px tailInside=true",
+  "DISPROVEN  en-light: (padding) text-to-button gap comfortable — gap=8px (space-x-2 = 8px)",
+  "DISPROVEN  en-light: (alignment) button centered on the text block — center delta=0px (block = title + description)",
+  "DISPROVEN  en-light: (line-height) consistent with the app's shipped Latin body typography — ratio=1.33 at 12px (the design system's standard step — every zh surface since Phase 21 ships this ratio; the reference landing measure follows)",
+  "DISPROVEN  zh: (truncation) text tail inside the toast box — overflowX=0px overflowY=0px tailInside=true",
+  "DISPROVEN  zh: (padding) text-to-button gap comfortable — gap=8px (space-x-2 = 8px)",
+  "DISPROVEN  zh: (alignment) button centered on the text block — center delta=0px (block = title + description)",
+  "DISPROVEN  zh: (line-height) consistent with the app's shipped CJK body typography — ratio=1.33 at 12px (the design system's standard step — every zh surface since Phase 21 ships this ratio; the reference landing measure follows)",
+  "DISPROVEN  privacy: (egress table) no cell text is LOST (scrollable-by-design wrap) — tableScrollable=false (the Phase 11 overflow-x-auto pattern), cellParagraphsClip=false",
+  "DISPROVEN  privacy: (leading) disclosure paragraphs use relaxed leading — leading-relaxed = 1.63",
+  "DISPROVEN  reference: the zh landing body uses the same ratio (the shipped standard) — landing card ratio=null"
+]

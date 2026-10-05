@@ -1,0 +1,131 @@
+{
+  "passed": 25,
+  "failed": 0,
+  "report": [
+    {
+      "name": "manifest answers 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "manifest names the app and start_url",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "manifest display is standalone",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "manifest carries the light chrome colors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "manifest lists 192 + 512 + maskable icons",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "icon /icons/icon-192.png serves 192x192 (any)",
+      "ok": true,
+      "detail": "served 192x192, 4466 bytes"
+    },
+    {
+      "name": "icon /icons/icon-512.png serves 512x512 (any)",
+      "ok": true,
+      "detail": "served 512x512, 12338 bytes"
+    },
+    {
+      "name": "icon /icons/maskable-512.png serves 512x512 (maskable)",
+      "ok": true,
+      "detail": "served 512x512, 8950 bytes"
+    },
+    {
+      "name": "precache manifest is non-trivial",
+      "ok": true,
+      "detail": "71 urls"
+    },
+    {
+      "name": "served sw.js embeds the build id from the manifest",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "precache spot-check (8 urls)",
+      "ok": true,
+      "detail": "/ /_next/static/chunks/2f236954d6a65e12.js /_next/static/chunks/ad4cf95c856c591c.js /_next/static/media/23b7a97ae3b5c134-s.p.2902b61f.woff2 /_next/static/media/75affa71d1e2f6a7-s.p.51cde8ff.woff2 /_next/static/media/f99c309598d4ef8a.p.4e3e15e0.woff2 /cards/batch.webp /icons/icon-192.png"
+    },
+    {
+      "name": "service worker controls the page",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "document links the manifest + dual theme-color metas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "elevation database opens on boot (hydrate ran)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "offline reload comes back from cache",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "elevation cache count renders (a live number, fresh profile = 0)",
+      "ok": true,
+      "detail": "0 points stored"
+    },
+    {
+      "name": "elevation count reads the real database (5 seeded)",
+      "ok": true,
+      "detail": "5 points stored"
+    },
+    {
+      "name": "elevation cache clears with a confirmation",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "elevation count reads zero after the clear",
+      "ok": true,
+      "detail": "0 points stored"
+    },
+    {
+      "name": "offline caches clear with a confirmation",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "app works after clearing offline caches",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "update toast captured (update-toast-en-light)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "update toast captured (update-toast-en-dark)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "update toast captured (update-toast-zh)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "zero console/page errors across the whole run",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

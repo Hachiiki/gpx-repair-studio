@@ -83,10 +83,11 @@ export const help = {
   "info.privacy.egress.footnote":
     "That is the whole list. The core flow — upload, inspect, draw with Straight or Curve lines, time reconstruction, statistics, merge, export, share card — makes no requests at all, and an automated test runs that flow with a strict network allow-list and fails if anything else is ever contacted. Road snapping is the one row you switch on yourself: it stays off, sends nothing, until you enable it for a session.",
 
-  /** info-content.tsx — PrivacyPane: offline behavior. */
+  /** info-content.tsx — PrivacyPane: offline behavior (Phase 22: the
+   * service worker keeps the app itself + viewed tiles on the device). */
   "info.privacy.offline.title": "Working offline",
   "info.privacy.offline.body":
-    "Everything except the three rows above works with the network off: upload, parse, inspect, draw (Straight and Curve), time reconstruction, statistics, merge, export, and the share card. Without tiles the basemap falls back to a plain background — the route, the gaps, and every drawn line still render on it, so the work keeps going while you are offline.",
+    "After your first visit, the app itself is kept on this device and opens with the network off — install it from your browser's menu (Install app / Add to Home Screen) and it runs standalone, mountains included. Basemap tiles you have viewed are kept too (capped), so the map you panned through stays sharp offline; without a tile the basemap falls back to a plain background — the route, the gaps, and every drawn line still render on it. Everything except the three rows above keeps working offline: upload, parse, inspect, draw (Straight and Curve), time reconstruction, statistics, merge, export, and the share card.",
 
   /** info-content.tsx — PrivacyPane: provider switching. */
   "info.privacy.providers.title": "Choosing the providers",
@@ -108,6 +109,22 @@ export const help = {
   "info.privacy.storage.sessionsTitle": "Unfinished work — IndexedDB",
   "info.privacy.storage.sessionsBody":
     "While you draw, the original file's bytes and your edits (points, spans, settings) are autosaved — one record per tool, at most four, so a reload or closed tab offers your work back instead of losing it. Never uploaded. Clear it with Discard or \"Clear all saved sessions\" on the landing page, \"Start over\" in a workspace, or by clearing this site's data in the browser.",
+
+  /** PrivacyPane: the Phase 22 on-device caches (elevation terrain +
+   * the service worker's offline copies), each with its Clear button. */
+  "info.privacy.storage.elevationTitle": "Elevation terrain — IndexedDB",
+  "info.privacy.storage.elevationBody":
+    "Every point the elevation tool resolves is kept on this device — coordinates rounded to about a meter, capped at 5,000 points — so the same hillside is never fetched (or sent) twice, even after a reload. Clearing it touches nothing else; new fetches simply start the cache over.",
+  "info.privacy.storage.elevationCount": "{count} points stored",
+  "info.privacy.storage.elevationClear": "Clear terrain cache",
+  "info.privacy.storage.elevationCleared": "Cleared — {count} points removed.",
+  "info.privacy.storage.offlineTitle": "Offline app & viewed tiles — Cache Storage",
+  "info.privacy.storage.offlineBody":
+    "The service worker keeps the app's own files (precache + runtime) and the basemap tiles you have viewed (capped at 800) so the studio opens and keeps working with the network off. Clearing also unregisters the worker — the next online visit re-installs and re-downloads exactly what it needs.",
+  "info.privacy.storage.offlineClear": "Clear offline caches",
+  "info.privacy.storage.offlineCleared": "Cleared — the app re-installs on the next online visit.",
+  "info.privacy.storage.unavailable":
+    "Persistence is unavailable in this browser (private mode or blocked storage) — the cache lives in memory for this session only.",
   "info.privacy.storage.footnote":
     "No cookies. No analytics. No accounts. If you clear site data and close the tab, nothing remains anywhere.",
 

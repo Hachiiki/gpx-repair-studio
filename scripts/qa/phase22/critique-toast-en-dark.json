@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "# UI QA Review: Toast Notification (Dark Theme)\n\n## Overall Assessment\nThe toast notification is **well-implemented** with no critical visual defects. Below is a detailed area-by-area analysis:\n\n---\n\n### 1. Container & Positioning ✅\n- **Status**: Correct\n- **Details**: \n  - Properly anchored to bottom-right corner with appropriate margin from viewport edge\n  - Rounded corners (consistent with app's design language)\n  - Adequate shadow/elevation to separate from background content\n  - Width is appropriate—not too narrow (causing wrapping) or too wide\n\n### 2. Typography & Text Readability ✅\n- **Status**: Correct\n- **Details**:\n  - **\"Update available\"** (header): Bold weight, high contrast white text on dark background—excellent readability\n  - **Body text**: Regular weight, slightly dimmed (appropriate hierarchy), fully visible with no clipping\n  - **No truncation**: All text wraps naturally within the container bounds\n  - **Line height**: Comfortable spacing between the three lines of body text\n\n### 3. Contrast & Accessibility ✅\n- **Status**: Correct\n- **Details**:\n  - Background: Dark charcoal/black (`#1a1a1a` or similar)\n  - Primary text: Near-white (`#eeeeee` or `#ffffff`) — passes WCAG AAA contrast ratio\n  - Secondary text: Light gray — maintains readability while establishing visual hierarchy\n  - No color bleeding or transparency issues\n\n### 4. Button (\"Reload\") ✅\n- **Status**: Correct\n- **Details**:\n  - Fully visible, not truncated or cut off\n  - Proper padding inside the button (text not touching borders)\n  - Aligned to the right (standard toast pattern)\n  - Sufficient contrast between button background and text\n  - Adequate click target size (appears ~36-40px height)\n\n### 5. Spacing & Layout ✅\n- **Status**: Correct\n- **Details**:\n  - Internal padding: Consistent ~16-20px margins around all content\n  - Gap between text and button: Appropriate (~12-16px)\n  - Text block alignment: Left-aligned with proper ragged-right edge\n  - No overlapping elements or cramped areas\n\n### 6. Visual Hierarchy ✅\n- **Status**: Correct\n- **Details**:\n  - Clear distinction between title (bold/larger) and description (regular/smaller)\n  - Button has subtle border/background differentiation from toast body\n  - Information density is balanced—not too sparse, not overcrowded\n\n---\n\n## Summary\n**Defects Found**: **None**\n\nThis is a production-ready toast notification implementation. The dark theme variant maintains excellent contrast ratios, proper spacing, and complete visibility of all interactive elements. The notification successfully draws attention without obstructing critical underlying content (the \"Plan a route\" card is partially covered, which is expected/acceptable behavior for a transient toast).",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1791174679,
+  "id": "20261005123104b107c2edde3041a2",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20261005123104b107c2edde3041a2",
+  "usage": {
+    "completion_tokens": 620,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1728,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2348
+  }
+}

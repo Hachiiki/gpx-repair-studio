@@ -28,7 +28,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
-import { ElevationCache, withCache } from "@/features/elevation/cache";
+import { withCache } from "@/features/elevation/cache";
+import { PersistentElevationCache } from "@/features/elevation/persistent-cache";
+import { createElevationCacheBackend } from "@/lib/storage/elevationCacheStore";
 import { OpenMeteoProvider } from "@/features/elevation/openmeteo";
 import type {
   ElevationFailureReason,
@@ -84,16 +86,51 @@ export function useElevationStats(
  * Exported since Task 28: the Gap Recovery section's elevation mirror
  * shares this instance (and its cache) — one provider per page, not
  * per section.
+ *
+ * Phase 22.3 — the cache is the PERSISTENT twin: every resolved point
+ * mirrors into IndexedDB (rounded-coord keys, capped) and rehydrates
+ * on boot, so terrain fetched once is never fetched again across
+ * sessions. `hydrateElevationCache()` (boot) and
+ * `getElevationPersistentCache()` (the privacy pane's clear button)
+ * drive the durable half from outside.
  */
 let sharedProvider: ElevationProvider | null = null;
+let sharedCache: PersistentElevationCache | null = null;
 export function getElevationProvider(): ElevationProvider {
   if (!sharedProvider) {
+    sharedCache = new PersistentElevationCache({
+      backend: createElevationCacheBackend(),
+    });
     sharedProvider = withCache(
       new OpenMeteoProvider({ fetch: (input, init) => fetch(input, init) }),
-      new ElevationCache(),
+      sharedCache,
     );
   }
   return sharedProvider;
+}
+
+/**
+ * Boot-time rehydration (Phase 22.3). Fire-and-forget: entries land
+ * in the memory LRU whenever the database answers; until then (and
+ * forever, if persistence is unavailable) the cache behaves exactly
+ * like the Phase 6 in-memory one.
+ */
+export function hydrateElevationCache(): void {
+  if (sharedCache === null) getElevationProvider();
+  if (sharedCache !== null) void sharedCache.hydrate();
+}
+
+/**
+ * Flush pending write-throughs now (called on pagehide so the last
+ * debounced batch of a session is not lost to a hard close).
+ */
+export function flushElevationCache(): void {
+  if (sharedCache !== null) void sharedCache.flush();
+}
+
+/** The persistent cache, for the privacy pane's disclosure + clear. */
+export function getElevationPersistentCache(): PersistentElevationCache | null {
+  return sharedCache;
 }
 
 /** Rounds a raw request count the way the disclosure presents it. */
