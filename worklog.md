@@ -1773,3 +1773,26 @@ Stage Summary:
 - Strava interop research complete and committed: 42 articles total (37 fetched + 5 user-supplied), full texts in research/strava-interop/ with indexes; every roadmap claim cites its source article.
 - The v3 roadmap is now Strava-grounded end to end: zones/metrics parity where public (Minetti, Banister, Riegel), estimate-labeled where proprietary, and Phase 33 making the app the pre-upload authority on what Strava will accept and show.
 - No app code touched; no implementation begun (plan discipline held). Roadmap now spans phases 23–33, Tasks 68–78.
+
+---
+Task ID: 79
+Agent: Super Z (main agent)
+Task: Master plan reorganization (user: "fix the master plan md move all the done phase and plans into a another md file and folder also do not put them in one md file organize the files and md files if needed and also include hyperlink so when it click it will instead put the user in there or show it right away when click in the md files, commit and push after")
+
+Work Log:
+- Mapped the 4169-line MASTER_PLAN.md first: core spec (§0 + A–O), v1 phase plan (§P), ten v1-era additions (§O-2nd, R–X, AA, DD), v2 roadmap + records (§EE, FF–PP), v3 roadmap (§QQ), Strava research (§RR); verified no code/tests read the file (121 source files cite it in comments only).
+- Wrote scripts/reorganize-master-plan.py — sentinel-guarded against double runs, line-map asserted, restores nothing by itself. It slices the original verbatim and writes the plan library:
+  - docs/plans/README.md — the hub: status-at-a-glance, full index (34 phase files + 10 additions + research), and the archive map (old § letters → new homes).
+  - docs/plans/v1/ — overview.md (inspection findings, phase conventions, phase + additions tables, deferred backlog annotated with where v2 consumed it, historical closing note) + 12 phase files (§Y/§Z/§BB/§CC delivery records merged into phases 8–11) + additions/ (10 files, prev/next chained by task).
+  - docs/plans/v2/ — overview.md (§EE roadmap intro, conventions, phase table, v2 release) + 11 phase files, each "## Plan (v2 roadmap)" + "## Delivery record (Task N)".
+  - docs/plans/v3/ — overview.md (§QQ intro, constitution, baselines, phase table, research grounding, v3 release, candidates, standing non-goals) + 11 PROPOSED phase files + strava-interop-research.md (§RR).
+- Hyperlinks per the user's ask: breadcrumbs (version overview · plan library · master plan) in every file; prev/next chains across version boundaries (phase 11 → 12 → … → 33); every index row links its file; every cross-reference converted to a real link — §D-4/§L-1/§M-3/§C-2/§K-1/Section X → MASTER_PLAN.md anchors, §EE NN.N → same-file plan section, §HH → delivery record, §RR → the research file, "Phase N" text → phase files. Code fences, inline code spans, and heading lines protected; single-pass alternation regex so generated links are never re-wrapped.
+- MASTER_PLAN.md rewritten lean (4169 → 644 lines): title + version status + library entry links, core spec A–O verbatim with same-file anchor links, Plan Library table, Document Map (resolves every historical § citation from worklog and source comments), new closing note. download/MASTER_PLAN.md left as the frozen v1-era snapshot, noted in the map.
+- README.md pointer updated: "full planning document (sections A–BC)" → living core spec (A–O) + links to the plan library and the three overviews.
+- In-script QA, all green: (1) line-coverage accounting — every non-blank line of the original is placed in exactly one output or deliberately dropped (77 dropped heading/title lines, each asserted by prefix); (2) full link validation — every relative link resolves, every anchor verified against GitHub-style anchors computed from the target's actual headings; (3) leftover-§ scan — 45 remaining mentions, all intentional archive-map rows; (4) byte-level breadcrumb-label verification (49 labels, 0 strays). Two false alarms during QA — the shell output display layer eats literal "[m" sequences (ANSI stripping), which mimicked corrupted "[master plan]" labels; resolved by byte-level python checks, files confirmed intact.
+
+Stage Summary:
+- The plan library exists: 49 files under docs/plans/ + a lean MASTER_PLAN.md, hyperlinked end to end (breadcrumbs, prev/next chains, index tables, converted cross-references) — clicking any phase, version, or section reference lands on the target.
+- No content rewritten: all bodies moved verbatim; only the moved sections' headings were retitled/promoted and their references linkified.
+- Historical citations stay resolvable: worklog entries and 121 source-file comments citing §FF/§RR/etc. resolve via the Document Map in the master plan and the hub archive map.
+- No app code touched; no tests affected. Task numbering: 79 (phases 23–33 remain Tasks 68–78, unstarted).

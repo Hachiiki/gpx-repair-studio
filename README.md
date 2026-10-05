@@ -156,7 +156,7 @@ Notable subsystems:
 - **Session recovery** — debounced (800 ms) IndexedDB autosave of the four drawing sessions: the original file's bytes (written once) plus a small record of the drawn work; restore re-runs the real load path and re-seeds the road-follow cache so a restored line issues zero new routing requests. Everything degrades silently to pre-Phase-10 behavior when storage is unavailable.
 - **Share card** — one canvas painter for preview AND export (WYSIWYG), self-hosted Montserrat, alpha-transparent PNG at 1×/2×.
 
-`docs/MASTER_PLAN.md` is the full planning document — every phase's scope, contracts, and shipped-behavior addenda (sections A–BC).
+`docs/MASTER_PLAN.md` is the living core spec — overview, requirements, architecture, strategies (sections A–O). Every phase, planned and delivered, has its own file in the **plan library**, [`docs/plans/`](docs/plans/README.md), hyperlinked from each version's overview ([v1](docs/plans/v1/overview.md) · [v2](docs/plans/v2/overview.md) · [v3 proposed](docs/plans/v3/overview.md)).
 
 ---
 
