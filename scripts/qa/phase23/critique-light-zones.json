@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Based on a meticulous review of the \"Zones & metrics\" card, here are the measurable visual defects:\n\n1.  **Truncated/Clipped Data in Time Column (Z1):** In the row for **Z1 Endurance**, the time value is rendered as a single, clipped vertical bar (`|`) instead of the full `0:00` text seen in other rows.\n2.  **Truncated/Clipped Data in Time Column (Z5):** In the row for **Z5 Anaerobic**, the time value is also rendered as a single, clipped vertical bar (`|`) instead of the full `0:00` text.\n3.  **Misaligned/Overlapping Text (Z1):** The clipped vertical bar character in the Z1 Time column is misaligned vertically, sitting noticeably higher than the baseline of the text in the adjacent Range and Share columns.\n4.  **Misaligned/Overlapping Text (Z5):** Similarly, the clipped vertical bar character in the Z5 Time column is misaligned vertically, sitting higher than the text baseline in its row.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1791260602,
+  "id": "202610061223176f779cb2f3f5413e",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "202610061223176f779cb2f3f5413e",
+  "usage": {
+    "completion_tokens": 228,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1489,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1717
+  }
+}

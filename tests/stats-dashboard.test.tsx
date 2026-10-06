@@ -47,6 +47,8 @@ function splits(overrides: Partial<SplitsResult> = {}): SplitsResult {
         eleLossM: 2,
         elePoints: 30,
         eleEstimated: false,
+        gapTimeMs: 298_000,
+        gapEstimated: false,
         provenance: "recorded",
       },
       {
@@ -63,6 +65,8 @@ function splits(overrides: Partial<SplitsResult> = {}): SplitsResult {
         eleLossM: null,
         elePoints: 0,
         eleEstimated: false,
+        gapTimeMs: 0,
+        gapEstimated: false,
         provenance: "mixed",
       },
       {
@@ -79,6 +83,8 @@ function splits(overrides: Partial<SplitsResult> = {}): SplitsResult {
         eleLossM: 0,
         elePoints: 12,
         eleEstimated: true,
+        gapTimeMs: 0,
+        gapEstimated: true,
         provenance: "estimated",
       },
     ],
@@ -89,6 +95,10 @@ function splits(overrides: Partial<SplitsResult> = {}): SplitsResult {
     totalGainM: 20,
     totalLossM: 2,
     hysteresisThresholdM: 2,
+    hasGradeData: false,
+    totalGapTimeMs: 298_000,
+    gapFlatLegs: 30,
+    gapEstimated: false,
     ...overrides,
   };
 }
@@ -249,6 +259,8 @@ describe("SplitsCard", () => {
       eleLossM: 0,
       elePoints: 10,
       eleEstimated: false,
+      gapTimeMs: 300_000,
+      gapEstimated: false,
       provenance: "recorded" as const,
     }));
     return {
@@ -260,6 +272,10 @@ describe("SplitsCard", () => {
       totalGainM: count * 5,
       totalLossM: 0,
       hysteresisThresholdM: 2,
+      hasGradeData: false,
+      totalGapTimeMs: count * 300_000,
+      gapFlatLegs: 0,
+      gapEstimated: false,
     };
   }
 

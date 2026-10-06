@@ -24,6 +24,7 @@ import { create } from "./create";
 import { merge } from "./merge";
 import { plan } from "./plan";
 import { statistics } from "./statistics";
+import { zones } from "./zones";
 import { compare } from "./compare";
 import { batch } from "./batch";
 import { share } from "./share";
@@ -50,6 +51,7 @@ export const enDomainDicts = [
   merge,
   plan,
   statistics,
+  zones,
   compare,
   batch,
   share,

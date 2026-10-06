@@ -23,6 +23,7 @@ import { zhCreate } from "./create";
 import { zhMerge } from "./merge";
 import { zhPlan } from "./plan";
 import { zhStatistics } from "./statistics";
+import { zhZones } from "./zones";
 import { zhCompare } from "./compare";
 import { zhBatch } from "./batch";
 import { zhShare } from "./share";
@@ -139,6 +140,7 @@ export const zhCN: Record<string, string> = {
   ...zhMerge,
   ...zhPlan,
   ...zhStatistics,
+  ...zhZones,
   ...zhCompare,
   ...zhBatch,
   ...zhShare,

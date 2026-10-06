@@ -189,3 +189,146 @@ describe("buildStatsCsv", () => {
     expect(meta?.note).toContain("3 points removed");
   });
 });
+
+describe("buildStatsCsv — the Phase 23 zone rows", () => {
+  const zonesCsv = buildStatsCsv({
+    ...fixtures().input,
+    zones: {
+      hr: {
+        zones: {
+          rows: [
+            { zone: 1, fromValue: null, toValue: 114, timeMs: 60_000, share: 0.2 },
+            { zone: 2, fromValue: 114, toValue: 133, timeMs: 240_000, share: 0.8 },
+            { zone: 3, fromValue: 133, toValue: 152, timeMs: 0, share: 0 },
+            { zone: 4, fromValue: 152, toValue: 171, timeMs: 0, share: 0 },
+            { zone: 5, fromValue: 171, toValue: null, timeMs: 0, share: 0 },
+          ],
+          zoneCount: 5,
+          accountedMs: 300_000,
+          noDataMs: 42_000,
+          movingMs: 342_000,
+          hasMetricData: true,
+          hasTimingData: true,
+        },
+        perSplit: [
+          {
+            splitIndex: 1,
+            zoneTimesMs: [30_000, 20_000, 0, 0, 0],
+            noDataMs: 5_000,
+            dominantZone: 1,
+          },
+        ],
+      },
+      power: null,
+      pace: null,
+      cadence: {
+        rows: [{ from: 80, to: null, timeMs: 90_000, share: 1 }],
+        accountedMs: 90_000,
+        noDataMs: 0,
+        movingMs: 90_000,
+        hasCadenceData: true,
+        hasTimingData: true,
+      },
+      gap: {
+        movingMs: 30_000,
+        gapTimeMs: 29_000,
+        distanceM: 600,
+        gapPaceMsPerMeter: 312.5, // ms/m — numerically 312.5 s/km
+        actualPaceMsPerMeter: 340.2,
+        flatLegs: 0,
+        gradedLegs: 3,
+        hasTimingData: true,
+        hasElevationData: true,
+      },
+      calories: {
+        kind: "power",
+        kcal: 717.4,
+        averageWatts: 210,
+        powerSeconds: 3600,
+      },
+      settings: {
+        hr: { maxHr: 190, boundaries: [114, 133, 152, 171] },
+        power: { ftp: 200 },
+        pace: { race: { distanceM: 5000, timeMs: 1_500_000 } },
+        stopSpeedMps: 0.5,
+        calories: { enabled: true, weightKg: 70 },
+      },
+    },
+  });
+  const rows = parseCsv(zonesCsv);
+
+  it("the meta section names the zone models and settings", () => {
+    const model = rows.find((row) => row.label === "zone_model");
+    expect(model?.section).toBe("meta");
+    expect(model?.note).toContain("this app's own");
+    expect(rows.find((row) => row.label === "hr_max")?.value).toBe("190");
+    expect(
+      rows.find((row) => row.label === "hr_max")?.note,
+    ).toContain("114/133/152/171");
+    expect(rows.find((row) => row.label === "power_ftp")?.value).toBe("200");
+    expect(rows.find((row) => row.label === "pace_race_distance")?.value).toBe(
+      "5000",
+    );
+    expect(rows.find((row) => row.label === "pace_race_time")?.value).toBe(
+      "1500",
+    );
+    expect(rows.find((row) => row.label === "stop_speed")?.value).toBe("0.5");
+    expect(rows.find((row) => row.label === "calories_weight")?.value).toBe(
+      "70",
+    );
+  });
+
+  it("the zone section carries per-zone times and the no-data row", () => {
+    const z1 = rows.find((row) => row.label === "hr_zone_1_time");
+    expect(z1?.section).toBe("zone");
+    expect(z1?.unit).toBe("s");
+    expect(z1?.value).toBe("60");
+    expect(z1?.provenance).toBe("recorded");
+    const range = rows.find((row) => row.label === "hr_zone_range");
+    expect(range?.value).toContain("under 114");
+    expect(range?.value).toContain("171 and above");
+    const noData = rows.find((row) => row.label === "hr_no_data_time");
+    expect(noData?.value).toBe("42");
+    expect(noData?.note).toContain("reconstructed stretches");
+    const cadence = rows.find(
+      (row) => row.label === "cadence_range_80_open_time",
+    );
+    expect(cadence?.section).toBe("zone");
+    expect(cadence?.value).toBe("90");
+  });
+
+  it("the summary carries GAP in both units and the calorie estimate", () => {
+    const gapKm = rows.find((row) => row.label === "gap_pace_per_km");
+    expect(gapKm?.value).toBe("312.5");
+    expect(gapKm?.note).toContain("Minetti");
+    const gapMi = rows.find((row) => row.label === "gap_pace_per_mi");
+    expect(Number(gapMi?.value) / Number(gapKm?.value)).toBeCloseTo(
+      1.609344,
+      3,
+    );
+    const kcal = rows.find((row) => row.label === "calories_kcal");
+    expect(kcal?.value).toBe("717");
+    expect(kcal?.provenance).toBe("estimated");
+    expect(kcal?.note).toContain("estimate");
+  });
+
+  it("the split_zone section carries the per-split breakdown", () => {
+    const cell = rows.find(
+      (row) => row.label === "split_1_hr_zone_1_time",
+    );
+    expect(cell?.section).toBe("split_zone");
+    expect(cell?.value).toBe("30");
+    const noData = rows.find((row) => row.label === "split_1_hr_no_data_time");
+    expect(noData?.value).toBe("5");
+  });
+
+  it("a zones-free input keeps the sheet exactly as it was", () => {
+    const plain = parseCsv(buildStatsCsv(fixtures().input));
+    expect(
+      plain.find((row) => row.section === "zone" || row.section === "split_zone"),
+    ).toBeUndefined();
+    expect(
+      plain.find((row) => row.label === "zone_model"),
+    ).toBeUndefined();
+  });
+});

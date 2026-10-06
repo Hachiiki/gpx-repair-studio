@@ -56,8 +56,10 @@ import { FileTimingCard } from "@/components/reconstruction/file-timing-card";
 import { GapList } from "@/components/reconstruction/gap-list";
 import { ManualRepairsCard } from "@/components/reconstruction/manual-repairs-card";
 import { ElevationProfileChart } from "@/components/statistics/elevation-profile-chart";
+import { MetricsChart } from "@/components/statistics/metrics-chart";
 import { SplitsCard } from "@/components/statistics/splits-card";
 import { StatsPanel } from "@/components/statistics/stats-panel";
+import { ZonesCard } from "@/components/statistics/zones-card";
 import { StatsPrintHeader } from "@/components/statistics/stats-print-header";
 import { TimeInMotionCard } from "@/components/statistics/time-in-motion-card";
 import { CompareCard } from "@/components/compare/compare-card";
@@ -86,6 +88,7 @@ import { useGpxExport } from "@/hooks/use-gpx-export";
 import { useGpxSession } from "@/hooks/use-gpx-session";
 import { useSplits, useStoppedTime } from "@/hooks/use-splits";
 import { useStatsExport } from "@/hooks/use-stats-export";
+import { useFitnessSettings, useZones } from "@/hooks/use-zones";
 import { useSessionStore } from "@/state/session-store";
 import { useMapController } from "@/hooks/use-map-controller";
 import { useShareCard } from "@/hooks/use-share-card";
@@ -167,12 +170,23 @@ export function AppShell() {
    */
   const splits = useSplits(exporter.merge, session.workingData?.repairMarkers);
   const motion = useStoppedTime(exporter.merge);
+  /*
+   * Phase 23 — the fitness zones & metrics join (§EE 23): time in
+   * zone for hr/power/GAP-bucketed pace, cadence ranges, the
+   * whole-run GAP, the opt-in calorie estimate, and the metrics
+   * display series — all over the SAME merge, all reading the
+   * persisted fitness settings.
+   */
+  const zones = useZones({ merge: exporter.merge, splits });
+  const { fitness, setFitness, resetFitness } = useFitnessSettings();
   const statsExport = useStatsExport({
     session,
     splits,
     motion,
     elevation: elevationStats.rows,
     repair: draw.repairTimeStats,
+    zones,
+    fitness,
   });
   /*
    * Phase 19 — the before/after compare binding (§EE 19.1): the
@@ -926,6 +940,20 @@ export function AppShell() {
                         <TimeInMotionCard motion={motion} />
                       </div>
                     )}
+                    {/*
+                     * Phase 23 — the zones card prints with the sheet
+                     * (§EE 23.5): zone rows join the stats CSV and the
+                     * print region already wraps it.
+                     */}
+                    <div className="mt-4">
+                      <ZonesCard
+                        zones={zones}
+                        paceUnit={paceUnit}
+                        fitness={fitness}
+                        onFitnessChange={setFitness}
+                        onResetFitness={resetFitness}
+                      />
+                    </div>
                     {elevationStats.profile && elevationStats.profile.hasAnyEle && (
                       <div className="mt-4">
                         <ElevationProfileChart
@@ -945,6 +973,20 @@ export function AppShell() {
                         />
                       </div>
                     )}
+                    {/*
+                     * Phase 23.3 — the metrics charts over the elevation
+                     * backdrop; rendered only when the file carries at
+                     * least one of hr/cad/power (the zones card explains
+                     * a metrics-free file).
+                     */}
+                    {zones.metricsProfile !== null &&
+                      (zones.metricsProfile.hasHr ||
+                        zones.metricsProfile.hasCad ||
+                        zones.metricsProfile.hasPower) && (
+                        <div className="mt-4">
+                          <MetricsChart profile={zones.metricsProfile} />
+                        </div>
+                      )}
                   </div>
                 )}
                 {/*

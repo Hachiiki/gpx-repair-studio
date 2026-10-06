@@ -28,11 +28,16 @@ carry over from [§EE](../v2/overview.md): each phase ends committed and green
 (`phase(N): …`), the full QA ritual per delivery, no unrelated
 refactors, future-phase features stay explicit non-goals.
 
+Phase 23 raised the baseline to 1963 unit tests (139 files) and 207
+e2e (40 specs); the performance spec's two dev-server ceilings were
+recalibrated per its own 1.5× discipline (see the [Phase 23 delivery
+record](phase-23-fitness-zones-metrics.md)).
+
 ## Phases
 
 | # | Phase | Status |
 |---|---|---|
-| 23 | [Fitness Zones & Metrics](phase-23-fitness-zones-metrics.md) | PROPOSED |
+| 23 | [Fitness Zones & Metrics](phase-23-fitness-zones-metrics.md) | DONE |
 | 24 | [Activity Library, Records & Trends](phase-24-activity-library-records.md) | PROPOSED |
 | 25 | [Heatmap & Personal Segments](phase-25-heatmap-personal-segments.md) | PROPOSED |
 | 26 | [Photo Geotagging](phase-26-photo-geotagging.md) | PROPOSED |

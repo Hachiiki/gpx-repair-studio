@@ -25,9 +25,12 @@ import { useCallback } from "react";
 import type { MotionSummary } from "@/features/statistics/motion";
 import type { SplitsResult } from "@/features/statistics/splits";
 import { buildStatsCsv } from "@/features/statistics/statsCsv";
+import type { ZonesCsvInput } from "@/features/statistics/statsCsv";
 import type { ElevationStatsRows } from "@/hooks/use-elevation";
 import type { RepairTimeStats } from "@/hooks/use-draw-editor";
 import type { GpxSession } from "@/hooks/use-gpx-session";
+import type { ZonesView } from "@/hooks/use-zones";
+import type { FitnessSettings } from "@/features/statistics/zones";
 import { downloadTextFile } from "@/lib/utils/download";
 import { announce } from "@/lib/announcements";
 import { useI18n } from "@/hooks/use-i18n";
@@ -52,13 +55,16 @@ export interface UseStatsExportInput {
   elevation: ElevationStatsRows | null;
   /** The committed-repair join (draw.repairTimeStats). */
   repair: RepairTimeStats | null;
+  /** Phase 23 — the zone analysis + settings (the sheet's zone rows). */
+  zones?: ZonesView | null;
+  fitness?: FitnessSettings;
 }
 
 export function useStatsExport(
   input: UseStatsExportInput,
 ): StatsExportBinding {
   const { t } = useI18n();
-  const { session, splits, motion, elevation, repair } = input;
+  const { session, splits, motion, elevation, repair, zones, fitness } = input;
 
   const downloadStatsCsv = useCallback((): string | null => {
     const distanceStats = session.distanceStats;
@@ -108,6 +114,19 @@ export function useStatsExport(
           session.workingData?.working?.overriddenEleCount ?? 0,
         hasEdits: session.workingData?.working?.hasEdits ?? false,
       },
+      ...(zones && fitness
+        ? {
+            zones: {
+              hr: zones.hr,
+              power: zones.power,
+              pace: zones.pace,
+              cadence: zones.cadence,
+              gap: zones.gap,
+              calories: zones.calories,
+              settings: fitness,
+            } satisfies ZonesCsvInput,
+          }
+        : {}),
     });
 
     const fileName = statsFileName(session.fileName ?? "activity.gpx");
@@ -116,7 +135,7 @@ export function useStatsExport(
     // speaks it (the Phase 8 export contract).
     announce(t("hook.export.statsReady", { fileName }));
     return fileName;
-  }, [session, splits, motion, elevation, repair, t]);
+  }, [session, splits, motion, elevation, repair, zones, fitness, t]);
 
   const printStats = useCallback(() => {
     if (typeof window === "undefined" || typeof window.print !== "function") {

@@ -38,7 +38,10 @@ import {
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
 import { useI18n, type TranslatorArg } from "@/hooks/use-i18n";
 import type { SplitsResult, SplitRow } from "@/hooks/use-splits";
-import { splitPaceMsPerMeter } from "@/hooks/use-splits";
+import {
+  splitGapPaceMsPerMeter,
+  splitPaceMsPerMeter,
+} from "@/hooks/use-splits";
 import type { PaceUnit } from "@/lib/utils/format";
 import {
   PACE_METERS_PER_UNIT,
@@ -288,6 +291,10 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
   const rows = splits.rows;
   const visibleRows = rows.slice(0, rowsShown);
   const totalDistance = rows.reduce((sum, row) => sum + row.distanceM, 0);
+  // Phase 23.6 — the GAP column appears only when the file carries
+  // elevation on timed legs (nothing honest to adjust otherwise).
+  const showGap = splits.hasGradeData;
+  const columnCount = showGap ? 7 : 6;
 
   return (
     <Card data-testid="splits-card" className="border-[1.5px] border-ink">
@@ -368,6 +375,15 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
                   >
                     {t("splits.colAvgPace")}
                   </TableHead>
+                  {showGap && (
+                    <TableHead
+                      scope="col"
+                      title={t("splits.gapTitle")}
+                      className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
+                    >
+                      {t("splits.colGap")}
+                    </TableHead>
+                  )}
                   <TableHead
                     scope="col"
                     className="h-auto pb-2 text-[11.5px] font-semibold text-muted-foreground border-b-[1.5px] border-ink/25"
@@ -411,6 +427,22 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
                           ? formatPace(row.timeMs, row.distanceM, paceUnit)
                           : "—"}
                       </TableCell>
+                      {showGap && (
+                        <TableCell
+                          className="whitespace-nowrap tabular-nums"
+                          title={t("splits.gapTitle")}
+                        >
+                          {splitGapPaceMsPerMeter(row) !== undefined
+                            ? formatPace(row.gapTimeMs, row.distanceM, paceUnit)
+                            : "—"}
+                          {row.gapEstimated &&
+                            splitGapPaceMsPerMeter(row) !== undefined && (
+                              <span className="ml-1 align-super text-[9px] font-bold text-signal-ink">
+                                {t("splits.est")}
+                              </span>
+                            )}
+                        </TableCell>
+                      )}
                       <TableCell className="whitespace-nowrap tabular-nums">
                         {row.eleGainM === null
                           ? "—"
@@ -430,7 +462,7 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
                 {rows.length > visibleRows.length && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
-                      colSpan={6}
+                      colSpan={columnCount}
                       className="border-t-[1.5px] border-ink/25 pt-2"
                     >
                       <button
@@ -455,7 +487,7 @@ export function SplitsCard({ splits, paceUnit }: SplitsCardProps) {
                     {formatDistanceForUnit(totalDistance, paceUnit)}
                   </TableCell>
                   <TableCell
-                    colSpan={4}
+                    colSpan={columnCount - 2}
                     className="border-t-[1.5px] border-ink/25 pt-2 text-[11px] text-muted-foreground"
                   >
                     {t(

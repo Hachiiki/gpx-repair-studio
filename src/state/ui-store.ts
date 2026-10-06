@@ -39,6 +39,12 @@
  *     IS; the consent to CONTACT any router stays separate and
  *     session-scoped above.
  *
+ * Phase 23 (§EE 23.1) adds the fitness settings group:
+ *   - zone sets (HR max + boundaries, FTP, the pace race result), the
+ *     stopped-time threshold (23.4), and the opt-in calorie weight.
+ *     Settings only, persisted like the pace toggle; the weight never
+ *     exports and the calorie estimate never appears uninvited.
+ *
  * `skipHydration` keeps SSR/prerender and the first client render identical
  * (defaults); `AppShell` rehydrates after mount.
  *
@@ -47,6 +53,10 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import {
+  DEFAULT_FITNESS_SETTINGS,
+  type FitnessSettings,
+} from "@/features/statistics/zones";
 import {
   DEFAULT_GAP_THRESHOLDS,
   type GapThresholds,
@@ -152,6 +162,8 @@ interface UiState {
   landingView: LandingView;
   /** The gap highlighted on the map / gap list; `null` = none. Transient. */
   selectedGapId: GapId | null;
+  /** Phase 23 — the fitness settings (zones, stop threshold, calories). */
+  fitness: FitnessSettings;
 
   setGapThresholds: (patch: Partial<GapThresholds>) => void;
   resetGapThresholds: () => void;
@@ -173,6 +185,10 @@ interface UiState {
   /** Task 42: leave the detail page, back to the tool cards. */
   closeLandingTool: () => void;
   selectGap: (gapId: GapId | null) => void;
+  /** Phase 23 — patch the fitness settings (sub-objects replace whole). */
+  setFitness: (patch: Partial<FitnessSettings>) => void;
+  /** Phase 23 — back to the documented defaults. */
+  resetFitness: () => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -191,6 +207,16 @@ export const useUiStore = create<UiState>()(
       landingMode: "repair" as LandingMode,
       landingView: "home" as LandingView,
       selectedGapId: null,
+      fitness: {
+        hr: {
+          ...DEFAULT_FITNESS_SETTINGS.hr,
+          boundaries: [...DEFAULT_FITNESS_SETTINGS.hr.boundaries],
+        },
+        power: { ...DEFAULT_FITNESS_SETTINGS.power },
+        pace: { race: DEFAULT_FITNESS_SETTINGS.pace.race },
+        stopSpeedMps: DEFAULT_FITNESS_SETTINGS.stopSpeedMps,
+        calories: { ...DEFAULT_FITNESS_SETTINGS.calories },
+      },
       setGapThresholds: (patch) =>
         set((state) => ({ gapThresholds: { ...state.gapThresholds, ...patch } })),
       resetGapThresholds: () =>
@@ -213,6 +239,29 @@ export const useUiStore = create<UiState>()(
         set({ landingMode: mode, landingView: "tool" }),
       closeLandingTool: () => set({ landingView: "home" }),
       selectGap: (selectedGapId) => set({ selectedGapId }),
+      setFitness: (patch) =>
+        set((state) => ({
+          fitness: {
+            hr: patch.hr ?? state.fitness.hr,
+            power: patch.power ?? state.fitness.power,
+            pace: patch.pace ?? state.fitness.pace,
+            stopSpeedMps: patch.stopSpeedMps ?? state.fitness.stopSpeedMps,
+            calories: patch.calories ?? state.fitness.calories,
+          },
+        })),
+      resetFitness: () =>
+        set({
+          fitness: {
+            hr: {
+              ...DEFAULT_FITNESS_SETTINGS.hr,
+              boundaries: [...DEFAULT_FITNESS_SETTINGS.hr.boundaries],
+            },
+            power: { ...DEFAULT_FITNESS_SETTINGS.power },
+            pace: { race: DEFAULT_FITNESS_SETTINGS.pace.race },
+            stopSpeedMps: DEFAULT_FITNESS_SETTINGS.stopSpeedMps,
+            calories: { ...DEFAULT_FITNESS_SETTINGS.calories },
+          },
+        }),
     }),
     {
       name: UI_SETTINGS_STORAGE_KEY,
@@ -229,6 +278,7 @@ export const useUiStore = create<UiState>()(
         nudgeStepM: state.nudgeStepM,
         customRouterUrl: state.customRouterUrl,
         landingMode: state.landingMode,
+        fitness: state.fitness,
       }),
       // Avoid SSR/prerender hydration mismatches; AppShell rehydrates on
       // mount (see components/layout/app-shell.tsx).

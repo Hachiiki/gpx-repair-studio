@@ -38,7 +38,7 @@ export type {
   SplitRow,
   SplitProvenance,
 } from "@/features/statistics/splits";
-export { splitPaceMsPerMeter } from "@/features/statistics/splits";
+export { splitPaceMsPerMeter, splitGapPaceMsPerMeter } from "@/features/statistics/splits";
 export type {
   MotionSummary,
   StopEvent,
@@ -76,9 +76,12 @@ export function useSplits(
 /** The stopped-time summary of the merged route. */
 export function useStoppedTime(merge: MergeResult | null): MotionSummary {
   const timeGapMs = useUiStore((s) => s.gapThresholds.timeGapMs);
+  // Phase 23.4 — the stop threshold is a persisted setting (default
+  // unchanged at 0.5 m/s; the card's copy discloses the live value).
+  const stopSpeedMps = useUiStore((s) => s.fitness.stopSpeedMps);
   return useMemo(
-    () => stoppedTimeSummary(merge, { timeGapMs }),
-    [merge, timeGapMs],
+    () => stoppedTimeSummary(merge, { timeGapMs, stopSpeedMps }),
+    [merge, timeGapMs, stopSpeedMps],
   );
 }
 

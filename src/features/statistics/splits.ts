@@ -29,6 +29,12 @@
  *     each committed step attributed to the split containing the point
  *     where the climb/descent realizes. Σ split gains = the file's
  *     hysteresis gain; per-split numbers can never double-count.
+ *   - **Grade-adjusted time (Phase 23.6)** — each timed leg's
+ *     flat-equivalent duration (Δt · C(0)/C(grade), the Minetti curve
+ *     from `gap.ts`) is attributed exactly like its time: splits the
+ *     leg overlaps, proportionally. Legs missing elevation at an
+ *     endpoint pass through at factor 1 and are counted (`gapFlatLegs`),
+ *     never guessed; Σ split GAP time is the whole-run GAP numerator.
  *   - **Provenance** — a split is `recorded` when every point inside is
  *     plain recorded data, `estimated` when every point is
  *     reconstructed/marked, `mixed` when both appear (§L-2 vocabulary;
@@ -44,6 +50,7 @@
 
 import { DEFAULT_HYSTERESIS_THRESHOLD_M } from "@/features/elevation/smoothing";
 import type { MergeResult } from "@/features/reconstruction/merge";
+import { legGapTimeMs } from "@/features/statistics/gap";
 import { isUsableStatsPoint } from "@/features/statistics/distance";
 import { geodesicDistanceMeters } from "@/lib/geo/geodesy";
 import type {
@@ -88,6 +95,14 @@ export interface SplitRow {
   elePoints: number;
   /** Any elevation contribution was estimated (reconstructed/marked). */
   eleEstimated: boolean;
+  /**
+   * Grade-adjusted (flat-equivalent) time attributed, ms — Phase
+   * 23.6. Legs without elevation pass through at factor 1. 0 when
+   * nothing contributed.
+   */
+  gapTimeMs: number;
+  /** Any GAP-attributed leg sat in a reconstructed/marked stretch. */
+  gapEstimated: boolean;
   provenance: SplitProvenance;
 }
 
@@ -107,6 +122,15 @@ export interface SplitsResult {
   totalLossM: number;
   /** The hysteresis threshold used (tooltips disclose it). */
   hysteresisThresholdM: number;
+  /** Phase 23.6 — any timed leg anywhere carried elevation on both
+   * endpoints (GAP is computable at all). */
+  hasGradeData: boolean;
+  /** Σ split GAP time, ms (the whole-run GAP numerator). */
+  totalGapTimeMs: number;
+  /** Timed legs counted at factor 1 (an endpoint lacked elevation). */
+  gapFlatLegs: number;
+  /** Any GAP-attributed leg sat in a reconstructed/marked stretch. */
+  gapEstimated: boolean;
 }
 
 export interface SplitsOptions {
@@ -132,6 +156,8 @@ interface SplitAccumulator {
   eleLossM: number;
   elePoints: number;
   eleEstimated: boolean;
+  gapTimeMs: number;
+  gapEstimated: boolean;
   /** 1 when only recorded points, 2 when only estimated points. */
   recordedMask: number; // bit 0 = recorded seen, bit 1 = estimated seen
 }
@@ -148,6 +174,8 @@ function newAccumulator(): SplitAccumulator {
     eleLossM: 0,
     elePoints: 0,
     eleEstimated: false,
+    gapTimeMs: 0,
+    gapEstimated: false,
     recordedMask: 0,
   };
 }
@@ -179,6 +207,8 @@ function accumulatorToRow(
     eleLossM: hasEle ? acc.eleLossM : null,
     elePoints: acc.elePoints,
     eleEstimated: acc.eleEstimated,
+    gapTimeMs: acc.gapTimeMs,
+    gapEstimated: acc.gapEstimated,
     provenance,
   };
 }
@@ -215,12 +245,16 @@ export function buildSplits(
     lat: number;
     lon: number;
     time?: number;
+    ele?: number;
     trackIndex: number;
     /** This point is reconstructed or re-import-marked. */
     estimated: boolean;
   } | null = null;
   let hasTimingData = false;
   let hasElevationData = false;
+  let hasGradeData = false;
+  let gapFlatLegs = 0;
+  let gapEstimatedAny = false;
 
   // Hysteresis state persists across splits and holes (the §K-2 rule —
   // the integrator continues from the last committed reference).
@@ -272,6 +306,12 @@ export function buildSplits(
           // window advances instead of aborting the attribution).
           let lastOverlapK = -1;
           let sawOverlap = false;
+          // Phase 23.6 — the leg's flat-equivalent duration, computed
+          // once (legs without elevation pass through at factor 1).
+          const legGap =
+            dt !== null && dt >= 0 && dt <= timeGapMs
+              ? legGapTimeMs(dt, legM, previous.ele, ele)
+              : null;
           for (let k = splitIndexOf(d0, splitLengthM); ; k += 1) {
             if (k * splitLengthM >= d1) break;
             const lo = Math.max(d0, k * splitLengthM);
@@ -293,6 +333,15 @@ export function buildSplits(
             acc.recordedMask |= legEstimated ? 2 : 1;
             if (dt !== null && dt >= 0 && dt <= timeGapMs) {
               acc.timeMs += dt * share;
+              if (legGap !== null && dt > 0) {
+                acc.gapTimeMs += legGap.gapMs * share;
+                if (legGap.graded) hasGradeData = true;
+                else gapFlatLegs += 1;
+                if (legEstimated) {
+                  acc.gapEstimated = true;
+                  gapEstimatedAny = true;
+                }
+              }
             }
           }
 
@@ -316,7 +365,8 @@ export function buildSplits(
           cumulative = d1;
         } else if (Number.isFinite(legM)) {
           // Zero-length leg (duplicate point): no distance to attribute;
-          // time still elapses between the two fixes.
+          // time still elapses between the two fixes (and its
+          // flat-equivalent twin rides along — same rule, same place).
           const sameTrack = previous.trackIndex === track.trackIndex;
           if (
             sameTrack &&
@@ -335,6 +385,14 @@ export function buildSplits(
             } else if (dt > 0) {
               accumulators[endSplit].timeMs += dt;
               accumulators[endSplit].timedLegs += 1;
+              const legGap = legGapTimeMs(dt, legM, previous.ele, ele);
+              accumulators[endSplit].gapTimeMs += legGap.gapMs;
+              if (legGap.graded) hasGradeData = true;
+              else gapFlatLegs += 1;
+              if (legEstimated) {
+                accumulators[endSplit].gapEstimated = true;
+                gapEstimatedAny = true;
+              }
               hasTimingData = true;
             }
           } else {
@@ -385,6 +443,7 @@ export function buildSplits(
         lat,
         lon,
         ...(time !== undefined ? { time } : {}),
+        ...(ele !== undefined ? { ele } : {}),
         trackIndex: track.trackIndex,
         estimated: estimatedPoint,
       };
@@ -418,6 +477,7 @@ export function buildSplits(
 
   const totalGainM = rows.reduce((sum, r) => sum + (r.eleGainM ?? 0), 0);
   const totalLossM = rows.reduce((sum, r) => sum + (r.eleLossM ?? 0), 0);
+  const totalGapTimeMs = rows.reduce((sum, r) => sum + r.gapTimeMs, 0);
 
   return {
     rows,
@@ -428,6 +488,10 @@ export function buildSplits(
     totalGainM,
     totalLossM,
     hysteresisThresholdM,
+    hasGradeData,
+    totalGapTimeMs,
+    gapFlatLegs,
+    gapEstimated: gapEstimatedAny,
   };
 }
 
@@ -448,4 +512,14 @@ export function splitsDistanceTotal(result: SplitsResult): number {
 export function splitPaceMsPerMeter(row: SplitRow): number | undefined {
   if (row.timeMs <= 0 || row.distanceM <= 0) return undefined;
   return row.timeMs / row.distanceM;
+}
+
+/**
+ * Grade-adjusted pace of one split, ms per meter — Phase 23.6
+ * (flat-equivalent time over distance; the Minetti curve, ours).
+ * `undefined` when the split has no attributed time or distance.
+ */
+export function splitGapPaceMsPerMeter(row: SplitRow): number | undefined {
+  if (row.gapTimeMs <= 0 || row.distanceM <= 0) return undefined;
+  return row.gapTimeMs / row.distanceM;
 }
