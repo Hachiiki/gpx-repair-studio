@@ -9,7 +9,7 @@
  * orchestration lives in `hooks/use-session-recovery.ts`, and the
  * saved-session orchestration in `hooks/use-saved-sessions.ts`.
  *
- * Layout — `gpx-repair-studio.sessions` v2, three object stores:
+ * Layout — `gpx-repair-studio.sessions` v3, four object stores:
  *   - `state` — one SMALL record per section ("repair" | "recovery" |
  *     "create" | "plan"): the drawn vertices, settings, spans, resolved
  *     road legs. A geometry edit rewrites ~10–50 KB.
@@ -23,10 +23,17 @@
  *     self-sufficient). Explicit snapshots coexist with the `state`
  *     autosave by design: the autosave is the crash net, the named save
  *     is the user's own shelf.
+ *   - `library` (Phase 24, DB v3) — the DERIVED indexes: one record per
+ *     saved session (keyed by the same id), holding the numbers the
+ *     training library shows — distance, times, gain, average heart
+ *     rate, best efforts. Derived data, never a second opinion: the
+ *     record is the truth, the index is its shadow, and deleting a
+ *     session (or clearing the shelf) deletes its shadow with it.
  *
  * Single record per section in `state` (no history — the plan's explicit
  * non-goal); the `saved` store holds as many as the user keeps. At most
- * 4 autosave records + 2 autosave blobs + N saved sessions exist.
+ * 4 autosave records + 2 autosave blobs + N saved sessions (+ N index
+ * shadows) exist.
  *
  * Failure contract (the phase's "app functions identically with storage
  * disabled/blocked" criterion): every operation is guarded. No
@@ -75,10 +82,11 @@ export interface StoredSessionFile {
 export const MAX_SESSION_FILE_BYTES = 64 * 1024 * 1024;
 
 const DB_NAME = "gpx-repair-studio.sessions";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STATE_STORE = "state";
 const FILE_STORE = "files";
 const SAVED_STORE = "saved";
+const LIBRARY_STORE = "library";
 
 /**
  * The async key/value seam the public functions operate on. The real
@@ -150,6 +158,12 @@ function getBackend(): SessionStorageBackend | null {
       // v2 (Phase 18) — the named saved sessions, keyed by generated id.
       if (!db.objectStoreNames.contains(SAVED_STORE)) {
         db.createObjectStore(SAVED_STORE);
+      }
+      // v3 (Phase 24) — the derived library indexes, keyed by the saved
+      // session's id (validated by features/library; this layer only
+      // moves records, exactly like the `saved` store).
+      if (!db.objectStoreNames.contains(LIBRARY_STORE)) {
+        db.createObjectStore(LIBRARY_STORE);
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -291,13 +305,15 @@ export async function deleteSessionSection(
   }
 }
 
-/** The "clear stored data" control: empty both object stores entirely. */
+/** The "clear stored data" control: empty every object store entirely. */
 export async function clearAllSessionData(): Promise<boolean> {
   const active = getBackend();
   if (!active) return false;
   try {
     await active.clear(STATE_STORE);
     await active.clear(FILE_STORE);
+    await active.clear(SAVED_STORE);
+    await active.clear(LIBRARY_STORE);
     return true;
   } catch (error) {
     fail("clear", error);
@@ -465,15 +481,83 @@ export async function renameSavedSession(
   }
 }
 
-/** Delete one saved session. */
+/** Delete one saved session — its derived library index goes with it. */
 export async function deleteSavedSession(id: string): Promise<boolean> {
   const active = getBackend();
   if (!active) return false;
   try {
     await active.delete(SAVED_STORE, id);
+    await active.delete(LIBRARY_STORE, id);
     return true;
   } catch (error) {
     fail("delete session", error);
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Derived library indexes (Phase 24 §24.4) — the `library` store (DB v3).
+// Same failure contract: silent, null/[]-typed, never throwing. Shape
+// validation is the FEATURE's job (features/library/index-session.ts) —
+// this layer only moves records, exactly like the section records.
+// ---------------------------------------------------------------------------
+
+/** Persist one session's derived index (overwrites — one per session). */
+export async function writeLibraryIndex(
+  id: string,
+  index: object,
+): Promise<boolean> {
+  const active = getBackend();
+  if (!active) return false;
+  try {
+    await active.put(LIBRARY_STORE, id, index);
+    return true;
+  } catch (error) {
+    fail("write library index", error);
+    return false;
+  }
+}
+
+/** Read one derived index raw (validation is the caller's job). */
+export async function readLibraryIndex(
+  id: string,
+): Promise<unknown> {
+  const active = getBackend();
+  if (!active) return null;
+  try {
+    return await active.get(LIBRARY_STORE, id);
+  } catch (error) {
+    fail("read library index", error);
+    return null;
+  }
+}
+
+/** Every derived index, id → raw record (drifted shapes stay absent). */
+export async function listLibraryIndexes(): Promise<Map<string, unknown>> {
+  const active = getBackend();
+  if (!active) return new Map();
+  try {
+    const keys = await active.keys(LIBRARY_STORE);
+    const out = new Map<string, unknown>();
+    for (const key of keys) {
+      out.set(key, await active.get(LIBRARY_STORE, key));
+    }
+    return out;
+  } catch (error) {
+    fail("list library indexes", error);
+    return new Map();
+  }
+}
+
+/** Delete one derived index (a re-index overwrites it anyway). */
+export async function deleteLibraryIndex(id: string): Promise<boolean> {
+  const active = getBackend();
+  if (!active) return false;
+  try {
+    await active.delete(LIBRARY_STORE, id);
+    return true;
+  } catch (error) {
+    fail("delete library index", error);
     return false;
   }
 }

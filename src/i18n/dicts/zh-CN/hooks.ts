@@ -56,6 +56,7 @@ export const zhHooks: Record<string, string> = {
 
   /** Export downloads. */
   "hook.export.ready": "导出就绪 — {fileName} 已下载。",
+  "hook.export.libraryReady": "导出就绪 — {count} 个会话已写入 {fileName}。",
   "hook.export.statsReady": "统计表就绪 — {fileName} 已下载。",
   "hook.export.batchZipReady": "导出就绪 — {fileName} 已下载（{files} + 清单）。",
 
@@ -129,6 +130,7 @@ export const zhHooks: Record<string, string> = {
   "hook.savedSessions.renameFailed": "无法重命名该会话。",
   "hook.savedSessions.deleteFailed": "无法删除该会话。",
   "hook.savedSessions.deleted": "会话已删除。",
+  "hook.savedSessions.deletedRows": "已删除 {count} 个会话。",
   "hook.savedSessions.unreadableRecord":
     "这个已保存的会话已无法读取 — 其记录不可读。",
   "hook.savedSessions.offShelf": "该会话已不在架上。",
@@ -136,6 +138,7 @@ export const zhHooks: Record<string, string> = {
     "此会话缺少原始文件 — 无法重新打开。",
   "hook.savedSessions.parseFailed": "原始文件已无法解析 — 该会话无法重新打开。",
   "hook.savedSessions.imported": "已导入 — “{name}”已在你的会话架上。",
+  "hook.savedSessions.importedLibrary": "已导入 {count} 个会话到你的会话架。",
   "hook.savedSessions.importedName": "导入的会话",
   "hook.savedSessions.importUnreadable": "无法读取该文件。",
   "hook.savedSessions.importNotJson":

@@ -328,5 +328,203 @@ export function portableSessionFileName(sessionName: string): string {
   return `${safe}.gpxrepair.json`;
 }
 
+// ---------------------------------------------------------------------------
+// Portable LIBRARY bundles (Phase 24 §24.1) — the multi-select export:
+// many sessions, one `.gpxrepair-library.json`. Same per-session parts
+// (record + verbatim source bytes), wrapped in an array; the import
+// door accepts both formats by their `format` marker.
+// ---------------------------------------------------------------------------
+
+/** The library bundle's format marker. */
+export const PORTABLE_LIBRARY_FORMAT = "gpxrepair-library";
+
+/** Bump when the bundle shape changes; the read side keeps a ceiling. */
+export const PORTABLE_LIBRARY_VERSION = 1;
+
+const MAX_READABLE_LIBRARY_VERSION = PORTABLE_LIBRARY_VERSION;
+
+/** One bundled session (exactly the per-session portable parts). */
+export interface PortableLibraryEntry {
+  /** The shelf entry's name (a bundle is shelf-shaped, not file-shaped). */
+  name: string;
+  record: StoredSessionRecord;
+  view?: "repair" | "share";
+  source?: PortableSessionSource;
+}
+
+/** The bundle document itself. */
+export interface PortableLibraryFile {
+  format: typeof PORTABLE_LIBRARY_FORMAT;
+  version: typeof PORTABLE_LIBRARY_VERSION;
+  exportedAt: number;
+  sessions: readonly PortableLibraryEntry[];
+}
+
+/** What `readPortableLibrary` hands back per entry. */
+export interface ReadPortableLibraryEntry {
+  name: string;
+  record: StoredSessionRecord;
+  view: "repair" | "share";
+  source: { name: string; type: string; blob: Blob } | null;
+}
+
+export type ReadPortableLibraryResult =
+  | { ok: true; sessions: readonly ReadPortableLibraryEntry[] }
+  | { ok: false; error: PortableSessionError };
+
+/** The bundle's file name for a download. */
+export function portableLibraryFileName(): string {
+  return "library.gpxrepair.json";
+}
+
+/**
+ * Serialize a whole shelf selection into the bundle text. The async
+ * half mirrors `serializePortableSession`: each entry's source bytes
+ * are encoded here (text when XML-looking, base64 otherwise).
+ */
+export async function serializePortableLibrary(
+  entries: readonly {
+    name: string;
+    record: StoredSessionRecord;
+    view?: "repair" | "share";
+    source?: { name: string; type: string; blob: Blob };
+  }[],
+  exportedAt: number = Date.now(),
+): Promise<string> {
+  const sessions: PortableLibraryEntry[] = [];
+  for (const entry of entries) {
+    const serialized: PortableLibraryEntry = {
+      name: entry.name,
+      record: entry.record,
+      ...(entry.view !== undefined ? { view: entry.view } : {}),
+    };
+    if (entry.source !== undefined) {
+      const bytes = new Uint8Array(await entry.source.blob.arrayBuffer());
+      const encoding = pickEncoding(bytes);
+      serialized.source = {
+        name: entry.source.name,
+        type: entry.source.type,
+        encoding,
+        data:
+          encoding === "text"
+            ? new TextDecoder("utf-8").decode(bytes)
+            : bytesToBase64(bytes),
+      };
+    }
+    sessions.push(serialized);
+  }
+  const doc: PortableLibraryFile = {
+    format: PORTABLE_LIBRARY_FORMAT,
+    version: PORTABLE_LIBRARY_VERSION,
+    exportedAt,
+    sessions,
+  };
+  return JSON.stringify(doc, null, 2);
+}
+
+/**
+ * Validate and decode a `.gpxrepair-library.json` text. Never throws;
+ * every failure is the same typed error vocabulary the single-session
+ * reader uses. A bundle whose format marker is the single-session one
+ * is NOT an error the caller can't handle — use `sniffPortableFormat`
+ * to route before calling either reader.
+ */
+export function readPortableLibrary(json: string): ReadPortableLibraryResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return { ok: false, error: { kind: "not-json" } };
+  }
+  if (!isRecord(parsed)) {
+    return { ok: false, error: { kind: "wrong-format" } };
+  }
+  if (parsed.format !== PORTABLE_LIBRARY_FORMAT) {
+    return { ok: false, error: { kind: "wrong-format" } };
+  }
+  const version = parsed.version;
+  if (
+    typeof version !== "number" ||
+    !Number.isFinite(version) ||
+    version < 1
+  ) {
+    return { ok: false, error: { kind: "wrong-format" } };
+  }
+  if (version > MAX_READABLE_LIBRARY_VERSION) {
+    return { ok: false, error: { kind: "newer-version", version } };
+  }
+  if (typeof parsed.exportedAt !== "number" || !Array.isArray(parsed.sessions)) {
+    return { ok: false, error: { kind: "wrong-format" } };
+  }
+
+  const sessions: ReadPortableLibraryEntry[] = [];
+  for (const raw of parsed.sessions) {
+    if (!isRecord(raw) || typeof raw.name !== "string" || raw.name.length === 0) {
+      return { ok: false, error: { kind: "bad-session" } };
+    }
+    const record = readSessionRecord(raw.record);
+    if (record === null) {
+      return { ok: false, error: { kind: "bad-session" } };
+    }
+    const view = raw.view === "share" ? "share" : "repair";
+    let source: { name: string; type: string; blob: Blob } | null = null;
+    if (record.kind === "file") {
+      const src = raw.source;
+      if (
+        !isRecord(src) ||
+        typeof src.name !== "string" ||
+        typeof src.type !== "string" ||
+        (src.encoding !== "text" && src.encoding !== "base64") ||
+        typeof src.data !== "string" ||
+        src.data.length === 0
+      ) {
+        return { ok: false, error: { kind: "bad-source" } };
+      }
+      let bytes: Uint8Array;
+      if (src.encoding === "text") {
+        bytes = UTF8_ENCODER.encode(src.data);
+      } else {
+        const decoded = base64ToBytes(src.data);
+        if (decoded === null) {
+          return { ok: false, error: { kind: "bad-source" } };
+        }
+        bytes = decoded;
+      }
+      source = {
+        name: src.name,
+        type: src.type || "application/gpx+xml",
+        blob: new Blob([bytes.slice().buffer], {
+          type: src.type || "application/gpx+xml",
+        }),
+      };
+    }
+    sessions.push({ name: raw.name, record, view, source });
+  }
+  return { ok: true, sessions };
+}
+
+/**
+ * Which portable format is this JSON? Routes the import door: the
+ * single-session reader or the library reader. Null when the text is
+ * not JSON or carries no recognizable marker (the readers' own typed
+ * errors take over from there).
+ */
+export function sniffPortableFormat(json: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed) || typeof parsed.format !== "string") return null;
+  if (
+    parsed.format === PORTABLE_SESSION_FORMAT ||
+    parsed.format === PORTABLE_LIBRARY_FORMAT
+  ) {
+    return parsed.format;
+  }
+  return null;
+}
+
 /** The session-record schema this build writes (exported for docs/tests). */
 export { SESSION_RECORD_SCHEMA_VERSION };

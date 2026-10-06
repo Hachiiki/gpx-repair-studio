@@ -14,7 +14,7 @@
  */
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -84,7 +84,24 @@ describe("privacy copy is pinned to the real providers", () => {
   it("names both on-device storage keys exactly", () => {
     render(<PrivacyPane />);
     expect(screen.getByText("gpx-repair-studio.settings.v1")).toBeInTheDocument();
-    expect(screen.getByText("gpx-repair-studio.sessions")).toBeInTheDocument();
+    // The sessions database is disclosed twice by design (§24.4): the
+    // autosave records AND the derived library indexes it also holds.
+    expect(
+      screen.getAllByText("gpx-repair-studio.sessions"),
+    ).toHaveLength(2);
+  });
+
+  it("discloses the Phase 24 library indexes beside the sessions (§24.4)", () => {
+    render(<PrivacyPane />);
+    const library = screen.getByTestId("privacy-storage-library");
+    // The same database, named verbatim, with the derived-only promise.
+    expect(within(library).getByText("gpx-repair-studio.sessions")).toBeInTheDocument();
+    expect(
+      within(library).getByText(/deleting the session \(or clearing the shelf\) deletes its index/i),
+    ).toBeInTheDocument();
+    expect(
+      within(library).getByText(/best efforts/i),
+    ).toBeInTheDocument();
   });
 
   it("discloses the Phase 22 caches with their real storage names", () => {

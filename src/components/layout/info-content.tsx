@@ -237,6 +237,23 @@ export function PrivacyPane() {
               {t("info.privacy.storage.sessionsBody")}
             </p>
           </li>
+          {/* Phase 24 — the derived training-library indexes (§24.4):
+              beside the sessions in the SAME database, clearable with
+              the shelf, disclosed here by name. */}
+          <li
+            className="rounded-[10px] border-[1.5px] border-ink/15 p-3"
+            data-testid="privacy-storage-library"
+          >
+            <p className="text-[13px] font-semibold">
+              {t("info.privacy.storage.libraryTitle")}
+            </p>
+            <p className="mt-1 font-mono text-[11px] text-shade">
+              {"gpx-repair-studio.sessions"}
+            </p>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
+              {t("info.privacy.storage.libraryBody")}
+            </p>
+          </li>
         </ul>
         {/*
          * §EE 22.3 — the Phase 22 caches: persisted elevation terrain

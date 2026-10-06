@@ -109,6 +109,9 @@ export const help = {
   "info.privacy.storage.sessionsTitle": "Unfinished work — IndexedDB",
   "info.privacy.storage.sessionsBody":
     "While you draw, the original file's bytes and your edits (points, spans, settings) are autosaved — one record per tool, at most four, so a reload or closed tab offers your work back instead of losing it. Never uploaded. Clear it with Discard or \"Clear all saved sessions\" on the landing page, \"Start over\" in a workspace, or by clearing this site's data in the browser.",
+  "info.privacy.storage.libraryTitle": "Training library indexes — IndexedDB",
+  "info.privacy.storage.libraryBody":
+    "For every session you name and save, the library keeps one derived index beside it in the same database — distance, times, elevation gain, average heart rate, best efforts — so cards, records, and trends open instantly. Derived numbers only, recomputed from the session you saved: deleting the session (or clearing the shelf) deletes its index with it.",
 
   /** PrivacyPane: the Phase 22 on-device caches (elevation terrain +
    * the service worker's offline copies), each with its Clear button. */

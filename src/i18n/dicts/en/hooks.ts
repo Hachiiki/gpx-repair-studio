@@ -69,6 +69,7 @@ export const hooks = {
 
   /** Export downloads (the aria-live outcome of every blob download). */
   "hook.export.ready": "Export ready — {fileName} downloaded.",
+  "hook.export.libraryReady": "Export ready — {count} sessions in {fileName}.",
   "hook.export.statsReady": "Stats sheet ready — {fileName} downloaded.",
   "hook.export.batchZipReady":
     "Export ready — {fileName} downloaded ({files} + the manifest).",
@@ -153,6 +154,7 @@ export const hooks = {
   "hook.savedSessions.renameFailed": "Could not rename the session.",
   "hook.savedSessions.deleteFailed": "Could not delete the session.",
   "hook.savedSessions.deleted": "Session deleted.",
+  "hook.savedSessions.deletedRows": "{count} sessions deleted.",
   "hook.savedSessions.unreadableRecord":
     "This saved session can no longer be read — its record is unreadable.",
   "hook.savedSessions.offShelf": "That session is no longer on the shelf.",
@@ -162,6 +164,8 @@ export const hooks = {
     "The original file no longer parses — the session cannot be reopened.",
   "hook.savedSessions.imported":
     'Imported — "{name}" is on your sessions shelf.',
+  "hook.savedSessions.importedLibrary":
+    "Imported {count} sessions onto your shelf.",
   "hook.savedSessions.importedName": "Imported session",
   "hook.savedSessions.importUnreadable": "The file could not be read.",
   "hook.savedSessions.importNotJson":

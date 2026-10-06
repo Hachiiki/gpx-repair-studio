@@ -33,12 +33,17 @@ e2e (40 specs); the performance spec's two dev-server ceilings were
 recalibrated per its own 1.5× discipline (see the [Phase 23 delivery
 record](phase-23-fitness-zones-metrics.md)).
 
+Phase 24 raised the baseline to 2045 unit tests (146 files) and 210
+e2e (41 specs), and bumped the sessions database to v3 (the derived
+`library` index store — see the [Phase 24 delivery
+record](phase-24-activity-library-records.md)).
+
 ## Phases
 
 | # | Phase | Status |
 |---|---|---|
 | 23 | [Fitness Zones & Metrics](phase-23-fitness-zones-metrics.md) | DONE |
-| 24 | [Activity Library, Records & Trends](phase-24-activity-library-records.md) | PROPOSED |
+| 24 | [Activity Library, Records & Trends](phase-24-activity-library-records.md) | DONE |
 | 25 | [Heatmap & Personal Segments](phase-25-heatmap-personal-segments.md) | PROPOSED |
 | 26 | [Photo Geotagging](phase-26-photo-geotagging.md) | PROPOSED |
 | 27 | [Cue Sheets & Turn-by-Turn](phase-27-cue-sheets.md) | PROPOSED |

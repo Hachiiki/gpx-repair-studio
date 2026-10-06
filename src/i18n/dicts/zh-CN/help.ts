@@ -104,6 +104,9 @@ export const zhHelp: Record<string, string> = {
   "info.privacy.storage.sessionsTitle": "未完成的工作 — IndexedDB",
   "info.privacy.storage.sessionsBody":
     "在你绘制期间，原始文件的字节和你的编辑（点、范围、设置）会自动保存 — 每个工具一条记录，最多四条，这样重新加载或关闭标签页时会帮你找回工作，而不是丢失它。绝不会上传。可以用“放弃”或首页的“清除所有已保存的会话”、工作区里的“重新开始”，或在浏览器中清除本站数据来清空它。",
+  "info.privacy.storage.libraryTitle": "训练库索引 — IndexedDB",
+  "info.privacy.storage.libraryBody":
+    "对你命名保存的每个会话，训练库会在同一数据库里保留一份派生索引 — 距离、时间、爬升、平均心率、最佳成绩 — 让卡片、纪录与趋势即时打开。只有派生数字，由你保存的会话重新计算：删除会话（或清空会话架）会连同索引一起删除。",
 
   /** PrivacyPane — 阶段 22 的两个设备端缓存（海拔地形 + Service Worker 的离线副本），各带清除按钮。 */
   "info.privacy.storage.elevationTitle": "海拔地形 — IndexedDB",

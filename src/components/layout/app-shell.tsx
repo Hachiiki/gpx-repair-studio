@@ -103,6 +103,7 @@ import { usePlanStore } from "@/state/plan-store";
 import { useBatchStore } from "@/state/batch-store";
 import { useBatchSession } from "@/hooks/use-batch-session";
 import { useSavedSessions } from "@/hooks/use-saved-sessions";
+import { useLibrary } from "@/hooks/use-library";
 import {
   searchCommands,
   useCommands,
@@ -447,8 +448,12 @@ export function AppShell() {
    * Phase 18 — the named-sessions shelf (§EE 18.3/18.4): the header's
    * always-present "Sessions" door opens the manager; one instance,
    * one IndexedDB scan, mounted for the page's life.
+   *
+   * Phase 24 — the training library (records/trends indexes) reads the
+   * same shelf through its own controller, one derivation per session.
    */
   const savedSessions = useSavedSessions();
+  const library = useLibrary(savedSessions);
   const [sessionsOpen, setSessionsOpen] = useState(false);
 
   /*
@@ -1119,6 +1124,7 @@ export function AppShell() {
         open={sessionsOpen}
         onOpenChange={setSessionsOpen}
         sessions={savedSessions}
+        library={library}
       />
       {/*
        * Phase 17 — the consent dialog, above every view like the info

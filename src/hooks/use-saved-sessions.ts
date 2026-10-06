@@ -47,8 +47,13 @@ import {
 import {
   buildPortableSession,
   portableSessionFileName,
+  readPortableLibrary,
   readPortableSession,
+  serializePortableLibrary,
   serializePortableSession,
+  sniffPortableFormat,
+  portableLibraryFileName,
+  PORTABLE_LIBRARY_FORMAT,
   type ReadPortableSessionResult,
 } from "@/lib/storage/portable-session";
 import { restoreSessionFromRecord } from "@/hooks/restore-session";
@@ -238,6 +243,7 @@ export function captureCurrentSession(): CurrentSessionCapture | null {
 /** Typed import outcomes (plain sentences render them). */
 export type ImportPortableOutcome =
   | { status: "imported"; name: string }
+  | { status: "imported-library"; count: number }
   | { status: "opened"; name: string }
   | { status: "error"; message: string };
 
@@ -259,6 +265,10 @@ export interface SavedSessionsBinding {
   exportCurrent: () => Promise<boolean>;
   renameRow: (id: string, name: string) => Promise<void>;
   deleteRow: (id: string) => Promise<void>;
+  /** Phase 24 — multi-select bulk delete (one refresh, one notice). */
+  deleteRows: (ids: readonly string[]) => Promise<boolean>;
+  /** Phase 24 — the portable library bundle download (multi-select). */
+  exportRows: (ids: readonly string[]) => Promise<boolean>;
   /** Export one entry as a .gpxrepair.json download. */
   exportRow: (id: string) => Promise<void>;
   /** Open one entry back as the working session (the one restore path). */
@@ -396,34 +406,106 @@ export function useSavedSessions(): SavedSessionsBinding {
     [refresh, t],
   );
 
-  const exportRow = useCallback(async (id: string) => {
-    const listed = await listSavedSessions();
-    const entry = listed.find((row) => row.id === id);
-    if (!entry) return;
-    const record = readSessionRecord(entry.record);
-    if (record === null) {
-      announce(t("hook.savedSessions.unreadableRecord"));
-      return;
-    }
-    const doc = buildPortableSession(
-      record,
-      entry.view !== undefined ? { view: entry.view } : {},
-      entry.updatedAt,
-    );
-    const json = await serializePortableSession(
-      doc,
-      entry.source !== undefined
-        ? {
-            name: entry.source.name,
-            type: entry.source.type,
-            blob: entry.source.blob,
-          }
-        : undefined,
-    );
-    const fileName = portableSessionFileName(entry.name);
-    downloadTextFile(fileName, json, "application/json");
-    announce(t("hook.export.ready", { fileName }));
-  }, [t]);
+  /** One row → .gpxrepair.json download (the per-row export path). */
+  const downloadRowAsPortable = useCallback(
+    async (id: string) => {
+      const listed = await listSavedSessions();
+      const entry = listed.find((row) => row.id === id);
+      if (!entry) return;
+      const record = readSessionRecord(entry.record);
+      if (record === null) {
+        announce(t("hook.savedSessions.unreadableRecord"));
+        return;
+      }
+      const doc = buildPortableSession(
+        record,
+        entry.view !== undefined ? { view: entry.view } : {},
+        entry.updatedAt,
+      );
+      const json = await serializePortableSession(
+        doc,
+        entry.source !== undefined
+          ? {
+              name: entry.source.name,
+              type: entry.source.type,
+              blob: entry.source.blob,
+            }
+          : undefined,
+      );
+      const fileName = portableSessionFileName(entry.name);
+      downloadTextFile(fileName, json, "application/json");
+      announce(t("hook.export.ready", { fileName }));
+    },
+    [t],
+  );
+
+  const exportRow = useCallback(
+    async (id: string) => {
+      await downloadRowAsPortable(id);
+    },
+    [downloadRowAsPortable],
+  );
+
+  const deleteRows = useCallback(
+    async (ids: readonly string[]) => {
+      if (ids.length === 0) return false;
+      let deleted = 0;
+      for (const id of ids) {
+        if (await deleteSavedSession(id)) deleted += 1;
+      }
+      if (deleted === 0) {
+        announce(t("hook.savedSessions.deleteFailed"));
+        return false;
+      }
+      await refresh();
+      announce(t("hook.savedSessions.deletedRows", { count: deleted }));
+      return true;
+    },
+    [refresh, t],
+  );
+
+  const exportRows = useCallback(
+    async (ids: readonly string[]) => {
+      if (ids.length === 0) return false;
+      const listed = await listSavedSessions();
+      const entries = [];
+      for (const id of ids) {
+        const entry = listed.find((row) => row.id === id);
+        if (!entry) continue;
+        const record = readSessionRecord(entry.record);
+        if (record === null) continue;
+        entries.push({
+          name: entry.name,
+          record,
+          ...(entry.view !== undefined ? { view: entry.view } : {}),
+          ...(entry.source !== undefined
+            ? {
+                source: {
+                  name: entry.source.name,
+                  type: entry.source.type,
+                  blob: entry.source.blob,
+                },
+              }
+            : {}),
+        });
+      }
+      if (entries.length === 0) {
+        announce(t("hook.savedSessions.unreadableRecord"));
+        return false;
+      }
+      const json = await serializePortableLibrary(entries);
+      downloadTextFile(
+        portableLibraryFileName(),
+        json,
+        "application/json",
+      );
+      announce(
+        t("hook.export.libraryReady", { count: entries.length, fileName: portableLibraryFileName() }),
+      );
+      return true;
+    },
+    [t],
+  );
 
   const openRow = useCallback(async (id: string) => {
     if (busyRef.current) return false;
@@ -473,6 +555,46 @@ export function useSavedSessions(): SavedSessionsBinding {
       } catch {
         return { status: "error", message: t("hook.savedSessions.importUnreadable") };
       }
+
+      // Phase 24 — the door accepts BOTH portable documents: one
+      // session (.gpxrepair-session) or a whole library bundle
+      // (.gpxrepair-library). The format marker routes.
+      if (sniffPortableFormat(json) === PORTABLE_LIBRARY_FORMAT) {
+        const bundle = readPortableLibrary(json);
+        if (!bundle.ok) {
+          const message = t("hook.savedSessions.importNotSession");
+          announce(message);
+          return { status: "error", message };
+        }
+        let imported = 0;
+        for (const session of bundle.sessions) {
+          const id = await saveSessionEntry({
+            name: session.name,
+            section: session.record.section,
+            record: session.record,
+            ...(session.view === "share" ? { view: session.view } : {}),
+            ...(session.source !== null
+              ? {
+                  source: {
+                    name: session.source.name,
+                    type: session.source.type,
+                    blob: session.source.blob,
+                  },
+                }
+              : {}),
+          });
+          if (id !== null) imported += 1;
+        }
+        if (imported === 0) {
+          const message = t("hook.savedSessions.importShelfFailed");
+          announce(message);
+          return { status: "error", message };
+        }
+        await refresh();
+        announce(t("hook.savedSessions.importedLibrary", { count: imported }));
+        return { status: "imported-library", count: imported };
+      }
+
       const result: ReadPortableSessionResult = readPortableSession(json);
       if (!result.ok) {
         const message =
@@ -540,6 +662,8 @@ export function useSavedSessions(): SavedSessionsBinding {
     exportCurrent,
     renameRow,
     deleteRow,
+    deleteRows,
+    exportRows,
     exportRow,
     openRow,
     importPortableFile,
