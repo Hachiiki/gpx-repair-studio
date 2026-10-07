@@ -26,6 +26,7 @@ import { zhStatistics } from "./statistics";
 import { zhZones } from "./zones";
 import { zhLibrary } from "./library";
 import { zhSegments } from "./segments";
+import { zhPhotos } from "./photos";
 import { zhCompare } from "./compare";
 import { zhBatch } from "./batch";
 import { zhShare } from "./share";
@@ -145,6 +146,7 @@ export const zhCN: Record<string, string> = {
   ...zhZones,
   ...zhLibrary,
   ...zhSegments,
+  ...zhPhotos,
   ...zhCompare,
   ...zhBatch,
   ...zhShare,

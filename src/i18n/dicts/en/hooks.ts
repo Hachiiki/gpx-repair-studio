@@ -199,6 +199,14 @@ export const hooks = {
   /** use-heatmap — Phase 25: the toolbar toggle's announcements. */
   "hook.heatmap.enabled": "Heatmap on — your saved tracks as a density wash.",
   "hook.heatmap.disabled": "Heatmap off.",
+  /** use-photos (Phase 26) — the photo geotagging notices. */
+  "hook.photos.added": "{count} photos added — {matched} matched.",
+  "hook.photos.cleared": "Photos cleared.",
+  "hook.photos.saved": "{name} saved with GPS.",
+  "hook.photos.zipped": "ZIP with {count} photos downloaded.",
+  "hook.photos.written": "GPS written into {name}.",
+  "hook.photos.writeFailed":
+    "Writing into {name} failed — the original is untouched.",
 
   /** use-segments — Phase 25: the authoring + matching notices. */
   "hook.segments.saved": "Segment “{name}” saved — matching your library now.",

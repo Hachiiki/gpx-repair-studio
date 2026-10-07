@@ -372,6 +372,7 @@ export function MapCanvas({
             <MapLegend
               compareGhost={compareGhost ?? map.compareGhost}
               heatmap={map.heatmapOn === true}
+              photoPins={map.photoPinsOn === true}
             />
             {map.selectedGap && !editorActive && (
               <GapHighlightOverlay

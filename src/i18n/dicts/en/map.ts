@@ -74,6 +74,7 @@ export const map = {
   "map.legend.toggleTitle": "What the map lines mean",
   "map.legend.toggle": "Legend",
   "map.legend.heatmap": "Your saved tracks (heat density)",
+  "map.legend.photos": "Geotagged photos",
 
   /** map-toolbar.tsx — the right-edge tool rail. */
   "map.toolbar.railAria": "Map tools",

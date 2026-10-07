@@ -64,6 +64,7 @@ import { ZonesCard } from "@/components/statistics/zones-card";
 import { StatsPrintHeader } from "@/components/statistics/stats-print-header";
 import { TimeInMotionCard } from "@/components/statistics/time-in-motion-card";
 import { CompareCard } from "@/components/compare/compare-card";
+import { PhotosCard } from "@/components/photos/photos-card";
 import { RepairSummaryCard } from "@/components/compare/repair-summary-card";
 import { SummaryPrintHeader } from "@/components/compare/summary-print-header";
 import {
@@ -94,6 +95,7 @@ import { useSessionStore } from "@/state/session-store";
 import { useMapController } from "@/hooks/use-map-controller";
 import { useHeatmap } from "@/hooks/use-heatmap";
 import { useSegments } from "@/hooks/use-segments";
+import { usePhotos } from "@/hooks/use-photos";
 import { useShareCard } from "@/hooks/use-share-card";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { Announcer } from "@/components/layout/announcer";
@@ -223,6 +225,18 @@ export function AppShell() {
   const compare = useCompareView(session, {
     repair: draw.repairTimeStats,
     elevation: elevationStats.rows,
+  });
+  /*
+   * Phase 26 — the photo-geotagging controller. Mounted after the
+   * exporter (the pins match against the SAME merge the export and
+   * the statistics read — the one-merge rule) and drives the map
+   * imperatively through its binding (the segments controller's own
+   * pattern for post-map controllers).
+   */
+  const photos = usePhotos({
+    merge: exporter.merge,
+    map,
+    sessionFileName: session.fileName,
   });
   /*
    * Task 35 — the share card renders the EDITED route: the committed
@@ -923,6 +937,14 @@ export function AppShell() {
                  * where, and by how much.
                  */}
                 <CompareCard compare={compare} />
+                {/*
+                 * Phase 26 — photo geotagging: the activity's photos
+                 * pinned to where the watch says you were (EXIF written
+                 * back on-device). Before the export card — the photos
+                 * are an output, and the export stays the workflow's
+                 * end.
+                 */}
+                <PhotosCard photos={photos} />
                 {/*
                  * The workflow's end: review the repair summary and
                  * download the repaired file (§H-7/8).

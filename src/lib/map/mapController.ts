@@ -72,6 +72,7 @@ import {
   gapMarkerCollection,
   gapSpanCollection,
   heatmapCollection,
+  photoPinsCollection,
   pickAnchorCollection,
   reconstructionLineCollection,
   rubberBandCollection,
@@ -79,6 +80,7 @@ import {
   type DrawHandleData,
   type DrawMidpointData,
   type HeatmapLayerData,
+  type PhotoPinsLayerData,
   type RouteLinePart,
   type RouteViewData,
 } from "./geojson";
@@ -160,6 +162,12 @@ export interface MapTestState {
     /** The layer's live color ramp (theme assertions); null pre-add. */
     colorPaint: unknown;
   };
+  /** Phase 26 — the geotagged photo pins' observables. */
+  photoPins: {
+    visible: boolean;
+    /** Matched photos currently pinned (one Point feature each). */
+    pinCount: number;
+  };
   selectedGapId: string | null;
   zoom: number;
   center: { lat: number; lon: number } | null;
@@ -236,6 +244,7 @@ export const MAP_LAYER_IDS = [
   "gpxr-draft-midpoint-hit",
   "gpxr-draft-handle-hit",
   "gpxr-pick-anchor",
+  "gpxr-photo-pins",
 ] as const;
 
 const SOURCE = {
@@ -253,6 +262,7 @@ const SOURCE = {
   ghost: "gpxr-ghost",
   changed: "gpxr-changed",
   heatmap: "gpxr-heatmap",
+  photoPins: "gpxr-photo-pins",
 } as const;
 
 const LAYER = {
@@ -278,6 +288,7 @@ const LAYER = {
   ghost: "gpxr-ghost",
   changed: "gpxr-changed",
   heatmap: "gpxr-heatmap",
+  photoPins: "gpxr-photo-pins",
 } as const;
 
 /*
@@ -673,6 +684,9 @@ export class MapController {
   #heatmap: HeatmapLayerData | null = null;
   #heatmapFeatureCount = 0;
   #heatmapPointCount = 0;
+  /** Phase 26 — the geotagged photo pins (null = none). */
+  #photoPins: PhotoPinsLayerData | null = null;
+  #photoPinsCount = 0;
 
   // Phase 9 — zoom-dependent render decimation. #routeStride is the
   // stride currently rendered into SOURCE.route; a zoom band change
@@ -1004,6 +1018,18 @@ export class MapController {
         0,
       ) ?? 0;
     if (this.#ready) this.#applyHeatmap();
+  }
+
+  /**
+   * Phase 26 — the geotagged photo pins: one Point feature per
+   * MATCHED photo (see geojson.ts#photoPinsCollection). Null hides
+   * the layer; deferred until ready, re-applied on style swaps — the
+   * same contract as the compare overlay and the heatmap.
+   */
+  setPhotoPins(data: PhotoPinsLayerData | null): void {
+    this.#photoPins = data;
+    this.#photoPinsCount = data?.features.length ?? 0;
+    if (this.#ready) this.#applyPhotoPins();
   }
 
   /** Highlight one gap (or none) with a white casing + boundary halo. */
@@ -1528,6 +1554,10 @@ export class MapController {
             ? (map.getPaintProperty(LAYER.heatmap, "heatmap-color") ?? null)
             : null,
       },
+      photoPins: {
+        visible: this.#photoPins !== null,
+        pinCount: this.#photoPinsCount,
+      },
       selectedGapId: this.#selectedGapId,
       zoom: map ? map.getZoom() : 0,
       center: map
@@ -1608,6 +1638,7 @@ export class MapController {
     this.#applyRoute();
     this.#applyCompare();
     this.#applyHeatmap();
+    this.#applyPhotoPins();
     this.#applySelection();
     this.#applyDrawSession();
     if (this.#pickSession) {
@@ -1730,6 +1761,12 @@ export class MapController {
       map.addSource(SOURCE.heatmap, {
         type: "geojson",
         data: heatmapCollection([]),
+      });
+    }
+    if (!map.getSource(SOURCE.photoPins)) {
+      map.addSource(SOURCE.photoPins, {
+        type: "geojson",
+        data: photoPinsCollection([]),
       });
     }
 
@@ -2088,6 +2125,21 @@ export class MapController {
         "circle-stroke-width": 3,
       },
     });
+
+    // Phase 26 — the geotagged photo pins: signal fill with a paper
+    // ring, added LAST so the pins sit above every working layer (they
+    // are informational markers, never interaction targets).
+    map.addLayer({
+      id: LAYER.photoPins,
+      type: "circle",
+      source: SOURCE.photoPins,
+      paint: {
+        "circle-radius": 5,
+        "circle-color": palette.recon,
+        "circle-stroke-color": palette.markerPaper,
+        "circle-stroke-width": 2,
+      },
+    });
   }
 
   #applyRoute(): void {
@@ -2175,6 +2227,24 @@ export class MapController {
       | GeoJSONSource
       | undefined;
     source?.setData(heatmap ?? heatmapCollection([]));
+  }
+
+  /** Phase 26 — push the photo pins' data + visibility. */
+  #applyPhotoPins(): void {
+    const map = this.#map;
+    if (!map) return;
+    const pins = this.#photoPins;
+    if (map.getLayer(LAYER.photoPins)) {
+      map.setLayoutProperty(
+        LAYER.photoPins,
+        "visibility",
+        pins !== null && pins.features.length > 0 ? "visible" : "none",
+      );
+    }
+    const source = map.getSource(SOURCE.photoPins) as
+      | GeoJSONSource
+      | undefined;
+    source?.setData(pins ?? photoPinsCollection([]));
   }
 
   #applySelection(): void {

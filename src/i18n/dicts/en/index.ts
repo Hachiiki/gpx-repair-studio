@@ -27,6 +27,7 @@ import { statistics } from "./statistics";
 import { zones } from "./zones";
 import { library } from "./library";
 import { segments } from "./segments";
+import { photos } from "./photos";
 import { compare } from "./compare";
 import { batch } from "./batch";
 import { share } from "./share";
@@ -56,6 +57,7 @@ export const enDomainDicts = [
   zones,
   library,
   segments,
+  photos,
   compare,
   batch,
   share,

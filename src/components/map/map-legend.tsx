@@ -37,9 +37,28 @@ function renderEntries(
   palette: MapOverlayPalette,
   compareGhost: boolean,
   heatmap: boolean,
+  photoPins: boolean,
 ) {
   return (
     <ul className="grid gap-1.5">
+      {photoPins && (
+        /* Phase 26 — the geotagged photo pins' entry: a signal dot with
+         * a paper ring, mirroring the layer's own paint. */
+        <li
+          className="flex items-center gap-2"
+          data-testid="map-legend-photos"
+        >
+          <span
+            className="size-2.5 rounded-full"
+            style={{
+              backgroundColor: palette.recon,
+              boxShadow: `0 0 0 2px ${palette.markerPaper}`,
+            }}
+            aria-hidden="true"
+          />
+          {t("map.legend.photos")}
+        </li>
+      )}
       {heatmap && (
         /* Phase 25 — the library heatmap's entry (rendered only while
          * the wash is on the canvas; the gradient swatch mirrors the
@@ -173,10 +192,13 @@ function renderEntries(
 export function MapLegend({
   compareGhost = false,
   heatmap = false,
+  photoPins = false,
 }: {
   compareGhost?: boolean;
   /** Phase 25 — the heatmap wash is on (the legend gains its entry). */
   heatmap?: boolean;
+  /** Phase 26 — geotagged photo pins are on the canvas. */
+  photoPins?: boolean;
 }) {
   const { t } = useI18n();
   // Pinned = clicked open (stays until clicked again). Hover and keyboard
@@ -207,7 +229,7 @@ export function MapLegend({
         )}
       >
         <div className="rounded-lg border border-ink/20 bg-paper/90 px-2.5 py-2.5 text-[11px] leading-tight text-ink/70 shadow-float backdrop-blur-[3px]">
-          {renderEntries(t, palette, compareGhost, heatmap)}
+          {renderEntries(t, palette, compareGhost, heatmap, photoPins)}
         </div>
       </div>
       <button

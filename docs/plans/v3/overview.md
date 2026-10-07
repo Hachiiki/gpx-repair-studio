@@ -34,12 +34,19 @@ recalibrated per its own 1.5× discipline (see the [Phase 23 delivery
 record](phase-23-fitness-zones-metrics.md)).
 
 Phase 24 raised the baseline to 2045 unit tests (146 files) and 210
-Phase 25 raised the baseline to 2088 unit tests (149 files) and 213
-e2e (42 specs, two pre-existing skips), and shipped the sessions DB's
-v4 (heatmap strips + segments stores).
 e2e (41 specs), and bumped the sessions database to v3 (the derived
 `library` index store — see the [Phase 24 delivery
 record](phase-24-activity-library-records.md)).
+
+Phase 25 raised the baseline to 2088 unit tests (149 files) and 213
+e2e (42 specs, two pre-existing skips), and shipped the sessions DB's
+v4 (heatmap strips + segments stores — see the [Phase 25 delivery
+record](phase-25-heatmap-personal-segments.md)).
+
+Phase 26 raised the baseline to 2147 unit tests (153 files) and 216
+e2e (43 specs, two pre-existing skips). The photos feature adds no
+store at all — photos live in memory for the session, by design (see
+the [Phase 26 delivery record](phase-26-photo-geotagging.md)).
 
 ## Phases
 
@@ -48,7 +55,7 @@ record](phase-24-activity-library-records.md)).
 | 23 | [Fitness Zones & Metrics](phase-23-fitness-zones-metrics.md) | DONE |
 | 24 | [Activity Library, Records & Trends](phase-24-activity-library-records.md) | DONE |
 | 25 | [Heatmap & Personal Segments](phase-25-heatmap-personal-segments.md) | DONE |
-| 26 | [Photo Geotagging](phase-26-photo-geotagging.md) | PROPOSED |
+| 26 | [Photo Geotagging](phase-26-photo-geotagging.md) | DONE |
 | 27 | [Cue Sheets & Turn-by-Turn](phase-27-cue-sheets.md) | PROPOSED |
 | 28 | [Waypoints & Routes Authoring](phase-28-waypoints-routes-authoring.md) | PROPOSED |
 | 29 | [True Resample & Simplify](phase-29-resample-simplify.md) | PROPOSED |

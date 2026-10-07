@@ -33,6 +33,7 @@ import {
 import type {
   GapBoundaryMarker,
   GapSpanPart,
+  PhotoPinsLayerData,
   ReconstructionPart,
   RouteLinePart,
   RouteViewData,
@@ -577,6 +578,16 @@ export interface MapBinding {
   heatmapPending?: boolean;
   /** The toolbar's heatmap toggle intent (absent = no toggle shown). */
   toggleHeatmap?: () => void;
+  /**
+   * Phase 26 — set (or clear) the geotagged photo pins: the preview
+   * the photos card paints on the map. Imperative like focusPoint —
+   * the use-photos controller owns the data and pushes it as the
+   * calibration changes. Optional: only bindings that wire a photos
+   * controller provide it (absent = the layer stays hidden).
+   */
+  setPhotoPins?: (data: PhotoPinsLayerData | null) => void;
+  /** Phase 26 — matched photos are pinned (the legend gains the row). */
+  photoPinsOn?: boolean;
 }
 
 /**
@@ -847,6 +858,19 @@ export function useMapController(
     );
   }, []);
 
+  /*
+   * Phase 26 — the geotagged photo pins. The use-photos controller
+   * (mounted after the map — it reads the exporter's merge) pushes
+   * the matched positions imperatively; the pin count stays here so
+   * the binding can tell the legend whether the row belongs (the
+   * same single-source discipline the heatmap input follows).
+   */
+  const [photoPinCount, setPhotoPinCount] = useState(0);
+  const setPhotoPins = useCallback((data: PhotoPinsLayerData | null) => {
+    controllerRef.current?.setPhotoPins(data);
+    setPhotoPinCount(data?.features.length ?? 0);
+  }, []);
+
   // The highlight chip stays a detected-gap affordance: its copy ("the path
   // … was not recorded") would be a lie for manual spans, where the stretch
   // IS recorded and the user redraws it by choice. Manual spans get their
@@ -878,6 +902,8 @@ export function useMapController(
     fitToActivity,
     focusPoint,
     getController,
+    setPhotoPins,
+    photoPinsOn: photoPinCount > 0,
     compareGhost: compareOverlay !== null,
     ...(heatmapInput !== null
       ? {

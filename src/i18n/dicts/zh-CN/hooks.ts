@@ -168,6 +168,13 @@ export const zhHooks: Record<string, string> = {
   /** use-heatmap — 阶段 25：工具栏开关的播报。 */
   "hook.heatmap.enabled": "热力图已开启 — 你保存的轨迹化作热度渐变。",
   "hook.heatmap.disabled": "热力图已关闭。",
+  /** use-photos（阶段 26）— 照片地理标记通知。 */
+  "hook.photos.added": "已添加 {count} 张照片 — {matched} 张匹配。",
+  "hook.photos.cleared": "照片已清除。",
+  "hook.photos.saved": "{name} 已带 GPS 保存。",
+  "hook.photos.zipped": "包含 {count} 张照片的 ZIP 已下载。",
+  "hook.photos.written": "GPS 已写入 {name}。",
+  "hook.photos.writeFailed": "写入 {name} 失败 — 原文件未被改动。",
 
   /** use-segments — 阶段 25：创建与匹配的播报。 */
   "hook.segments.saved": "路段“{name}”已保存 — 正在你的训练库中匹配。",

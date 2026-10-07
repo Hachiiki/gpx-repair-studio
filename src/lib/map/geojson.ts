@@ -432,3 +432,39 @@ export function heatmapCollection(
 export type HeatmapLayerData = GeoJsonFeatureCollection<
   GeoJsonMultiPointFeature<{ sessionId: string }>
 >;
+
+/** One matched photo's pin (Phase 26 — the geotag preview). */
+export interface PhotoPinPart {
+  /** The photo's id (stable feature identity). */
+  photoId: string;
+  /** The file name (the pin's title). */
+  fileName: string;
+  lon: number;
+  lat: number;
+}
+
+/**
+ * Build the photo-pins source: one Point feature per MATCHED photo
+ * (unmatched photos have no position to show — no pin, no lie). The
+ * layer renders them above every working layer; the card's rows own
+ * the focus intent.
+ */
+export function photoPinsCollection(
+  pins: readonly PhotoPinPart[],
+): GeoJsonFeatureCollection<
+  GeoJsonPointFeature<{ photoId: string; fileName: string }>
+> {
+  return {
+    type: "FeatureCollection",
+    features: pins.map((pin) => ({
+      type: "Feature" as const,
+      properties: { photoId: pin.photoId, fileName: pin.fileName },
+      geometry: { type: "Point" as const, coordinates: [pin.lon, pin.lat] },
+    })),
+  };
+}
+
+/** The photo-pins layer's whole source data. */
+export type PhotoPinsLayerData = GeoJsonFeatureCollection<
+  GeoJsonPointFeature<{ photoId: string; fileName: string }>
+>;

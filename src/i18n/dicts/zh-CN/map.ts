@@ -68,6 +68,7 @@ export const zhMap: Record<string, string> = {
   "map.legend.toggleTitle": "地图线条的含义",
   "map.legend.toggle": "图例",
   "map.legend.heatmap": "你的已保存轨迹（热度密度）",
+  "map.legend.photos": "已地理标记的照片",
 
   /** map-toolbar.tsx */
   "map.toolbar.railAria": "地图工具",
