@@ -12,6 +12,8 @@ export const library = {
   "library.tab.sessionsAria": "Sessions shelf",
   "library.tab.recordsAria": "Personal records",
   "library.tab.trendsAria": "Training trends",
+  "library.tab.segments": "Segments",
+  "library.tab.segmentsAria": "Personal segments",
 
   // -- The library cards (24.1) ----------------------------------------
   "library.card.distance": "Distance",

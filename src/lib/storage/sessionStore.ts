@@ -9,7 +9,7 @@
  * orchestration lives in `hooks/use-session-recovery.ts`, and the
  * saved-session orchestration in `hooks/use-saved-sessions.ts`.
  *
- * Layout — `gpx-repair-studio.sessions` v3, four object stores:
+ * Layout — `gpx-repair-studio.sessions` v4, six object stores:
  *   - `state` — one SMALL record per section ("repair" | "recovery" |
  *     "create" | "plan"): the drawn vertices, settings, spans, resolved
  *     road legs. A geometry edit rewrites ~10–50 KB.
@@ -29,6 +29,16 @@
  *     rate, best efforts. Derived data, never a second opinion: the
  *     record is the truth, the index is its shadow, and deleting a
  *     session (or clearing the shelf) deletes its shadow with it.
+ *   - `heatmap` (Phase 25, DB v4) — the DERIVED strips: one decimated
+ *     [lon, lat] geometry per saved session, keyed by the same id —
+ *     the heatmap layer's whole shelf, paid once at backfill and
+ *     cascade-deleted with the session exactly like the index.
+ *   - `segments` (Phase 25, DB v4) — the USER-authored personal
+ *     segments (start/end anchors, length, name) plus their derived
+ *     effort tables. User data like a named session: a segment
+ *     survives the deletion of the session it was drawn from (its
+ *     geometry is its own); the efforts block is fingerprint-gated
+ *     derived data recomputed on drift. Cleared with the shelf.
  *
  * Single record per section in `state` (no history — the plan's explicit
  * non-goal); the `saved` store holds as many as the user keeps. At most
@@ -82,11 +92,13 @@ export interface StoredSessionFile {
 export const MAX_SESSION_FILE_BYTES = 64 * 1024 * 1024;
 
 const DB_NAME = "gpx-repair-studio.sessions";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STATE_STORE = "state";
 const FILE_STORE = "files";
 const SAVED_STORE = "saved";
 const LIBRARY_STORE = "library";
+const HEATMAP_STORE = "heatmap";
+const SEGMENT_STORE = "segments";
 
 /**
  * The async key/value seam the public functions operate on. The real
@@ -164,6 +176,15 @@ function getBackend(): SessionStorageBackend | null {
       // moves records, exactly like the `saved` store).
       if (!db.objectStoreNames.contains(LIBRARY_STORE)) {
         db.createObjectStore(LIBRARY_STORE);
+      }
+      // v4 (Phase 25) — the derived heatmap strips (same keying +
+      // cascade as the library store) and the user-authored personal
+      // segments. Validation stays the feature's job.
+      if (!db.objectStoreNames.contains(HEATMAP_STORE)) {
+        db.createObjectStore(HEATMAP_STORE);
+      }
+      if (!db.objectStoreNames.contains(SEGMENT_STORE)) {
+        db.createObjectStore(SEGMENT_STORE);
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -314,6 +335,8 @@ export async function clearAllSessionData(): Promise<boolean> {
     await active.clear(FILE_STORE);
     await active.clear(SAVED_STORE);
     await active.clear(LIBRARY_STORE);
+    await active.clear(HEATMAP_STORE);
+    await active.clear(SEGMENT_STORE);
     return true;
   } catch (error) {
     fail("clear", error);
@@ -481,13 +504,14 @@ export async function renameSavedSession(
   }
 }
 
-/** Delete one saved session — its derived library index goes with it. */
+/** Delete one saved session — its derived shadow (index + strips) goes with it. */
 export async function deleteSavedSession(id: string): Promise<boolean> {
   const active = getBackend();
   if (!active) return false;
   try {
     await active.delete(SAVED_STORE, id);
     await active.delete(LIBRARY_STORE, id);
+    await active.delete(HEATMAP_STORE, id);
     return true;
   } catch (error) {
     fail("delete session", error);
@@ -558,6 +582,138 @@ export async function deleteLibraryIndex(id: string): Promise<boolean> {
     return true;
   } catch (error) {
     fail("delete library index", error);
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Derived heatmap strips (Phase 25 §25.1) — the `heatmap` store (DB v4).
+// Same failure contract: silent, null/[]-typed, never throwing. Shape
+// validation is the FEATURE's job (features/heatmap/strips.ts) — this
+// layer only moves records, exactly like the `library` store it
+// mirrors (same keying, same cascade, same clear-all).
+// ---------------------------------------------------------------------------
+
+/** Persist one session's derived strips (overwrites — one per session). */
+export async function writeHeatmapStrips(
+  id: string,
+  strips: object,
+): Promise<boolean> {
+  const active = getBackend();
+  if (!active) return false;
+  try {
+    await active.put(HEATMAP_STORE, id, strips);
+    return true;
+  } catch (error) {
+    fail("write heatmap strips", error);
+    return false;
+  }
+}
+
+/** Read one session's derived strips raw (validation is the caller's job). */
+export async function readHeatmapStrips(
+  id: string,
+): Promise<unknown> {
+  const active = getBackend();
+  if (!active) return null;
+  try {
+    return await active.get(HEATMAP_STORE, id);
+  } catch (error) {
+    fail("read heatmap strips", error);
+    return null;
+  }
+}
+
+/**
+ * Which session ids have strips (the toggle's coverage check — keys
+ * only, so a full shelf of geometry never loads just to answer it).
+ */
+export async function heatmapStripsKeys(): Promise<string[]> {
+  const active = getBackend();
+  if (!active) return [];
+  try {
+    return await active.keys(HEATMAP_STORE);
+  } catch (error) {
+    fail("list heatmap strips", error);
+    return [];
+  }
+}
+
+/** Delete one session's strips (a re-derive overwrites them anyway). */
+export async function deleteHeatmapStrips(id: string): Promise<boolean> {
+  const active = getBackend();
+  if (!active) return false;
+  try {
+    await active.delete(HEATMAP_STORE, id);
+    return true;
+  } catch (error) {
+    fail("delete heatmap strips", error);
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Personal segments (Phase 25 §25.2) — the `segments` store (DB v4).
+// USER data (like the `saved` store): one row per user-authored
+// segment, keyed by generated id, deleted only explicitly or with the
+// shelf; the derived efforts block rides inside the row, fingerprint-
+// gated by features/segments. Same silent failure contract.
+// ---------------------------------------------------------------------------
+
+/** Save (or overwrite, when `id` matches) one segment. */
+export async function writeSegment(segment: object): Promise<boolean> {
+  const active = getBackend();
+  if (!active) return false;
+  try {
+    await active.put(SEGMENT_STORE, (segment as { id: string }).id, segment);
+    return true;
+  } catch (error) {
+    fail("write segment", error);
+    return false;
+  }
+}
+
+/** Read one segment raw (validation is the caller's job). */
+export async function readSegment(id: string): Promise<unknown> {
+  const active = getBackend();
+  if (!active) return null;
+  try {
+    return await active.get(SEGMENT_STORE, id);
+  } catch (error) {
+    fail("read segment", error);
+    return null;
+  }
+}
+
+/**
+ * Every stored segment, raw, oldest-created first (a stable display
+ * order that never reshuffles as efforts refresh).
+ */
+export async function listSegments(): Promise<unknown[]> {
+  const active = getBackend();
+  if (!active) return [];
+  try {
+    const keys = await active.keys(SEGMENT_STORE);
+    const out: unknown[] = [];
+    for (const key of keys) {
+      out.push(await active.get(SEGMENT_STORE, key));
+    }
+    return out;
+  } catch (error) {
+    fail("list segments", error);
+    return [];
+  }
+}
+
+/** Delete one segment (its efforts go with it — they are its shadow). */
+export async function deleteSegment(id: string): Promise<boolean> {
+  const active = getBackend();
+  if (!active) return false;
+  try {
+    await active.delete(SEGMENT_STORE, id);
+    return true;
+  } catch (error) {
+    fail("delete segment", error);
     return false;
   }
 }

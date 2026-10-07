@@ -20,6 +20,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { Button } from "@/components/ui/button";
 import {
   Crosshair,
+  Flag,
   Hand,
   MapIcon,
   Move,
@@ -37,6 +38,7 @@ import type {
   MapDrawChromeBinding,
 } from "@/hooks/use-draw-editor";
 import type { MapBinding } from "@/hooks/use-map-controller";
+import type { SegmentDraft } from "@/hooks/use-segments";
 import type { BBox } from "@/lib/geo/bbox";
 
 function extentText(t: TranslatorArg, extent: BBox | null): string {
@@ -77,6 +79,16 @@ export interface MapCanvasProps {
    * own `compareGhost`.
    */
   compareGhost?: boolean;
+  /**
+   * Phase 25 — the segment-authoring draft's map chrome (the pick/
+   * draw chip + its actions). Passed from the shell (the segments
+   * hook owns the state); null/undefined = no draft open.
+   */
+  segmentDraft?: {
+    draft: SegmentDraft;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null;
 }
 
 export function MapCanvas({
@@ -85,6 +97,7 @@ export function MapCanvas({
   draw = null,
   srNote,
   compareGhost,
+  segmentDraft = null,
 }: MapCanvasProps) {
   const { t } = useI18n();
   // "Nothing renderable at all" — recorded lines AND committed
@@ -300,6 +313,49 @@ export function MapCanvas({
                 </span>
               </div>
             )}
+            {/* Phase 25 — the segment draft's chip: the stretch door
+             * instructs (Esc cancels via the controller), the draw door
+             * carries its own Confirm/Cancel row (the draw session has
+             * no controller-owned Esc). */}
+            {segmentDraft && segmentDraft.draft.phase !== "naming" && (
+              <div
+                className="absolute inset-x-2 top-2 z-20 mx-auto flex w-fit max-w-full items-center gap-2 rounded-lg border-[1.25px] border-signal bg-signal/[0.08] px-3 py-1.5 text-xs font-semibold text-ink shadow-float"
+                data-testid="segment-draft-chip"
+                role="status"
+              >
+                <Flag className="size-3.5 shrink-0" aria-hidden="true" />
+                {segmentDraft.draft.phase === "pick" ? (
+                  <span>{t("map.canvas.segmentPick")}</span>
+                ) : (
+                  <>
+                    <span>
+                      {t("map.canvas.segmentDraw", {
+                        count: segmentDraft.draft.vertices.length,
+                      })}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 shrink-0 px-2 text-[11px]"
+                      data-testid="segment-draft-confirm"
+                      disabled={segmentDraft.draft.vertices.length < 2}
+                      onClick={segmentDraft.onConfirm}
+                    >
+                      {t("map.canvas.segmentConfirm")}
+                    </Button>
+                  </>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 shrink-0 px-2 text-[11px]"
+                  data-testid="segment-draft-cancel"
+                  onClick={segmentDraft.onCancel}
+                >
+                  {t("map.canvas.segmentCancel")}
+                </Button>
+              </div>
+            )}
             <MapToolbar
               provider={map.provider}
               providers={map.providers}
@@ -309,8 +365,14 @@ export function MapCanvas({
               onSetPointerMode={
                 editorActive && draw ? draw.setPointerMode : undefined
               }
+              heatmapOn={map.heatmapOn}
+              heatmapPending={map.heatmapPending}
+              onToggleHeatmap={map.toggleHeatmap}
             />
-            <MapLegend compareGhost={compareGhost ?? map.compareGhost} />
+            <MapLegend
+              compareGhost={compareGhost ?? map.compareGhost}
+              heatmap={map.heatmapOn === true}
+            />
             {map.selectedGap && !editorActive && (
               <GapHighlightOverlay
                 gap={map.selectedGap}

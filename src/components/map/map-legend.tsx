@@ -36,9 +36,28 @@ function renderEntries(
   t: TranslatorArg,
   palette: MapOverlayPalette,
   compareGhost: boolean,
+  heatmap: boolean,
 ) {
   return (
     <ul className="grid gap-1.5">
+      {heatmap && (
+        /* Phase 25 — the library heatmap's entry (rendered only while
+         * the wash is on the canvas; the gradient swatch mirrors the
+         * layer's own ramp stops — one palette, two readers). */
+        <li
+          className="flex items-center gap-2"
+          data-testid="map-legend-heatmap"
+        >
+          <span
+            className="h-2 w-7 rounded-full"
+            style={{
+              backgroundImage: `linear-gradient(90deg,${palette.heatmap.stops.join(",")})`,
+            }}
+            aria-hidden="true"
+          />
+          {t("map.legend.heatmap")}
+        </li>
+      )}
       {compareGhost && (
         /* Phase 19 — the compare overlay's two entries (rendered only
          * while the ghost is on the canvas; the encoding contract
@@ -151,7 +170,14 @@ function renderEntries(
   );
 }
 
-export function MapLegend({ compareGhost = false }: { compareGhost?: boolean }) {
+export function MapLegend({
+  compareGhost = false,
+  heatmap = false,
+}: {
+  compareGhost?: boolean;
+  /** Phase 25 — the heatmap wash is on (the legend gains its entry). */
+  heatmap?: boolean;
+}) {
   const { t } = useI18n();
   // Pinned = clicked open (stays until clicked again). Hover and keyboard
   // focus open it transiently through the same CSS group.
@@ -181,7 +207,7 @@ export function MapLegend({ compareGhost = false }: { compareGhost?: boolean }) 
         )}
       >
         <div className="rounded-lg border border-ink/20 bg-paper/90 px-2.5 py-2.5 text-[11px] leading-tight text-ink/70 shadow-float backdrop-blur-[3px]">
-          {renderEntries(t, palette, compareGhost)}
+          {renderEntries(t, palette, compareGhost, heatmap)}
         </div>
       </div>
       <button

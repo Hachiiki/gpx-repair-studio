@@ -40,6 +40,13 @@ export const map = {
   "map.canvas.pickAnchor":
     "Click where the missing route goes — it anchors to the route's nearest end · Esc cancels",
   "map.canvas.pickPair": "Pick two points on the recorded route — Esc cancels",
+
+  /** map-canvas.tsx — Phase 25: the segment draft chip. */
+  "map.canvas.segmentPick":
+    "Pick the segment's start and end on the track — Esc cancels",
+  "map.canvas.segmentDraw": "{count} points placed",
+  "map.canvas.segmentConfirm": "Use these points",
+  "map.canvas.segmentCancel": "Cancel",
   "map.canvas.srSummary":
     "Map panel: {segments}, {points}, {gaps}. Recorded extent: {extent}. Select gaps from the detected-gaps list to highlight and focus them on the map.",
   "map.canvas.srSegmentsOne": "{count} segment",
@@ -66,6 +73,7 @@ export const map = {
   "map.legend.toggleAria": "Map legend",
   "map.legend.toggleTitle": "What the map lines mean",
   "map.legend.toggle": "Legend",
+  "map.legend.heatmap": "Your saved tracks (heat density)",
 
   /** map-toolbar.tsx — the right-edge tool rail. */
   "map.toolbar.railAria": "Map tools",
@@ -90,6 +98,14 @@ export const map = {
   "map.toolbar.fitDescription":
     "Zoom back out to the whole recorded route — handy after zooming into a gap.",
   "map.toolbar.fitAria": "Fit activity in view",
+
+  /** map-toolbar.tsx — Phase 25: the library heatmap toggle. */
+  "map.toolbar.heatmapTitle": "Heatmap",
+  "map.toolbar.heatmapDescription":
+    "Every saved session's track as a density wash under the route — where you have been, computed on this device.",
+  "map.toolbar.heatmapPending":
+    "Indexing your saved sessions — the wash appears as each one lands.",
+  "map.toolbar.heatmapAria": "Toggle the saved-sessions heatmap",
 
   /** draw-distance-badge.tsx — the live editor readout chip. */
   "map.drawBadge.vertexCount": "{vertices}/{max} pts",

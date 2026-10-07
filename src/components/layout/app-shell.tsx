@@ -51,6 +51,7 @@ import { PlanStudio } from "@/components/plan/plan-studio";
 import { BatchIntake } from "@/components/batch/batch-intake";
 import { BatchStudio } from "@/components/batch/batch-studio";
 import { SessionsManagerDialog } from "@/components/shared/sessions-manager";
+import { SegmentNameDialog } from "@/components/library/segment-name-dialog";
 import { DrawEditorPanel } from "@/components/reconstruction/draw-editor-panel";
 import { FileTimingCard } from "@/components/reconstruction/file-timing-card";
 import { GapList } from "@/components/reconstruction/gap-list";
@@ -91,6 +92,8 @@ import { useStatsExport } from "@/hooks/use-stats-export";
 import { useFitnessSettings, useZones } from "@/hooks/use-zones";
 import { useSessionStore } from "@/state/session-store";
 import { useMapController } from "@/hooks/use-map-controller";
+import { useHeatmap } from "@/hooks/use-heatmap";
+import { useSegments } from "@/hooks/use-segments";
 import { useShareCard } from "@/hooks/use-share-card";
 import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { Announcer } from "@/components/layout/announcer";
@@ -144,8 +147,30 @@ export function AppShell() {
     () => buildCompareOverlay(compareMode, compareSessionSlice, compareEdits),
     [compareMode, compareSessionSlice, compareEdits],
   );
-  const map = useMapController(session, { compare: compareOverlay });
+  /*
+   * Phase 18/24/25 — the saved-sessions shelf and its two library
+   * controllers mount BEFORE the map: the map's heatmap input reads
+   * the use-heatmap binding, and the segments controller needs the
+   * map's controller accessor (the authoring doors live on the map).
+   */
+  const savedSessions = useSavedSessions();
+  const heatmap = useHeatmap(savedSessions);
+  const heatmapInput = useMemo(
+    () => ({
+      on: heatmap.on,
+      pending: heatmap.pending,
+      data: heatmap.overlay,
+      toggle: heatmap.toggle,
+    }),
+    [heatmap.on, heatmap.pending, heatmap.overlay, heatmap.toggle],
+  );
+  const map = useMapController(session, {
+    compare: compareOverlay,
+    heatmap: heatmapInput,
+  });
   const draw = useDrawEditor(session, map);
+  const segments = useSegments(session, map, savedSessions);
+  const library = useLibrary(savedSessions);
   /*
    * Phase 13 — the deep-validation binding: the working copy's
    * report, fix/preset planning, and the confirmed-fix log. Mounted
@@ -449,11 +474,11 @@ export function AppShell() {
    * always-present "Sessions" door opens the manager; one instance,
    * one IndexedDB scan, mounted for the page's life.
    *
-   * Phase 24 — the training library (records/trends indexes) reads the
-   * same shelf through its own controller, one derivation per session.
+   * Phase 24/25 — the training library (records/trends indexes) and
+   * the segments controller read the same shelf through their own
+   * bindings, one derivation per session (the instances themselves
+   * mount before the map — see the ordering note there).
    */
-  const savedSessions = useSavedSessions();
-  const library = useLibrary(savedSessions);
   const [sessionsOpen, setSessionsOpen] = useState(false);
 
   /*
@@ -824,6 +849,15 @@ export function AppShell() {
                 map={map}
                 attachContainer={map.setContainer}
                 draw={draw}
+                segmentDraft={
+                  segments.draft !== null && segments.draft.phase !== "naming"
+                    ? {
+                        draft: segments.draft,
+                        onConfirm: segments.confirmDrawn,
+                        onCancel: segments.cancelDraft,
+                      }
+                    : null
+                }
               />
             }
             tools={
@@ -1125,7 +1159,14 @@ export function AppShell() {
         onOpenChange={setSessionsOpen}
         sessions={savedSessions}
         library={library}
+        segments={segments}
       />
+      {/*
+       * Phase 25 — the segment draft's naming step. Rendered at shell
+       * level (the manager is closed by then — the map just hosted the
+       * pick/draw); above every view like the info and help dialogs.
+       */}
+      <SegmentNameDialog segments={segments} paceUnit={paceUnit} />
       {/*
        * Phase 17 — the consent dialog, above every view like the info
        * and help dialogs; opening the privacy pane from it closes it

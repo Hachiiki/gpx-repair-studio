@@ -36,6 +36,13 @@ export const zhMap: Record<string, string> = {
   "map.canvas.pickAnchor":
     "点击缺失路线要走的位置 — 它会锚定到路线最近的端点 · 按 Esc 取消",
   "map.canvas.pickPair": "在已记录路线上选取两个点 — 按 Esc 取消",
+
+  /** map-canvas.tsx — 阶段 25：路段草稿提示条。 */
+  "map.canvas.segmentPick":
+    "在轨迹上选取路段的起点和终点 — 按 Esc 取消",
+  "map.canvas.segmentDraw": "已放置 {count} 个点",
+  "map.canvas.segmentConfirm": "使用这些点",
+  "map.canvas.segmentCancel": "取消",
   "map.canvas.srSummary":
     "地图面板：{segments}，{points}，{gaps}。已记录范围：{extent}。从检测到的缺口列表中选择缺口，即可在地图上高亮并聚焦它们。",
   "map.canvas.srSegmentsOne": "{count} 个段",
@@ -60,6 +67,7 @@ export const zhMap: Record<string, string> = {
   "map.legend.toggleAria": "地图图例",
   "map.legend.toggleTitle": "地图线条的含义",
   "map.legend.toggle": "图例",
+  "map.legend.heatmap": "你的已保存轨迹（热度密度）",
 
   /** map-toolbar.tsx */
   "map.toolbar.railAria": "地图工具",
@@ -84,6 +92,14 @@ export const zhMap: Record<string, string> = {
   "map.toolbar.fitDescription":
     "缩放回整条已记录路线 — 深入缺口查看后很方便。",
   "map.toolbar.fitAria": "将整个活动纳入视野",
+
+  /** map-toolbar.tsx — 阶段 25：训练库热力图开关。 */
+  "map.toolbar.heatmapTitle": "热力图",
+  "map.toolbar.heatmapDescription":
+    "所有已保存会话的轨迹化作路线之下的热度渐变 — 你去过的地方，全部在本设备上计算。",
+  "map.toolbar.heatmapPending":
+    "正在为已保存的会话建索引 — 每完成一条，热度就多一层。",
+  "map.toolbar.heatmapAria": "切换已保存会话的热力图",
 
   /** draw-distance-badge.tsx */
   "map.drawBadge.vertexCount": "{vertices}/{max} 个点",

@@ -164,4 +164,16 @@ export const zhHooks: Record<string, string> = {
     "导出的文件带有来自 {provider} 的估算海拔 — 卡片只展示距离、配速和时间。",
   "hook.share.mergeNoteCombined":
     "由 {count} 份记录合并 — 每个点都按你设定的顺序原样保留。",
+
+  /** use-heatmap — 阶段 25：工具栏开关的播报。 */
+  "hook.heatmap.enabled": "热力图已开启 — 你保存的轨迹化作热度渐变。",
+  "hook.heatmap.disabled": "热力图已关闭。",
+
+  /** use-segments — 阶段 25：创建与匹配的播报。 */
+  "hook.segments.saved": "路段“{name}”已保存 — 正在你的训练库中匹配。",
+  "hook.segments.saveFailed":
+    "无法保存路段 — 存储被阻止或不可用。",
+  "hook.segments.deleted": "路段已删除。",
+  "hook.segments.pickFailed":
+    "无法解析所选路段 — 草稿已放弃。",
 };

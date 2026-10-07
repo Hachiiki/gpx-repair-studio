@@ -71,12 +71,14 @@ import {
   drawMidpointCollection,
   gapMarkerCollection,
   gapSpanCollection,
+  heatmapCollection,
   pickAnchorCollection,
   reconstructionLineCollection,
   rubberBandCollection,
   routeLineCollection,
   type DrawHandleData,
   type DrawMidpointData,
+  type HeatmapLayerData,
   type RouteLinePart,
   type RouteViewData,
 } from "./geojson";
@@ -148,6 +150,16 @@ export interface MapTestState {
     /** The ghost layer's live paint (theme assertions); null pre-add. */
     ghostPaint: string | null;
   };
+  /** Phase 25 — the library heatmap's observables. */
+  heatmap: {
+    visible: boolean;
+    /** MultiPoint features set (one per session with geometry). */
+    featureCount: number;
+    /** Total decimated points across those features. */
+    pointCount: number;
+    /** The layer's live color ramp (theme assertions); null pre-add. */
+    colorPaint: unknown;
+  };
   selectedGapId: string | null;
   zoom: number;
   center: { lat: number; lon: number } | null;
@@ -202,6 +214,7 @@ export interface DrawSessionTestState {
 
 /** Layer ids — `gpxr` prefix mirrors the export provenance namespace. */
 export const MAP_LAYER_IDS = [
+  "gpxr-heatmap",
   "gpxr-ghost",
   "gpxr-changed",
   "gpxr-route",
@@ -239,6 +252,7 @@ const SOURCE = {
   pickAnchor: "gpxr-pick-anchor",
   ghost: "gpxr-ghost",
   changed: "gpxr-changed",
+  heatmap: "gpxr-heatmap",
 } as const;
 
 const LAYER = {
@@ -263,6 +277,7 @@ const LAYER = {
   pickAnchor: "gpxr-pick-anchor",
   ghost: "gpxr-ghost",
   changed: "gpxr-changed",
+  heatmap: "gpxr-heatmap",
 } as const;
 
 /*
@@ -654,6 +669,11 @@ export class MapController {
   /** Phase 19 — the compare overlay's data (null = hidden). */
   #compare: CompareOverlayData | null = null;
 
+  /** Phase 25 — the library heatmap's data (null = hidden). */
+  #heatmap: HeatmapLayerData | null = null;
+  #heatmapFeatureCount = 0;
+  #heatmapPointCount = 0;
+
   // Phase 9 — zoom-dependent render decimation. #routeStride is the
   // stride currently rendered into SOURCE.route; a zoom band change
   // re-decimates, everything else reuses the applied data.
@@ -967,6 +987,23 @@ export class MapController {
   setCompareOverlay(overlay: CompareOverlayData | null): void {
     this.#compare = overlay;
     if (this.#ready) this.#applyCompare();
+  }
+
+  /**
+   * Phase 25 — the library heatmap: one MultiPoint feature per saved
+   * session (see geojson.ts#heatmapCollection). Null hides the layer;
+   * the data is deferred until ready and re-applied on style swaps
+   * (see #onStyleLoad), exactly like the compare overlay.
+   */
+  setHeatmap(data: HeatmapLayerData | null): void {
+    this.#heatmap = data;
+    this.#heatmapFeatureCount = data?.features.length ?? 0;
+    this.#heatmapPointCount =
+      data?.features.reduce(
+        (sum, feature) => sum + feature.geometry.coordinates.length,
+        0,
+      ) ?? 0;
+    if (this.#ready) this.#applyHeatmap();
   }
 
   /** Highlight one gap (or none) with a white casing + boundary halo. */
@@ -1482,6 +1519,15 @@ export class MapController {
               null)
             : null,
       },
+      heatmap: {
+        visible: this.#heatmap !== null,
+        featureCount: this.#heatmapFeatureCount,
+        pointCount: this.#heatmapPointCount,
+        colorPaint:
+          map && map.getLayer(LAYER.heatmap)
+            ? (map.getPaintProperty(LAYER.heatmap, "heatmap-color") ?? null)
+            : null,
+      },
       selectedGapId: this.#selectedGapId,
       zoom: map ? map.getZoom() : 0,
       center: map
@@ -1561,6 +1607,7 @@ export class MapController {
     this.#addLayers();
     this.#applyRoute();
     this.#applyCompare();
+    this.#applyHeatmap();
     this.#applySelection();
     this.#applyDrawSession();
     if (this.#pickSession) {
@@ -1675,6 +1722,67 @@ export class MapController {
         data: routeLineCollection([]),
       });
     }
+
+    if (!map.getSource(SOURCE.heatmap)) {
+      // Phase 25 — the whole library's density field. Added first so
+      // the wash renders UNDER every working layer (ambient context,
+      // never competition for the ink).
+      map.addSource(SOURCE.heatmap, {
+        type: "geojson",
+        data: heatmapCollection([]),
+      });
+    }
+
+    if (map.getLayer(LAYER.heatmap)) return;
+
+    // Phase 25 — the heatmap layer itself: every decimated library
+    // point accumulates through MapLibre's kernel density (MultiPoint
+    // vertices each contribute), the ramp flips with the theme via
+    // the shared palette, and the radius breathes with zoom so a
+    // city-wide view stays legible. Visibility is off until data
+    // arrives (the toggle's contract: absent = never).
+    const heatmapStops = palette.heatmap.stops;
+    map.addLayer({
+      id: LAYER.heatmap,
+      type: "heatmap",
+      source: SOURCE.heatmap,
+      layout: {
+        visibility: "none",
+      },
+      paint: {
+        "heatmap-weight": 1,
+        "heatmap-intensity": 1,
+        "heatmap-color": [
+          "interpolate",
+          ["linear"],
+          ["heatmap-density"],
+          0,
+          heatmapStops[0]!,
+          0.2,
+          heatmapStops[1]!,
+          0.4,
+          heatmapStops[2]!,
+          0.6,
+          heatmapStops[3]!,
+          0.8,
+          heatmapStops[4]!,
+          1,
+          heatmapStops[5]!,
+        ],
+        "heatmap-radius": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          0,
+          9,
+          6,
+          13,
+          12,
+          21,
+        ],
+        "heatmap-opacity": 0.9,
+      },
+    });
 
     if (map.getLayer(LAYER.ghost)) return;
 
@@ -2043,6 +2151,30 @@ export class MapController {
       | GeoJSONSource
       | undefined;
     changedSource?.setData(routeLineCollection(compare?.changed ?? []));
+  }
+
+  /**
+   * Phase 25 — push the heatmap's data + visibility. The strips are
+   * already derivation-decimated (features/heatmap/strips.ts), so
+   * unlike the route there is no zoom-band work here: the radius
+   * expression breathes in paint, and the data is static until the
+   * shelf changes.
+   */
+  #applyHeatmap(): void {
+    const map = this.#map;
+    if (!map) return;
+    const heatmap = this.#heatmap;
+    if (map.getLayer(LAYER.heatmap)) {
+      map.setLayoutProperty(
+        LAYER.heatmap,
+        "visibility",
+        heatmap !== null ? "visible" : "none",
+      );
+    }
+    const source = map.getSource(SOURCE.heatmap) as
+      | GeoJSONSource
+      | undefined;
+    source?.setData(heatmap ?? heatmapCollection([]));
   }
 
   #applySelection(): void {

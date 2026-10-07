@@ -68,7 +68,10 @@ async function shot(theme, name, action) {
       "gpx-repair-studio.tool-tours.v1",
       JSON.stringify({ repair: "seen", share: "seen", recovery: "seen", create: "seen", merge: "seen", plan: "seen", batch: "seen" }),
     );
-    localStorage.setItem("gpx-repair-studio.theme.v1", JSON.stringify({ state: { theme: t }, version: 0 }));
+    // The theme key is a RAW string ("light" | "dark" | "system") —
+    // a JSON object here silently falls back to "system" (the bug the
+    // Phase 25 measure pass caught in the Phase 24 sweep's dark shots).
+    localStorage.setItem("gpx-repair-studio.theme.v1", t);
   }, theme);
   await page.goto("http://localhost:3000/");
 

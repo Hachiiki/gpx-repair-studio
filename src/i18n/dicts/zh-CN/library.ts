@@ -22,6 +22,8 @@ export const zhLibrary: Record<string, string> = {
   "library.tab.sessionsAria": "会话架",
   "library.tab.recordsAria": "个人纪录",
   "library.tab.trendsAria": "训练趋势",
+  "library.tab.segments": "路段",
+  "library.tab.segmentsAria": "个人路段",
 
   // -- The library cards (24.1) ----------------------------------------
   "library.card.distance": "距离",

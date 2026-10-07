@@ -195,4 +195,16 @@ export const hooks = {
     "The exported file carries estimated elevation from {provider} — the card shows distance, pace, and time only.",
   "hook.share.mergeNoteCombined":
     "Combined from {count} recordings — every point carried over verbatim, in the order you set.",
+
+  /** use-heatmap — Phase 25: the toolbar toggle's announcements. */
+  "hook.heatmap.enabled": "Heatmap on — your saved tracks as a density wash.",
+  "hook.heatmap.disabled": "Heatmap off.",
+
+  /** use-segments — Phase 25: the authoring + matching notices. */
+  "hook.segments.saved": "Segment “{name}” saved — matching your library now.",
+  "hook.segments.saveFailed":
+    "Couldn't save the segment — storage is blocked or unavailable.",
+  "hook.segments.deleted": "Segment deleted.",
+  "hook.segments.pickFailed":
+    "Couldn't resolve the picked stretch — the draft was discarded.",
 } as const;

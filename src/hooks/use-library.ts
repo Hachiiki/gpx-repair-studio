@@ -30,8 +30,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { deriveSessionArtifacts } from "@/features/library/backfill";
 import {
-  indexFromFileRecord,
   readSessionIndex,
   type SessionIndex,
 } from "@/features/library/index-session";
@@ -49,9 +49,9 @@ import { buildLibraryCsv } from "@/features/library/libraryCsv";
 import {
   listLibraryIndexes,
   writeLibraryIndex,
+  writeHeatmapStrips,
 } from "@/lib/storage/sessionStore";
 import { readSessionRecord } from "@/lib/storage/session-record";
-import { runParsePipeline } from "@/lib/gpx/parse-client";
 import { downloadTextFile } from "@/lib/utils/download";
 import { announce } from "@/lib/announcements";
 import { useI18n } from "@/hooks/use-i18n";
@@ -163,38 +163,22 @@ export function useLibrary(
     void (async () => {
       try {
         for (const entry of todo) {
-          const record = readSessionRecord(entry.record);
-          if (record === null || record.kind !== "file") continue;
-          if (entry.source === undefined) {
-            // A file-backed record without its blob cannot re-parse —
-            // the shelf keeps it, the library says why.
+          // Phase 25 — one derivation, two artifacts: the index AND the
+          // heatmap strips (the toggle later reads what this pass paid
+          // for; re-deriving per surface would double the parse).
+          const artifacts = await deriveSessionArtifacts(entry);
+          if (artifacts === null || artifacts.index === null) {
             setFailedIds((current) => new Set(current).add(entry.id));
             continue;
           }
-          try {
-            const bytes = await entry.source.blob.arrayBuffer();
-            const parsed = await runParsePipeline(
-              { bytes, fileName: entry.source.name },
-              { gapThresholds: record.gapThresholds },
-            );
-            if (!parsed.ok) {
-              setFailedIds((current) => new Set(current).add(entry.id));
-              continue;
-            }
-            const index = indexFromFileRecord(parsed.data, record);
-            if (index === null) {
-              setFailedIds((current) => new Set(current).add(entry.id));
-              continue;
-            }
-            await writeLibraryIndex(entry.id, index);
-            setIndexes((current) => {
-              const next = new Map(current);
-              next.set(entry.id, index);
-              return next;
-            });
-          } catch {
-            setFailedIds((current) => new Set(current).add(entry.id));
-          }
+          const index = artifacts.index;
+          await writeLibraryIndex(entry.id, index);
+          await writeHeatmapStrips(entry.id, artifacts.strips);
+          setIndexes((current) => {
+            const next = new Map(current);
+            next.set(entry.id, index);
+            return next;
+          });
         }
       } finally {
         runningRef.current = false;

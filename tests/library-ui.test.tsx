@@ -16,6 +16,8 @@ import { LibraryTrends } from "@/components/library/library-trends";
 import { lifetimeRecords } from "@/features/library/records";
 import type { SavedSessionsBinding } from "@/hooks/use-saved-sessions";
 import type { LibraryBinding, LibraryCardRow } from "@/hooks/use-library";
+import type { SegmentsBinding } from "@/hooks/use-segments";
+import type { SegmentView } from "@/features/segments/record";
 
 afterEach(cleanup);
 
@@ -112,12 +114,35 @@ function makeSessions(
   };
 }
 
+/** Phase 25 — a minimal segments binding (the tab is tested in
+ * tests/segments-ui.test.tsx; here it only needs to exist). */
+function makeSegments(overrides: Partial<SegmentsBinding> = {}): SegmentsBinding {
+  return {
+    segments: overrides.segments ?? [],
+    matching: overrides.matching ?? false,
+    matchDone: overrides.matchDone ?? 0,
+    matchTotal: overrides.matchTotal ?? 0,
+    draft: overrides.draft ?? null,
+    canAuthor: overrides.canAuthor ?? false,
+    driftToleranceM: 40,
+    beginStretchPick: vi.fn(),
+    beginDraw: vi.fn(),
+    cancelDraft: vi.fn(),
+    confirmDrawn: vi.fn(),
+    saveDraft: vi.fn().mockResolvedValue(true),
+    deleteSegment: vi.fn(),
+    rematch: vi.fn(),
+    ensureEfforts: vi.fn(),
+  };
+}
+
 function renderManager(
   library: LibraryBinding = makeLibrary(),
   sessions: SavedSessionsBinding = makeSessions([
     { id: "a", name: "Morning ride" },
     { id: "b", name: "Evening run" },
   ]),
+  segments: SegmentsBinding = makeSegments(),
 ) {
   const onOpenChange = vi.fn();
   render(
@@ -126,6 +151,7 @@ function renderManager(
       onOpenChange={onOpenChange}
       sessions={sessions}
       library={library}
+      segments={segments}
     />,
   );
   return { onOpenChange, sessions, library };

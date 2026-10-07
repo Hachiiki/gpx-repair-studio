@@ -378,3 +378,57 @@ export function pickAnchorCollection(
       : [],
   };
 }
+
+// ---------------------------------------------------------------------------
+// Heatmap (Phase 25 — the whole library's density field)
+// ---------------------------------------------------------------------------
+
+/** One session's contribution to the heatmap source. */
+export interface HeatmapTrackPart {
+  /** The saved session's id (a stable feature identity). */
+  sessionId: string;
+  /** Flat [lon, lat, lon, lat, …] pairs (features/heatmap/strips.ts). */
+  lonLat: Float64Array;
+}
+
+/** Structural type for a MultiPoint feature (the heatmap's shape). */
+export interface GeoJsonMultiPointFeature<P> {
+  type: "Feature";
+  properties: P;
+  geometry: { type: "MultiPoint"; coordinates: [number, number][] };
+}
+
+/**
+ * Build the heatmap source: ONE MultiPoint feature per session —
+ * MapLibre's heatmap accumulates at every vertex of a feature, so a
+ * 100-session shelf is 100 features (not hundreds of thousands of
+ * point features), and the density still sums every decimated point.
+ * Empty sessions stay absent: no geometry, no heat, no lie.
+ */
+export function heatmapCollection(
+  tracks: readonly HeatmapTrackPart[],
+): GeoJsonFeatureCollection<
+  GeoJsonMultiPointFeature<{ sessionId: string }>
+> {
+  return {
+    type: "FeatureCollection",
+    features: tracks
+      .filter((track) => track.lonLat.length >= 4)
+      .map((track) => {
+        const coordinates: [number, number][] = [];
+        for (let i = 0; i < track.lonLat.length; i += 2) {
+          coordinates.push([track.lonLat[i]!, track.lonLat[i + 1]!]);
+        }
+        return {
+          type: "Feature" as const,
+          properties: { sessionId: track.sessionId },
+          geometry: { type: "MultiPoint" as const, coordinates },
+        };
+      }),
+  };
+}
+
+/** The heatmap layer's whole source data (one MultiPoint per session). */
+export type HeatmapLayerData = GeoJsonFeatureCollection<
+  GeoJsonMultiPointFeature<{ sessionId: string }>
+>;

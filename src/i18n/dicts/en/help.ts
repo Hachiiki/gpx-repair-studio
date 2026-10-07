@@ -112,6 +112,9 @@ export const help = {
   "info.privacy.storage.libraryTitle": "Training library indexes — IndexedDB",
   "info.privacy.storage.libraryBody":
     "For every session you name and save, the library keeps one derived index beside it in the same database — distance, times, elevation gain, average heart rate, best efforts — so cards, records, and trends open instantly. Derived numbers only, recomputed from the session you saved: deleting the session (or clearing the shelf) deletes its index with it.",
+  "info.privacy.storage.segmentsTitle": "Heatmap strips & personal segments — IndexedDB",
+  "info.privacy.storage.segmentsBody":
+    "Two more records live beside the sessions in the same database: a decimated copy of each track's geometry (the map's heatmap — derived, deleted with its session), and the segments you author (start/end anchors, name, and their computed effort tables — your data, cleared with the shelf or deleted one by one). Nothing here is uploaded; the matcher runs over sessions already on this device.",
 
   /** PrivacyPane: the Phase 22 on-device caches (elevation terrain +
    * the service worker's offline copies), each with its Clear button. */

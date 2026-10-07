@@ -25,6 +25,7 @@ import {
   BookmarkPlus,
   Download,
   FileJson,
+  Flag,
   FolderOpen,
   LineChart,
   Medal,
@@ -49,8 +50,10 @@ import {
   type SavedSessionsBinding,
 } from "@/hooks/use-saved-sessions";
 import type { LibraryBinding, LibraryCardRow } from "@/hooks/use-library";
+import type { SegmentsBinding } from "@/hooks/use-segments";
 import { LibraryRecords } from "@/components/library/library-records";
 import { LibraryTrends } from "@/components/library/library-trends";
+import { LibrarySegments } from "@/components/library/library-segments";
 import {
   formatDateTime,
   formatDistanceForUnit,
@@ -62,7 +65,7 @@ import { useUiStore } from "@/state/ui-store";
 import { useI18n } from "@/hooks/use-i18n";
 import { cn } from "@/lib/utils";
 
-type ManagerTab = "sessions" | "records" | "trends";
+type ManagerTab = "sessions" | "records" | "trends" | "segments";
 type SortMode = "recent" | "oldest" | "name" | "distance" | "duration";
 
 export interface SessionsManagerDialogProps {
@@ -70,6 +73,8 @@ export interface SessionsManagerDialogProps {
   onOpenChange: (open: boolean) => void;
   sessions: SavedSessionsBinding;
   library: LibraryBinding;
+  /** Phase 25 — the personal segments controller (the fourth tab). */
+  segments: SegmentsBinding;
 }
 
 export function SessionsManagerDialog({
@@ -77,6 +82,7 @@ export function SessionsManagerDialog({
   onOpenChange,
   sessions,
   library,
+  segments,
 }: SessionsManagerDialogProps) {
   const { t } = useI18n();
   const paceUnit = useUiStore((s) => s.paceUnit);
@@ -200,7 +206,7 @@ export function SessionsManagerDialog({
           {t("shared.sessions.description")}
         </DialogDescription>
 
-        {/* The three doors: the shelf, the records, the trends. */}
+        {/* The four doors: the shelf, the records, the trends, the segments. */}
         <div
           role="group"
           aria-label={t("library.tab.sessionsAria")}
@@ -223,6 +229,12 @@ export function SessionsManagerDialog({
             "library.tab.trends",
             "library.tab.trendsAria",
             <LineChart className="size-3.5" aria-hidden="true" />,
+          )}
+          {tabButton(
+            "segments",
+            "library.tab.segments",
+            "library.tab.segmentsAria",
+            <Flag className="size-3.5" aria-hidden="true" />,
           )}
         </div>
 
@@ -593,6 +605,13 @@ export function SessionsManagerDialog({
             volumeMonth={library.volumeMonth}
             fitness={library.fitness}
             paceUnit={paceUnit}
+          />
+        )}
+        {tab === "segments" && (
+          <LibrarySegments
+            segments={segments}
+            paceUnit={paceUnit}
+            onClose={() => onOpenChange(false)}
           />
         )}
       </DialogContent>

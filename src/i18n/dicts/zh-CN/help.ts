@@ -107,6 +107,9 @@ export const zhHelp: Record<string, string> = {
   "info.privacy.storage.libraryTitle": "训练库索引 — IndexedDB",
   "info.privacy.storage.libraryBody":
     "对你命名保存的每个会话，训练库会在同一数据库里保留一份派生索引 — 距离、时间、爬升、平均心率、最佳成绩 — 让卡片、纪录与趋势即时打开。只有派生数字，由你保存的会话重新计算：删除会话（或清空会话架）会连同索引一起删除。",
+  "info.privacy.storage.segmentsTitle": "热力图轨迹条带与个人路段 — IndexedDB",
+  "info.privacy.storage.segmentsBody":
+    "会话旁边还有两类记录，存于同一数据库：每条轨迹的抽稀几何副本（地图热力图 — 派生数据，随会话一并删除），以及你创建的路段（起终点锚点、名称及其计算出的成绩表 — 你的数据，随会话架清空或逐条删除）。这里没有任何内容被上传；匹配器只在本设备已有的会话上运行。",
 
   /** PrivacyPane — 阶段 22 的两个设备端缓存（海拔地形 + Service Worker 的离线副本），各带清除按钮。 */
   "info.privacy.storage.elevationTitle": "海拔地形 — IndexedDB",

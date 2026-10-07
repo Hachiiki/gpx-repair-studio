@@ -35,6 +35,7 @@ import {
 import { HintTip } from "@/components/shared/hint-tip";
 import {
   Check,
+  Flame,
   Hand,
   Layers,
   Maximize,
@@ -57,6 +58,10 @@ export interface MapToolbarProps {
   /** Task 45: null = no editor session (pointer-mode group hidden). */
   pointerMode?: PointerMode | null;
   onSetPointerMode?: (mode: PointerMode) => void;
+  /** Phase 25 — the library heatmap toggle (absent = no heatmap door). */
+  heatmapOn?: boolean;
+  heatmapPending?: boolean;
+  onToggleHeatmap?: () => void;
 }
 
 export function MapToolbar({
@@ -66,6 +71,9 @@ export function MapToolbar({
   onFitActivity,
   pointerMode = null,
   onSetPointerMode,
+  heatmapOn = false,
+  heatmapPending = false,
+  onToggleHeatmap,
 }: MapToolbarProps) {
   const { t } = useI18n();
   const current =
@@ -228,6 +236,36 @@ export function MapToolbar({
           <Maximize className="size-4" aria-hidden="true" />
         </Button>
       </HintTip>
+
+      {/* Phase 25 — the library heatmap: every saved session's track as
+       * a density wash under the working layers. Optional prop — only
+       * the repair map (the library's own view) wires it. */}
+      {onToggleHeatmap && (
+        <HintTip
+          side="left"
+          title={t("map.toolbar.heatmapTitle")}
+          description={t(
+            heatmapPending
+              ? "map.toolbar.heatmapPending"
+              : "map.toolbar.heatmapDescription",
+          )}
+        >
+          <Button
+            variant="secondary"
+            size="sm"
+            className={RAIL_BUTTON}
+            aria-label={t("map.toolbar.heatmapAria")}
+            aria-pressed={heatmapOn}
+            data-testid="map-heatmap-toggle"
+            onClick={onToggleHeatmap}
+          >
+            <Flame
+              className={`size-4 ${heatmapOn ? "text-signal" : ""}`}
+              aria-hidden="true"
+            />
+          </Button>
+        </HintTip>
+      )}
     </div>
   );
 }

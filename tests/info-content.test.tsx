@@ -84,11 +84,28 @@ describe("privacy copy is pinned to the real providers", () => {
   it("names both on-device storage keys exactly", () => {
     render(<PrivacyPane />);
     expect(screen.getByText("gpx-repair-studio.settings.v1")).toBeInTheDocument();
-    // The sessions database is disclosed twice by design (§24.4): the
-    // autosave records AND the derived library indexes it also holds.
+    // The sessions database is disclosed three times by design: the
+    // autosave records (§M-3), the derived library indexes it holds
+    // (§24.4), and the Phase 25 heatmap strips + segments (§25.4).
     expect(
       screen.getAllByText("gpx-repair-studio.sessions"),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
+  });
+
+  it("discloses the Phase 25 heatmap strips + segments (§25.4)", () => {
+    render(<PrivacyPane />);
+    const row = screen.getByTestId("privacy-storage-segments");
+    expect(row).toBeInTheDocument();
+    // The DB named verbatim, the derived-promise + user-data split.
+    expect(
+      within(row).getAllByText("gpx-repair-studio.sessions"),
+    ).toHaveLength(1);
+    expect(
+      within(row).getByText(/deleted with its session/i),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByText(/cleared with the shelf/i),
+    ).toBeInTheDocument();
   });
 
   it("discloses the Phase 24 library indexes beside the sessions (§24.4)", () => {

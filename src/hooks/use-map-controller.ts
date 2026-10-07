@@ -61,6 +61,7 @@ import type {
 } from "@/types/domain";
 import type { GapRow, GpxSession } from "@/hooks/use-gpx-session";
 import type { CompareOverlayData } from "@/lib/map/mapController";
+import type { HeatmapLayerData } from "@/lib/map/geojson";
 
 // App-layer facade re-exports (components may not import lib/map directly).
 export type { MapControllerStatus };
@@ -72,6 +73,8 @@ export { mapOverlayPalette, type MapOverlayPalette } from "@/lib/map/palette";
 // Phase 19 — the compare overlay's data shape (the compare hook builds
 // it; the map renders it). Re-exported so components stay off lib/map.
 export type { CompareOverlayData };
+// Phase 25 — the heatmap layer's data shape (use-heatmap builds it).
+export type { HeatmapLayerData };
 
 // ---------------------------------------------------------------------------
 // Route view building (pure; exported for node-side unit tests)
@@ -564,15 +567,35 @@ export interface MapBinding {
    * without a compare view omit it (absent = never).
    */
   compareGhost?: boolean;
+  /**
+   * Phase 25 — the library heatmap is on (the legend gains the wash
+   * entry; the toolbar's toggle reads pressed). Optional: sections
+   * without a library view omit it (absent = never on).
+   */
+  heatmapOn?: boolean;
+  /** The heatmap's strips are still deriving (the toggle's hint). */
+  heatmapPending?: boolean;
+  /** The toolbar's heatmap toggle intent (absent = no toggle shown). */
+  toggleHeatmap?: () => void;
 }
 
 /**
- * Phase 19 — the optional compare overlay input: null/undefined keeps
- * the map exactly as before; a live value renders the original ghost
- * + changed stretches while the working copy keeps its own route.
+ * Phase 25 — the optional heatmap input: null/undefined keeps the map
+ * exactly as before; a live value drives the density layer while the
+ * hook owns the toggle state (the map never re-derives anything).
  */
 export interface UseMapControllerOptions {
   compare?: CompareOverlayData | null;
+  heatmap?: HeatmapOverlayInput | null;
+}
+
+/** The heatmap slice the shell passes in (use-heatmap builds it). */
+export interface HeatmapOverlayInput {
+  on: boolean;
+  pending: boolean;
+  data: HeatmapLayerData | null;
+  /** The toolbar's toggle intent (the hook owns the state). */
+  toggle: () => void;
 }
 
 export function useMapController(
@@ -702,6 +725,15 @@ export function useMapController(
   useEffect(() => {
     controllerRef.current?.setCompareOverlay(compareOverlay);
   }, [compareOverlay]);
+
+  // Phase 25 — the library heatmap (the density wash under every
+  // working layer). The data object is rebuilt by use-heatmap only
+  // when the toggle or the shelf changes; applied after the compare
+  // so a style swap restores both in order.
+  const heatmapInput = options?.heatmap ?? null;
+  useEffect(() => {
+    controllerRef.current?.setHeatmap(heatmapInput?.data ?? null);
+  }, [heatmapInput]);
 
   // Frame the whole activity whenever a new file's data lands. Deferred by
   // the controller until the map is ready; never re-run on re-detection
@@ -847,5 +879,12 @@ export function useMapController(
     focusPoint,
     getController,
     compareGhost: compareOverlay !== null,
+    ...(heatmapInput !== null
+      ? {
+          heatmapOn: heatmapInput.on,
+          heatmapPending: heatmapInput.pending,
+          toggleHeatmap: heatmapInput.toggle,
+        }
+      : {}),
   };
 }

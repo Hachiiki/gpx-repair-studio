@@ -254,6 +254,24 @@ export function PrivacyPane() {
               {t("info.privacy.storage.libraryBody")}
             </p>
           </li>
+          {/* Phase 25 — the heatmap strips (derived, cascade-deleted
+              with each session) and the personal segments (user data,
+              cleared with the shelf or deleted one by one), both
+              disclosed here by name. */}
+          <li
+            className="rounded-[10px] border-[1.5px] border-ink/15 p-3"
+            data-testid="privacy-storage-segments"
+          >
+            <p className="text-[13px] font-semibold">
+              {t("info.privacy.storage.segmentsTitle")}
+            </p>
+            <p className="mt-1 font-mono text-[11px] text-shade">
+              {"gpx-repair-studio.sessions"}
+            </p>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
+              {t("info.privacy.storage.segmentsBody")}
+            </p>
+          </li>
         </ul>
         {/*
          * §EE 22.3 — the Phase 22 caches: persisted elevation terrain
