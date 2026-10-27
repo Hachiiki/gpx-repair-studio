@@ -213,6 +213,28 @@ export const create = {
     "Drawn points — switch to Move (M) and drag any of them on the map, double-click to remove. Drawing (D) adds points only — the pencil never drags.",
   /** Vertex row delete button aria-label. */
   "create.drawPanel.deletePoint": "Delete point {index}",
+  /** Task 72 — vertex-row select checkbox aria-label. */
+  "create.drawPanel.selectPoint": "Select point {index}",
+  /** Task 72 — selection counter in the point list. */
+  "create.drawPanel.selectionCount": "{count} of {total} points selected",
+  /** Task 72 — select-all button. */
+  "create.drawPanel.selectAll": "Select all",
+  /** Task 72 — clear-selection button. */
+  "create.drawPanel.clearSelection": "Clear",
+  /** Task 72 — copy/paste group a11y label. */
+  "create.drawPanel.copyPasteGroup": "Repeat a loop — copy and paste points",
+  /** Task 72 — copy/paste group heading. */
+  "create.drawPanel.repeatTitle": "Repeat a loop",
+  /** Task 72 — copy/paste group hint. */
+  "create.drawPanel.repeatHint":
+    "Ran loops? Draw one loop, tick its points below (or Shift-click them on the map in Move mode), copy, then paste as many times as you need — the route and its distance grow by that loop on every paste, and each paste is one undo step. Ctrl+C / Ctrl+V work too.",
+  /** Task 72 — copy button ({count} = selected points). */
+  "create.drawPanel.copyButton": "Copy points ({count})",
+  /** Task 72 — paste button ({count} = clipboard points). */
+  "create.drawPanel.pasteButton": "Paste points ({count})",
+  /** Task 72 — clipboard status line. */
+  "create.drawPanel.clipboardStatus":
+    "{count} points copied — each paste repeats them at the end of the route.",
   /** Finish button. */
   "create.drawPanel.finish": "Finish route",
   /** Finish button tooltip — enabled. */

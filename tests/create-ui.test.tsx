@@ -259,6 +259,17 @@ function drawBinding(
     redo: () => {},
     clearVertices: () => {},
     deleteVertex: () => {},
+    selection: new Set(),
+    selectedCount: 0,
+    clipboardCount: 0,
+    canCopy: false,
+    canPaste: false,
+    toggleVertexSelection: () => {},
+    selectVertexRange: () => {},
+    selectAllVertices: () => {},
+    clearSelection: () => {},
+    copySelection: () => {},
+    pasteClipboard: () => {},
     finishRoute: vi.fn(),
     canFinish: true,
     ...overrides,
@@ -345,6 +356,127 @@ describe("RouteDrawPanel", () => {
     );
     expect(screen.getByTestId("pen-mode-default")).toBeEnabled();
     expect(screen.queryByTestId("pen-inactive-note")).toBeNull();
+  });
+
+  // -- Task 72: selection, copy, paste (repeat a loop) ---------------------
+
+  it("Task 72: ticks a point's checkbox to select; the row reflects it", () => {
+    const toggle = vi.fn();
+    const { rerender } = render(
+      <RouteDrawPanel
+        draw={drawBinding({ toggleVertexSelection: toggle })}
+        stats={STATS}
+        paceUnit="km"
+      />,
+    );
+    const boxes = screen.getAllByTestId("create-vertex-select");
+    expect(boxes).toHaveLength(3);
+    expect(boxes[0]).not.toBeChecked();
+    // The click is fully controlled — the intent fires, the box follows.
+    fireEvent.click(boxes[0]);
+    expect(toggle).toHaveBeenCalledWith(vertexId(1));
+
+    // The store's selection state paints both the box and the row.
+    rerender(
+      <RouteDrawPanel
+        draw={drawBinding({
+          selection: new Set([vertexId(1)]),
+          selectedCount: 1,
+          canCopy: true,
+        })}
+        stats={STATS}
+        paceUnit="km"
+      />,
+    );
+    expect(screen.getAllByTestId("create-vertex-select")[0]).toBeChecked();
+    expect(screen.getAllByTestId("create-vertex-row")[0]).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+  });
+
+  it("Task 72: Shift+click extends the range from the anchor row", () => {
+    const toggle = vi.fn();
+    const range = vi.fn();
+    const draw = drawBinding({
+      toggleVertexSelection: toggle,
+      selectVertexRange: range,
+    });
+    render(<RouteDrawPanel draw={draw} stats={STATS} paceUnit="km" />);
+    const boxes = screen.getAllByTestId("create-vertex-select");
+    // Plain click on row 1: a toggle AND the new anchor.
+    fireEvent.click(boxes[0]);
+    expect(toggle).toHaveBeenCalledWith(vertexId(1));
+    // Shift+click on row 3: the RANGE 1…3, never a single toggle.
+    fireEvent.click(boxes[2], { shiftKey: true });
+    expect(range).toHaveBeenCalledWith(vertexId(1), vertexId(3));
+    expect(toggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("Task 72: the selection bar counts and dispatches select-all / clear", () => {
+    const selectAll = vi.fn();
+    const clear = vi.fn();
+    const draw = drawBinding({
+      selection: new Set([vertexId(1), vertexId(2)]),
+      selectedCount: 2,
+      canCopy: true,
+      selectAllVertices: selectAll,
+      clearSelection: clear,
+    });
+    render(<RouteDrawPanel draw={draw} stats={STATS} paceUnit="km" />);
+    expect(screen.getByTestId("create-selection-count")).toHaveTextContent(
+      "2 of 3 points selected",
+    );
+    // Select-all is disabled when everything is not yet selected? No —
+    // 2 of 3 leaves it armed; Clear is armed by the non-empty selection.
+    expect(screen.getByTestId("create-select-all")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("create-select-all"));
+    expect(selectAll).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("create-clear-selection")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("create-clear-selection"));
+    expect(clear).toHaveBeenCalledTimes(1);
+  });
+
+  it("Task 72: copy and paste buttons carry their counts and gates", () => {
+    const copy = vi.fn();
+    const paste = vi.fn();
+    const draw = drawBinding({
+      selection: new Set([vertexId(1)]),
+      selectedCount: 1,
+      canCopy: true,
+      clipboardCount: 4,
+      canPaste: true,
+      copySelection: copy,
+      pasteClipboard: paste,
+    });
+    render(<RouteDrawPanel draw={draw} stats={STATS} paceUnit="km" />);
+    const copyButton = screen.getByTestId("create-copy-selection");
+    expect(copyButton).toBeEnabled();
+    expect(copyButton).toHaveTextContent("Copy points (1)");
+    fireEvent.click(copyButton);
+    expect(copy).toHaveBeenCalledTimes(1);
+
+    const pasteButton = screen.getByTestId("create-paste-clipboard");
+    expect(pasteButton).toBeEnabled();
+    expect(pasteButton).toHaveTextContent("Paste points (4)");
+    fireEvent.click(pasteButton);
+    expect(paste).toHaveBeenCalledTimes(1);
+
+    // The clipboard status line states what a paste will repeat.
+    expect(screen.getByTestId("create-clipboard-status")).toHaveTextContent(
+      "4 points copied",
+    );
+  });
+
+  it("Task 72: with nothing selected or copied the buttons disable honestly", () => {
+    const draw = drawBinding();
+    render(<RouteDrawPanel draw={draw} stats={STATS} paceUnit="km" />);
+    expect(screen.getByTestId("create-copy-selection")).toBeDisabled();
+    expect(screen.getByTestId("create-paste-clipboard")).toBeDisabled();
+    expect(
+      screen.queryByTestId("create-clipboard-status"),
+    ).toBeNull();
+    expect(screen.getByTestId("create-clear-selection")).toBeDisabled();
   });
 });
 

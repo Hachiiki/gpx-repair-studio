@@ -309,3 +309,166 @@ describe("road-follow side table", () => {
     expect(useCreateStore.getState().roadLegs).toBe(before);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Selection + clipboard (Task 72: repeat a loop)
+// ---------------------------------------------------------------------------
+
+describe("selection + clipboard (Task 72)", () => {
+  /** Begin drawing and place a small closed loop (4 points). */
+  function drawLoop() {
+    useCreateStore.getState().beginDrawing(STATS);
+    useCreateStore.getState().addVertex({ lat: 52.52, lon: 13.405 });
+    useCreateStore.getState().addVertex({ lat: 52.521, lon: 13.406 });
+    useCreateStore.getState().addVertex({ lat: 52.52, lon: 13.407 });
+    useCreateStore.getState().addVertex({ lat: 52.519, lon: 13.406 });
+  }
+
+  it("toggles, ranges, selects all, and clears; unknown ids are refused", () => {
+    drawLoop();
+    const store = useCreateStore.getState();
+    store.toggleVertexSelection(vertexId(1));
+    expect(useCreateStore.getState().selection.has(vertexId(1))).toBe(true);
+    store.toggleVertexSelection(vertexId(1));
+    expect(useCreateStore.getState().selection.size).toBe(0);
+
+    // Range either way round selects the inclusive span.
+    useCreateStore.getState().selectVertexRange(vertexId(3), vertexId(1));
+    let selection = useCreateStore.getState().selection;
+    expect([...selection].sort()).toEqual(["v1", "v2", "v3"]);
+    useCreateStore.getState().clearSelection();
+    useCreateStore.getState().selectVertexRange(vertexId(2), vertexId(4));
+    selection = useCreateStore.getState().selection;
+    expect([...selection].sort()).toEqual(["v2", "v3", "v4"]);
+
+    useCreateStore.getState().selectAllVertices();
+    expect(useCreateStore.getState().selection.size).toBe(4);
+    useCreateStore.getState().clearSelection();
+    expect(useCreateStore.getState().selection.size).toBe(0);
+
+    // A stale id (an undone vertex, a foreign map feature) never enters.
+    useCreateStore.getState().toggleVertexSelection(vertexId(999));
+    expect(useCreateStore.getState().selection.size).toBe(0);
+  });
+
+  it("copy keeps the selection and stores the fragment in route order", () => {
+    drawLoop();
+    // Select "backwards" — the copy still follows the chain.
+    useCreateStore.getState().toggleVertexSelection(vertexId(3));
+    useCreateStore.getState().toggleVertexSelection(vertexId(1));
+    useCreateStore.getState().copySelection();
+    const clipboard = useCreateStore.getState().clipboard;
+    expect(clipboard.map((p) => p.lat)).toEqual([52.52, 52.52]);
+    // The selection survives the copy (repeat pastes stay one keystroke).
+    expect(useCreateStore.getState().selection.size).toBe(2);
+  });
+
+  it("paste appends the loop at the end; ONE undo removes the whole paste", () => {
+    drawLoop();
+    useCreateStore.getState().selectAllVertices();
+    useCreateStore.getState().copySelection();
+    const undoDepthBefore = useCreateStore.getState().history.undo.length;
+
+    useCreateStore.getState().pasteClipboard();
+    let state = useCreateStore.getState();
+    expect(state.reconstruction.vertices).toHaveLength(8);
+    // The pasted loop repeats the copied geometry, order intact.
+    expect(state.reconstruction.vertices[4].lat).toBe(52.52);
+    expect(state.reconstruction.vertices[7].lat).toBe(52.519);
+    // Exactly ONE undo step for the paste.
+    expect(state.history.undo.length).toBe(undoDepthBefore + 1);
+    // The pasted vertices are NOT selected; the original selection holds.
+    expect(state.selection.size).toBe(4);
+    expect(state.selection.has(vertexId(5))).toBe(false);
+
+    // Paste again — the loop stacks (the feature's whole point).
+    useCreateStore.getState().pasteClipboard();
+    state = useCreateStore.getState();
+    expect(state.reconstruction.vertices).toHaveLength(12);
+    expect(state.history.undo.length).toBe(undoDepthBefore + 2);
+
+    // One undo removes exactly one paste.
+    useCreateStore.getState().undo();
+    expect(useCreateStore.getState().reconstruction.vertices).toHaveLength(8);
+  });
+
+  it("paste never reuses a vertex id (undo/redo stay unambiguous)", () => {
+    drawLoop();
+    useCreateStore.getState().selectAllVertices();
+    useCreateStore.getState().copySelection();
+    useCreateStore.getState().pasteClipboard();
+    const ids = useCreateStore
+      .getState()
+      .reconstruction.vertices.map((v) => v.id);
+    expect(new Set(ids).size).toBe(8);
+    // The sequence advanced by the pasted count.
+    expect(useCreateStore.getState().vertexSeq).toBe(8);
+  });
+
+  it("deleting a selected vertex prunes it from the selection", () => {
+    drawLoop();
+    useCreateStore.getState().selectAllVertices();
+    useCreateStore.getState().deleteVertex(vertexId(2));
+    const selection = useCreateStore.getState().selection;
+    expect(selection.size).toBe(3);
+    expect(selection.has(vertexId(2))).toBe(false);
+  });
+
+  it("undo past the selection prunes ids the chain no longer has", () => {
+    drawLoop();
+    const undoDepth = useCreateStore.getState().history.undo.length;
+    useCreateStore.getState().selectAllVertices();
+    // Undo the last placed vertex — its id must leave the selection.
+    for (let i = 0; i < undoDepth; i += 1) {
+      useCreateStore.getState().undo();
+    }
+    const state = useCreateStore.getState();
+    expect(state.reconstruction.vertices).toHaveLength(0);
+    expect(state.selection.size).toBe(0);
+  });
+
+  it("clear empties the selection with the chain; reset clears clipboard too", () => {
+    drawLoop();
+    useCreateStore.getState().selectAllVertices();
+    useCreateStore.getState().copySelection();
+    expect(useCreateStore.getState().clipboard).toHaveLength(4);
+
+    useCreateStore.getState().clearVertices();
+    expect(useCreateStore.getState().selection.size).toBe(0);
+    // The clipboard deliberately SURVIVES a clear (draw the loop again,
+    // paste it back).
+    expect(useCreateStore.getState().clipboard).toHaveLength(4);
+
+    useCreateStore.getState().reset();
+    const state = useCreateStore.getState();
+    expect(state.selection.size).toBe(0);
+    expect(state.clipboard).toHaveLength(0);
+  });
+
+  it("a partial paste lands only what fits and reserves only its ids", () => {
+    useCreateStore.getState().beginDrawing(STATS);
+    // Fill the chain to MAX - 1 with distinct points.
+    for (let i = 0; i < 127; i += 1) {
+      useCreateStore
+        .getState()
+        .addVertex({ lat: 52.5 + i * 1e-5, lon: 13.405 });
+    }
+    useCreateStore.getState().selectAllVertices();
+    useCreateStore.getState().copySelection();
+    // Copy a 3-point sub-fragment (the last three).
+    useCreateStore.getState().clearSelection();
+    useCreateStore.getState().selectVertexRange(vertexId(125), vertexId(127));
+    useCreateStore.getState().copySelection();
+    expect(useCreateStore.getState().clipboard).toHaveLength(3);
+
+    useCreateStore.getState().pasteClipboard();
+    const state = useCreateStore.getState();
+    // Only ONE of the three fit; it is the FIRST (order preserved).
+    expect(state.reconstruction.vertices).toHaveLength(128);
+    expect(state.reconstruction.vertices[127].lat).toBeCloseTo(
+      52.5 + 124 * 1e-5,
+      10,
+    );
+    expect(state.vertexSeq).toBe(128);
+  });
+});

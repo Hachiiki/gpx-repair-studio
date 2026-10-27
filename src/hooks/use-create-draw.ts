@@ -89,6 +89,30 @@ export interface CreateDrawBinding {
   clearVertices: () => void;
   deleteVertex: (vertexId: VertexId) => void;
 
+  // -- selection + clipboard (Task 72: repeat a loop) ------------------------
+  /** The selected vertices' ids (map Shift+click / list ticks). */
+  selection: ReadonlySet<VertexId>;
+  /** How many vertices are selected. */
+  selectedCount: number;
+  /** How many points sit on the clipboard. */
+  clipboardCount: number;
+  /** True when a selection exists to copy. */
+  canCopy: boolean;
+  /** True when a paste would land at least one point (cap-aware). */
+  canPaste: boolean;
+  /** Toggle one vertex's selection (checkbox click, map Shift+click). */
+  toggleVertexSelection: (vertexId: VertexId) => void;
+  /** Select the inclusive index range between two vertices (list Shift+click). */
+  selectVertexRange: (fromVertexId: VertexId, toVertexId: VertexId) => void;
+  /** Select every vertex. */
+  selectAllVertices: () => void;
+  /** Empty the selection. */
+  clearSelection: () => void;
+  /** Copy the selection onto the clipboard (route order). */
+  copySelection: () => void;
+  /** Paste the clipboard at the chain's end (one undo step per paste). */
+  pasteClipboard: () => void;
+
   /** Finish drawing → the review phase (disabled below 2 vertices). */
   finishRoute: () => void;
   canFinish: boolean;
@@ -103,6 +127,9 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
   const roadRouting = useCreateStore((s) => s.roadRouting);
   const vertices = useCreateStore((s) => s.reconstruction.vertices);
   const history = useCreateStore((s) => s.history);
+  // Task 72 — the copy/paste selection + clipboard.
+  const selection = useCreateStore((s) => s.selection);
+  const clipboard = useCreateStore((s) => s.clipboard);
   // §EE 17.2 — the consent state re-runs the leg effect on grant.
   const routerConsent = useUiStore((s) => s.routerConsent);
   const spacingM = useCreateStore((s) => s.spacingM);
@@ -174,6 +201,9 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
           });
           if (nodes.length >= 2) store.commitStroke(nodes);
         },
+        // Task 72 — Shift+click (Move mode) toggles the selection.
+        onVertexSelectToggle: (vertexId) =>
+          useCreateStore.getState().toggleVertexSelection(vertexId),
       },
     });
     // A session (re)start must never inherit a stale pointer mode —
@@ -181,6 +211,9 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     // still say draw (e.g. a path-style switch rebuilt the joins).
     controller.setPointerMode(useCreateStore.getState().pointerMode);
     controller.setPenMode(useCreateStore.getState().pen);
+    // The store's selection outlives a session restart (retreats to the
+    // form keep it) — re-push it so the handles repaint it.
+    controller.setSelectedVertices([...useCreateStore.getState().selection]);
     return () => {
       controller.endDrawSession();
     };
@@ -191,6 +224,11 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
   useEffect(() => {
     map.getController()?.updateDrawSession(vertices, makeJoins(roadLegs));
   }, [vertices, roadLegs, map.getController, makeJoins]);
+
+  // Task 72 — the selection paints on the map (signal-filled handles).
+  useEffect(() => {
+    map.getController()?.setSelectedVertices([...selection]);
+  }, [selection, map.getController, mapReady]);
 
   // -- road-follow leg resolution (snap to road) --------------------------------
 
@@ -291,11 +329,12 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
 
   // Keyboard accelerators (QoL): D = draw, M = move, P = pan — active only
   // while drawing, never while typing in a form control (the shared
-  // contract).
+  // contract). Task 72 adds the loop-repeat pair: Ctrl/Cmd+C copies the
+  // selection, Ctrl/Cmd+V pastes — claimed ONLY when they would do
+  // something, so the browser's own copy stays untouched otherwise.
   useEffect(() => {
     if (!active) return;
     const onKeydown = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target;
       if (
         target instanceof HTMLElement &&
@@ -307,6 +346,26 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
         return;
       }
       const key = event.key.toLowerCase();
+      if (event.metaKey || event.ctrlKey) {
+        if (key === "c") {
+          const store = useCreateStore.getState();
+          if (store.selection.size > 0) {
+            event.preventDefault();
+            store.copySelection();
+          }
+        } else if (key === "v") {
+          const store = useCreateStore.getState();
+          if (
+            store.clipboard.length > 0 &&
+            store.reconstruction.vertices.length < MAX_VERTICES
+          ) {
+            event.preventDefault();
+            store.pasteClipboard();
+          }
+        }
+        return;
+      }
+      if (event.altKey) return;
       if (key === "d") {
         event.preventDefault();
         useCreateStore.getState().setPointerMode("draw");
@@ -376,6 +435,28 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     useCreateStore.getState().deleteVertex(vertexId);
   }, []);
 
+  const toggleVertexSelection = useCallback((vertexId: VertexId) => {
+    useCreateStore.getState().toggleVertexSelection(vertexId);
+  }, []);
+  const selectVertexRange = useCallback(
+    (fromVertexId: VertexId, toVertexId: VertexId) => {
+      useCreateStore.getState().selectVertexRange(fromVertexId, toVertexId);
+    },
+    [],
+  );
+  const selectAllVertices = useCallback(() => {
+    useCreateStore.getState().selectAllVertices();
+  }, []);
+  const clearSelection = useCallback(() => {
+    useCreateStore.getState().clearSelection();
+  }, []);
+  const copySelection = useCallback(() => {
+    useCreateStore.getState().copySelection();
+  }, []);
+  const pasteClipboard = useCallback(() => {
+    useCreateStore.getState().pasteClipboard();
+  }, []);
+
   const finishRoute = useCallback(() => {
     useCreateStore.getState().finishRoute();
   }, []);
@@ -414,6 +495,17 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     redo,
     clearVertices,
     deleteVertex,
+    selection,
+    selectedCount: selection.size,
+    clipboardCount: clipboard.length,
+    canCopy: selection.size > 0,
+    canPaste: clipboard.length > 0 && vertices.length < MAX_VERTICES,
+    toggleVertexSelection,
+    selectVertexRange,
+    selectAllVertices,
+    clearSelection,
+    copySelection,
+    pasteClipboard,
     finishRoute,
     canFinish: vertices.length >= 2 && (distanceM ?? 0) > 0,
   };

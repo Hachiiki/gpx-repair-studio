@@ -220,8 +220,33 @@ describe("GeoJSON builders — Phase 4 sources", () => {
       gapId: "g1",
       vertexId: "v1",
       index: 0,
+      // Task 72 — the selection flag is always present (false reads the
+      // same as absent in the layer's `== selected true` case).
+      selected: false,
     });
     expect(collection.features[0].geometry.coordinates).toEqual([13.4, 52.5]);
+  });
+
+  it("drawHandleCollection marks selected handles (Task 72 copy/paste)", () => {
+    const collection = drawHandleCollection([
+      {
+        gapId: "g1" as never,
+        vertexId: vertexId(1),
+        index: 0,
+        lat: 52.5,
+        lon: 13.4,
+      },
+      {
+        gapId: "g1" as never,
+        vertexId: vertexId(2),
+        index: 1,
+        lat: 52.51,
+        lon: 13.41,
+        selected: true,
+      },
+    ]);
+    expect(collection.features[0].properties.selected).toBe(false);
+    expect(collection.features[1].properties.selected).toBe(true);
   });
 
   it("drawMidpointCollection carries the insertion index", () => {

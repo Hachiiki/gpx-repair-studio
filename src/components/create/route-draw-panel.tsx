@@ -17,6 +17,7 @@
 
 "use client";
 
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,7 +29,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { HintTip } from "@/components/shared/hint-tip";
 import { UndoRedoBar } from "@/components/reconstruction/undo-redo-bar";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
-import { Check, Crosshair, X } from "lucide-react";
+import { Check, ClipboardPaste, Copy, Crosshair, Repeat, X } from "lucide-react";
 import type { CreateDrawBinding } from "@/hooks/use-create-draw";
 import type { ActivityStats } from "@/hooks/use-create-session";
 import { RECONCILE_NOTICE_RATIO } from "@/hooks/use-create-session";
@@ -146,18 +147,49 @@ function getPathStyleChoices(
 function VertexRow({
   vertex,
   index,
+  selected,
+  onToggleSelect,
   onDelete,
 }: {
   vertex: DrawVertex;
   index: number;
+  /** Task 72 — the copy/paste selection state of this point. */
+  selected: boolean;
+  /** Toggle (or Shift+extend from the anchor row — the list idiom). */
+  onToggleSelect: (vertexId: DrawVertex["id"], shiftKey: boolean) => void;
   onDelete: (vertexId: DrawVertex["id"]) => void;
 }) {
   const { t } = useI18n();
   return (
     <li
-      className="flex items-center gap-2 rounded-[6px] border border-ink/10 bg-card px-2 py-1.5 text-xs transition-colors hover:bg-ink/[0.04]"
+      className={
+        selected
+          ? "flex items-center gap-2 rounded-[6px] border border-signal/50 bg-signal/[0.06] px-2 py-1.5 text-xs transition-colors hover:bg-signal/[0.09]"
+          : "flex items-center gap-2 rounded-[6px] border border-ink/10 bg-card px-2 py-1.5 text-xs transition-colors hover:bg-ink/[0.04]"
+      }
       data-testid="create-vertex-row"
+      data-selected={selected}
     >
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={selected}
+        aria-label={t("create.drawPanel.selectPoint", { index: index + 1 })}
+        data-testid="create-vertex-select"
+        className={
+          selected
+            ? "grid size-[15px] shrink-0 cursor-pointer place-items-center rounded-[3.5px] border-[1.25px] border-signal bg-signal text-paper transition-colors"
+            : "grid size-[15px] shrink-0 cursor-pointer place-items-center rounded-[3.5px] border-[1.25px] border-ink/30 bg-card text-transparent transition-colors hover:border-ink/55"
+        }
+        onClick={(event) =>
+          // Shift+click extends the range from the anchor row instead of
+          // toggling one (the file-manager idiom). A role=checkbox button
+          // is fully controlled: Space/Enter land here as plain toggles.
+          onToggleSelect(vertex.id, event.shiftKey)
+        }
+      >
+        <Check className="size-3" aria-hidden="true" />
+      </button>
       <span className="grid size-[18px] shrink-0 place-items-center rounded-[4px] bg-ink/[0.06] text-[10px] font-bold text-shade">
         {index + 1}
       </span>
@@ -187,6 +219,21 @@ export interface RouteDrawPanelProps {
 
 export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
   const { t, locale } = useI18n();
+  // Task 72 — the Shift+click range anchor (list idiom: plain click
+  // toggles and re-anchors; Shift+click selects anchor…click inclusive).
+  const selectionAnchorRef = useRef<DrawVertex["id"] | null>(null);
+  const handleToggleSelect = (
+    vertexId: DrawVertex["id"],
+    shiftKey: boolean,
+  ) => {
+    const anchor = selectionAnchorRef.current;
+    if (shiftKey && anchor !== null && anchor !== vertexId) {
+      draw.selectVertexRange(anchor, vertexId);
+    } else {
+      draw.toggleVertexSelection(vertexId);
+    }
+    selectionAnchorRef.current = vertexId;
+  };
   if (!draw.active) return null;
 
   // User pass 52: the pen only lives in Draw mode — Move drags points,
@@ -502,12 +549,108 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
           </select>
         </label>
 
-        {/* Vertex list: the accessible delete path. */}
+        {/* Task 72 — repeat a loop: select points, copy, paste again
+            and again; every paste appends at the end as ONE undo step
+            and the live distance above grows with it. */}
+        <div
+          className="grid gap-1.5 rounded-md border border-ink/15 bg-ink/[0.02] px-2.5 py-2"
+          data-testid="copy-paste-group"
+          role="group"
+          aria-label={t("create.drawPanel.copyPasteGroup")}
+        >
+          <p className="flex items-center gap-1.5 text-xs font-bold tracking-[0.01em]">
+            <Repeat className="size-3.5 text-signal" aria-hidden="true" />
+            {t("create.drawPanel.repeatTitle")}
+            <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
+          </p>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            {t("create.drawPanel.repeatHint")}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 gap-1.5 text-[12px]"
+              data-testid="create-copy-selection"
+              disabled={!draw.canCopy}
+              onClick={draw.copySelection}
+            >
+              <Copy className="size-3.5" aria-hidden="true" />
+              {t("create.drawPanel.copyButton", {
+                count: draw.selectedCount,
+              })}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 gap-1.5 text-[12px]"
+              data-testid="create-paste-clipboard"
+              disabled={!draw.canPaste}
+              onClick={draw.pasteClipboard}
+            >
+              <ClipboardPaste className="size-3.5" aria-hidden="true" />
+              {t("create.drawPanel.pasteButton", {
+                count: draw.clipboardCount,
+              })}
+            </Button>
+          </div>
+          {draw.clipboardCount > 0 && (
+            <p
+              className="text-[11px] leading-snug text-muted-foreground"
+              data-testid="create-clipboard-status"
+              role="status"
+            >
+              {t("create.drawPanel.clipboardStatus", {
+                count: draw.clipboardCount,
+              })}
+            </p>
+          )}
+        </div>
+
+        {/* Vertex list: the accessible delete path + the selection. */}
         {draw.vertexCount > 0 && (
           <div className="grid gap-1.5">
             <p className="text-xs font-medium text-muted-foreground">
               {t("create.drawPanel.drawnPointsNote")}
             </p>
+            <div
+              className="flex items-center gap-1.5"
+              data-testid="create-selection-bar"
+            >
+              <p
+                className="text-[11px] tabular-nums text-muted-foreground"
+                data-testid="create-selection-count"
+              >
+                {t("create.drawPanel.selectionCount", {
+                  count: draw.selectedCount,
+                  total: draw.vertexCount,
+                })}
+              </p>
+              <span className="ml-auto flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 rounded-full border-[1.25px] border-ink/25 px-2.5 text-[11.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
+                  data-testid="create-select-all"
+                  disabled={draw.selectedCount === draw.vertexCount}
+                  onClick={draw.selectAllVertices}
+                >
+                  {t("create.drawPanel.selectAll")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 rounded-full border-[1.25px] border-ink/25 px-2.5 text-[11.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
+                  data-testid="create-clear-selection"
+                  disabled={draw.selectedCount === 0}
+                  onClick={draw.clearSelection}
+                >
+                  {t("create.drawPanel.clearSelection")}
+                </Button>
+              </span>
+            </div>
             <ScrollArea className="max-h-40 -mx-2">
               <ul className="grid gap-0.5 px-2">
                 {draw.vertices.map((vertex, index) => (
@@ -515,6 +658,8 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
                     key={vertex.id}
                     vertex={vertex}
                     index={index}
+                    selected={draw.selection.has(vertex.id)}
+                    onToggleSelect={handleToggleSelect}
                     onDelete={draw.deleteVertex}
                   />
                 ))}

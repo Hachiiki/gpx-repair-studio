@@ -115,6 +115,28 @@ export const zhCreate: Record<string, string> = {
   "create.drawPanel.drawnPointsNote":
     "已绘制的点 — 切换到移动（M）在地图上拖动任意一点，双击删除。绘制（D）只添加点 — 铅笔从不拖动。",
   "create.drawPanel.deletePoint": "删除点 {index}",
+  /** Task 72 — 点行选择框的 aria-label。 */
+  "create.drawPanel.selectPoint": "选择点 {index}",
+  /** Task 72 — 点列表中的选择计数。 */
+  "create.drawPanel.selectionCount": "已选 {count} / {total} 个点",
+  /** Task 72 — 全选按钮。 */
+  "create.drawPanel.selectAll": "全选",
+  /** Task 72 — 清除选择按钮。 */
+  "create.drawPanel.clearSelection": "清除",
+  /** Task 72 — 复制/粘贴分组的 a11y 标签。 */
+  "create.drawPanel.copyPasteGroup": "重复跑圈 — 复制粘贴路线点",
+  /** Task 72 — 复制/粘贴分组标题。 */
+  "create.drawPanel.repeatTitle": "重复跑圈",
+  /** Task 72 — 复制/粘贴分组提示。 */
+  "create.drawPanel.repeatHint":
+    "跑的是环线？先画出一圈，在下方勾选这些点（或在移动模式下按住 Shift 点击地图上的点），复制后想贴几次贴几次 —— 每次粘贴都会在路线末尾重复这一圈，距离随之增长，且每次粘贴都是一步可撤销的操作。也可用 Ctrl+C / Ctrl+V。",
+  /** Task 72 — 复制按钮（{count} = 已选点数）。 */
+  "create.drawPanel.copyButton": "复制点（{count}）",
+  /** Task 72 — 粘贴按钮（{count} = 剪贴板点数）。 */
+  "create.drawPanel.pasteButton": "粘贴点（{count}）",
+  /** Task 72 — 剪贴板状态行。 */
+  "create.drawPanel.clipboardStatus":
+    "已复制 {count} 个点 —— 每次粘贴都会在路线末尾重复它们。",
   "create.drawPanel.finish": "完成路线",
   "create.drawPanel.finishTitle": "结束绘制并查看结果",
   "create.drawPanel.finishDisabledTitle": "至少放置两个点才能完成路线",

@@ -216,6 +216,12 @@ export interface DrawHandleData {
   index: number;
   lat: number;
   lon: number;
+  /**
+   * Task 72 — the handle belongs to the copy/paste selection: painted
+   * in SIGNAL by the handles layer (the data-driven fill; the property
+   * is omitted-as-false for unselected handles).
+   */
+  selected?: boolean;
 }
 
 /**
@@ -233,7 +239,12 @@ export interface DrawMidpointData {
 export function drawHandleCollection(
   handles: readonly DrawHandleData[],
 ): GeoJsonFeatureCollection<
-  GeoJsonPointFeature<{ gapId: GapId; vertexId: VertexId; index: number }>
+  GeoJsonPointFeature<{
+    gapId: GapId;
+    vertexId: VertexId;
+    index: number;
+    selected: boolean;
+  }>
 > {
   return {
     type: "FeatureCollection",
@@ -245,6 +256,7 @@ export function drawHandleCollection(
         gapId: handle.gapId,
         vertexId: handle.vertexId,
         index: handle.index,
+        selected: handle.selected === true,
       },
       geometry: {
         type: "Point" as const,

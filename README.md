@@ -9,7 +9,7 @@ Six tools, one workbench — and a seventh for the folder-sized chores:
 | **Repair a recording** | Inspect a GPX with gaps or damage, draw the missing route yourself — clicks follow real roads or footpaths, the Curve pen draws freehand — and download the repaired file with every reconstructed point marked. |
 | **Create a share card** | Turn any activity into a Strava-style share graphic: the route on a transparent 1080×1920 canvas with the distance, pace, and time the file records. |
 | **Recover a GPS gap** | For activities where the clock kept running through a GPS dropout: draw the section that went missing, export a corrected file with timestamps fitted into the interval. |
-| **Create from stats** | A watch that recorded the numbers but no map: enter the statistics, draw the route, download a GPX scaled to your recorded distance. |
+| **Create from stats** | A watch that recorded the numbers but no map: enter the statistics, draw the route, download a GPX scaled to your recorded distance. Ran loops? Draw one loop, select its points, then copy and paste them again and again until the distance matches — each paste is one undo step. |
 | **Combine recordings** | Merge two or more GPX files into one route — every point, elevation, and waypoint preserved, in your chosen order. |
 | **Plan a route** | A draw-and-measure scratchpad: sketch a route, read distance and elevation, see the pace a goal time implies. Nothing is exported or shared. |
 | **Clean up many files** | Queue up to 50 recordings, run one fix preset across them (previewed per file), export a ZIP with a manifest of every change. |

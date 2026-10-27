@@ -218,6 +218,8 @@ export interface DrawSessionTestState {
   midpointScreenPositions: { insertIndex: number; x: number; y: number }[];
   /** Rubber band currently visible (cursor over canvas, not dragging). */
   rubberBandVisible: boolean;
+  /** Task 72 — the selected vertex ids (copy/paste selection). */
+  selectedVertexIds: string[];
 }
 
 /** Layer ids — `gpxr` prefix mirrors the export provenance namespace. */
@@ -544,6 +546,12 @@ export interface DrawSessionOptions {
      * sessions without curve support simply never fire it.
      */
     onStrokeCommit?: (points: readonly LatLon[]) => void;
+    /**
+     * Task 72 — Shift+click on a handle (Move mode, the "adjust"
+     * gesture) toggles the vertex's copy/paste selection. Optional so
+     * sessions without a clipboard never fire it.
+     */
+    onVertexSelectToggle?: (vertexId: VertexId) => void;
   };
 }
 
@@ -729,6 +737,14 @@ export class MapController {
   /** Feature id of the hovered vertex handle (mouseleave carries no
    * features — the id is tracked on enter so hover state can clear). */
   #hoveredHandleId: string | number | null = null;
+  /**
+   * Task 72 — the selected vertices of the active draw session (the
+   * copy/paste loop-repeat selection). Driven exclusively by the React
+   * binding hook through `setSelectedVertices` (the store is the source
+   * of truth); the handles layer paints selected points in SIGNAL so
+   * the map says what the list's ticks say.
+   */
+  #selectedVertexIds: ReadonlySet<VertexId> = new Set();
 
   // Span-pick session (manual repair spans)
   #pickSession: PickSession | null = null;
@@ -932,6 +948,21 @@ export class MapController {
         const vertexId = e.features?.[0]?.properties?.vertexId;
         if (typeof vertexId !== "string") return;
         this.#drawSession.callbacks.onVertexDelete(vertexId as VertexId);
+      }),
+      /*
+       * Task 72 — Shift+click a handle in Move mode (the "adjust"
+       * gesture) toggles the vertex's copy/paste selection. A stationary
+       * press never commits a drag (the 3 px threshold), so select and
+       * drag never fight over the same gesture; the mousedown's
+       * preventDefault already keeps box-zoom out of it.
+       */
+      map.on("click", LAYER.draftHandleHit, (e) => {
+        if (!this.#drawSession || this.#pointerMode !== "move") return;
+        if (!e.originalEvent.shiftKey) return;
+        const vertexId = e.features?.[0]?.properties?.vertexId;
+        if (typeof vertexId !== "string") return;
+        e.preventDefault();
+        this.#drawSession.callbacks.onVertexSelectToggle?.(vertexId as VertexId);
       }),
       map.on("click", LAYER.draftMidpointHit, (e) => {
         if (!this.#drawSession || !this.#drawMode) return;
@@ -1141,6 +1172,9 @@ export class MapController {
       chainJoin: options.chainJoin ?? null,
       closingJoin: options.closingJoin ?? null,
     };
+    // A new session never inherits another's selection (the hook pushes
+    // the store's own set right after opening).
+    this.#selectedVertexIds = new Set();
     if (this.#ready) this.#applyDrawSession();
   }
 
@@ -1179,6 +1213,7 @@ export class MapController {
     this.#stroke = null;
     this.#drawDownXY = null;
     this.#cursor = null;
+    this.#selectedVertexIds = new Set();
     this.#cancelTouchGesture();
     if (this.#pointerMode !== "pan") this.#setPointerModeInternal("pan");
     if (!this.#ready) return;
@@ -1234,6 +1269,28 @@ export class MapController {
   setPenMode(pen: PenMode): void {
     if (this.#penMode === pen) return;
     this.#penMode = pen;
+  }
+
+  /**
+   * Task 72 — replace the draw session's selection (the store's own
+   * set, pushed by the binding hook). Idempotent; re-renders the handles
+   * so the selected ones take the SIGNAL fill. Stored even before the
+   * map is ready so a session opened later paints it.
+   */
+  setSelectedVertices(ids: readonly VertexId[]): void {
+    const next = new Set(ids);
+    if (next.size === this.#selectedVertexIds.size) {
+      let same = true;
+      for (const id of next) {
+        if (!this.#selectedVertexIds.has(id)) {
+          same = false;
+          break;
+        }
+      }
+      if (same) return;
+    }
+    this.#selectedVertexIds = next;
+    if (this.#ready && this.#drawSession) this.#applyDrawSession();
   }
 
   // -- span-pick session (manual repair spans) ----------------------------
@@ -2081,7 +2138,12 @@ export class MapController {
         "circle-radius": (this.#touchInput
           ? TOUCH_HANDLE_RADIUS_PAINT
           : HANDLE_RADIUS_PAINT) as never,
-        "circle-color": palette.markerPaper,
+        "circle-color": [
+          "case",
+          ["==", ["get", "selected"], true],
+          palette.recon,
+          palette.markerPaper,
+        ] as never,
         "circle-stroke-color": palette.recon,
         "circle-stroke-width": (this.#touchInput
           ? TOUCH_HANDLE_STROKE_PAINT
@@ -3052,6 +3114,7 @@ export class MapController {
         index,
         lat: overridden ? this.#handleDrag!.override!.lat : vertex.lat,
         lon: overridden ? this.#handleDrag!.override!.lon : vertex.lon,
+        selected: this.#selectedVertexIds.has(vertex.id),
       };
     });
     // Midpoints live on the CHAIN legs only — the closing segment is not
@@ -3155,6 +3218,7 @@ export class MapController {
       midpointScreenPositions,
       rubberBandVisible:
         this.#drawMode && this.#cursor !== null && !this.#handleDrag,
+      selectedVertexIds: [...this.#selectedVertexIds],
     };
   }
 

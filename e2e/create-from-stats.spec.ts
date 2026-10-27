@@ -40,6 +40,10 @@ interface DrawSessionState {
   drawMode: boolean;
   vertexCount: number;
   chainCoordinates: [number, number][];
+  /** Task 72 — the copy/paste selection (map Shift+click / list ticks). */
+  selectedVertexIds: string[];
+  /** Screen positions of the vertex handles (for synthetic Shift+clicks). */
+  handleScreenPositions: { vertexId: string; x: number; y: number }[];
 }
 
 interface BridgeState {
@@ -519,6 +523,98 @@ test.describe("create from activity stats", () => {
       page.getByLabel("Distance recorded by your watch"),
     ).toHaveValue("5.23");
     await expect(page.getByLabel("Total time minutes")).toHaveValue("32");
+  });
+
+  test("repeat a loop: select, copy, paste — the distance grows with every paste", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByTestId("landing-mode-create").click();
+    await fillStats(page);
+    await page.getByTestId("begin-drawing-button").click();
+    await expect(page.getByTestId("create-section")).toBeVisible();
+    await pollBridge(
+      page,
+      (s) => s.drawSession !== null && s.drawSession.drawMode === true,
+    );
+
+    // A closed square loop: the 4th side exists only once the loop repeats.
+    const LOOP = [
+      { lat: 52.52, lon: 13.405 },
+      { lat: 52.525, lon: 13.405 },
+      { lat: 52.525, lon: 13.41 },
+      { lat: 52.52, lon: 13.41 },
+    ];
+    await drawRoute(page, LOOP);
+    await expect(page.getByTestId("draw-distance")).toContainText(/1\.4\d km/);
+
+    // Select all four points, copy, and read the honest clipboard status.
+    await page.getByTestId("create-select-all").click();
+    await expect(page.getByTestId("create-selection-count")).toContainText(
+      "4 of 4",
+    );
+    await page.getByTestId("create-copy-selection").click();
+    await expect(page.getByTestId("create-clipboard-status")).toContainText(
+      "4 points copied",
+    );
+
+    // Paste #1 (the button): the loop repeats — the chain's own three
+    // sides plus the closing side and a full second lap.
+    await page.getByTestId("create-paste-clipboard").click();
+    await pollBridge(page, (s) => s.drawSession?.vertexCount === 8);
+    await expect(page.getByTestId("draw-distance")).toContainText(/3\.2\d km/);
+    // The selection survives the paste (repeat pastes are one keystroke
+    // each) and the map paints it — the bridge sees the selected handles.
+    const afterPaste = await pollBridge(
+      page,
+      (s) => (s.drawSession?.selectedVertexIds?.length ?? -1) === 4,
+    );
+    expect(afterPaste.drawSession!.vertexCount).toBe(8);
+
+    // Paste #2 (the keyboard): Ctrl+V lands another lap. (The Ctrl+C
+    // before it exercises the copy gate on an already-copied selection.)
+    await page.keyboard.press("Control+c");
+    await page.keyboard.press("Control+v");
+    await pollBridge(page, (s) => s.drawSession?.vertexCount === 12);
+    await expect(page.getByTestId("draw-distance")).toContainText(/5\.0\d km/);
+    await expect(page.getByTestId("vertex-count")).toContainText("12 / 128");
+
+    // One undo removes exactly ONE paste (the whole lap, one step).
+    await page.getByTestId("undo-button").click();
+    await pollBridge(page, (s) => s.drawSession?.vertexCount === 8);
+    await expect(page.getByTestId("draw-distance")).toContainText(/3\.2\d km/);
+
+    // Shift+click a placed point in Move mode toggles its selection —
+    // the map's own selection door (a pasted, unselected vertex).
+    await page.getByTestId("draw-mode-move").click();
+    const handles = await pollBridge(
+      page,
+      (s) => (s.drawSession?.handleScreenPositions?.length ?? 0) === 8,
+    );
+    const target = handles.drawSession!.handleScreenPositions[4];
+    const box = await canvasBox(page);
+    await page.keyboard.down("Shift");
+    await page.mouse.click(box.x + target.x, box.y + target.y);
+    await page.keyboard.up("Shift");
+    await pollBridge(
+      page,
+      (s) => (s.drawSession?.selectedVertexIds?.length ?? -1) === 5,
+    );
+    // Shift+click the same point again — back to the copied four.
+    await page.keyboard.down("Shift");
+    await page.mouse.click(box.x + target.x, box.y + target.y);
+    await page.keyboard.up("Shift");
+    await pollBridge(
+      page,
+      (s) => (s.drawSession?.selectedVertexIds?.length ?? -1) === 4,
+    );
+
+    // Clear the selection — the honest empty state disables the door.
+    await page.getByTestId("create-clear-selection").click();
+    await expect(page.getByTestId("create-copy-selection")).toBeDisabled();
+    await expect(page.getByTestId("create-selection-count")).toContainText(
+      "0 of 8",
+    );
   });
 
   test("the header's Share: warning first, then the GPX download + the share card", async ({

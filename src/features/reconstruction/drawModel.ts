@@ -420,6 +420,81 @@ export function setLineCommand(
 }
 
 // ---------------------------------------------------------------------------
+// Clipboard — select, copy, paste (Task 72: loop repetition)
+// ---------------------------------------------------------------------------
+
+/**
+ * One copied point of a clipboard fragment. The copy strips IDENTITY only:
+ * geometry, the per-segment style, and any snap provenance carry over, so
+ * a pasted leg renders exactly like the leg it was copied from.
+ */
+export interface DrawClipboardPoint {
+  lat: number;
+  lon: number;
+  legStyle?: PathStyle;
+  /** Present when the copied vertex was snapped to a recorded track point. */
+  snappedTo?: PointId;
+}
+
+/**
+ * Extract the selected vertices as a clipboard fragment, in ROUTE order
+ * (the order they appear in the chain — not click order). Non-contiguous
+ * selections copy as the subsequence they are: the pasted fragment draws
+ * exactly the legs the selected points define, jumps and all (WYSIWYG).
+ */
+export function clipboardFromSelection(
+  vertices: readonly DrawVertex[],
+  isSelected: (vertex: DrawVertex) => boolean,
+): readonly DrawClipboardPoint[] {
+  const fragment: DrawClipboardPoint[] = [];
+  for (const vertex of vertices) {
+    if (!isSelected(vertex)) continue;
+    fragment.push({
+      lat: vertex.lat,
+      lon: vertex.lon,
+      ...(vertex.legStyle !== undefined ? { legStyle: vertex.legStyle } : {}),
+      ...(vertex.snappedTo !== undefined
+        ? { snappedTo: vertex.snappedTo }
+        : {}),
+    });
+  }
+  return fragment;
+}
+
+/**
+ * The paste command: append clones of the clipboard fragment at the END of
+ * the chain as ONE `set-vertices` step — a single undo removes the whole
+ * paste, and repeated pastes stack one step each. Identities are fresh
+ * (`allocateId` receives the fragment offset; the caller owns its
+ * sequence). The hard cap pastes only what fits (a partial loop beats a
+ * refused one — the map shows exactly what landed); `null` when nothing
+ * fits or the clipboard is empty.
+ */
+export function pasteAppendCommand(
+  reconstruction: Reconstruction,
+  points: readonly DrawClipboardPoint[],
+  allocateId: (offset: number) => VertexId,
+): DrawCommand | null {
+  if (points.length === 0) return null;
+  const budget = MAX_VERTICES - reconstruction.vertices.length;
+  if (budget <= 0) return null;
+  const pasted = points.slice(0, budget).map((point, offset) => ({
+    id: allocateId(offset),
+    lat: point.lat,
+    lon: point.lon,
+    ...(point.legStyle !== undefined ? { legStyle: point.legStyle } : {}),
+    ...(point.snappedTo !== undefined
+      ? { snappedTo: point.snappedTo }
+      : {}),
+  }));
+  return {
+    kind: "set-vertices",
+    previous: reconstruction.vertices,
+    next: [...reconstruction.vertices, ...pasted],
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Command stack (pure)
 // ---------------------------------------------------------------------------
 

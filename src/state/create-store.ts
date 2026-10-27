@@ -29,6 +29,7 @@ import { create } from "zustand";
 import {
   addVertexCommand,
   clearVerticesCommand,
+  clipboardFromSelection,
   commitCommand,
   deleteVertexCommand,
   EMPTY_HISTORY,
@@ -36,8 +37,10 @@ import {
   insertVertexCommand,
   MAX_VERTICES,
   moveVertexCommand,
+  pasteAppendCommand,
   redoCommand,
   undoCommand,
+  type DrawClipboardPoint,
   type DrawCommand,
   type DrawHistory,
   type VertexPosition,
@@ -173,6 +176,30 @@ interface CreateState {
   insertVertex: (index: number, position: VertexPosition) => void;
   moveVertex: (vertexId: VertexId, to: VertexPosition) => void;
   deleteVertex: (vertexId: VertexId) => void;
+
+  // -- selection + clipboard (Task 72: repeat a loop) -------------------------
+  /** The currently selected vertices (map Shift+click / list ticks). */
+  selection: ReadonlySet<VertexId>;
+  /** The copied fragment (route order), pasted at the chain's end. */
+  clipboard: readonly DrawClipboardPoint[];
+  /** Toggle one vertex's membership in the selection. */
+  toggleVertexSelection: (vertexId: VertexId) => void;
+  /** Select the inclusive index range between two vertices (either order). */
+  selectVertexRange: (fromVertexId: VertexId, toVertexId: VertexId) => void;
+  /** Select every vertex of the chain. */
+  selectAllVertices: () => void;
+  /** Empty the selection. */
+  clearSelection: () => void;
+  /** Copy the selected vertices (route order) onto the clipboard. */
+  copySelection: () => void;
+  /**
+   * Paste the clipboard at the END of the chain — ONE undoable step per
+   * paste, repeatable until the distance target is met. Only what fits
+   * under the vertex cap lands; the selection survives (repeat pastes
+   * are one keystroke each).
+   */
+  pasteClipboard: () => void;
+
   /**
    * Commit one freehand stroke (Curve pen, user pass 48): append the
    * processed nodes as ONE `set-vertices` command — a single undo step
@@ -203,6 +230,11 @@ const INITIAL = {
   pathStyle: "car" as PathStyle,
   spacingM: DEFAULT_CREATE_SPACING_M as number | "off",
   matchDistance: false,
+  // Task 72 — transient like history: a selection/clipboard is an editor
+  // session's working state, never persisted (INITIAL is never mutated
+  // in place; every change allocates a fresh Set/array).
+  selection: new Set<VertexId>() as ReadonlySet<VertexId>,
+  clipboard: [] as readonly DrawClipboardPoint[],
 };
 
 export const useCreateStore = create<CreateState>()((set, get) => ({
@@ -268,6 +300,10 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       history: EMPTY_HISTORY,
       roadRouting: { pending: 0, failed: false },
       sessionSeq: state.sessionSeq + 1,
+      // Selection and clipboard are editor-session state like history —
+      // a restored route reopens unselected with an empty clipboard.
+      selection: new Set<VertexId>() as ReadonlySet<VertexId>,
+      clipboard: [] as readonly DrawClipboardPoint[],
     })),
 
   setView: (view) => set({ view }),
@@ -380,7 +416,11 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       { reconstruction: state.reconstruction, history: state.history },
       command,
     );
-    set({ reconstruction: next.reconstruction, history: next.history });
+    // A deleted vertex cannot stay selected (the map and the list both
+    // prune their views through the store's own set).
+    const selection = new Set(state.selection);
+    selection.delete(vertexId);
+    set({ reconstruction: next.reconstruction, history: next.history, selection });
   },
 
   commitStroke: (points) => {
@@ -437,7 +477,12 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       { reconstruction: state.reconstruction, history: state.history },
       command,
     );
-    set({ reconstruction: next.reconstruction, history: next.history });
+    // Every selected id is gone — the selection empties with the chain.
+    set({
+      reconstruction: next.reconstruction,
+      history: next.history,
+      selection: new Set<VertexId>(),
+    });
   },
 
   undo: () => {
@@ -446,7 +491,11 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       reconstruction: state.reconstruction,
       history: state.history,
     });
-    set({ reconstruction: next.reconstruction, history: next.history });
+    set({
+      reconstruction: next.reconstruction,
+      history: next.history,
+      selection: pruneSelection(next.reconstruction.vertices, state.selection),
+    });
   },
 
   redo: () => {
@@ -455,7 +504,87 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       reconstruction: state.reconstruction,
       history: state.history,
     });
-    set({ reconstruction: next.reconstruction, history: next.history });
+    set({
+      reconstruction: next.reconstruction,
+      history: next.history,
+      selection: pruneSelection(next.reconstruction.vertices, state.selection),
+    });
+  },
+
+  // -- selection + clipboard (Task 72) ----------------------------------
+
+  toggleVertexSelection: (vertexId) =>
+    set((state) => {
+      // Unknown ids (a stale map feature, an undone vertex) are refused —
+      // the set can never claim a vertex the chain no longer has.
+      if (!state.reconstruction.vertices.some((v) => v.id === vertexId)) {
+        return state;
+      }
+      const selection = new Set(state.selection);
+      if (selection.has(vertexId)) selection.delete(vertexId);
+      else selection.add(vertexId);
+      return { selection };
+    }),
+
+  selectVertexRange: (fromVertexId, toVertexId) =>
+    set((state) => {
+      const vertices = state.reconstruction.vertices;
+      const from = vertices.findIndex((v) => v.id === fromVertexId);
+      const to = vertices.findIndex((v) => v.id === toVertexId);
+      if (from === -1 || to === -1) return state;
+      const [lo, hi] = from <= to ? [from, to] : [to, from];
+      const selection = new Set(state.selection);
+      for (let i = lo; i <= hi; i += 1) selection.add(vertices[i].id);
+      return { selection };
+    }),
+
+  selectAllVertices: () =>
+    set((state) => ({
+      selection: new Set(state.reconstruction.vertices.map((v) => v.id)),
+    })),
+
+  clearSelection: () =>
+    set((state) =>
+      state.selection.size === 0 ? state : { selection: new Set<VertexId>() },
+    ),
+
+  copySelection: () =>
+    set((state) => {
+      if (state.selection.size === 0) return state;
+      const clipboard = clipboardFromSelection(
+        state.reconstruction.vertices,
+        (vertex) => state.selection.has(vertex.id),
+      );
+      if (clipboard.length === 0) return state;
+      return { clipboard };
+    }),
+
+  pasteClipboard: () => {
+    const state = get();
+    if (state.clipboard.length === 0) return;
+    let seq = state.vertexSeq;
+    const command = pasteAppendCommand(
+      state.reconstruction,
+      state.clipboard,
+      (offset) => vertexId(seq + 1 + offset),
+    );
+    if (!command) return; // at the cap — the panel's limit notice shows
+    const next = commitCommand(
+      { reconstruction: state.reconstruction, history: state.history },
+      command,
+    );
+    if (next.reconstruction === state.reconstruction) return;
+    // The allocator reserved one id per point that actually landed
+    // (a partial paste reserves only its part).
+    seq +=
+      next.reconstruction.vertices.length - state.reconstruction.vertices.length;
+    set({
+      vertexSeq: seq,
+      reconstruction: next.reconstruction,
+      history: next.history,
+      // The selection SURVIVES a paste — repeat pastes (the loop the
+      // feature exists for) stay one keystroke each.
+    });
   },
 }));
 
@@ -479,4 +608,23 @@ function withLineStyle(
   return reconstruction.pathStyle === style
     ? reconstruction
     : { ...reconstruction, pathStyle: style };
+}
+
+/** Drop selection ids the chain no longer has (undo/redo pruning). */
+function pruneSelection(
+  vertices: readonly DrawVertex[],
+  selection: ReadonlySet<VertexId>,
+): ReadonlySet<VertexId> {
+  if (selection.size === 0) return selection;
+  const valid = new Set(vertices.map((v) => v.id));
+  let changed = false;
+  for (const id of selection) {
+    if (!valid.has(id)) changed = true;
+  }
+  if (!changed) return selection;
+  const next = new Set<VertexId>();
+  for (const id of selection) {
+    if (valid.has(id)) next.add(id);
+  }
+  return next;
 }

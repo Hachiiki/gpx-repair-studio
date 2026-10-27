@@ -14,6 +14,7 @@ import {
   addVertexCommand,
   applyDrawCommand,
   clearVerticesCommand,
+  clipboardFromSelection,
   commitCommand,
   deleteVertexCommand,
   EMPTY_HISTORY,
@@ -24,6 +25,7 @@ import {
   MAX_VERTICES,
   maxDeviationFromStraightLine,
   moveVertexCommand,
+  pasteAppendCommand,
   redoCommand,
   reconstructionDistanceMeters,
   undoCommand,
@@ -492,5 +494,150 @@ describe("geometry helpers", () => {
       { id: vertexId(2), lat: 52.521, lon: 13.406 },
     ];
     expect(isStraightLine(collinear, ANCHORS.before, null)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Clipboard — select, copy, paste (Task 72: repeat a loop)
+// ---------------------------------------------------------------------------
+
+describe("clipboard primitives (Task 72)", () => {
+  /** A three-vertex chain with per-segment styles + one snap. */
+  function chain(): DrawVertex[] {
+    return [
+      { id: vertexId(1), lat: 52.52, lon: 13.405 },
+      { id: vertexId(2), lat: 52.521, lon: 13.406, legStyle: "car" },
+      {
+        id: vertexId(3),
+        lat: 52.522,
+        lon: 13.407,
+        legStyle: "foot",
+        snappedTo: pid("p9"),
+      },
+    ];
+  }
+
+  it("copies the selection in ROUTE order, not click order", () => {
+    const vertices = chain();
+    const fragment = clipboardFromSelection(vertices, (v) =>
+      // Selected "backwards" — 3 first, then 1.
+      v.id === vertexId(3) || v.id === vertexId(1),
+    );
+    expect(fragment.map((p) => p.lat)).toEqual([52.52, 52.522]);
+  });
+
+  it("the copy strips identity but keeps geometry, leg style, and snap", () => {
+    const fragment = clipboardFromSelection(chain(), () => true);
+    expect(fragment).toHaveLength(3);
+    expect(fragment[0]).toEqual({ lat: 52.52, lon: 13.405 });
+    expect(fragment[1]).toEqual({ lat: 52.521, lon: 13.406, legStyle: "car" });
+    expect(fragment[2]).toEqual({
+      lat: 52.522,
+      lon: 13.407,
+      legStyle: "foot",
+      snappedTo: "p9",
+    });
+    // No `id` ever leaves the chain — a paste allocates fresh ones.
+    for (const point of fragment) {
+      expect("id" in point).toBe(false);
+    }
+  });
+
+  it("an empty selection copies an empty fragment", () => {
+    expect(clipboardFromSelection(chain(), () => false)).toEqual([]);
+  });
+
+  it("pastes at the END with fresh ids, as ONE set-vertices command", () => {
+    const reconstruction = emptyReconstruction(gap("g1"));
+    const withChain = applyDrawCommand(reconstruction, {
+      kind: "set-vertices",
+      previous: [],
+      next: chain(),
+    });
+    const command = pasteAppendCommand(
+      withChain,
+      [
+        { lat: 52.52, lon: 13.405 },
+        { lat: 52.521, lon: 13.406, legStyle: "car" },
+      ],
+      (offset) => vertexId(100 + offset),
+    );
+    expect(command).not.toBeNull();
+    expect(command!.kind).toBe("set-vertices");
+    const pasted = applyDrawCommand(withChain, command!);
+    expect(pasted.vertices).toHaveLength(5);
+    // Appended at the end, order preserved, styles carried.
+    expect(pasted.vertices[3]).toEqual({
+      id: vertexId(100),
+      lat: 52.52,
+      lon: 13.405,
+    });
+    expect(pasted.vertices[4]).toEqual({
+      id: vertexId(101),
+      lat: 52.521,
+      lon: 13.406,
+      legStyle: "car",
+    });
+    // One undo removes the whole paste (the strict inverse).
+    const undone = applyDrawCommand(pasted, invertDrawCommand(command!));
+    expect(undone.vertices.map((v) => v.id)).toEqual([
+      vertexId(1),
+      vertexId(2),
+      vertexId(3),
+    ]);
+  });
+
+  it("refuses an empty clipboard and a full chain", () => {
+    const reconstruction = emptyReconstruction(gap("g1"));
+    expect(
+      pasteAppendCommand(reconstruction, [], (offset) => vertexId(offset)),
+    ).toBeNull();
+    const full = {
+      ...reconstruction,
+      vertices: Array.from({ length: MAX_VERTICES }, (_, i) => ({
+        id: vertexId(i + 1),
+        lat: 52.52,
+        lon: 13.405,
+      })),
+    };
+    expect(
+      pasteAppendCommand(
+        full,
+        [{ lat: 52.53, lon: 13.41 }],
+        (offset) => vertexId(1000 + offset),
+      ),
+    ).toBeNull();
+  });
+
+  it("pastes only what fits under the cap (a partial loop, not a refusal)", () => {
+    const base = Array.from({ length: MAX_VERTICES - 2 }, (_, i) => ({
+      id: vertexId(i + 1),
+      lat: 52.52,
+      lon: 13.405,
+    }));
+    const reconstruction = {
+      ...emptyReconstruction(gap("g1")),
+      vertices: base,
+    };
+    const command = pasteAppendCommand(
+      reconstruction,
+      [
+        { lat: 52.53, lon: 13.41 },
+        { lat: 52.54, lon: 13.42 },
+        { lat: 52.55, lon: 13.43 },
+      ],
+      (offset) => vertexId(500 + offset),
+    );
+    expect(command).not.toBeNull();
+    if (command!.kind !== "set-vertices") throw new Error("unreachable");
+    expect(command!.next).toHaveLength(MAX_VERTICES); // 126 + 2
+    expect(command!.next[MAX_VERTICES - 2].lat).toBe(52.53);
+    expect(command!.next[MAX_VERTICES - 1].lat).toBe(52.54);
+    // The third point never landed — and undo still removes exactly both.
+    const undone = applyDrawCommand(
+      applyDrawCommand(reconstruction, command!),
+      invertDrawCommand(command!),
+    );
+    expect(undone.vertices).toHaveLength(MAX_VERTICES - 2);
   });
 });
