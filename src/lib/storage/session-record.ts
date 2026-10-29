@@ -42,6 +42,7 @@
 import type { LocalLabel } from "@/i18n/types";
 import type { GapThresholds } from "@/features/gpx/detectGaps";
 import type { ActivityStats } from "@/features/create/stats";
+import type { PaceSegment } from "@/features/create/pace";
 import type { FileTimingContext } from "@/features/reconstruction/timestamps";
 import type {
   DrawVertex,
@@ -117,6 +118,14 @@ export interface StoredCreateSession {
   spacingM: number | "off";
   matchDistance: boolean;
   phase: "draw" | "review";
+  /**
+   * Task 73 — the pace plan (stretches at a stated pace). Optional:
+   * pre-73 records and un-planned routes carry none. The pace-segment
+   * id allocator rides along so restored ids can never collide with
+   * newly planned ones.
+   */
+  paceSegments?: PaceSegment[];
+  paceSeq?: number;
 }
 
 /** The plan-a-route scratchpad (no file, no export). */
@@ -161,6 +170,10 @@ export interface CreateSessionCapture {
   spacingM: number | "off";
   matchDistance: boolean;
   phase: "draw" | "review";
+  /** Task 73 — the planned pace stretches (never undefined at capture). */
+  paceSegments: readonly PaceSegment[];
+  /** Task 73 — the pace-segment id allocator's position. */
+  paceSeq: number;
 }
 
 /** What the hook reads out of the plan session for capture. */
@@ -196,6 +209,10 @@ export interface CreateSessionHydration {
   matchDistance: boolean;
   phase: "draw" | "review";
   vertexSeq: number;
+  /** Task 73 — the validated pace plan ([] for pre-73 records). */
+  paceSegments: PaceSegment[];
+  /** Task 73 — the allocator re-armed past every stored id. */
+  paceSeq: number;
 }
 
 /** Plan store patch. */
@@ -279,6 +296,12 @@ export function captureCreateSession(
     spacingM: capture.spacingM,
     matchDistance: capture.matchDistance,
     phase: capture.phase,
+    // Task 73 — the pace plan is work; it rides the record verbatim
+    // (plain-data segments; the hydrate path validates before adoption).
+    ...(capture.paceSegments.length > 0
+      ? { paceSegments: capture.paceSegments.map((s) => ({ ...s })) }
+      : {}),
+    ...(capture.paceSeq > 0 ? { paceSeq: capture.paceSeq } : {}),
   };
 }
 
@@ -372,7 +395,25 @@ export function hydrateCreateSession(
     matchDistance: record.matchDistance,
     phase: record.phase,
     vertexSeq: rearmVertexSeq([record.reconstruction]),
+    // Task 73 — validated segments (readSessionRecord guarantees the
+    // shape or drops the whole field); the store prunes spans the
+    // restored chain cannot carry.
+    paceSegments: (record.paceSegments ?? []).map((s) => ({ ...s })),
+    paceSeq: rearmPaceSeq(record.paceSegments ?? [], record.paceSeq ?? 0),
   };
+}
+
+/**
+ * Re-arm the pace-segment allocator: past every stored `ps{N}` id,
+ * floored by the explicit stored value (never backwards).
+ */
+function rearmPaceSeq(segments: readonly PaceSegment[], stored: number): number {
+  let max = stored;
+  for (const segment of segments) {
+    const match = /^ps(\d+)$/.exec(segment.id);
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return max;
 }
 
 /** Build the plan store patch from a validated record. */
@@ -481,6 +522,22 @@ function isRoadLeg(value: unknown): value is RoadLeg {
   // absent legs are pre-fix records that match any asking profile.
   const mode = leg.mode;
   return mode === undefined || mode === "car" || mode === "foot";
+}
+
+/** Structural check of one stored pace segment (Task 73). */
+function isPaceSegment(value: unknown): value is PaceSegment {
+  if (typeof value !== "object" || value === null) return false;
+  const segment = value as Record<string, unknown>;
+  return (
+    typeof segment.id === "string" &&
+    segment.id.length > 0 &&
+    typeof segment.fromVertexId === "string" &&
+    segment.fromVertexId.length > 0 &&
+    typeof segment.toVertexId === "string" &&
+    segment.toVertexId.length > 0 &&
+    isFiniteNumber(segment.paceMsPerMeter) &&
+    segment.paceMsPerMeter > 0
+  );
 }
 
 function isManualSpan(value: unknown): value is ManualSpan {
@@ -699,6 +756,17 @@ export function readSessionRecord(raw: unknown): StoredSessionRecord | null {
     }
     if (typeof record.matchDistance !== "boolean") return null;
     if (record.phase !== "draw" && record.phase !== "review") return null;
+    // Task 73 — the pace plan is optional (pre-73 records carry none);
+    // a present-but-malformed field discards the plan, never the route.
+    if (
+      record.paceSegments !== undefined &&
+      (!Array.isArray(record.paceSegments) ||
+        !record.paceSegments.every(isPaceSegment) ||
+        (record.paceSeq !== undefined && !isFiniteNumber(record.paceSeq)))
+    ) {
+      record.paceSegments = [];
+      record.paceSeq = 0;
+    }
     return record as unknown as StoredCreateSession;
   }
 

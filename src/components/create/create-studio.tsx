@@ -38,11 +38,13 @@ import { CreateWorkspace } from "@/components/create/create-workspace";
 import { ReconcileDistanceDialog } from "@/components/create/reconcile-distance-dialog";
 import { RouteDrawPanel } from "@/components/create/route-draw-panel";
 import { RouteReviewCard } from "@/components/create/route-review-card";
+import { PacePreviewCard } from "@/components/create/pace-preview-card";
 import { ShareCreateDialog } from "@/components/create/share-create-dialog";
 import { useCreateDraw } from "@/hooks/use-create-draw";
 import { useCreateElevation } from "@/hooks/use-create-elevation";
 import { useCreateExport } from "@/hooks/use-create-export";
 import { useCreateMap } from "@/hooks/use-create-map";
+import { useCreatePace } from "@/hooks/use-create-pace";
 import { useCreateShare } from "@/hooks/use-create-share";
 import { useI18n } from "@/hooks/use-i18n";
 import { createTrackFileName } from "@/hooks/use-create-session";
@@ -63,6 +65,11 @@ export function CreateStudio() {
   const draw = useCreateDraw(map);
   const review = useCreateExport();
   const elevation = useCreateElevation(review?.track ?? null);
+  const pace = useCreatePace(
+    review?.track ?? null,
+    review ? { durationMs: review.stats.durationMs, startMs: review.stats.startMs } : null,
+    elevation.attachment,
+  );
   const share = useCreateShare(review, elevation.attachment);
 
   // The finish-time reconciliation warning: fires on every draw → review
@@ -109,14 +116,32 @@ export function CreateStudio() {
         }
         tools={
           phase === "review" && review ? (
-            <RouteReviewCard
-              review={review}
-              stats={stats}
-              paceUnit={paceUnit}
-              consistency={consistency}
-              elevation={elevation.controls}
-              onEditRoute={() => useCreateStore.getState().editRoute()}
-            />
+            <>
+              <RouteReviewCard
+                review={review}
+                stats={stats}
+                paceUnit={paceUnit}
+                consistency={consistency}
+                elevation={elevation.controls}
+                onEditRoute={() => useCreateStore.getState().editRoute()}
+              />
+              {/*
+               * Task 73 — the pace preview below the review summary:
+               * the same paced timeline the export follows, with the
+               * chart ↔ map cursor sync (the preview IS interactive).
+               */}
+              <PacePreviewCard
+                track={review.track}
+                timeline={pace.timeline}
+                splits={pace.splits}
+                durationMs={review.stats.durationMs}
+                paceUnit={paceUnit}
+                hasElevation={elevation.attachment !== null}
+                onCursor={(position) =>
+                  map.getController()?.setChartCursor(position)
+                }
+              />
+            </>
           ) : (
             <>
               <CreateGuideCard

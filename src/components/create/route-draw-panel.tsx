@@ -17,7 +17,7 @@
 
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,7 +29,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { HintTip } from "@/components/shared/hint-tip";
 import { UndoRedoBar } from "@/components/reconstruction/undo-redo-bar";
 import { ProvenanceBadge } from "@/components/statistics/provenance-badge";
-import { Check, ClipboardPaste, Copy, Crosshair, Repeat, X } from "lucide-react";
+import {
+  Check,
+  ClipboardPaste,
+  Copy,
+  Crosshair,
+  Gauge,
+  Pencil,
+  Repeat,
+  X,
+} from "lucide-react";
 import type { CreateDrawBinding } from "@/hooks/use-create-draw";
 import type { ActivityStats } from "@/hooks/use-create-session";
 import { RECONCILE_NOTICE_RATIO } from "@/hooks/use-create-session";
@@ -39,6 +48,8 @@ import type { DrawVertex } from "@/types/domain";
 import {
   formatDistanceForUnit,
   formatLatLon,
+  formatPaceMs,
+  PACE_METERS_PER_UNIT,
   type PaceUnit,
 } from "@/lib/utils/format";
 
@@ -217,6 +228,33 @@ export interface RouteDrawPanelProps {
   paceUnit: PaceUnit;
 }
 
+/**
+ * The pace input's parsed result: ms per meter, or null when the
+ * minutes/seconds pair is not usable yet (the stats form's validation
+ * idiom, on one row: seconds 0–59, the pair not empty, total > 0).
+ */
+function parsePaceEntry(
+  minutes: string,
+  seconds: string,
+  paceUnit: PaceUnit,
+): number | null {
+  if (minutes.trim() === "" && seconds.trim() === "") return null;
+  const min = Number(minutes);
+  const sec = Number(seconds);
+  if (
+    !Number.isFinite(min) ||
+    !Number.isFinite(sec) ||
+    min < 0 ||
+    sec < 0 ||
+    sec >= 60
+  ) {
+    return null;
+  }
+  const totalSeconds = min * 60 + sec;
+  if (totalSeconds <= 0) return null;
+  return (totalSeconds * 1000) / PACE_METERS_PER_UNIT[paceUnit];
+}
+
 export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
   const { t, locale } = useI18n();
   // Task 72 — the Shift+click range anchor (list idiom: plain click
@@ -234,6 +272,56 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
     }
     selectionAnchorRef.current = vertexId;
   };
+  // Task 73 — the pace plan's entry state: the minutes/seconds pair and
+  // which segment an Apply updates (null = plan the selection).
+  const [paceMinutes, setPaceMinutes] = useState("");
+  const [paceSeconds, setPaceSeconds] = useState("");
+  const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
+  const [paceError, setPaceError] = useState(false);
+
+  const metersPerUnit = PACE_METERS_PER_UNIT[paceUnit];
+  const paceMsPerMeter = parsePaceEntry(paceMinutes, paceSeconds, paceUnit);
+
+  const startEditSegment = (id: string) => {
+    const segment = draw.paceSegments.find((s) => s.id === id);
+    if (!segment) return;
+    const paceSecondsTotal = Math.round(
+      (segment.paceMsPerMeter * metersPerUnit) / 1000,
+    );
+    setPaceMinutes(String(Math.floor(paceSecondsTotal / 60)));
+    setPaceSeconds(String(paceSecondsTotal % 60));
+    setEditingSegmentId(id);
+    setPaceError(false);
+  };
+
+  const cancelEditSegment = () => {
+    setEditingSegmentId(null);
+    setPaceMinutes("");
+    setPaceSeconds("");
+    setPaceError(false);
+  };
+
+  const onApplyPace = () => {
+    if (paceMsPerMeter === null) {
+      setPaceError(true);
+      return;
+    }
+    if (editingSegmentId !== null) {
+      draw.updatePaceSegment(editingSegmentId, paceMsPerMeter);
+      cancelEditSegment();
+      return;
+    }
+    const span = draw.selectionPaceSpan;
+    if (!span) return;
+    draw.applyPaceSegment(
+      span.fromVertexId,
+      span.toVertexId,
+      paceMsPerMeter,
+    );
+    // The inputs keep their values — planning several stretches at
+    // the same pace (interval reps) is one selection + one click each.
+  };
+
   if (!draw.active) return null;
 
   // User pass 52: the pen only lives in Draw mode — Move drags points,
@@ -602,6 +690,220 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
             >
               {t("create.drawPanel.clipboardStatus", {
                 count: draw.clipboardCount,
+              })}
+            </p>
+          )}
+        </div>
+
+        {/* Task 73 — the pace plan: mark a stretch, set its pace; the
+            unplanned rest keeps the activity average, hills breathe
+            around both once elevation is estimated (review phase). */}
+        <div
+          className="grid gap-1.5 rounded-md border border-ink/15 bg-ink/[0.02] px-2.5 py-2"
+          data-testid="pace-plan-group"
+          role="group"
+          aria-label={t("create.pace.group")}
+        >
+          <p className="flex items-center gap-1.5 text-xs font-bold tracking-[0.01em]">
+            <Gauge className="size-3.5 text-signal" aria-hidden="true" />
+            {t("create.pace.group")}
+            <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
+          </p>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            {t("create.pace.hint")}
+          </p>
+
+          {/* The pace entry: minutes : seconds per unit, the stats
+              form's idiom on one row. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                className="h-8 w-14 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2 text-xs tabular-nums transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
+                data-testid="pace-minutes-input"
+                aria-label={t("create.statsForm.paceMinutesA11y")}
+                placeholder="5"
+                value={paceMinutes}
+                onChange={(event) => {
+                  setPaceMinutes(event.target.value);
+                  setPaceError(false);
+                }}
+              />
+              <span className="text-[11px] font-semibold text-muted-foreground">:</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={59}
+                step={1}
+                className="h-8 w-14 rounded-[5px] border-[1.25px] border-ink/25 bg-card px-2 text-xs tabular-nums transition-colors hover:border-ink/45 focus-visible:border-signal focus-visible:outline-none"
+                data-testid="pace-seconds-input"
+                aria-label={t("create.statsForm.paceSecondsA11y")}
+                placeholder="30"
+                value={paceSeconds}
+                onChange={(event) => {
+                  setPaceSeconds(event.target.value);
+                  setPaceError(false);
+                }}
+              />
+              <span className="text-[11px] font-semibold text-muted-foreground">
+                /{paceUnit === "km" ? UNIT_WORDS[locale].km : UNIT_WORDS[locale].mi}
+              </span>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 gap-1.5 text-[12px]"
+              data-testid="pace-apply-button"
+              disabled={
+                editingSegmentId === null &&
+                (draw.selectionPaceSpan === null || paceMsPerMeter === null)
+              }
+              onClick={onApplyPace}
+            >
+              <Check className="size-3.5" aria-hidden="true" />
+              {editingSegmentId !== null
+                ? t("create.pace.updateButton")
+                : t("create.pace.applyButton")}
+            </Button>
+            {editingSegmentId !== null && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2.5 text-[12px] text-muted-foreground hover:text-foreground"
+                data-testid="pace-cancel-edit"
+                onClick={cancelEditSegment}
+              >
+                <X className="size-3.5" aria-hidden="true" />
+                {t("create.pace.cancelEdit")}
+              </Button>
+            )}
+          </div>
+
+          {paceError && (
+            <p className="text-xs text-destructive" role="alert" data-testid="pace-error">
+              {t("create.pace.error")}
+            </p>
+          )}
+
+          {/* What the Apply will target: the contiguous selection run. */}
+          {editingSegmentId === null && (
+            <p
+              className="text-[11px] leading-snug text-muted-foreground"
+              data-testid="pace-selection-status"
+              role="status"
+            >
+              {draw.selectionPaceSpan === null
+                ? t("create.pace.needStretch")
+                : t("create.pace.selectionReady", {
+                    from: draw.selectionPaceSpan.fromIndex + 1,
+                    to: draw.selectionPaceSpan.toIndex + 1,
+                    distance: formatDistanceForUnit(
+                      draw.selectionPaceSpan.distanceM,
+                      paceUnit,
+                    ),
+                  })}
+            </p>
+          )}
+
+          {/* The planned stretches, route order. */}
+          {draw.paceSegments.length > 0 && (
+            <ul className="grid gap-0.5" data-testid="pace-segment-list">
+              {draw.paceSegments.map((segment) => {
+                const indices = draw.paceSegmentIndices.get(segment.id);
+                const distanceM = draw.paceSegmentDistances.get(segment.id);
+                return (
+                  <li
+                    key={segment.id}
+                    className="flex items-center gap-2 rounded-[6px] border border-ink/10 bg-card px-2 py-1.5 text-xs"
+                    data-testid="pace-segment-row"
+                    data-editing={editingSegmentId === segment.id}
+                  >
+                    <span className="grid size-[18px] shrink-0 place-items-center rounded-[4px] bg-signal/[0.12] text-[10px] font-bold text-signal">
+                      <Gauge className="size-3" aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0 flex-1 leading-snug">
+                      <span className="font-semibold">
+                        {indices
+                          ? t("create.pace.segmentSpan", {
+                              from: indices[0] + 1,
+                              to: indices[1] + 1,
+                            })
+                          : "—"}
+                      </span>{" "}
+                      <span className="tabular-nums text-muted-foreground">
+                        {distanceM !== undefined
+                          ? formatDistanceForUnit(distanceM, paceUnit)
+                          : ""}{" "}
+                        ·{" "}
+                        {formatPaceMs(segment.paceMsPerMeter * metersPerUnit)} /"
+                        {paceUnit === "km" ? UNIT_WORDS[locale].km : UNIT_WORDS[locale].mi}
+                      </span>
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="size-5 shrink-0 rounded-[4px] p-0 text-shade hover:bg-inkplus hover:text-paper"
+                      aria-label={
+                        indices
+                          ? t("create.pace.editA11y", {
+                              from: indices[0] + 1,
+                              to: indices[1] + 1,
+                            })
+                          : t("create.pace.editA11y", { from: 0, to: 0 })
+                      }
+                      data-testid="pace-edit-segment"
+                      onClick={() => startEditSegment(segment.id)}
+                    >
+                      <Pencil className="size-3.5" aria-hidden="true" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="size-5 shrink-0 rounded-[4px] p-0 text-shade hover:bg-inkplus hover:text-paper"
+                      aria-label={
+                        indices
+                          ? t("create.pace.deleteA11y", {
+                              from: indices[0] + 1,
+                              to: indices[1] + 1,
+                            })
+                          : t("create.pace.deleteA11y", { from: 0, to: 0 })
+                      }
+                      data-testid="pace-delete-segment"
+                      onClick={() => {
+                        if (editingSegmentId === segment.id) cancelEditSegment();
+                        draw.removePaceSegment(segment.id);
+                      }}
+                    >
+                      <X className="size-3.5" aria-hidden="true" />
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {draw.paceSegments.length > 0 && (
+            <p
+              className="text-[11px] leading-snug text-muted-foreground"
+              data-testid="pace-coverage-status"
+              role="status"
+            >
+              {t("create.pace.coverage", {
+                count: draw.paceSegments.length,
+                planned: formatDistanceForUnit(
+                  [...draw.paceSegmentDistances.values()].reduce(
+                    (sum, meters) => sum + meters,
+                    0,
+                  ),
+                  paceUnit,
+                ),
               })}
             </p>
           )}

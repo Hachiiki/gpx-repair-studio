@@ -315,4 +315,5 @@ export const zhReconstruction: Record<string, string> = {
   "router.reason.parse": "这无法解析为 URL — 请检查主机名。",
 
   "elevation.privacyNote.openMeteo": "重建点的坐标会以请求 URL 的形式发送到 api.open-meteo.com（Open-Meteo 海拔 API）。只发送重建点 — 从不发送完整文件，从不发送已记录路线。该服务与任何 Web 服务器一样会记录请求。",
+  "elevation.privacyNote.openTopoData": "重建点的坐标会以请求 URL 的形式发送到 api.opentopodata.org（OpenTopoData 公共 API）。只发送重建点 — 从不发送完整文件，从不发送已记录路线。该服务与任何 Web 服务器一样会记录请求。",
 };

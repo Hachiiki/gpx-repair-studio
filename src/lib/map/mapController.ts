@@ -69,6 +69,7 @@ import {
   draftLineCollection,
   drawHandleCollection,
   drawMidpointCollection,
+  chartCursorCollection,
   gapMarkerCollection,
   gapSpanCollection,
   heatmapCollection,
@@ -168,6 +169,11 @@ export interface MapTestState {
     /** Matched photos currently pinned (one Point feature each). */
     pinCount: number;
   };
+  /** Task 73 — the pace chart cursor's observables. */
+  chartCursor: {
+    visible: boolean;
+    position: { lat: number; lon: number } | null;
+  };
   selectedGapId: string | null;
   zoom: number;
   center: { lat: number; lon: number } | null;
@@ -247,6 +253,8 @@ export const MAP_LAYER_IDS = [
   "gpxr-draft-handle-hit",
   "gpxr-pick-anchor",
   "gpxr-photo-pins",
+  "gpxr-chart-cursor",
+  "gpxr-chart-cursor-dot",
 ] as const;
 
 const SOURCE = {
@@ -265,6 +273,7 @@ const SOURCE = {
   changed: "gpxr-changed",
   heatmap: "gpxr-heatmap",
   photoPins: "gpxr-photo-pins",
+  chartCursor: "gpxr-chart-cursor",
 } as const;
 
 const LAYER = {
@@ -291,6 +300,7 @@ const LAYER = {
   changed: "gpxr-changed",
   heatmap: "gpxr-heatmap",
   photoPins: "gpxr-photo-pins",
+  chartCursor: "gpxr-chart-cursor",
 } as const;
 
 /*
@@ -695,6 +705,8 @@ export class MapController {
   /** Phase 26 — the geotagged photo pins (null = none). */
   #photoPins: PhotoPinsLayerData | null = null;
   #photoPinsCount = 0;
+  /** Task 73 — the pace chart's cursor position (null = hidden). */
+  #chartCursor: { lat: number; lon: number } | null = null;
 
   // Phase 9 — zoom-dependent render decimation. #routeStride is the
   // stride currently rendered into SOURCE.route; a zoom band change
@@ -1061,6 +1073,24 @@ export class MapController {
     this.#photoPins = data;
     this.#photoPinsCount = data?.features.length ?? 0;
     if (this.#ready) this.#applyPhotoPins();
+  }
+
+  /**
+   * Task 73 — the pace preview's cursor: the route position the chart
+   * is pointing at (the hover/keyboard sync). Null hides it; deferred
+   * until ready and re-applied on style swaps — the photo-pins
+   * contract, minus any interaction (an informational marker only).
+   */
+  setChartCursor(position: { lat: number; lon: number } | null): void {
+    const same =
+      (this.#chartCursor === null && position === null) ||
+      (this.#chartCursor !== null &&
+        position !== null &&
+        this.#chartCursor.lat === position.lat &&
+        this.#chartCursor.lon === position.lon);
+    if (same) return;
+    this.#chartCursor = position;
+    if (this.#ready) this.#applyChartCursor();
   }
 
   /** Highlight one gap (or none) with a white casing + boundary halo. */
@@ -1615,6 +1645,10 @@ export class MapController {
         visible: this.#photoPins !== null,
         pinCount: this.#photoPinsCount,
       },
+      chartCursor: {
+        visible: this.#chartCursor !== null,
+        position: this.#chartCursor,
+      },
       selectedGapId: this.#selectedGapId,
       zoom: map ? map.getZoom() : 0,
       center: map
@@ -1696,6 +1730,7 @@ export class MapController {
     this.#applyCompare();
     this.#applyHeatmap();
     this.#applyPhotoPins();
+    this.#applyChartCursor();
     this.#applySelection();
     this.#applyDrawSession();
     if (this.#pickSession) {
@@ -1824,6 +1859,12 @@ export class MapController {
       map.addSource(SOURCE.photoPins, {
         type: "geojson",
         data: photoPinsCollection([]),
+      });
+    }
+    if (!map.getSource(SOURCE.chartCursor)) {
+      map.addSource(SOURCE.chartCursor, {
+        type: "geojson",
+        data: chartCursorCollection(null),
       });
     }
 
@@ -2202,6 +2243,32 @@ export class MapController {
         "circle-stroke-width": 2,
       },
     });
+
+    // Task 73 — the pace chart's cursor: a paper halo with a signal
+    // dot, above everything (informational only — the chart drives it).
+    map.addLayer({
+      id: LAYER.chartCursor,
+      type: "circle",
+      source: SOURCE.chartCursor,
+      layout: { visibility: "none" },
+      paint: {
+        "circle-radius": 9,
+        "circle-color": palette.markerPaper,
+        "circle-opacity": 0.85,
+      },
+    });
+    map.addLayer({
+      id: `${LAYER.chartCursor}-dot`,
+      type: "circle",
+      source: SOURCE.chartCursor,
+      layout: { visibility: "none" },
+      paint: {
+        "circle-radius": 4.5,
+        "circle-color": palette.recon,
+        "circle-stroke-color": palette.markerPaper,
+        "circle-stroke-width": 1.5,
+      },
+    });
   }
 
   #applyRoute(): void {
@@ -2307,6 +2374,22 @@ export class MapController {
       | GeoJSONSource
       | undefined;
     source?.setData(pins ?? photoPinsCollection([]));
+  }
+
+  /** Task 73 — push the pace chart's cursor marker. */
+  #applyChartCursor(): void {
+    const map = this.#map;
+    if (!map) return;
+    const visibility = this.#chartCursor !== null ? "visible" : "none";
+    for (const layer of [LAYER.chartCursor, `${LAYER.chartCursor}-dot`]) {
+      if (map.getLayer(layer)) {
+        map.setLayoutProperty(layer, "visibility", visibility);
+      }
+    }
+    const source = map.getSource(SOURCE.chartCursor) as
+      | GeoJSONSource
+      | undefined;
+    source?.setData(chartCursorCollection(this.#chartCursor));
   }
 
   #applySelection(): void {

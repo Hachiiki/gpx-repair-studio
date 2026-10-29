@@ -326,4 +326,5 @@ export const reconstruction = {
   "router.reason.parse": "That does not parse as a URL — check the host name.",
 
   "elevation.privacyNote.openMeteo": "The coordinates of your reconstructed points are sent to api.open-meteo.com (Open-Meteo Elevation API) in the request URL. Only reconstructed points are sent — never the full file, never the recorded route. The service logs requests like any web server.",
+  "elevation.privacyNote.openTopoData": "The coordinates of your reconstructed points are sent to api.opentopodata.org (OpenTopoData public API) in the request URL. Only reconstructed points are sent — never the full file, never the recorded route. The service logs requests like any web server.",
 } as const;

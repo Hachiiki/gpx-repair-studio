@@ -244,6 +244,86 @@ export const create = {
     "Place at least two points to finish the route",
 
   /*
+   * Pace plan (route-draw-panel.tsx, Task 73) — Step 2's pace
+   * stretches: mark a span of points, set its pace.
+   */
+  /** The draw panel group's label. */
+  "create.pace.group": "Pace plan",
+  /** The group's hint. */
+  "create.pace.hint":
+    "Select a stretch of points (click one, Shift+click another), then set the pace it should run at. Everything unplanned keeps your average pace.",
+  /** The apply button (plan the selected stretch). */
+  "create.pace.applyButton": "Set pace",
+  /** The apply button while editing an existing stretch. */
+  "create.pace.updateButton": "Update",
+  /** Cancel an edit (back to planning the selection). */
+  "create.pace.cancelEdit": "Cancel",
+  /** The pace entry's validation error. */
+  "create.pace.error": "Enter a pace like 5:30 — minutes and seconds (0–59).",
+  /** No plannable selection yet. */
+  "create.pace.needStretch":
+    "Select a continuous stretch of at least two points to plan its pace.",
+  /** The stretch the Apply will target. */
+  "create.pace.selectionReady": "Will plan points {from}–{to} · {distance}",
+  /** One planned stretch's span. */
+  "create.pace.segmentSpan": "Points {from}–{to}",
+  /** Edit one stretch's pace (a11y). */
+  "create.pace.editA11y": "Edit the pace of points {from}–{to}",
+  /** Remove one stretch's plan (a11y). */
+  "create.pace.deleteA11y": "Remove the planned pace of points {from}–{to}",
+  /** The plan's coverage line. */
+  "create.pace.coverage": "Planned: {count} stretches · {planned} of the route",
+
+  /*
+   * PacePreviewCard (pace-preview-card.tsx, Task 73) — the review's
+   * Strava-style pace preview.
+   */
+  /** Card heading. */
+  "create.pacePreview.title": "Pace preview",
+  /** Card blurb. */
+  "create.pacePreview.blurb":
+    "How the file's pace will read — the split bars above, the pace line over elevation below.",
+  /** The readout's idle hint. */
+  "create.pacePreview.readoutHint": "Hover or arrow-key the graph — the map follows.",
+  /** The readout with elevation. */
+  "create.pacePreview.readout": "{distance} · {pace} · {ele}",
+  /** The readout without elevation. */
+  "create.pacePreview.readoutNoEle": "{distance} · {pace}",
+  /** The splits SVG's label. */
+  "create.pacePreview.splitsA11y": "Splits bar chart: {count} splits, average {avg}",
+  /** The graph SVG's label. */
+  "create.pacePreview.graphA11y": "Pace over distance, {min} to {max}{cursor}",
+  /** Legend: the pace line. */
+  "create.pacePreview.legendPace": "Pace",
+  /** Legend: the elevation backdrop. */
+  "create.pacePreview.legendEle": "Elevation",
+  /** Legend: the average reference line. */
+  "create.pacePreview.legendAvg": "Average {pace} /{unit}",
+  /** The clamping warning (paces scaled to keep the total). */
+  "create.pacePreview.clampedNote":
+    "Your planned paces fall outside a plausible window around the recorded pace — they were scaled to keep the recorded total time.",
+  /** The total-preservation note. */
+  "create.pacePreview.totalNote":
+    "Total time stays {duration} — the plan shapes the pace, never the sum.",
+  /** The plan's coverage note. */
+  "create.pacePreview.coverageNote": "{planned} planned; the rest runs at {remainder}.",
+  /** The model disclosure (with elevation). */
+  "create.pacePreview.modelNote":
+    "Pace varies with your plan and the terrain (Minetti grade model); the curve is lightly smoothed for reading.",
+  /** The no-elevation hint. */
+  "create.pacePreview.noEleNote":
+    "Estimate the elevation above to fold the terrain into the pace.",
+  /** The map-sync note. */
+  "create.pacePreview.mapNote": "The dot on the map follows the graph's cursor.",
+  /** The table twin's toggles. */
+  "create.pacePreview.showTable": "Show splits table",
+  "create.pacePreview.hideTable": "Hide splits table",
+  /** The table's columns. */
+  "create.pacePreview.colSplit": "Split",
+  "create.pacePreview.colPace": "Pace",
+  "create.pacePreview.colEle": "Elevation",
+
+  /*
    * RouteReviewCard (route-review-card.tsx) — Step 3: reconcile,
    * summarize, export.
    */

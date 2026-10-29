@@ -391,6 +391,9 @@ export function useSessionRecovery(): SessionRecoveryController {
         spacingM: store.spacingM,
         matchDistance: store.matchDistance,
         phase: store.phase === "review" ? "review" : "draw",
+        // Task 73 — the pace plan is work; it rides the autosave.
+        paceSegments: store.paceSegments,
+        paceSeq: store.paceSeq,
       },
       savedAt,
     );

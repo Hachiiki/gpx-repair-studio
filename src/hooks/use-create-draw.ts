@@ -22,6 +22,11 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { MAX_VERTICES } from "@/features/reconstruction/drawModel";
 import {
+  contiguousSelectionSpan,
+  type PaceSegment,
+} from "@/features/create/pace";
+import { resamplePath } from "@/features/reconstruction/resample";
+import {
   joinStyledChain,
   routableOf,
   type ChainNode,
@@ -113,6 +118,32 @@ export interface CreateDrawBinding {
   /** Paste the clipboard at the chain's end (one undo step per paste). */
   pasteClipboard: () => void;
 
+  // -- pace plan (Task 73: stretches at a stated pace) ----------------------
+  /** The planned pace stretches, in route order. */
+  paceSegments: readonly PaceSegment[];
+  /** Each segment's span distance on the drawn chain (meters, id → m). */
+  paceSegmentDistances: ReadonlyMap<string, number>;
+  /** The chain index of each segment's endpoints (id → [from, to]). */
+  paceSegmentIndices: ReadonlyMap<string, [number, number]>;
+  /** The selection as a plannable contiguous run (null when scattered/single). */
+  selectionPaceSpan: {
+    fromVertexId: VertexId;
+    toVertexId: VertexId;
+    fromIndex: number;
+    toIndex: number;
+    distanceM: number;
+  } | null;
+  /** Plan (or re-plan) the selected stretch's pace. */
+  applyPaceSegment: (
+    fromVertexId: VertexId,
+    toVertexId: VertexId,
+    paceMsPerMeter: number,
+  ) => void;
+  /** Change one segment's stated pace (span untouched). */
+  updatePaceSegment: (id: string, paceMsPerMeter: number) => void;
+  /** Remove one segment. */
+  removePaceSegment: (id: string) => void;
+
   /** Finish drawing → the review phase (disabled below 2 vertices). */
   finishRoute: () => void;
   canFinish: boolean;
@@ -130,6 +161,8 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
   // Task 72 — the copy/paste selection + clipboard.
   const selection = useCreateStore((s) => s.selection);
   const clipboard = useCreateStore((s) => s.clipboard);
+  // Task 73 — the pace plan.
+  const paceSegments = useCreateStore((s) => s.paceSegments);
   // §EE 17.2 — the consent state re-runs the leg effect on grant.
   const routerConsent = useUiStore((s) => s.routerConsent);
   const spacingM = useCreateStore((s) => s.spacingM);
@@ -407,6 +440,64 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     return polylineLengthMeters(makeJoins(roadLegs).chainJoin(nodes).points);
   }, [vertices, roadLegs, makeJoins]);
 
+  // Task 73 — every vertex's cumulative distance along the drawn chain
+  // (the same pure resample the final track builds on: road legs and
+  // curve splines included, vertices kept exactly). The pace plan's
+  // spans and distances hang off this one map, so the panel's numbers
+  // and the review's timeline can never disagree about where a stretch
+  // starts or ends.
+  const vertexCumM = useMemo(() => {
+    const cum = new Map<VertexId, number>();
+    if (vertices.length < 2) return cum;
+    const path = resamplePath(
+      null,
+      vertices,
+      null,
+      spacingM,
+      roadLegs,
+      useCreateStore.getState().reconstruction.pathStyle ?? "off",
+    );
+    for (const point of path) {
+      if (point.vertexId !== undefined && !cum.has(point.vertexId)) {
+        cum.set(point.vertexId, point.cumDistanceM);
+      }
+    }
+    return cum;
+  }, [vertices, roadLegs, spacingM]);
+
+  // The segments' span distances + chain indices (route order views).
+  const paceSegmentDistances = useMemo(() => {
+    const distances = new Map<string, number>();
+    for (const segment of paceSegments) {
+      const fromM = vertexCumM.get(segment.fromVertexId);
+      const toM = vertexCumM.get(segment.toVertexId);
+      if (fromM !== undefined && toM !== undefined && toM > fromM) {
+        distances.set(segment.id, toM - fromM);
+      }
+    }
+    return distances;
+  }, [paceSegments, vertexCumM]);
+
+  const paceSegmentIndices = useMemo(() => {
+    const indices = new Map<string, [number, number]>();
+    paceSegments.forEach((segment) => {
+      const from = vertices.findIndex((v) => v.id === segment.fromVertexId);
+      const to = vertices.findIndex((v) => v.id === segment.toVertexId);
+      if (from !== -1 && to !== -1 && from < to) indices.set(segment.id, [from, to]);
+    });
+    return indices;
+  }, [paceSegments, vertices]);
+
+  // The selection as a plannable run — the same contiguous rule the
+  // pace input enforces (scattered selections plan nothing).
+  const selectionPaceSpan = useMemo(() => {
+    const span = contiguousSelectionSpan(vertices, selection);
+    if (!span) return null;
+    const fromM = vertexCumM.get(span.fromVertexId) ?? 0;
+    const toM = vertexCumM.get(span.toVertexId) ?? 0;
+    return { ...span, distanceM: Math.max(0, toM - fromM) };
+  }, [vertices, selection, vertexCumM]);
+
   // -- intents -------------------------------------------------------------------
 
   const setPointerMode = useCallback((mode: PointerMode) => {
@@ -455,6 +546,21 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
   }, []);
   const pasteClipboard = useCallback(() => {
     useCreateStore.getState().pasteClipboard();
+  }, []);
+
+  const applyPaceSegment = useCallback(
+    (fromVertexId: VertexId, toVertexId: VertexId, paceMsPerMeter: number) => {
+      useCreateStore
+        .getState()
+        .applyPaceSegment(fromVertexId, toVertexId, paceMsPerMeter);
+    },
+    [],
+  );
+  const updatePaceSegment = useCallback((id: string, paceMsPerMeter: number) => {
+    useCreateStore.getState().updatePaceSegment(id, paceMsPerMeter);
+  }, []);
+  const removePaceSegment = useCallback((id: string) => {
+    useCreateStore.getState().removePaceSegment(id);
   }, []);
 
   const finishRoute = useCallback(() => {
@@ -506,6 +612,13 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     clearSelection,
     copySelection,
     pasteClipboard,
+    paceSegments,
+    paceSegmentDistances,
+    paceSegmentIndices,
+    selectionPaceSpan,
+    applyPaceSegment,
+    updatePaceSegment,
+    removePaceSegment,
     finishRoute,
     canFinish: vertices.length >= 2 && (distanceM ?? 0) > 0,
   };

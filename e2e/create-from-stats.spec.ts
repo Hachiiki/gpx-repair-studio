@@ -52,6 +52,8 @@ interface BridgeState {
   moving: boolean;
   drawSession: DrawSessionState | null;
   reconstructionLineCount: number;
+  /** Task 73 — the pace chart's map cursor (the hover sync). */
+  chartCursor: { visible: boolean; position: { lat: number; lon: number } | null };
 }
 
 async function bridge(page: Page): Promise<BridgeState | null> {
@@ -615,6 +617,142 @@ test.describe("create from activity stats", () => {
     await expect(page.getByTestId("create-selection-count")).toContainText(
       "0 of 8",
     );
+  });
+
+  test("pace plan: select a stretch, set its pace — an interactive preview and a file that follows it", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByTestId("landing-mode-create").click();
+    await fillStats(page);
+    await page.getByTestId("begin-drawing-button").click();
+    await pollBridge(
+      page,
+      (s) => s.drawSession !== null && s.drawSession.drawMode === true,
+    );
+    await drawRoute(page, ROUTE_POINTS);
+
+    // -- The pace plan needs a stretch first (the honest empty state) ----
+    await expect(page.getByTestId("pace-plan-group")).toBeVisible();
+    await expect(page.getByTestId("pace-apply-button")).toBeDisabled();
+    await expect(page.getByTestId("pace-selection-status")).toContainText(
+      /Select a continuous stretch/,
+    );
+
+    // Select points 1–2 in the vertex list (the list's checkboxes).
+    const rows = page.getByTestId("create-vertex-row");
+    await expect(rows).toHaveCount(3);
+    await rows.nth(0).getByTestId("create-vertex-select").click();
+    await rows.nth(1).getByTestId("create-vertex-select").click();
+    await expect(page.getByTestId("pace-selection-status")).toContainText(
+      "Will plan points 1–2",
+    );
+    // A stretch without a pace still cannot be planned.
+    await expect(page.getByTestId("pace-apply-button")).toBeDisabled();
+
+    // 4:00 /km for the first leg — the fast opening kilometre.
+    await page.getByTestId("pace-minutes-input").fill("4");
+    await page.getByTestId("pace-seconds-input").fill("0");
+    await expect(page.getByTestId("pace-apply-button")).toBeEnabled();
+    await page.getByTestId("pace-apply-button").click();
+
+    // The planned stretch lists its span, distance, and pace.
+    const segmentRow = page.getByTestId("pace-segment-row");
+    await expect(segmentRow).toHaveCount(1);
+    await expect(segmentRow).toContainText("Points 1–2");
+    await expect(segmentRow).toContainText(/1\.1\d km/);
+    await expect(segmentRow).toContainText("4:00");
+    await expect(page.getByTestId("pace-coverage-status")).toContainText(
+      /Planned: 1 stretch/,
+    );
+
+    // -- Finish → review (the 14% warning fires; keep the drawn distance).
+    await page.getByTestId("finish-route-button").click();
+    const dialog = page.getByTestId("reconcile-distance-dialog");
+    await expect(dialog).toBeVisible();
+    await page.getByTestId("use-drawn-distance-button").click();
+    await expect(page.getByTestId("route-review-card")).toBeVisible();
+
+    // -- The pace preview: bars above, the dual-axis graph below ---------
+    await expect(page.getByTestId("pace-preview-card")).toBeVisible();
+    await expect(page.getByTestId("pace-splits-svg")).toBeVisible();
+    const graph = page.getByTestId("pace-graph-svg");
+    await expect(graph).toBeVisible();
+    // The honesty note pins the total to the recorded time.
+    await expect(page.getByTestId("pace-preview-notes")).toContainText(
+      "32:35",
+    );
+
+    // 4.51 km → 5 splits (the last one partial).
+    const bars = page.getByTestId("pace-split-bar");
+    await expect(bars).toHaveCount(5);
+    // The bars are NOT one flat wall: the planned first split is faster
+    // (a shorter bar) than the slow remainder's splits.
+    const heights = await bars.evaluateAll((elements) =>
+      elements.map((el) => Number(el.getAttribute("height"))),
+    );
+    expect(heights[0]).toBeLessThan(heights[heights.length - 1]);
+    expect(new Set(heights.map((h) => Math.round(h))).size).toBeGreaterThan(1);
+
+    // The readout + the map sync: hovering the graph speaks the spot and
+    // paints the chart cursor dot on the map.
+    const readout = page.getByTestId("pace-preview-readout");
+    await graph.hover();
+    await expect(readout).toContainText("/km");
+    await pollBridge(page, (s) => s.chartCursor?.visible === true);
+    // Keyboard: ArrowLeft/Right step the sample, Escape clears (and the
+    // map dot goes with it).
+    await graph.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(readout).toContainText("/km");
+    await page.keyboard.press("Escape");
+    await expect(readout).toContainText(/Hover or arrow-key/);
+    await pollBridge(page, (s) => s.chartCursor?.visible === false);
+
+    // The table twin carries the same series.
+    await page.getByTestId("pace-table-toggle").click();
+    await expect(page.getByTestId("pace-splits-table")).toBeVisible();
+    await expect(page.getByTestId("pace-splits-table")).toContainText(
+      "4:0",
+    );
+
+    // -- The file follows the plan: the first ~1.1 km runs the stated
+    //    pace, the remainder absorbs, the total stays EXACTLY 32:35.
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("export-gpx-button").click(),
+    ]);
+    const xml = readFileSync(await download.path(), "utf8");
+    const { trkpts, times } = parseDownload(xml);
+    expectValidGpx(xml, trkpts, times);
+
+    // Walk the file's own geometry for the per-stretch arithmetic.
+    let cumulative = 0;
+    const cumAt: number[] = [0];
+    for (let i = 1; i < trkpts.length; i += 1) {
+      cumulative += haversineM(
+        { lat: Number(trkpts[i - 1][1]), lon: Number(trkpts[i - 1][2]) },
+        { lat: Number(trkpts[i][1]), lon: Number(trkpts[i][2]) },
+      );
+      cumAt.push(cumulative);
+    }
+    const timeAt = (meters: number): number => {
+      let index = cumAt.findIndex((cum) => cum >= meters);
+      if (index === -1) index = cumAt.length - 1;
+      return times[index];
+    };
+    const start = Date.parse("2026-09-20T05:30:00Z");
+    // The planned stretch (first ~1.1 km): ~4:00 /km (±10%). The file's
+    // times are epoch ms — the arithmetic works in seconds.
+    const plannedPace = (timeAt(1000) - start) / 1000; // s per km
+    expect(plannedPace).toBeGreaterThan(240 * 0.9);
+    expect(plannedPace).toBeLessThan(240 * 1.1);
+    // The remainder: slower than the recorded 7:14 average.
+    const remainderPace = (timeAt(4400) - timeAt(1500)) / 1000 / 2.9;
+    expect(remainderPace).toBeGreaterThan(7 * 60 + 14);
+    expect(remainderPace).toBeLessThan(9 * 60);
+    // The exported methods say what the stamps are.
+    expect(xml).toContain("pace-estimated");
   });
 
   test("the header's Share: warning first, then the GPX download + the share card", async ({

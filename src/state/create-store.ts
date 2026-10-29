@@ -50,6 +50,11 @@ import {
   type ActivityStats,
   type ConsistencyNotice,
 } from "@/features/create/stats";
+import {
+  makeRoomForSegment,
+  prunePaceSegments,
+  type PaceSegment,
+} from "@/features/create/pace";
 import { CREATE_ROUTE_ID } from "@/features/create/track";
 import type { CreateSessionHydration } from "@/lib/storage/session-record";
 import type {
@@ -200,6 +205,27 @@ interface CreateState {
    */
   pasteClipboard: () => void;
 
+  // -- pace plan (Task 73: stretches at a stated pace) --------------------
+  /** The planned pace stretches (route order, non-overlapping after make-room). */
+  paceSegments: readonly PaceSegment[];
+  /** Monotonic pace-segment id allocator (never reused within a session). */
+  paceSeq: number;
+  /**
+   * Plan (or re-plan) the pace of the inclusive span between two drawn
+   * points — the paint-over rule absorbs/trims any overlapping segment,
+   * and the LAST assignment wins where spans overlap. A no-op when the
+   * span is not a valid earlier→later pair or the pace is not positive.
+   */
+  applyPaceSegment: (
+    fromVertexId: VertexId,
+    toVertexId: VertexId,
+    paceMsPerMeter: number,
+  ) => void;
+  /** Change one segment's stated pace (span untouched). */
+  updatePaceSegment: (id: string, paceMsPerMeter: number) => void;
+  /** Remove one segment (the unplanned stretch returns to the remainder). */
+  removePaceSegment: (id: string) => void;
+
   /**
    * Commit one freehand stroke (Curve pen, user pass 48): append the
    * processed nodes as ONE `set-vertices` command — a single undo step
@@ -235,6 +261,11 @@ const INITIAL = {
   // in place; every change allocates a fresh Set/array).
   selection: new Set<VertexId>() as ReadonlySet<VertexId>,
   clipboard: [] as readonly DrawClipboardPoint[],
+  // Task 73 — the pace plan is WORK like the route itself (it survives
+  // reloads through the session record); the allocator follows the
+  // vertex sequence's never-reuse contract.
+  paceSegments: [] as readonly PaceSegment[],
+  paceSeq: 0,
 };
 
 export const useCreateStore = create<CreateState>()((set, get) => ({
@@ -304,6 +335,15 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       // a restored route reopens unselected with an empty clipboard.
       selection: new Set<VertexId>() as ReadonlySet<VertexId>,
       clipboard: [] as readonly DrawClipboardPoint[],
+      // Task 73 — a restored route keeps its pace plan; the payload's
+      // segments were validated at read time and are pruned against the
+      // restored chain here (stale ids can never claim spans the chain
+      // does not have).
+      paceSegments: prunePaceSegments(
+        payload.reconstruction.vertices,
+        payload.paceSegments,
+      ),
+      paceSeq: payload.paceSeq,
     })),
 
   setView: (view) => set({ view }),
@@ -417,10 +457,19 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       command,
     );
     // A deleted vertex cannot stay selected (the map and the list both
-    // prune their views through the store's own set).
+    // prune their views through the store's own set) — and no pace
+    // segment may keep a vanished endpoint.
     const selection = new Set(state.selection);
     selection.delete(vertexId);
-    set({ reconstruction: next.reconstruction, history: next.history, selection });
+    set({
+      reconstruction: next.reconstruction,
+      history: next.history,
+      selection,
+      paceSegments: prunePaceSegments(
+        next.reconstruction.vertices,
+        state.paceSegments,
+      ),
+    });
   },
 
   commitStroke: (points) => {
@@ -477,11 +526,13 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       { reconstruction: state.reconstruction, history: state.history },
       command,
     );
-    // Every selected id is gone — the selection empties with the chain.
+    // Every selected id is gone — the selection empties with the chain,
+    // and with it the pace plan (a chain of zero points has no spans).
     set({
       reconstruction: next.reconstruction,
       history: next.history,
       selection: new Set<VertexId>(),
+      paceSegments: [],
     });
   },
 
@@ -495,6 +546,10 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       reconstruction: next.reconstruction,
       history: next.history,
       selection: pruneSelection(next.reconstruction.vertices, state.selection),
+      paceSegments: prunePaceSegments(
+        next.reconstruction.vertices,
+        state.paceSegments,
+      ),
     });
   },
 
@@ -508,8 +563,65 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       reconstruction: next.reconstruction,
       history: next.history,
       selection: pruneSelection(next.reconstruction.vertices, state.selection),
+      paceSegments: prunePaceSegments(
+        next.reconstruction.vertices,
+        state.paceSegments,
+      ),
     });
   },
+
+  // -- pace plan (Task 73) ---------------------------------------------
+
+  applyPaceSegment: (fromVertexId, toVertexId, paceMsPerMeter) =>
+    set((state) => {
+      if (!Number.isFinite(paceMsPerMeter) || paceMsPerMeter <= 0) return state;
+      const vertices = state.reconstruction.vertices;
+      const from = vertices.findIndex((v) => v.id === fromVertexId);
+      const to = vertices.findIndex((v) => v.id === toVertexId);
+      if (from === -1 || to === -1 || from >= to) return state;
+      const seq = state.paceSeq + 1;
+      const segment: PaceSegment = {
+        id: `ps${seq}`,
+        fromVertexId,
+        toVertexId,
+        paceMsPerMeter,
+      };
+      return {
+        paceSeq: seq,
+        paceSegments: [
+          ...makeRoomForSegment(
+            state.paceSegments,
+            fromVertexId,
+            toVertexId,
+            vertices,
+          ),
+          segment,
+        ],
+      };
+    }),
+
+  updatePaceSegment: (id, paceMsPerMeter) =>
+    set((state) => {
+      if (!Number.isFinite(paceMsPerMeter) || paceMsPerMeter <= 0) return state;
+      let changed = false;
+      const paceSegments = state.paceSegments.map((segment) => {
+        if (segment.id !== id) return segment;
+        if (segment.paceMsPerMeter === paceMsPerMeter) return segment;
+        changed = true;
+        return { ...segment, paceMsPerMeter };
+      });
+      return changed ? { paceSegments } : state;
+    }),
+
+  removePaceSegment: (id) =>
+    set((state) => {
+      const paceSegments = state.paceSegments.filter(
+        (segment) => segment.id !== id,
+      );
+      return paceSegments.length === state.paceSegments.length
+        ? state
+        : { paceSegments };
+    }),
 
   // -- selection + clipboard (Task 72) ----------------------------------
 

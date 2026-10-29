@@ -137,6 +137,8 @@ describe("create store hydrate", () => {
         pathStyle: "foot",
       },
       roadLegs: [],
+      paceSegments: [],
+      paceSeq: 0,
       spacingM: 25,
       matchDistance: true,
       phase: "draw",

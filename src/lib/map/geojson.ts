@@ -391,6 +391,31 @@ export function pickAnchorCollection(
   };
 }
 
+/**
+ * The pace chart's cursor (Task 73): the route position the preview
+ * graph is pointing at. A single informational marker — never an
+ * interaction target.
+ */
+export function chartCursorCollection(
+  position: { lat: number; lon: number } | null,
+): GeoJsonFeatureCollection<GeoJsonPointFeature<{ cursor: true }>> {
+  return {
+    type: "FeatureCollection",
+    features: position
+      ? [
+          {
+            type: "Feature" as const,
+            properties: { cursor: true },
+            geometry: {
+              type: "Point" as const,
+              coordinates: [position.lon, position.lat],
+            },
+          },
+        ]
+      : [],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Heatmap (Phase 25 — the whole library's density field)
 // ---------------------------------------------------------------------------

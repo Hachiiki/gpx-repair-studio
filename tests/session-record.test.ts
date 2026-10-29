@@ -295,6 +295,8 @@ describe("create session round-trip", () => {
         spacingM: 25,
         matchDistance: true,
         phase: "review",
+        paceSegments: [],
+        paceSeq: 0,
       },
       456,
     );
@@ -382,6 +384,8 @@ describe("readSessionRecord validation", () => {
         spacingM: 25,
         matchDistance: false,
         phase: "draw",
+        paceSegments: [],
+        paceSeq: 0,
       },
       1,
     );
@@ -458,6 +462,8 @@ describe("describeSessionRecord", () => {
           spacingM: 25,
           matchDistance: false,
           phase: "draw",
+          paceSegments: [],
+          paceSeq: 0,
         },
         1,
       ),

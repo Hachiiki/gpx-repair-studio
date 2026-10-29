@@ -29,6 +29,7 @@ import {
   createTrackFileName,
   type CreateTrack,
 } from "@/features/create/track";
+import { pacedTimesForFile } from "@/features/create/pace";
 import { exportGpxGenerated } from "@/features/gpx/exportGpx";
 import {
   createPointElevation,
@@ -92,13 +93,27 @@ export function useCreateExport(): CreateReview | null {
     // judged against the CURRENT basis — or nothing (the honest rule: a
     // stale estimate never exports).
     const elevation = readFreshCreateElevation();
+    // Task 73 — the click-time PACE join: the store's pace plan read
+    // fresh (the same rule the elevation follows), so a plan edited
+    // between the render and the click can never smuggle stale times
+    // into the file. Without a plan or an elevation estimate this is
+    // the track's own distance-proportional times, byte-identical.
+    const pacedTimes = pacedTimesForFile(
+      track,
+      stats.durationMs,
+      stats.startMs,
+      useCreateStore.getState().paceSegments,
+      elevation?.samples ?? null,
+    );
+    const planned = useCreateStore.getState().paceSegments.length > 0;
     const points = track.path.map((point, index) => {
       const ele = createPointElevation(elevation, point.cumDistanceM);
+      const paced = pacedTimes[index];
       return {
         lat: point.lat,
         lon: point.lon,
-        timeMs: track.times[index]?.value ?? stats.startMs,
-        timeMethod: track.times[index]?.method ?? "distance-proportional",
+        timeMs: paced?.value ?? stats.startMs,
+        timeMethod: paced?.method ?? "distance-proportional",
         ...(ele !== undefined ? { ele } : {}),
       };
     });
@@ -107,6 +122,10 @@ export function useCreateExport(): CreateReview | null {
       "statistics recorded by the watch (distance, pace, time). " +
       "Timestamps are estimated from the recorded total time; no GPS " +
       "was recorded. " +
+      (planned
+        ? "Timestamps follow the planned segment paces and the terrain " +
+          "(Minetti grade model); the recorded total time is preserved. "
+        : "") +
       (elevation
         ? `Elevation of generated points estimated from ${elevation.providerName}.`
         : "No elevation is included.");

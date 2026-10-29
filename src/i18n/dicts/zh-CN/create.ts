@@ -141,6 +141,47 @@ export const zhCreate: Record<string, string> = {
   "create.drawPanel.finishTitle": "结束绘制并查看结果",
   "create.drawPanel.finishDisabledTitle": "至少放置两个点才能完成路线",
 
+  // Pace plan (route-draw-panel.tsx, Task 73)
+  "create.pace.group": "配速计划",
+  "create.pace.hint":
+    "选择一段点位（点一个，再按住 Shift 点另一个），然后设置这段的配速。未计划的路段保持你的平均配速。",
+  "create.pace.applyButton": "设定配速",
+  "create.pace.updateButton": "更新",
+  "create.pace.cancelEdit": "取消",
+  "create.pace.error": "请输入类似 5:30 的配速 — 分钟和秒（0–59）。",
+  "create.pace.needStretch": "请先选择一段连续的点位（至少两个）来计划配速。",
+  "create.pace.selectionReady": "将应用于点位 {from}–{to} · {distance}",
+  "create.pace.segmentSpan": "点位 {from}–{to}",
+  "create.pace.editA11y": "编辑点位 {from}–{to} 的配速",
+  "create.pace.deleteA11y": "移除点位 {from}–{to} 的计划配速",
+  "create.pace.coverage": "已计划 {count} 段 · 共 {planned}",
+
+  // PacePreviewCard (pace-preview-card.tsx, Task 73)
+  "create.pacePreview.title": "配速预览",
+  "create.pacePreview.blurb":
+    "文件的配速将呈现的样子 — 上方是分段柱状图，下方是叠加海拔的配速曲线。",
+  "create.pacePreview.readoutHint": "悬停或用方向键浏览曲线 — 地图会同步跟随。",
+  "create.pacePreview.readout": "{distance} · {pace} · {ele}",
+  "create.pacePreview.readoutNoEle": "{distance} · {pace}",
+  "create.pacePreview.splitsA11y": "分段柱状图：{count} 段，平均 {avg}",
+  "create.pacePreview.graphA11y": "随距离变化的配速，{min} 到 {max}{cursor}",
+  "create.pacePreview.legendPace": "配速",
+  "create.pacePreview.legendEle": "海拔",
+  "create.pacePreview.legendAvg": "平均 {pace} /{unit}",
+  "create.pacePreview.clampedNote":
+    "你计划的配速超出了记录配速的合理区间 — 已按比例缩放以保持记录的总时间。",
+  "create.pacePreview.totalNote": "总时间保持 {duration} — 计划只改变配速分布，不改变总量。",
+  "create.pacePreview.coverageNote": "已计划 {planned}；其余路段按 {remainder}。",
+  "create.pacePreview.modelNote":
+    "配速随计划和地形变化（Minetti 坡度模型）；曲线经轻度平滑便于阅读。",
+  "create.pacePreview.noEleNote": "在上方估算海拔后，地形会参与配速计算。",
+  "create.pacePreview.mapNote": "地图上的圆点跟随曲线光标。",
+  "create.pacePreview.showTable": "显示分段表",
+  "create.pacePreview.hideTable": "隐藏分段表",
+  "create.pacePreview.colSplit": "分段",
+  "create.pacePreview.colPace": "配速",
+  "create.pacePreview.colEle": "海拔",
+
   // RouteReviewCard
   "create.review.title": "查看与导出",
   "create.review.blurb":

@@ -164,6 +164,9 @@ export function captureCurrentSession(): CurrentSessionCapture | null {
           spacingM: create.spacingM,
           matchDistance: create.matchDistance,
           phase: create.phase === "review" ? "review" : "draw",
+          // Task 73 — the pace plan is work; it rides every capture.
+          paceSegments: create.paceSegments,
+          paceSeq: create.paceSeq,
         },
         Date.now(),
       ),
