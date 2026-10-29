@@ -558,6 +558,9 @@ describe("create store pace plan", () => {
         phase: "draw",
         paceSegments: useCreateStore.getState().paceSegments,
         paceSeq: useCreateStore.getState().paceSeq,
+        wobbleSegments: [],
+        wobbleSeq: 0,
+        noiseSeed: null,
       },
       1,
     );

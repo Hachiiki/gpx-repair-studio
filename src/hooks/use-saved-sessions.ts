@@ -167,6 +167,10 @@ export function captureCurrentSession(): CurrentSessionCapture | null {
           // Task 73 — the pace plan is work; it rides every capture.
           paceSegments: create.paceSegments,
           paceSeq: create.paceSeq,
+          // Task 74 — the wobble plan + its altimeter seed ride too.
+          wobbleSegments: create.wobbleSegments,
+          wobbleSeq: create.wobbleSeq,
+          noiseSeed: create.noiseSeed,
         },
         Date.now(),
       ),

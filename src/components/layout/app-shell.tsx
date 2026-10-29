@@ -119,6 +119,8 @@ import { useSessionRecovery } from "@/hooks/use-session-recovery";
 import { useOnboardingTour } from "@/hooks/use-onboarding-tour";
 import { useTheme } from "@/hooks/use-theme";
 import { RestorePrompt } from "@/components/layout/restore-prompt";
+import { SessionFinishedBanner } from "@/components/shared/session-finished-banner";
+import { useSessionFinish } from "@/hooks/use-session-finish";
 import { OnboardingTour } from "@/components/layout/onboarding-tour";
 import { InfoDialog, type InfoPane } from "@/components/layout/info-dialog";
 import { HelpDialog } from "@/components/layout/help-dialog";
@@ -356,6 +358,12 @@ export function AppShell() {
    * the only always-alive component — subscriptions live for the page.
    */
   const sessionRecovery = useSessionRecovery();
+  /*
+   * Task 75 — the repair workspace's finished-on-export controller (the
+   * banner mounts in the repair tools slot below; the other sections
+   * own theirs in their studios).
+   */
+  const finish = useSessionFinish("repair");
 
   /*
    * Phase 11 — the first-run onboarding tour (4 steps, once per
@@ -876,6 +884,8 @@ export function AppShell() {
             }
             tools={
               <>
+                {/* Task 75 — the export's finished state: save / fresh / home. */}
+                <SessionFinishedBanner finish={finish} />
                 {/*
                  * Phase 13 — the deep-validation card leads the tools:
                  * find problems first, then repair gaps, then export.

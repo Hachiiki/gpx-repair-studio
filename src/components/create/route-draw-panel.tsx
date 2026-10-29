@@ -37,9 +37,10 @@ import {
   Gauge,
   Pencil,
   Repeat,
+  Waves,
   X,
 } from "lucide-react";
-import type { CreateDrawBinding } from "@/hooks/use-create-draw";
+import type { CreateDrawBinding, WobbleSegment } from "@/hooks/use-create-draw";
 import type { ActivityStats } from "@/hooks/use-create-session";
 import { RECONCILE_NOTICE_RATIO } from "@/hooks/use-create-session";
 import { useI18n } from "@/hooks/use-i18n";
@@ -320,6 +321,18 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
     );
     // The inputs keep their values — planning several stretches at
     // the same pace (interval reps) is one selection + one click each.
+  };
+
+  // Task 74 — the human-like GPS plan's entry state: the intensity the
+  // Apply button will use (the chips set it; re-applying over the same
+  // span re-rolls the wobble at the chosen strength).
+  const [wobbleIntensity, setWobbleIntensity] =
+    useState<WobbleSegment["intensity"]>("moderate");
+
+  const onApplyWobble = () => {
+    const span = draw.selectionPaceSpan;
+    if (!span) return;
+    draw.applyWobble(span.fromVertexId, span.toVertexId, wobbleIntensity);
   };
 
   if (!draw.active) return null;
@@ -899,6 +912,152 @@ export function RouteDrawPanel({ draw, stats, paceUnit }: RouteDrawPanelProps) {
                 count: draw.paceSegments.length,
                 planned: formatDistanceForUnit(
                   [...draw.paceSegmentDistances.values()].reduce(
+                    (sum, meters) => sum + meters,
+                    0,
+                  ),
+                  paceUnit,
+                ),
+              })}
+            </p>
+          )}
+        </div>
+
+        {/* Task 74 — the human-like GPS plan: wobble the selected
+            stretch so the file reads like a watch recording, not a
+            vector editor. */}
+        <div
+          className="grid gap-1.5 rounded-md border border-ink/15 bg-ink/[0.02] px-2.5 py-2"
+          data-testid="wobble-plan-group"
+          role="group"
+          aria-label={t("create.wobble.group")}
+        >
+          <p className="flex items-center gap-1.5 text-xs font-bold tracking-[0.01em]">
+            <Waves className="size-3.5 text-signal" aria-hidden="true" />
+            {t("create.wobble.group")}
+            <span className="h-px flex-1 bg-ink/10" aria-hidden="true" />
+          </p>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            {t("create.wobble.hint")}
+          </p>
+
+          {/* The intensity chips + the Apply button. */}
+          <div
+            className="flex flex-wrap items-center gap-1.5"
+            role="group"
+            aria-label={t("create.wobble.intensityA11y")}
+          >
+            {(["subtle", "moderate", "strong"] as const).map((intensity) => (
+              <button
+                key={intensity}
+                type="button"
+                aria-pressed={wobbleIntensity === intensity}
+                data-testid={`wobble-intensity-${intensity}`}
+                className={
+                  wobbleIntensity === intensity
+                    ? "h-auto rounded-full border-[1.25px] border-inkplus bg-inkplus px-3 py-[5px] text-[12.5px] font-semibold text-paper hover:bg-inkplus hover:text-paper"
+                    : "h-auto rounded-full border-[1.25px] border-ink/25 bg-card px-3 py-[5px] text-[12.5px] font-semibold text-muted-foreground hover:bg-ink/[0.06] hover:text-ink"
+                }
+                onClick={() => setWobbleIntensity(intensity)}
+              >
+                {t(`create.wobble.intensity.${intensity}`)}
+              </button>
+            ))}
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 gap-1.5 text-[12px]"
+              data-testid="wobble-apply-button"
+              disabled={draw.selectionPaceSpan === null}
+              onClick={onApplyWobble}
+            >
+              <Check className="size-3.5" aria-hidden="true" />
+              {t("create.wobble.applyButton")}
+            </Button>
+          </div>
+
+          {/* What the Apply will target: the same contiguous run. */}
+          <p
+            className="text-[11px] leading-snug text-muted-foreground"
+            data-testid="wobble-selection-status"
+            role="status"
+          >
+            {draw.selectionPaceSpan === null
+              ? t("create.wobble.needStretch")
+              : t("create.wobble.selectionReady", {
+                  from: draw.selectionPaceSpan.fromIndex + 1,
+                  to: draw.selectionPaceSpan.toIndex + 1,
+                  distance: formatDistanceForUnit(
+                    draw.selectionPaceSpan.distanceM,
+                    paceUnit,
+                  ),
+                })}
+          </p>
+
+          {/* The wobbled stretches, route order. */}
+          {draw.wobbleSegments.length > 0 && (
+            <ul className="grid gap-0.5" data-testid="wobble-segment-list">
+              {draw.wobbleSegments.map((segment) => {
+                const indices = draw.wobbleSegmentIndices.get(segment.id);
+                const distanceM = draw.wobbleSegmentDistances.get(segment.id);
+                return (
+                  <li
+                    key={segment.id}
+                    className="flex items-center gap-2 rounded-[6px] border border-ink/10 bg-card px-2 py-1.5 text-xs"
+                    data-testid="wobble-segment-row"
+                  >
+                    <span className="grid size-[18px] shrink-0 place-items-center rounded-[4px] bg-signal/[0.12] text-[10px] font-bold text-signal">
+                      <Waves className="size-3" aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0 flex-1 leading-snug">
+                      <span className="font-semibold">
+                        {indices
+                          ? t("create.wobble.segmentSpan", {
+                              from: indices[0] + 1,
+                              to: indices[1] + 1,
+                            })
+                          : "—"}
+                      </span>{" "}
+                      <span className="tabular-nums text-muted-foreground">
+                        {distanceM !== undefined
+                          ? formatDistanceForUnit(distanceM, paceUnit)
+                          : ""}{" "}
+                        · {t(`create.wobble.intensity.${segment.intensity}`)}
+                      </span>
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="size-5 shrink-0 rounded-[4px] p-0 text-shade hover:bg-inkplus hover:text-paper"
+                      aria-label={
+                        indices
+                          ? t("create.wobble.deleteA11y", {
+                              from: indices[0] + 1,
+                              to: indices[1] + 1,
+                            })
+                          : t("create.wobble.deleteA11y", { from: 0, to: 0 })
+                      }
+                      data-testid="wobble-delete-segment"
+                      onClick={() => draw.removeWobbleSegment(segment.id)}
+                    >
+                      <X className="size-3.5" aria-hidden="true" />
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {draw.wobbleSegments.length > 0 && (
+            <p
+              className="text-[11px] leading-snug text-muted-foreground"
+              data-testid="wobble-coverage-status"
+              role="status"
+            >
+              {t("create.wobble.coverage", {
+                count: draw.wobbleSegments.length,
+                distance: formatDistanceForUnit(
+                  [...draw.wobbleSegmentDistances.values()].reduce(
                     (sum, meters) => sum + meters,
                     0,
                   ),

@@ -40,6 +40,8 @@ import {
   MapCanvas,
 } from "@/components/map/map-canvas";
 import { ExportCard } from "@/components/gpx/export-card";
+import { SessionFinishedBanner } from "@/components/shared/session-finished-banner";
+import { useSessionFinish } from "@/hooks/use-session-finish";
 import { GpxSummaryCard } from "@/components/gpx/gpx-summary-card";
 import { SegmentList } from "@/components/gpx/segment-list";
 import { ValidationReport } from "@/components/gpx/validation-report";
@@ -66,6 +68,8 @@ import { useUiStore } from "@/state/ui-store";
 export function RecoveryStudio() {
   const { t } = useI18n();
   const session = useRecoverySession();
+  // Task 75 — the finished-on-export banner's controller.
+  const finish = useSessionFinish("recovery");
   const map = useRecoveryMap(session);
   const draw = useRecoveryDraw(session, map);
   const elevation = useRecoveryElevation(session, draw);
@@ -86,6 +90,8 @@ export function RecoveryStudio() {
         }
         tools={
           <>
+            {/* Task 75 — the export's finished state: save / fresh / home. */}
+            <SessionFinishedBanner finish={finish} />
             <RecoveryGuideCard
               detectedCount={session.gapRows.length}
               recoveredCount={draw.reconstructedCount}

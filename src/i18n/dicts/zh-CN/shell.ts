@@ -26,4 +26,21 @@ export const zhShell: Record<string, string> = {
   "shell.pwa.updateBody":
     "GPX Repair Studio 的新版本已下载就绪。只有您手动重新加载后才会生效——绝不会在您背后悄悄刷新，请先完成手头的操作。",
   "shell.pwa.updateAction": "重新加载",
+
+  /**
+   * Task 75 — the finished-on-export banner (session-finished-banner.tsx):
+   * the session's three exits after a download.
+   */
+  "shell.finished.title": "会话已完成 — 文件已导出",
+  "shell.finished.blurb":
+    "导出的文件已进入下载。你可以把这次会话保存到会话架、开始新的，或返回首页。",
+  "shell.finished.saveButton": "保存会话",
+  "shell.finished.saveA11y": "保存会话的名称",
+  "shell.finished.saveConfirm": "保存",
+  "shell.finished.saveCancel": "取消",
+  "shell.finished.saved": "已保存到会话",
+  "shell.finished.saveFailed": "保存失败 — 浏览器存储是否可用？",
+  "shell.finished.freshButton": "再来一次",
+  "shell.finished.homeButton": "返回首页",
+  "shell.finished.dismissA11y": "继续编辑 — 关闭完成提示",
 };

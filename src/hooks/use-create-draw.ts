@@ -25,6 +25,8 @@ import {
   contiguousSelectionSpan,
   type PaceSegment,
 } from "@/features/create/pace";
+import type { WobbleSegment } from "@/features/create/wobble";
+export type { WobbleSegment } from "@/features/create/wobble";
 import { resamplePath } from "@/features/reconstruction/resample";
 import {
   joinStyledChain,
@@ -144,6 +146,22 @@ export interface CreateDrawBinding {
   /** Remove one segment. */
   removePaceSegment: (id: string) => void;
 
+  // -- human-like GPS plan (Task 74: wobbled stretches) ---------------------
+  /** The planned wobble stretches, in route order. */
+  wobbleSegments: readonly WobbleSegment[];
+  /** Each stretch's span distance on the drawn chain (meters, id → m). */
+  wobbleSegmentDistances: ReadonlyMap<string, number>;
+  /** The chain index of each stretch's endpoints (id → [from, to]). */
+  wobbleSegmentIndices: ReadonlyMap<string, [number, number]>;
+  /** Plan (or re-plan) the selected stretch's wobble. */
+  applyWobble: (
+    fromVertexId: VertexId,
+    toVertexId: VertexId,
+    intensity: WobbleSegment["intensity"],
+  ) => void;
+  /** Remove one wobble stretch (the line returns to ruler-straight). */
+  removeWobbleSegment: (id: string) => void;
+
   /** Finish drawing → the review phase (disabled below 2 vertices). */
   finishRoute: () => void;
   canFinish: boolean;
@@ -163,6 +181,8 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
   const clipboard = useCreateStore((s) => s.clipboard);
   // Task 73 — the pace plan.
   const paceSegments = useCreateStore((s) => s.paceSegments);
+  // Task 74 — the human-like GPS plan.
+  const wobbleSegments = useCreateStore((s) => s.wobbleSegments);
   // §EE 17.2 — the consent state re-runs the leg effect on grant.
   const routerConsent = useUiStore((s) => s.routerConsent);
   const spacingM = useCreateStore((s) => s.spacingM);
@@ -488,6 +508,30 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     return indices;
   }, [paceSegments, vertices]);
 
+  // Task 74 — the wobble plan's span distances + chain indices (the
+  // pace views' arithmetic, one implementation each).
+  const wobbleSegmentDistances = useMemo(() => {
+    const distances = new Map<string, number>();
+    for (const segment of wobbleSegments) {
+      const fromM = vertexCumM.get(segment.fromVertexId);
+      const toM = vertexCumM.get(segment.toVertexId);
+      if (fromM !== undefined && toM !== undefined && toM > fromM) {
+        distances.set(segment.id, toM - fromM);
+      }
+    }
+    return distances;
+  }, [wobbleSegments, vertexCumM]);
+
+  const wobbleSegmentIndices = useMemo(() => {
+    const indices = new Map<string, [number, number]>();
+    wobbleSegments.forEach((segment) => {
+      const from = vertices.findIndex((v) => v.id === segment.fromVertexId);
+      const to = vertices.findIndex((v) => v.id === segment.toVertexId);
+      if (from !== -1 && to !== -1 && from < to) indices.set(segment.id, [from, to]);
+    });
+    return indices;
+  }, [wobbleSegments, vertices]);
+
   // The selection as a plannable run — the same contiguous rule the
   // pace input enforces (scattered selections plan nothing).
   const selectionPaceSpan = useMemo(() => {
@@ -563,6 +607,20 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     useCreateStore.getState().removePaceSegment(id);
   }, []);
 
+  const applyWobble = useCallback(
+    (
+      fromVertexId: VertexId,
+      toVertexId: VertexId,
+      intensity: WobbleSegment["intensity"],
+    ) => {
+      useCreateStore.getState().applyWobble(fromVertexId, toVertexId, intensity);
+    },
+    [],
+  );
+  const removeWobbleSegment = useCallback((id: string) => {
+    useCreateStore.getState().removeWobbleSegment(id);
+  }, []);
+
   const finishRoute = useCallback(() => {
     useCreateStore.getState().finishRoute();
   }, []);
@@ -619,6 +677,11 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
     applyPaceSegment,
     updatePaceSegment,
     removePaceSegment,
+    wobbleSegments,
+    wobbleSegmentDistances,
+    wobbleSegmentIndices,
+    applyWobble,
+    removeWobbleSegment,
     finishRoute,
     canFinish: vertices.length >= 2 && (distanceM ?? 0) > 0,
   };

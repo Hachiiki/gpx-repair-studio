@@ -106,6 +106,16 @@ interface MergeState {
   closeShareDialog: () => void;
   /** Clear everything (the header's reset / "Start over"). */
   reset: () => void;
+  /** Task 75 — mark the session exported (the download funnel calls this). */
+  markExported: () => void;
+  /** Task 75 — dismiss the finished banner (keep working in the studio). */
+  clearFinished: () => void;
+  /**
+   * Task 75 — the last export's timestamp (null = still working).
+   * While set, the studio renders the session-finished banner; cleared
+   * whenever new files join the list (new work begins).
+   */
+  finishedAt: number | null;
 }
 
 /** Fresh state factory (also the reset target). */
@@ -117,6 +127,7 @@ function initialMergeState() {
     files: [] as readonly MergeFileEntry[],
     combinedName: "",
     idSeq: 1,
+    finishedAt: null as number | null,
   };
 }
 
@@ -137,7 +148,9 @@ export const useMergeStore = create<MergeState>()((set, get) => ({
       summary: null,
       distanceM: null,
     }));
-    set({ files: [...files, ...entries], idSeq: seq });
+    // New files are new work — a previous export's finished mark
+    // never carries into it.
+    set({ files: [...files, ...entries], idSeq: seq, finishedAt: null });
     return entries.map((e) => e.id);
   },
 
@@ -223,6 +236,12 @@ export const useMergeStore = create<MergeState>()((set, get) => ({
   closeShareDialog: () => set({ shareDialogOpen: false }),
 
   reset: () => set(initialMergeState()),
+
+  markExported: () => set({ finishedAt: Date.now() }),
+
+  clearFinished: () => {
+    if (get().finishedAt !== null) set({ finishedAt: null });
+  },
 }));
 
 /** The files that participate in the merge, in order (errors excluded). */

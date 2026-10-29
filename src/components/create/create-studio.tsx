@@ -40,12 +40,14 @@ import { RouteDrawPanel } from "@/components/create/route-draw-panel";
 import { RouteReviewCard } from "@/components/create/route-review-card";
 import { PacePreviewCard } from "@/components/create/pace-preview-card";
 import { ShareCreateDialog } from "@/components/create/share-create-dialog";
+import { SessionFinishedBanner } from "@/components/shared/session-finished-banner";
 import { useCreateDraw } from "@/hooks/use-create-draw";
 import { useCreateElevation } from "@/hooks/use-create-elevation";
 import { useCreateExport } from "@/hooks/use-create-export";
 import { useCreateMap } from "@/hooks/use-create-map";
 import { useCreatePace } from "@/hooks/use-create-pace";
 import { useCreateShare } from "@/hooks/use-create-share";
+import { useSessionFinish } from "@/hooks/use-session-finish";
 import { useI18n } from "@/hooks/use-i18n";
 import { createTrackFileName } from "@/hooks/use-create-session";
 import { useCreateStore } from "@/state/create-store";
@@ -71,6 +73,8 @@ export function CreateStudio() {
     elevation.attachment,
   );
   const share = useCreateShare(review, elevation.attachment);
+  // Task 75 — the finished-on-export banner's controller.
+  const finish = useSessionFinish("create");
 
   // The finish-time reconciliation warning: fires on every draw → review
   // transition whose difference exceeds the notice ratio, and never
@@ -117,6 +121,8 @@ export function CreateStudio() {
         tools={
           phase === "review" && review ? (
             <>
+              {/* Task 75 — the export's finished state: save / fresh / home. */}
+              <SessionFinishedBanner finish={finish} />
               <RouteReviewCard
                 review={review}
                 stats={stats}

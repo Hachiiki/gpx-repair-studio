@@ -40,6 +40,8 @@ import { RevealOnScroll } from "@/components/shared/reveal-on-scroll";
 import { MergeFilesCard } from "@/components/merge/merge-files-card";
 import { MergeDetailsCard } from "@/components/merge/merge-details-card";
 import { MergeExportCard } from "@/components/merge/merge-export-card";
+import { SessionFinishedBanner } from "@/components/shared/session-finished-banner";
+import { useSessionFinish } from "@/hooks/use-session-finish";
 import { MergeShareView } from "@/components/merge/merge-share-view";
 import { ShareMergeDialog } from "@/components/merge/share-merge-dialog";
 import { useI18n } from "@/hooks/use-i18n";
@@ -52,6 +54,8 @@ import { useUiStore } from "@/state/ui-store";
 export function MergeStudio() {
   const { t } = useI18n();
   const session = useMergeSession();
+  // Task 75 — the finished-on-export banner's controller.
+  const finish = useSessionFinish("merge");
   const map = useMergeMap(session);
   const view = useMergeStore((s) => s.view);
   const shareDialogOpen = useMergeStore((s) => s.shareDialogOpen);
@@ -101,6 +105,8 @@ export function MergeStudio() {
         }
         tools={
           <>
+            {/* Task 75 — the export's finished state (merge: fresh / home). */}
+            <SessionFinishedBanner finish={finish} />
             <MergeFilesCard
               files={session.files}
               parsedCount={session.parsedCount}

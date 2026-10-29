@@ -53,8 +53,14 @@ import {
 import {
   makeRoomForSegment,
   prunePaceSegments,
+  pruneSpans,
   type PaceSegment,
 } from "@/features/create/pace";
+import {
+  makeRoomForWobble,
+  type WobbleIntensity,
+  type WobbleSegment,
+} from "@/features/create/wobble";
 import { CREATE_ROUTE_ID } from "@/features/create/track";
 import type { CreateSessionHydration } from "@/lib/storage/session-record";
 import type {
@@ -226,6 +232,43 @@ interface CreateState {
   /** Remove one segment (the unplanned stretch returns to the remainder). */
   removePaceSegment: (id: string) => void;
 
+  // -- human-like GPS plan (Task 74: wobbled stretches) --------------------
+  /** The planned wobble stretches (route order, non-overlapping after make-room). */
+  wobbleSegments: readonly WobbleSegment[];
+  /** Monotonic wobble-segment id/seed allocator (never reused within a session). */
+  wobbleSeq: number;
+  /**
+   * The elevation-noise seed — allocated when the first wobble lands and
+   * kept for the session's life (stable altimeter noise while stretches
+   * come and go). Null while no plan exists.
+   */
+  noiseSeed: number | null;
+  /**
+   * Plan (or re-plan) the human-like GPS wobble of the inclusive span
+   * between two drawn points — the paint-over rule resolves overlaps, a
+   * re-apply over the same stretch re-rolls its seed. A no-op when the
+   * span is not a valid earlier→later pair.
+   */
+  applyWobble: (
+    fromVertexId: VertexId,
+    toVertexId: VertexId,
+    intensity: WobbleIntensity,
+  ) => void;
+  /** Remove one wobble stretch (the line returns to ruler-straight). */
+  removeWobbleSegment: (id: string) => void;
+
+  // -- finished-on-export (Task 75) ---------------------------------------
+  /**
+   * The last export's timestamp (null = still working). While set, the
+   * studio renders the session-finished banner and the autosave stands
+   * down — an exported session is done, not unfinished work.
+   */
+  finishedAt: number | null;
+  /** Mark the session exported (every download funnel calls this). */
+  markExported: () => void;
+  /** Dismiss the finished banner (the user keeps working on the session). */
+  clearFinished: () => void;
+
   /**
    * Commit one freehand stroke (Curve pen, user pass 48): append the
    * processed nodes as ONE `set-vertices` command — a single undo step
@@ -266,6 +309,15 @@ const INITIAL = {
   // vertex sequence's never-reuse contract.
   paceSegments: [] as readonly PaceSegment[],
   paceSeq: 0,
+  // Task 74 — the wobble plan is work the same way; the noise seed
+  // rides it (null until the first wobble lands).
+  wobbleSegments: [] as readonly WobbleSegment[],
+  wobbleSeq: 0,
+  noiseSeed: null as number | null,
+  // Task 75 — the finished-on-export mark; transient by design (an
+  // exported-and-abandoned session is done; a restored one reopens
+  // unfinished).
+  finishedAt: null as number | null,
 };
 
 export const useCreateStore = create<CreateState>()((set, get) => ({
@@ -282,6 +334,9 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       pointerMode: "draw",
       view: "studio",
       shareDialogOpen: false,
+      // A new activity is new work — the previous export's finished
+      // mark does not carry into it.
+      finishedAt: null,
     }),
 
   backToForm: () =>
@@ -344,6 +399,15 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
         payload.paceSegments,
       ),
       paceSeq: payload.paceSeq,
+      // Task 74 — the wobble plan rides the same restore contract.
+      wobbleSegments: pruneSpans(
+        payload.reconstruction.vertices,
+        payload.wobbleSegments,
+      ),
+      wobbleSeq: payload.wobbleSeq,
+      noiseSeed: payload.noiseSeed,
+      // Task 75 — a restored session reopens as work in progress.
+      finishedAt: null,
     })),
 
   setView: (view) => set({ view }),
@@ -457,8 +521,8 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       command,
     );
     // A deleted vertex cannot stay selected (the map and the list both
-    // prune their views through the store's own set) — and no pace
-    // segment may keep a vanished endpoint.
+    // prune their views through the store's own set) — and no pace or
+    // wobble span may keep a vanished endpoint.
     const selection = new Set(state.selection);
     selection.delete(vertexId);
     set({
@@ -468,6 +532,10 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       paceSegments: prunePaceSegments(
         next.reconstruction.vertices,
         state.paceSegments,
+      ),
+      wobbleSegments: pruneSpans(
+        next.reconstruction.vertices,
+        state.wobbleSegments,
       ),
     });
   },
@@ -527,12 +595,15 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       command,
     );
     // Every selected id is gone — the selection empties with the chain,
-    // and with it the pace plan (a chain of zero points has no spans).
+    // and with it the pace and wobble plans (a chain of zero points has
+    // no spans).
     set({
       reconstruction: next.reconstruction,
       history: next.history,
       selection: new Set<VertexId>(),
       paceSegments: [],
+      wobbleSegments: [],
+      noiseSeed: null,
     });
   },
 
@@ -550,6 +621,10 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
         next.reconstruction.vertices,
         state.paceSegments,
       ),
+      wobbleSegments: pruneSpans(
+        next.reconstruction.vertices,
+        state.wobbleSegments,
+      ),
     });
   },
 
@@ -566,6 +641,10 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
       paceSegments: prunePaceSegments(
         next.reconstruction.vertices,
         state.paceSegments,
+      ),
+      wobbleSegments: pruneSpans(
+        next.reconstruction.vertices,
+        state.wobbleSegments,
       ),
     });
   },
@@ -622,6 +701,58 @@ export const useCreateStore = create<CreateState>()((set, get) => ({
         ? state
         : { paceSegments };
     }),
+
+  // -- human-like GPS plan (Task 74) ------------------------------------
+
+  applyWobble: (fromVertexId, toVertexId, intensity) =>
+    set((state) => {
+      const vertices = state.reconstruction.vertices;
+      const from = vertices.findIndex((v) => v.id === fromVertexId);
+      const to = vertices.findIndex((v) => v.id === toVertexId);
+      if (from === -1 || to === -1 || from >= to) return state;
+      const seq = state.wobbleSeq + 1;
+      const segment: WobbleSegment = {
+        id: `ws${seq}`,
+        fromVertexId,
+        toVertexId,
+        intensity,
+        // The Knuth multiplicative hash of the sequence — deterministic
+        // per allocation, never reused within a session.
+        seed: (seq * 2654435761) % 2147483647,
+      };
+      return {
+        wobbleSeq: seq,
+        wobbleSegments: [
+          ...makeRoomForWobble(
+            state.wobbleSegments,
+            fromVertexId,
+            toVertexId,
+            vertices,
+          ),
+          segment,
+        ],
+        // The altimeter seed lands with the first wobble and stays put —
+        // the elevation noise must not re-roll under its feet.
+        noiseSeed: state.noiseSeed ?? (1000 + seq),
+      };
+    }),
+
+  removeWobbleSegment: (id) =>
+    set((state) => {
+      const wobbleSegments = state.wobbleSegments.filter(
+        (segment) => segment.id !== id,
+      );
+      return wobbleSegments.length === state.wobbleSegments.length
+        ? state
+        : { wobbleSegments };
+    }),
+
+  // -- finished-on-export (Task 75) --------------------------------------
+
+  markExported: () => set({ finishedAt: Date.now() }),
+
+  clearFinished: () =>
+    set((state) => (state.finishedAt === null ? state : { finishedAt: null })),
 
   // -- selection + clipboard (Task 72) ----------------------------------
 

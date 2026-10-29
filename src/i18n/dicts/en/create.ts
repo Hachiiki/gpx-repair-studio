@@ -275,6 +275,39 @@ export const create = {
   "create.pace.coverage": "Planned: {count} stretches · {planned} of the route",
 
   /*
+   * Human-like GPS plan (route-draw-panel.tsx, Task 74) — Step 2's
+   * wobbled stretches: mark a span of points, wobble the line.
+   */
+  /** The draw panel group's label. */
+  "create.wobble.group": "Human-like GPS",
+  /** The group's hint. */
+  "create.wobble.hint":
+    "Replace the ruler-straight line between the selected points with watch-style GPS wander — the estimated elevation gets the altimeter treatment too. Your drawn points stay exactly where you placed them.",
+  /** The apply button (wobble the selected stretch). */
+  "create.wobble.applyButton": "Add wobble",
+  /** No wobbleable selection yet. */
+  "create.wobble.needStretch":
+    "Select a continuous stretch of at least two points to wobble.",
+  /** The stretch the Apply will target. */
+  "create.wobble.selectionReady": "Will wobble points {from}–{to} · {distance}",
+  /** The intensity chips (a11y group label). */
+  "create.wobble.intensityA11y": "Wobble strength",
+  /** Intensity: subtle. */
+  "create.wobble.intensity.subtle": "Subtle",
+  /** Intensity: moderate. */
+  "create.wobble.intensity.moderate": "Moderate",
+  /** Intensity: strong. */
+  "create.wobble.intensity.strong": "Strong",
+  /** One wobbled stretch's span. */
+  "create.wobble.segmentSpan": "Points {from}–{to}",
+  /** Remove one stretch's wobble (a11y). */
+  "create.wobble.deleteA11y": "Remove the wobble of points {from}–{to}",
+  /** The plan's coverage line. */
+  "create.wobble.coverage": "Wobbled: {count} stretches · {distance} of the route",
+  /** The stretch's intensity label prefix. */
+  "create.wobble.intensityWord": "wobble",
+
+  /*
    * PacePreviewCard (pace-preview-card.tsx, Task 73) — the review's
    * Strava-style pace preview.
    */

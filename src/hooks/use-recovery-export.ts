@@ -243,6 +243,9 @@ export function useRecoveryExport(
               );
     const fileName = exportFileName(session.fileName ?? "activity.gpx", exportFormat);
     downloadTextFile(fileName, text, exportMimeType(exportFormat));
+    // Task 75 — the export marks the session finished: the banner takes
+    // the stage and the autosave stands down (done, not unfinished).
+    useRecoveryStore.getState().markExported();
     // Phase 8: the download handed the browser a blob — no visual
     // focus moves, so the aria-live region speaks it.
     announce(t("hook.export.ready", { fileName }));

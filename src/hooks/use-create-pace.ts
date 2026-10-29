@@ -26,7 +26,10 @@ import {
   type PacedTimeline,
 } from "@/features/create/pace";
 import type { CreateTrack } from "@/features/create/track";
-import type { CreateElevationAttachment } from "@/hooks/use-create-elevation";
+import {
+  createElevationForOutput,
+  type CreateElevationAttachment,
+} from "@/hooks/use-create-elevation";
 import { PACE_METERS_PER_UNIT } from "@/lib/utils/format";
 import { useCreateStore } from "@/state/create-store";
 import { useUiStore } from "@/state/ui-store";
@@ -54,6 +57,19 @@ export function useCreatePace(
 ): CreatePaceBinding {
   const paceSegments = useCreateStore((s) => s.paceSegments);
   const paceUnit = useUiStore((s) => s.paceUnit);
+  // Task 74 — the wobble plan + its seed ride the timeline's basis: the
+  // preview's elevation (and the Minetti breathing it feeds) is the
+  // watch-treated series the file will carry, never a cleaner one.
+  const wobbleSegments = useCreateStore((s) => s.wobbleSegments);
+  const noiseSeed = useCreateStore((s) => s.noiseSeed);
+
+  const outputElevation = useMemo(
+    () =>
+      wobbleSegments.length === 0
+        ? elevation
+        : createElevationForOutput(elevation),
+    [elevation, wobbleSegments, noiseSeed],
+  );
 
   const timeline = useMemo(() => {
     if (!track || !stats) return null;
@@ -62,9 +78,9 @@ export function useCreatePace(
       stats.durationMs,
       stats.startMs,
       paceSegments,
-      elevationAtFromSamples(elevation?.samples ?? null),
+      elevationAtFromSamples(outputElevation?.samples ?? null),
     );
-  }, [track, stats, paceSegments, elevation]);
+  }, [track, stats, paceSegments, outputElevation]);
 
   const splits = useMemo(() => {
     if (!track || !timeline) return [];

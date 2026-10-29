@@ -65,6 +65,13 @@ interface SessionState {
    * anywhere; cleared with the session.
    */
   sourceFile: File | null;
+  /**
+   * Task 75 — the last export's timestamp (null = still working).
+   * While set, the workspace renders the session-finished banner and
+   * the autosave stands down: an exported session is done, not
+   * unfinished work. Cleared by every new load (new work begins).
+   */
+  finishedAt: number | null;
 
   /** Enter the loading state for a new file (keeps the previous view until parsed). */
   beginLoad: (fileName: string, view?: SessionView, file?: File) => void;
@@ -84,6 +91,10 @@ interface SessionState {
   fail: (error: SessionError) => void;
   /** Return to the idle (empty) state. */
   reset: () => void;
+  /** Task 75 — mark the session exported (the download funnel calls this). */
+  markExported: () => void;
+  /** Task 75 — dismiss the finished banner (keep working on the session). */
+  clearFinished: () => void;
 }
 
 const IDLE = {
@@ -95,6 +106,7 @@ const IDLE = {
   view: "repair" as SessionView,
   progress: null as ParseProgress | null,
   sourceFile: null as File | null,
+  finishedAt: null as number | null,
 };
 
 export const useSessionStore = create<SessionState>()((set) => ({
@@ -106,6 +118,9 @@ export const useSessionStore = create<SessionState>()((set) => ({
       fileName,
       progress: null,
       sourceFile: file ?? null,
+      // A new upload is new work — the previous export's finished mark
+      // never carries into it.
+      finishedAt: null,
       ...(view ? { view } : {}),
     }),
   setProgress: (progress) => {
@@ -127,4 +142,12 @@ export const useSessionStore = create<SessionState>()((set) => ({
       sourceFile: null,
     }),
   reset: () => set(IDLE),
+
+  markExported: () => set({ finishedAt: Date.now() }),
+
+  clearFinished: () => {
+    if (useSessionStore.getState().finishedAt !== null) {
+      set({ finishedAt: null });
+    }
+  },
 }));

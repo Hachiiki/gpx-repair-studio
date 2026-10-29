@@ -156,6 +156,22 @@ export const zhCreate: Record<string, string> = {
   "create.pace.deleteA11y": "移除点位 {from}–{to} 的计划配速",
   "create.pace.coverage": "已计划 {count} 段 · 共 {planned}",
 
+  // Human-like GPS plan (route-draw-panel.tsx, Task 74)
+  "create.wobble.group": "拟真 GPS",
+  "create.wobble.hint":
+    "把选中点位之间的笔直连线替换成手表 GPS 式的漂移轨迹——估算的海拔也会加上气压计噪声。你画下的点位本身保持原位。",
+  "create.wobble.applyButton": "添加漂移",
+  "create.wobble.needStretch": "请先选择一段连续的点位（至少两个）来添加漂移。",
+  "create.wobble.selectionReady": "将为点位 {from}–{to} 添加漂移 · {distance}",
+  "create.wobble.intensityA11y": "漂移强度",
+  "create.wobble.intensity.subtle": "轻微",
+  "create.wobble.intensity.moderate": "适中",
+  "create.wobble.intensity.strong": "强烈",
+  "create.wobble.segmentSpan": "点位 {from}–{to}",
+  "create.wobble.deleteA11y": "移除点位 {from}–{to} 的漂移",
+  "create.wobble.coverage": "已漂移 {count} 段 · 共 {distance}",
+  "create.wobble.intensityWord": "漂移",
+
   // PacePreviewCard (pace-preview-card.tsx, Task 73)
   "create.pacePreview.title": "配速预览",
   "create.pacePreview.blurb":

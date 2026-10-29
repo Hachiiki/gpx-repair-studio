@@ -287,6 +287,9 @@ export function useMergeSession(): MergeSession {
     if (xml === null) return null;
     const name = mergedFileName(useMergeStore.getState().combinedName);
     downloadTextFile(name, xml);
+    // Task 75 — the export marks the session finished: the banner takes
+    // the stage (a merge has no shelf session; fresh/home are its exits).
+    useMergeStore.getState().markExported();
     return name;
   }, [exportXml]);
 

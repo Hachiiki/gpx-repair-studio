@@ -261,6 +261,26 @@ function planHasWork(): boolean {
 }
 
 /**
+ * Task 75 — a section's finished-on-export mark (null = still working).
+ * Plan carries no export, so it is never finished. Pure store reads,
+ * usable outside React.
+ */
+export function sectionFinishedAt(
+  section: SessionSection,
+): number | null {
+  switch (section) {
+    case "repair":
+      return useSessionStore.getState().finishedAt;
+    case "recovery":
+      return useRecoveryStore.getState().finishedAt;
+    case "create":
+      return useCreateStore.getState().finishedAt;
+    case "plan":
+      return null;
+  }
+}
+
+/**
  * Phase 18 — the WORK predicate, exported for the saved-sessions manager
  * (the same rule gates "Save current session as…"): one definition, so
  * what autosaves and what a user may name-and-keep can never disagree.
@@ -394,6 +414,10 @@ export function useSessionRecovery(): SessionRecoveryController {
         // Task 73 — the pace plan is work; it rides the autosave.
         paceSegments: store.paceSegments,
         paceSeq: store.paceSeq,
+        // Task 74 — the wobble plan rides it the same way.
+        wobbleSegments: store.wobbleSegments,
+        wobbleSeq: store.wobbleSeq,
+        noiseSeed: store.noiseSeed,
       },
       savedAt,
     );
@@ -432,8 +456,19 @@ export function useSessionRecovery(): SessionRecoveryController {
   const evaluate = useCallback(
     (section: SessionSection, signature: string, hasWork: boolean) => {
       if (restoringRef.current) return;
-      if (lastSignature.current[section] === signature) return;
-      lastSignature.current[section] = signature;
+      /*
+       * Task 75 — an exported session is DONE, not unfinished work:
+       * while the finished mark is set the autosave stands down and any
+       * stored record goes (the banner's Save is the finished work's
+       * home; the restore prompt is for the unfinished). The mark rides
+       * the signature so the export itself re-evaluates.
+       */
+      const finishedAt = sectionFinishedAt(section);
+      const stamped =
+        finishedAt !== null ? `${signature}|fin:${finishedAt}` : signature;
+      if (lastSignature.current[section] === stamped) return;
+      lastSignature.current[section] = stamped;
+      const effectiveHasWork = hasWork && finishedAt === null;
       const existing = timers.current[section];
       if (existing) clearTimeout(existing);
       // A section with no recoverable work has no record — undoing back
@@ -441,7 +476,7 @@ export function useSessionRecovery(): SessionRecoveryController {
       const timer = setTimeout(
         () => {
           delete timers.current[section];
-          if (hasWork) {
+          if (effectiveHasWork) {
             void (section === "repair" || section === "recovery"
               ? persistFileSession(section)
               : section === "create"
@@ -561,18 +596,20 @@ export function useSessionRecovery(): SessionRecoveryController {
     const runNow = (section: SessionSection) => {
       // Exactly what the pending timer would have done, decided against
       // the CURRENT state (the debounce's whole point was to wait for
-      // exactly this moment).
+      // exactly this moment). Task 75: a finished session drops its
+      // record instead of saving one (done, not unfinished).
+      const finished = sectionFinishedAt(section) !== null;
       if (section === "repair") {
-        if (repairHasWork()) void persistFileSession("repair");
+        if (repairHasWork() && !finished) void persistFileSession("repair");
         else dropRecord("repair");
       } else if (section === "recovery") {
-        if (recoveryHasWork()) void persistFileSession("recovery");
+        if (recoveryHasWork() && !finished) void persistFileSession("recovery");
         else dropRecord("recovery");
       } else if (section === "create") {
-        if (createHasWork()) void persistCreateSession();
+        if (createHasWork() && !finished) void persistCreateSession();
         else dropRecord("create");
       } else {
-        if (planHasWork()) void persistPlanSession();
+        if (planHasWork() && !finished) void persistPlanSession();
         else dropRecord("plan");
       }
     };

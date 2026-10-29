@@ -32,6 +32,7 @@ import {
   resamplePath,
   type PathPoint,
 } from "@/features/reconstruction/resample";
+import { wobblePathPoints, type WobbleSegment } from "@/features/create/wobble";
 import {
   distributeTimestamps,
   wholeActivityTimePlan,
@@ -238,6 +239,14 @@ export interface CreateTrackInput {
    * the file's distance.
    */
   matchDistance: boolean;
+  /**
+   * Task 74 — the human-like GPS plan: wobbled stretches displace the
+   * interpolated points between their anchors (anchors stay exact),
+   * straight legs with no interior points get fill points first, and
+   * the cumulative distances recompute over the wiggly line — the
+   * honest length a watch would have recorded.
+   */
+  wobbleSegments?: readonly WobbleSegment[];
 }
 
 /**
@@ -262,15 +271,22 @@ export function buildCreateTrack(
   // The drawn chain — no anchors, spacing + road legs applied, exactly
   // the geometry the map previewed (WYSIWYG); world-scale drawings are
   // decimated to the point budget (distances ride along untouched).
-  const drawnPath = capPathPoints(
-    resamplePath(
-      null,
-      input.vertices,
-      null,
-      input.spacingM,
-      input.roadLegs,
-      input.pathStyle ?? "off",
+  // Task 74: the human-like GPS plan then wobbles the marked stretches
+  // (the review map, the preview card, and the export all draw from
+  // this SAME path — the wobble they see is the wobble the file gets).
+  const drawnPath = wobblePathPoints(
+    capPathPoints(
+      resamplePath(
+        null,
+        input.vertices,
+        null,
+        input.spacingM,
+        input.roadLegs,
+        input.pathStyle ?? "off",
+      ),
     ),
+    input.wobbleSegments ?? [],
+    MAX_CREATE_TRACK_POINTS,
   );
   if (drawnPath.length === 0) return null;
   const drawnDistanceM = drawnPath[drawnPath.length - 1].cumDistanceM;

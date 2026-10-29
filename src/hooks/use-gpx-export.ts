@@ -46,6 +46,7 @@ import {
 import { announce } from "@/lib/announcements";
 import { useI18n } from "@/hooks/use-i18n";
 import { useEditorStore } from "@/state/editor-store";
+import { useSessionStore } from "@/state/session-store";
 import { useUiStore } from "@/state/ui-store";
 import type { DrawEditorBinding, RepairRow } from "@/hooks/use-draw-editor";
 import type { GpxSession } from "@/hooks/use-gpx-session";
@@ -334,6 +335,9 @@ export function useGpxExport(
               );
     const fileName = exportFileName(session.fileName ?? "activity.gpx", exportFormat);
     downloadTextFile(fileName, text, exportMimeType(exportFormat));
+    // Task 75 — the export marks the session finished: the banner takes
+    // the stage and the autosave stands down (done, not unfinished).
+    useSessionStore.getState().markExported();
     // Phase 8: no visual focus moves on a blob download — the
     // aria-live region speaks it.
     announce(t("hook.export.ready", { fileName }));

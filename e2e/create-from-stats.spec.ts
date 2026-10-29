@@ -755,6 +755,166 @@ test.describe("create from activity stats", () => {
     expect(xml).toContain("pace-estimated");
   });
 
+  test("human-like GPS: wobble a stretch — the file's line breathes", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByTestId("landing-mode-create").click();
+    await fillStats(page);
+    await page.getByTestId("begin-drawing-button").click();
+
+    await expect(page.getByTestId("create-section")).toBeVisible();
+    await pollBridge(
+      page,
+      (s) => s.drawSession !== null && s.drawSession.drawMode === true,
+    );
+    await drawRoute(page, ROUTE_POINTS);
+
+    // Select the first two points, wobble them (Moderate is the chip).
+    const rows = page.getByTestId("create-vertex-row");
+    await expect(rows).toHaveCount(3);
+    await rows.nth(0).getByTestId("create-vertex-select").click();
+    await rows.nth(1).getByTestId("create-vertex-select").click();
+    await expect(page.getByTestId("wobble-selection-status")).toContainText(
+      "Will wobble points 1–2",
+    );
+    await page.getByTestId("wobble-apply-button").click();
+
+    // The planned stretch lists its span + intensity; coverage counts it.
+    const wobbleRow = page.getByTestId("wobble-segment-row");
+    await expect(wobbleRow).toHaveCount(1);
+    await expect(wobbleRow).toContainText("Points 1–2");
+    await expect(wobbleRow).toContainText("Moderate");
+    await expect(page.getByTestId("wobble-coverage-status")).toContainText(
+      "Wobbled: 1 stretch",
+    );
+
+    // Remove works; re-apply at Strong re-rolls the stretch.
+    await page.getByTestId("wobble-delete-segment").click();
+    await expect(page.getByTestId("wobble-segment-row")).toHaveCount(0);
+    await page.getByTestId("wobble-intensity-strong").click();
+    await page.getByTestId("wobble-apply-button").click();
+    await expect(page.getByTestId("wobble-segment-row")).toContainText(
+      "Strong",
+    );
+
+    // The drawn chain as the map recorded it, captured while the draw
+    // session is still alive (map clicks land on whole pixels, so the
+    // anchors are wherever the click resolved — the file must carry
+    // THOSE, verbatim).
+    const chainState = await bridge(page);
+    const drawn = chainState?.drawSession?.chainCoordinates ?? [];
+    expect(drawn.length).toBeGreaterThanOrEqual(2);
+    // The GPX serializer writes 7 decimals (~1 cm) — compare at the
+    // file's own precision.
+    const round7 = (value: number) => Number(value.toFixed(7));
+    const v1: [number, number] = [round7(drawn[0]![0]), round7(drawn[0]![1])];
+    const v2: [number, number] = [round7(drawn[1]![0]), round7(drawn[1]![1])];
+
+    // Finish → review (keep the drawn distance).
+    await page.getByTestId("finish-route-button").click();
+    const dialog = page.getByTestId("reconcile-distance-dialog");
+    await expect(dialog).toBeVisible();
+    await page.getByTestId("use-drawn-distance-button").click();
+    await expect(page.getByTestId("route-review-card")).toBeVisible();
+
+    // The file follows the plan: the user's anchors exact, the interior
+    // off the ruler chord (Strong wobbles at σ = 5 m).
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("export-gpx-button").click(),
+    ]);
+    const xml = readFileSync(await download.path(), "utf8");
+    const { trkpts, times } = parseDownload(xml);
+    expectValidGpx(xml, trkpts, times);
+
+    // v1 is the file's first point, exactly where it was drawn.
+    expect(Number(trkpts[0][1])).toBeCloseTo(v1[1], 6);
+    expect(Number(trkpts[0][2])).toBeCloseTo(v1[0], 6);
+    // v2 (the span's far anchor) is present exactly, with interior
+    // points before it.
+    const v2index = trkpts.findIndex(
+      ([, lat, lon]) =>
+        Math.abs(Number(lat) - v2[1]) < 1e-6 &&
+        Math.abs(Number(lon) - v2[0]) < 1e-6,
+    );
+    expect(v2index).toBeGreaterThan(5);
+    // The interior between v1 and v2 wanders off the chord.
+    const cosLat = Math.cos((v1[1] * Math.PI) / 180);
+    const ax = v1[0] * 111320 * cosLat;
+    const ay = v1[1] * 111320;
+    const bx = v2[0] * 111320 * cosLat;
+    const by = v2[1] * 111320;
+    const chordLen = Math.hypot(bx - ax, by - ay);
+    expect(chordLen).toBeGreaterThan(500); // the ~1.1 km first leg
+    let maxDeviation = 0;
+    for (let i = 1; i < v2index; i += 1) {
+      const px = Number(trkpts[i][2]) * 111320 * cosLat;
+      const py = Number(trkpts[i][1]) * 111320;
+      const deviation =
+        Math.abs((px - ax) * (by - ay) - (py - ay) * (bx - ax)) / chordLen;
+      maxDeviation = Math.max(maxDeviation, deviation);
+    }
+    expect(maxDeviation).toBeGreaterThan(1);
+    // The description discloses the simulated noise (the honesty rule).
+    expect(xml).toContain("simulated GPS-watch noise");
+  });
+
+  test("export finishes the session — the banner, and no lingering unfinished work", async ({
+    page,
+  }) => {
+    await reachReview(page);
+
+    // Let the debounced autosave persist the in-progress work first
+    // (the bridge speaks the saved/pending state deterministically).
+    const recoveryState = `(() => {
+      try { return window.__gpxrSessionRecovery.getTestState(); } catch { return null; }
+    })()`;
+    const waitForAutosave = async () => {
+      const started = Date.now();
+      for (;;) {
+        const state = (await page.evaluate(recoveryState)) as {
+          saved: Record<string, number>;
+          pending: boolean;
+        } | null;
+        if (state && (state.saved.create ?? 0) > 0 && !state.pending) return;
+        if (Date.now() - started > 10_000) throw new Error("autosave never settled");
+        await page.waitForTimeout(150);
+      }
+    };
+    await waitForAutosave();
+
+    // Export → the session is finished: the banner takes the stage.
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("export-gpx-button").click(),
+    ]);
+    expect(download).toBeTruthy();
+    await expect(page.getByTestId("session-finished-banner")).toBeVisible();
+    await expect(page.getByTestId("session-finished-banner")).toContainText(
+      "file exported",
+    );
+
+    // Dismiss keeps the review open — the user may keep working.
+    await page.getByTestId("session-finished-dismiss").click();
+    await expect(page.getByTestId("session-finished-banner")).toHaveCount(0);
+    await expect(page.getByTestId("route-review-card")).toBeVisible();
+
+    // A second export re-marks; "New activity" lands on the create form.
+    await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("export-gpx-button").click(),
+    ]);
+    await expect(page.getByTestId("session-finished-banner")).toBeVisible();
+    await page.getByTestId("session-finished-fresh").click();
+    await expect(page.getByTestId("activity-stats-form")).toBeVisible();
+
+    // Reload: the FINISHED session is not offered as unfinished work.
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("restore-prompt")).toHaveCount(0);
+  });
+
   test("the header's Share: warning first, then the GPX download + the share card", async ({
     page,
   }) => {

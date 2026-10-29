@@ -227,6 +227,17 @@ interface RecoveryState {
 
   /** Full reset (new file / leaving the section's session). */
   reset: () => void;
+  /** Task 75 — mark the session exported (the download funnel calls this). */
+  markExported: () => void;
+  /** Task 75 — dismiss the finished banner (keep working on the session). */
+  clearFinished: () => void;
+
+  /**
+   * Task 75 — the last export's timestamp (null = still working).
+   * While set, the studio renders the session-finished banner and the
+   * autosave stands down; cleared by every new load.
+   */
+  finishedAt: number | null;
 }
 
 const INITIAL = {
@@ -237,6 +248,7 @@ const INITIAL = {
   error: null,
   progress: null as ParseProgress | null,
   sourceFile: null as File | null,
+  finishedAt: null as number | null,
 
   activeGapId: null,
   pointerMode: "pan" as PointerMode,
@@ -310,6 +322,8 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       error: null,
       progress: null,
       sourceFile: file ?? null,
+      // A new upload is new work — the finished mark never carries in.
+      finishedAt: null,
     }),
   setProgress: (progress) => {
     if (get().status === "loading") {
@@ -874,7 +888,15 @@ export const useRecoveryStore = create<RecoveryState>()((set, get) => ({
       pickMode: null,
       selectedGapId: null,
       roadRouting: { pending: 0, failed: false },
+      // A restored session reopens as work in progress.
+      finishedAt: null,
     }),
 
   reset: () => set({ ...INITIAL }),
+
+  markExported: () => set({ finishedAt: Date.now() }),
+
+  clearFinished: () => {
+    if (get().finishedAt !== null) set({ finishedAt: null });
+  },
 }));

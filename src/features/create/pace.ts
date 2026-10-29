@@ -97,33 +97,40 @@ export function contiguousSelectionSpan(
   };
 }
 
+/** The shared endpoints shape of every vertex-span plan (pace, wobble). */
+export interface SpanEndpoints {
+  fromVertexId: VertexId;
+  toVertexId: VertexId;
+}
+
 /**
- * Make room for a new segment: existing segments that overlap the new
- * span are absorbed (fully covered) or trimmed (partially covered),
- * keeping the kept part only while it still spans two vertices. The
- * LAST assignment wins where spans overlap — the paint-over rule.
+ * Make room for a new span: existing spans that overlap the new one are
+ * absorbed (fully covered) or trimmed (partially covered), keeping the
+ * kept part only while it still spans two vertices. The LAST assignment
+ * wins where spans overlap — the paint-over rule. Generic over the plan
+ * (Task 74: the wobble plan reuses the same rule).
  */
-export function makeRoomForSegment(
-  segments: readonly PaceSegment[],
+export function makeRoomForSpan<T extends SpanEndpoints>(
+  spans: readonly T[],
   fromVertexId: VertexId,
   toVertexId: VertexId,
   vertices: readonly DrawVertex[],
-): PaceSegment[] {
+): T[] {
   const indexOf = (id: VertexId): number =>
     vertices.findIndex((v) => v.id === id);
   const from = indexOf(fromVertexId);
   const to = indexOf(toVertexId);
-  if (from === -1 || to === -1 || from >= to) return [...segments];
+  if (from === -1 || to === -1 || from >= to) return [...spans];
 
-  const kept: PaceSegment[] = [];
-  for (const segment of segments) {
-    const a = indexOf(segment.fromVertexId);
-    const b = indexOf(segment.toVertexId);
+  const kept: T[] = [];
+  for (const span of spans) {
+    const a = indexOf(span.fromVertexId);
+    const b = indexOf(span.toVertexId);
     if (a === -1 || b === -1) continue; // stale — dropped by pruning anyway
     const lo = Math.min(a, b);
     const hi = Math.max(a, b);
     if (hi < from || lo > to) {
-      kept.push(segment); // disjoint
+      kept.push(span); // disjoint
       continue;
     }
     if (lo >= from && hi <= to) continue; // fully absorbed
@@ -131,14 +138,14 @@ export function makeRoomForSegment(
     if (lo < from) {
       if (from - lo >= 2) {
         kept.push({
-          ...segment,
+          ...span,
           toVertexId: vertices[from - 1].id,
         });
       }
     } else if (hi > to) {
       if (hi - to >= 2) {
         kept.push({
-          ...segment,
+          ...span,
           fromVertexId: vertices[to + 1].id,
         });
       }
@@ -147,25 +154,43 @@ export function makeRoomForSegment(
   return kept;
 }
 
+/** The pace-typed facade (Task 73's public name, unchanged). */
+export function makeRoomForSegment(
+  segments: readonly PaceSegment[],
+  fromVertexId: VertexId,
+  toVertexId: VertexId,
+  vertices: readonly DrawVertex[],
+): PaceSegment[] {
+  return makeRoomForSpan(segments, fromVertexId, toVertexId, vertices);
+}
+
 /**
- * Drop segments the chain can no longer support: a missing endpoint or
- * a flipped order (mirrors the selection pruning on undo/delete). A
- * segment whose endpoints merely moved apart or together SURVIVES — the
- * span is the pair of points, wherever they now sit.
+ * Drop spans the chain can no longer support: a missing endpoint or a
+ * flipped order (mirrors the selection pruning on undo/delete). A span
+ * whose endpoints merely moved apart or together SURVIVES — the span is
+ * the pair of points, wherever they now sit. Generic over the plan.
  */
+export function pruneSpans<T extends SpanEndpoints>(
+  vertices: readonly DrawVertex[],
+  spans: readonly T[],
+): readonly T[] {
+  if (spans.length === 0) return spans;
+  const index = new Map<VertexId, number>();
+  for (let i = 0; i < vertices.length; i += 1) index.set(vertices[i].id, i);
+  const kept = spans.filter((span) => {
+    const a = index.get(span.fromVertexId);
+    const b = index.get(span.toVertexId);
+    return a !== undefined && b !== undefined && a < b;
+  });
+  return kept.length === spans.length ? spans : kept;
+}
+
+/** The pace-typed facade (Task 73's public name, unchanged). */
 export function prunePaceSegments(
   vertices: readonly DrawVertex[],
   segments: readonly PaceSegment[],
 ): readonly PaceSegment[] {
-  if (segments.length === 0) return segments;
-  const index = new Map<VertexId, number>();
-  for (let i = 0; i < vertices.length; i += 1) index.set(vertices[i].id, i);
-  const kept = segments.filter((segment) => {
-    const a = index.get(segment.fromVertexId);
-    const b = index.get(segment.toVertexId);
-    return a !== undefined && b !== undefined && a < b;
-  });
-  return kept.length === segments.length ? segments : kept;
+  return pruneSpans(vertices, segments);
 }
 
 // ---------------------------------------------------------------------------

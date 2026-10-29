@@ -32,6 +32,7 @@ import {
 import { pacedTimesForFile } from "@/features/create/pace";
 import { exportGpxGenerated } from "@/features/gpx/exportGpx";
 import {
+  createElevationForOutput,
   createPointElevation,
   readFreshCreateElevation,
 } from "@/hooks/use-create-elevation";
@@ -65,6 +66,9 @@ export function useCreateExport(): CreateReview | null {
   const roadLegs = useCreateStore((s) => s.roadLegs);
   const spacingM = useCreateStore((s) => s.spacingM);
   const matchDistance = useCreateStore((s) => s.matchDistance);
+  // Task 74 — the wobble plan is part of the track's basis (the same
+  // subscription rule as the route itself).
+  const wobbleSegments = useCreateStore((s) => s.wobbleSegments);
   // The line's remembered style (the resample fallback) — vertices
   // carry their own per-segment legStyles (the mode-switching fix).
   const pathStyle = useCreateStore(
@@ -82,9 +86,10 @@ export function useCreateExport(): CreateReview | null {
             spacingM,
             matchDistance,
             pathStyle,
+            wobbleSegments,
           })
         : null,
-    [stats, vertices, roadLegs, spacingM, matchDistance, pathStyle],
+    [stats, vertices, roadLegs, spacingM, matchDistance, pathStyle, wobbleSegments],
   );
 
   const download = useCallback((): string | null => {
@@ -92,7 +97,7 @@ export function useCreateExport(): CreateReview | null {
     // The click-time elevation join: rebuilt fresh from the store and
     // judged against the CURRENT basis — or nothing (the honest rule: a
     // stale estimate never exports).
-    const elevation = readFreshCreateElevation();
+    const elevation = createElevationForOutput(readFreshCreateElevation());
     // Task 73 — the click-time PACE join: the store's pace plan read
     // fresh (the same rule the elevation follows), so a plan edited
     // between the render and the click can never smuggle stale times
@@ -106,6 +111,7 @@ export function useCreateExport(): CreateReview | null {
       elevation?.samples ?? null,
     );
     const planned = useCreateStore.getState().paceSegments.length > 0;
+    const wobbled = useCreateStore.getState().wobbleSegments.length > 0;
     const points = track.path.map((point, index) => {
       const ele = createPointElevation(elevation, point.cumDistanceM);
       const paced = pacedTimes[index];
@@ -126,6 +132,10 @@ export function useCreateExport(): CreateReview | null {
         ? "Timestamps follow the planned segment paces and the terrain " +
           "(Minetti grade model); the recorded total time is preserved. "
         : "") +
+      (wobbled
+        ? "Point positions and elevations carry simulated GPS-watch " +
+            "noise for realism. "
+        : "") +
       (elevation
         ? `Elevation of generated points estimated from ${elevation.providerName}.`
         : "No elevation is included.");
@@ -140,6 +150,9 @@ export function useCreateExport(): CreateReview | null {
     );
     const fileName = createTrackFileName(stats.startMs);
     downloadTextFile(fileName, xml);
+    // Task 75 — the export marks the session finished: the banner takes
+    // the stage and the autosave stands down (done, not unfinished).
+    useCreateStore.getState().markExported();
     // Phase 8: no visual focus moves on a blob download — the
     // aria-live region speaks it.
     announce(t("hook.export.ready", { fileName }));

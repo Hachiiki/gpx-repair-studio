@@ -42,4 +42,21 @@ export const shell = {
   "shell.pwa.updateBody":
     "A new version of GPX Repair Studio is installed and ready. It will apply only when you reload — nothing reloads behind your back, so finish what you are doing first.",
   "shell.pwa.updateAction": "Reload",
+  /**
+   * Task 75 — the finished-on-export banner (session-finished-banner.tsx):
+   * the session's three exits after a download.
+   */
+  "shell.finished.title": "Session finished — file exported",
+  "shell.finished.blurb":
+    "The export is in your downloads. Save this session to the shelf, start a fresh one, or head back home.",
+  "shell.finished.saveButton": "Save session",
+  "shell.finished.saveA11y": "Name for the saved session",
+  "shell.finished.saveConfirm": "Save",
+  "shell.finished.saveCancel": "Cancel",
+  "shell.finished.saved": "Saved to Sessions",
+  "shell.finished.saveFailed":
+    "Could not save — is the browser's storage available?",
+  "shell.finished.freshButton": "New activity",
+  "shell.finished.homeButton": "Back to home",
+  "shell.finished.dismissA11y": "Keep working — dismiss the finished notice",
 } as const;

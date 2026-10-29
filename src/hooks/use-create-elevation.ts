@@ -51,6 +51,7 @@ import {
   type CreateTrack,
 } from "@/features/create/track";
 import { DEFAULT_HYSTERESIS_THRESHOLD_M } from "@/features/elevation/smoothing";
+import { strongestIntensity, watchNoiseSamples } from "@/features/create/wobble";
 import { useCreateStore } from "@/state/create-store";
 import { useElevationStore } from "@/state/elevation-store";
 import { translateNow } from "@/i18n/runtime";
@@ -111,6 +112,9 @@ export function readFreshCreateElevation(): CreateElevationAttachment | null {
     roadLegs: create.roadLegs,
     spacingM: create.spacingM,
     matchDistance: create.matchDistance,
+    // Task 74 — the wobble plan is part of the freshness basis (a
+    // wobble applied after the estimate stales it honestly).
+    wobbleSegments: create.wobbleSegments,
     // The line's remembered style — the resample fallback. The ACTIVE
     // chip state never redraws the placed route (the per-segment
     // contract), so it must not change the track or stale the record.
@@ -218,6 +222,7 @@ export function useCreateElevation(track: CreateTrack | null): {
       roadLegs: store.roadLegs,
       spacingM: store.spacingM,
       matchDistance: store.matchDistance,
+      wobbleSegments: store.wobbleSegments,
       pathStyle: store.reconstruction.pathStyle,
     });
     if (!freshTrack || freshTrack.path.length === 0) return;
@@ -326,4 +331,29 @@ export function createPointElevation(
 ): { value: number; method: "elevation-api" | "interpolated" } | undefined {
   if (!attachment) return undefined;
   return interpolateSample(attachment.samples, cumDistanceM);
+}
+
+/**
+ * Task 74 — the attachment as the FILE and its previews carry it: when a
+ * human-like GPS plan exists, the DEM samples get the watch-altimeter
+ * treatment (fast sensor noise + slow barometric drift, seeded by the
+ * plan's stable noise seed, amplitude by the strongest intensity). The
+ * stored DEM record is never touched — the estimate stays the honest
+ * terrain; this is the output transform the preview draws and the file
+ * exports, ONE definition so the two can never disagree.
+ *
+ * Usable outside React (the download intent reads it at click time).
+ */
+export function createElevationForOutput(
+  attachment: CreateElevationAttachment | null,
+): CreateElevationAttachment | null {
+  if (!attachment) return null;
+  const { wobbleSegments, noiseSeed } = useCreateStore.getState();
+  if (wobbleSegments.length === 0 || noiseSeed === null) return attachment;
+  const intensity = strongestIntensity(wobbleSegments);
+  if (intensity === null) return attachment;
+  return {
+    providerName: attachment.providerName,
+    samples: watchNoiseSamples(attachment.samples, noiseSeed, intensity),
+  };
 }

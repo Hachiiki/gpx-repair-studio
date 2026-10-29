@@ -43,6 +43,7 @@ import type { LocalLabel } from "@/i18n/types";
 import type { GapThresholds } from "@/features/gpx/detectGaps";
 import type { ActivityStats } from "@/features/create/stats";
 import type { PaceSegment } from "@/features/create/pace";
+import type { WobbleSegment } from "@/features/create/wobble";
 import type { FileTimingContext } from "@/features/reconstruction/timestamps";
 import type {
   DrawVertex,
@@ -126,6 +127,14 @@ export interface StoredCreateSession {
    */
   paceSegments?: PaceSegment[];
   paceSeq?: number;
+  /**
+   * Task 74 — the human-like GPS plan (wobbled stretches + the
+   * altimeter-noise seed). Optional: pre-74 records and un-wobbled
+   * routes carry none.
+   */
+  wobbleSegments?: WobbleSegment[];
+  wobbleSeq?: number;
+  noiseSeed?: number;
 }
 
 /** The plan-a-route scratchpad (no file, no export). */
@@ -174,6 +183,12 @@ export interface CreateSessionCapture {
   paceSegments: readonly PaceSegment[];
   /** Task 73 — the pace-segment id allocator's position. */
   paceSeq: number;
+  /** Task 74 — the planned wobble stretches (never undefined at capture). */
+  wobbleSegments: readonly WobbleSegment[];
+  /** Task 74 — the wobble-segment id/seed allocator's position. */
+  wobbleSeq: number;
+  /** Task 74 — the altimeter-noise seed (null while no plan exists). */
+  noiseSeed: number | null;
 }
 
 /** What the hook reads out of the plan session for capture. */
@@ -213,6 +228,12 @@ export interface CreateSessionHydration {
   paceSegments: PaceSegment[];
   /** Task 73 — the allocator re-armed past every stored id. */
   paceSeq: number;
+  /** Task 74 — the validated wobble plan ([] for pre-74 records). */
+  wobbleSegments: WobbleSegment[];
+  /** Task 74 — the allocator re-armed past every stored id. */
+  wobbleSeq: number;
+  /** Task 74 — the altimeter-noise seed (null when the record carries none). */
+  noiseSeed: number | null;
 }
 
 /** Plan store patch. */
@@ -302,6 +323,13 @@ export function captureCreateSession(
       ? { paceSegments: capture.paceSegments.map((s) => ({ ...s })) }
       : {}),
     ...(capture.paceSeq > 0 ? { paceSeq: capture.paceSeq } : {}),
+    // Task 74 — the wobble plan rides the record the same way (the
+    // seed with it — restored noise must reproduce the saved wobble).
+    ...(capture.wobbleSegments.length > 0
+      ? { wobbleSegments: capture.wobbleSegments.map((s) => ({ ...s })) }
+      : {}),
+    ...(capture.wobbleSeq > 0 ? { wobbleSeq: capture.wobbleSeq } : {}),
+    ...(capture.noiseSeed !== null ? { noiseSeed: capture.noiseSeed } : {}),
   };
 }
 
@@ -400,6 +428,10 @@ export function hydrateCreateSession(
     // restored chain cannot carry.
     paceSegments: (record.paceSegments ?? []).map((s) => ({ ...s })),
     paceSeq: rearmPaceSeq(record.paceSegments ?? [], record.paceSeq ?? 0),
+    // Task 74 — the wobble plan, same contract.
+    wobbleSegments: (record.wobbleSegments ?? []).map((s) => ({ ...s })),
+    wobbleSeq: rearmWobbleSeq(record.wobbleSegments ?? [], record.wobbleSeq ?? 0),
+    noiseSeed: record.noiseSeed ?? null,
   };
 }
 
@@ -411,6 +443,19 @@ function rearmPaceSeq(segments: readonly PaceSegment[], stored: number): number 
   let max = stored;
   for (const segment of segments) {
     const match = /^ps(\d+)$/.exec(segment.id);
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return max;
+}
+
+/** Re-arm the wobble-segment allocator (the pace rule, `ws{N}` ids). */
+function rearmWobbleSeq(
+  segments: readonly WobbleSegment[],
+  stored: number,
+): number {
+  let max = stored;
+  for (const segment of segments) {
+    const match = /^ws(\d+)$/.exec(segment.id);
     if (match) max = Math.max(max, Number(match[1]));
   }
   return max;
@@ -537,6 +582,24 @@ function isPaceSegment(value: unknown): value is PaceSegment {
     segment.toVertexId.length > 0 &&
     isFiniteNumber(segment.paceMsPerMeter) &&
     segment.paceMsPerMeter > 0
+  );
+}
+
+/** Structural check of one stored wobble segment (Task 74). */
+function isWobbleSegment(value: unknown): value is WobbleSegment {
+  if (typeof value !== "object" || value === null) return false;
+  const segment = value as Record<string, unknown>;
+  return (
+    typeof segment.id === "string" &&
+    segment.id.length > 0 &&
+    typeof segment.fromVertexId === "string" &&
+    segment.fromVertexId.length > 0 &&
+    typeof segment.toVertexId === "string" &&
+    segment.toVertexId.length > 0 &&
+    (segment.intensity === "subtle" ||
+      segment.intensity === "moderate" ||
+      segment.intensity === "strong") &&
+    isFiniteNumber(segment.seed)
   );
 }
 
@@ -766,6 +829,19 @@ export function readSessionRecord(raw: unknown): StoredSessionRecord | null {
     ) {
       record.paceSegments = [];
       record.paceSeq = 0;
+    }
+    // Task 74 — the wobble plan, same tolerance (a malformed field
+    // discards the wobble, never the route).
+    if (
+      record.wobbleSegments !== undefined &&
+      (!Array.isArray(record.wobbleSegments) ||
+        !record.wobbleSegments.every(isWobbleSegment) ||
+        (record.wobbleSeq !== undefined && !isFiniteNumber(record.wobbleSeq)) ||
+        (record.noiseSeed !== undefined && !isFiniteNumber(record.noiseSeed)))
+    ) {
+      record.wobbleSegments = [];
+      record.wobbleSeq = 0;
+      record.noiseSeed = undefined;
     }
     return record as unknown as StoredCreateSession;
   }
