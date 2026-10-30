@@ -282,7 +282,7 @@ export const create = {
   "create.wobble.group": "Human-like GPS",
   /** The group's hint. */
   "create.wobble.hint":
-    "Replace the ruler-straight line between the selected points with watch-style GPS wander — the estimated elevation gets the altimeter treatment too. Your drawn points stay exactly where you placed them.",
+    "Replace the ruler-straight line between the selected points with watch-style GPS wander — the marked legs redraw immediately, and zooming to street level shows the wander up close. The estimated elevation gets the altimeter treatment too. Your drawn points stay exactly where you placed them.",
   /** The apply button (wobble the selected stretch). */
   "create.wobble.applyButton": "Add wobble",
   /** No wobbleable selection yet. */

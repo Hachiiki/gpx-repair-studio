@@ -26,6 +26,8 @@ import {
   type PaceSegment,
 } from "@/features/create/pace";
 import type { WobbleSegment } from "@/features/create/wobble";
+import { wobbledChainGeometry } from "@/features/create/wobble";
+import { buildCreateDisplayPath } from "@/features/create/track";
 export type { WobbleSegment } from "@/features/create/wobble";
 import { resamplePath } from "@/features/reconstruction/resample";
 import {
@@ -193,6 +195,29 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
   // that carry no legStyle of their own (pre-fix and restored lines).
   const lineStyle = useCreateStore((s) => s.reconstruction.pathStyle ?? "off");
 
+  // Task 74 — the wobble plan's LIVE geometry: the exact path the file
+  // will carry (the shared resample → cap → wobble pipeline), shaped as
+  // the draft chain's join result. When a plan exists the draw map
+  // renders THIS — the wobble the user watches is the wobble the file
+  // gets, at the moment they apply it (no finish-first surprise).
+  const wobbleDisplay = useMemo(() => {
+    if (wobbleSegments.length === 0 || vertices.length < 2) return null;
+    const path = buildCreateDisplayPath({
+      vertices,
+      roadLegs,
+      spacingM,
+      pathStyle: lineStyle,
+      wobbleSegments,
+    });
+    return path ? wobbledChainGeometry(path) : null;
+  }, [vertices, roadLegs, spacingM, wobbleSegments, lineStyle]);
+
+  // The join reads the display at CALL time (makeJoins keeps its stable
+  // identity — a wobble edit re-renders the draft without restarting the
+  // draw session). Assigned during render, before any consumer runs.
+  const wobbleDisplayRef = useRef<typeof wobbleDisplay>(null);
+  wobbleDisplayRef.current = wobbleDisplay;
+
   // -- controller draw-session driving ----------------------------------------
 
   /*
@@ -206,12 +231,33 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
    */
   const makeJoins = useCallback(
     (legs: readonly RoadLeg[]) => ({
-      chainJoin: (nodes: readonly ChainNode[]) =>
-        joinStyledChain(
+      chainJoin: (nodes: readonly ChainNode[]) => {
+        const base = joinStyledChain(
           nodes,
           legs,
           useCreateStore.getState().reconstruction.pathStyle ?? "off",
-        ),
+        );
+        // Task 74 — a wobble plan renders its OWN geometry: the file's
+        // wiggly line, live (the display reads at call time; the join's
+        // identity never changes).
+        const wobbled = wobbleDisplayRef.current;
+        if (!wobbled) return base;
+        // A handle drag previews straight (the road legs' own rule):
+        // the controller's nodes carry the drag override, which no
+        // longer matches the committed vertices the wobble was built
+        // from. The wobbled geometry re-applies when the move commits.
+        const storeVertices = useCreateStore.getState().reconstruction.vertices;
+        if (storeVertices.length !== nodes.length) return base;
+        for (let i = 0; i < nodes.length; i += 1) {
+          if (
+            nodes[i]!.lat !== storeVertices[i]!.lat ||
+            nodes[i]!.lon !== storeVertices[i]!.lon
+          ) {
+            return base;
+          }
+        }
+        return wobbled;
+      },
       // No far anchor ever exists — no closing segment to join.
       closingJoin: null,
     }),
@@ -273,10 +319,12 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
   }, [active, mapReady, map.getController, makeJoins]);
 
   // Push every authoritative vertex change (and every resolved road leg)
-  // into the controller — the store is the single source of truth.
+  // into the controller — the store is the single source of truth. A
+  // wobble plan edit re-pushes too: the join swaps to (or from) the
+  // wobbled geometry, and the draft re-renders in place.
   useEffect(() => {
     map.getController()?.updateDrawSession(vertices, makeJoins(roadLegs));
-  }, [vertices, roadLegs, map.getController, makeJoins]);
+  }, [vertices, roadLegs, wobbleSegments, map.getController, makeJoins]);
 
   // Task 72 — the selection paints on the map (signal-filled handles).
   useEffect(() => {
@@ -447,7 +495,8 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
   // The drawn distance runs over the RENDERED path (road legs
   // included): the number the line draws is the number the badge and the
   // reconciliation show (WYSIWYG honesty) — each segment under the style
-  // it was drawn with.
+  // it was drawn with, and — with a wobble plan — the honest wiggly
+  // length (the same number the review card shows).
   const distanceM = useMemo(() => {
     if (vertices.length < 2) return vertices.length === 1 ? 0 : null;
     const nodes: ChainNode[] = vertices.map((vertex) => ({
@@ -458,7 +507,7 @@ export function useCreateDraw(map: CreateMapBinding): CreateDrawBinding {
         : {}),
     }));
     return polylineLengthMeters(makeJoins(roadLegs).chainJoin(nodes).points);
-  }, [vertices, roadLegs, makeJoins]);
+  }, [vertices, roadLegs, wobbleSegments, makeJoins]);
 
   // Task 73 — every vertex's cumulative distance along the drawn chain
   // (the same pure resample the final track builds on: road legs and

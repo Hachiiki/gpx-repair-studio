@@ -236,9 +236,10 @@ export interface CreateTrackInput {
   /**
    * Scale the drawn route to the recorded distance — the explicit "use
    * my watch's distance" choice. Off by default: the drawn geometry is
-   * the file's distance.
+   * the file's distance. The DISPLAY path ignores this (the scale is a
+   * post-wobble transform of the track build, not of the drawn line).
    */
-  matchDistance: boolean;
+  matchDistance?: boolean;
   /**
    * Task 74 — the human-like GPS plan: wobbled stretches displace the
    * interpolated points between their anchors (anchors stay exact),
@@ -247,6 +248,37 @@ export interface CreateTrackInput {
    * honest length a watch would have recorded.
    */
   wobbleSegments?: readonly WobbleSegment[];
+}
+
+/**
+ * The create route's display path: the drawn chain densified (spacing,
+ * road legs, curve splines), decimated to the point budget, then run
+ * through the wobble plan. The ONE geometry every consumer shares — the
+ * track builder bakes it into the file, and the draw editor previews it
+ * live (the wobble the user watches is the wobble the file gets).
+ *
+ * Returns `null` until the route is drawable (≥ {@link MIN_CREATE_VERTICES}
+ * vertices).
+ */
+export function buildCreateDisplayPath(
+  input: CreateTrackInput,
+): PathPoint[] | null {
+  if (input.vertices.length < MIN_CREATE_VERTICES) return null;
+  const path = wobblePathPoints(
+    capPathPoints(
+      resamplePath(
+        null,
+        input.vertices,
+        null,
+        input.spacingM,
+        input.roadLegs,
+        input.pathStyle ?? "off",
+      ),
+    ),
+    input.wobbleSegments ?? [],
+    MAX_CREATE_TRACK_POINTS,
+  );
+  return path.length > 0 ? path : null;
 }
 
 /**
@@ -266,34 +298,19 @@ export function buildCreateTrack(
   stats: { distanceM: number; durationMs: number; startMs: number },
   input: CreateTrackInput,
 ): CreateTrack | null {
-  if (input.vertices.length < MIN_CREATE_VERTICES) return null;
-
   // The drawn chain — no anchors, spacing + road legs applied, exactly
   // the geometry the map previewed (WYSIWYG); world-scale drawings are
   // decimated to the point budget (distances ride along untouched).
   // Task 74: the human-like GPS plan then wobbles the marked stretches
   // (the review map, the preview card, and the export all draw from
   // this SAME path — the wobble they see is the wobble the file gets).
-  const drawnPath = wobblePathPoints(
-    capPathPoints(
-      resamplePath(
-        null,
-        input.vertices,
-        null,
-        input.spacingM,
-        input.roadLegs,
-        input.pathStyle ?? "off",
-      ),
-    ),
-    input.wobbleSegments ?? [],
-    MAX_CREATE_TRACK_POINTS,
-  );
-  if (drawnPath.length === 0) return null;
+  const drawnPath = buildCreateDisplayPath(input);
+  if (!drawnPath) return null;
   const drawnDistanceM = drawnPath[drawnPath.length - 1].cumDistanceM;
   if (!(drawnDistanceM > 0)) return null;
 
   const reconciliation = computeReconciliation(stats.distanceM, drawnDistanceM);
-  const scaleApplied = input.matchDistance && reconciliation.needsNotice;
+  const scaleApplied = input.matchDistance === true && reconciliation.needsNotice;
   const path = scaleApplied
     ? scalePathAboutCentroid(drawnPath, reconciliation.scaleFactor!)
     : drawnPath;

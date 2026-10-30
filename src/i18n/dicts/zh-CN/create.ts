@@ -159,7 +159,7 @@ export const zhCreate: Record<string, string> = {
   // Human-like GPS plan (route-draw-panel.tsx, Task 74)
   "create.wobble.group": "拟真 GPS",
   "create.wobble.hint":
-    "把选中点位之间的笔直连线替换成手表 GPS 式的漂移轨迹——估算的海拔也会加上气压计噪声。你画下的点位本身保持原位。",
+    "把选中点位之间的笔直连线替换成手表 GPS 式的漂移轨迹——确认后线段立即重绘，放大到街道级别可以看清漂移细节。估算的海拔也会加上气压计噪声。你画下的点位本身保持原位。",
   "create.wobble.applyButton": "添加漂移",
   "create.wobble.needStretch": "请先选择一段连续的点位（至少两个）来添加漂移。",
   "create.wobble.selectionReady": "将为点位 {from}–{to} 添加漂移 · {distance}",

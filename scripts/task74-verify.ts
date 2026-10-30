@@ -1,9 +1,10 @@
 /**
- * Task 74/75 verification screenshots —
- *   1. the draw panel's Human-like GPS group (chips, applied stretch),
- *   2. the review with a wobbled line + (elevation noise via the preview),
- *   3. the finished-on-export banner with its three exits + save row.
- * Mirrors the passing e2e spec's helpers (straight legs, framed Berlin).
+ * Task 74 re-verification screenshots (the "line stays straight" fix) —
+ *   1. draw phase: the live wobbled draft right after "Add wobble",
+ *   2. the same draft zoomed to street level (the wander up close),
+ *   3. the review map's wobbled reconstruction line (the WYSIWYG fix),
+ *   4. the review line zoomed to street level.
+ * Mirrors the e2e spec's helpers (straight legs, framed Berlin).
  */
 import { chromium, type Page } from "@playwright/test";
 
@@ -14,7 +15,13 @@ const stateExpr = `(() => {
 })()`;
 
 interface BridgeState {
-  drawSession: { vertexCount: number; drawMode: boolean } | null;
+  drawSession: {
+    vertexCount: number;
+    drawMode: boolean;
+    renderedChainCoordinates: [number, number][];
+  } | null;
+  reconstructionLineCoords: [number, number][];
+  moving: boolean;
 }
 
 async function poll(
@@ -37,6 +44,13 @@ const ROUTE_POINTS = [
   { lat: 52.53, lon: 13.405 },
   { lat: 52.53, lon: 13.455 },
 ];
+
+const WOBBLED_LEG = {
+  minLat: 52.5185,
+  maxLat: 52.5315,
+  minLon: 13.402,
+  maxLon: 13.408,
+};
 
 const run = async () => {
   const browser = await chromium.launch();
@@ -62,8 +76,8 @@ const run = async () => {
     "Pace minutes per unit": "6",
     "Pace seconds per unit": "14",
     "Total time hours": "0",
-    "Total time minutes": "32",
-    "Total time seconds": "35",
+    "Total time minutes": "0",
+    "Total time seconds": "32",
   };
   for (const [label, value] of Object.entries(fields)) {
     await page.getByLabel(label).fill(value);
@@ -101,46 +115,67 @@ const run = async () => {
   await page.getByTestId("wobble-apply-button").click();
   await page.waitForTimeout(300);
 
-  // Screenshot 1 — the draw panel's wobble group.
-  const wobbleGroup = page.getByTestId("wobble-plan-group");
-  await wobbleGroup.scrollIntoViewIfNeeded();
-  await page.waitForTimeout(200);
-  await wobbleGroup.screenshot({ path: "download/task74-wobble-group.png" });
+  // The live wobbled draft must be on the bridge (the fix's headline).
+  const draft = await poll(
+    page,
+    (s) => (s.drawSession?.renderedChainCoordinates.length ?? 0) > 10,
+  );
+  console.log(
+    "draft points:",
+    draft.drawSession!.renderedChainCoordinates.length,
+  );
 
-  // Finish → review.
+  // Screenshot 1 — the draw phase, overview: the wobbled leg drawn live.
+  await page.waitForTimeout(600);
+  await page.getByTestId("create-section").screenshot({
+    path: "download/task74-fix-draw-live.png",
+  });
+
+  // Screenshot 2 — the wobbled leg at street zoom (the wander up close).
+  await page.evaluate((bounds) => {
+    window.__gpxMapController!.fitBounds(bounds as never, {
+      maxZoom: 16.5,
+      action: "e2e-frame",
+    });
+  }, WOBBLED_LEG);
+  await poll(page, (s) => !s.moving);
+  await page.waitForTimeout(800);
+  await page.getByTestId("create-section").screenshot({
+    path: "download/task74-fix-draw-street.png",
+  });
+
+  // Back out, finish → review.
+  await page.evaluate(() => {
+    window.__gpxMapController!.fitBounds(
+      { minLat: 52.51, maxLat: 52.535, minLon: 13.39, maxLon: 13.47 },
+      { maxZoom: 14, action: "e2e-frame" },
+    );
+  });
   await page.getByTestId("finish-route-button").click();
   await page.getByTestId("use-drawn-distance-button").click();
   await page.getByTestId("route-review-card").waitFor({ state: "visible" });
-  await page.waitForTimeout(500);
 
-  // Screenshot 2 — the review column (the wobbled line on the map).
+  // The review map's reconstruction line must carry the wobble.
+  await poll(page, (s) => s.reconstructionLineCoords.length > 10);
+  console.log("review line points:", (await page.evaluate(stateExpr) as BridgeState).reconstructionLineCoords.length);
+  await page.waitForTimeout(800);
   await page.getByTestId("create-section").screenshot({
-    path: "download/task74-wobble-review.png",
+    path: "download/task74-fix-review-live.png",
   });
 
-  // Export → the finished banner.
-  const [download] = await Promise.all([
-    page.waitForEvent("download"),
-    page.getByTestId("export-gpx-button").click(),
-  ]);
-  await page.getByTestId("session-finished-banner").waitFor({ state: "visible" });
-  await page.waitForTimeout(300);
-
-  // Open the save row before the screenshot (the full banner).
-  await page.getByTestId("session-finished-save").click();
-  await page.waitForTimeout(200);
-
-  // Screenshot 3 — the banner with all exits + the name row.
-  const banner = page.getByTestId("session-finished-banner");
-  await banner.scrollIntoViewIfNeeded();
-  await banner.screenshot({ path: "download/task75-finished-banner.png" });
-
-  // And the map-wide view with the banner in the tools column.
+  // Screenshot 4 — the review line at street zoom.
+  await page.evaluate((bounds) => {
+    window.__gpxMapController!.fitBounds(bounds as never, {
+      maxZoom: 16.5,
+      action: "e2e-frame",
+    });
+  }, WOBBLED_LEG);
+  await poll(page, (s) => !s.moving);
+  await page.waitForTimeout(800);
   await page.getByTestId("create-section").screenshot({
-    path: "download/task75-finished-workspace.png",
+    path: "download/task74-fix-review-street.png",
   });
 
-  console.log("download:", download.suggestedFilename());
   await browser.close();
 };
 

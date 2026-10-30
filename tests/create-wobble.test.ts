@@ -222,6 +222,59 @@ describe("wobblePathPoints", () => {
     expect(strong).toBeGreaterThan(moderate);
     expect(moderate).toBeGreaterThan(subtle);
   });
+
+  it("stays visible and honest — deviation meters-scale, inflation inside the reconcile noise band", () => {
+    // The whole route wobbled at each intensity: the deviation must be
+    // real meters (visible when zoomed — the feature's whole point after
+    // the straight-line regression), and the length inflation must stay
+    // inside the reconciliation's own 2% noise band at the default 25 m
+    // spacing, so a wobbled draw never trips the distance dialog.
+    const [v1, v2, v3] = L_CHAIN;
+    const chordOf = (a: DrawVertex, b: DrawVertex) => {
+      const cosLat = Math.cos((a.lat * Math.PI) / 180);
+      const ax = a.lon * 111_320 * cosLat;
+      const ay = a.lat * 111_320;
+      const bx = b.lon * 111_320 * cosLat;
+      const by = b.lat * 111_320;
+      const len = Math.hypot(bx - ax, by - ay);
+      return (point: PathPoint) => {
+        const px = point.lon * 111_320 * cosLat;
+        const py = point.lat * 111_320;
+        return Math.abs((px - ax) * (by - ay) - (py - ay) * (bx - ax)) / len;
+      };
+    };
+    const firstLegChord = chordOf(v1!, v2!);
+    const secondLegChord = chordOf(v2!, v3!);
+    const firstLegM = straightPath()[1]!.cumDistanceM; // the N leg's end
+    for (const [intensity, minDeviation] of [
+      ["subtle", 2],
+      ["moderate", 4],
+      ["strong", 8],
+    ] as const) {
+      const base = straightPath();
+      const out = wobblePathPoints(base, [
+        segment({
+          intensity,
+          fromVertexId: "v1" as VertexId,
+          toVertexId: "v3" as VertexId,
+        }),
+      ]);
+      const straightTotal = base[base.length - 1]!.cumDistanceM;
+      const total = out[out.length - 1]!.cumDistanceM;
+      const inflation = (total - straightTotal) / straightTotal;
+      let maxDeviation = 0;
+      for (const point of out) {
+        if (point.vertexId !== undefined) continue;
+        const deviation =
+          point.cumDistanceM <= firstLegM
+            ? firstLegChord(point)
+            : secondLegChord(point);
+        if (deviation > maxDeviation) maxDeviation = deviation;
+      }
+      expect(maxDeviation).toBeGreaterThan(minDeviation);
+      expect(inflation).toBeLessThan(0.02);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

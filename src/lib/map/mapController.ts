@@ -145,6 +145,12 @@ export interface MapTestState {
   boundaryMarkerCount: number;
   /** Committed reconstruction lines rendered via the route view. */
   reconstructionLineCount: number;
+  /**
+   * Task 74 — the first reconstruction line's coordinates (`[lon, lat]`,
+   * stride-sampled to a test-friendly 200). The review map's rendered
+   * line IS this array — the e2e asserts the wobble on it directly.
+   */
+  reconstructionLineCoords: [number, number][];
   /** Phase 19 — the compare overlay (ghost + changed) observables. */
   compareOverlay: {
     visible: boolean;
@@ -1621,6 +1627,16 @@ export class MapController {
       gapSpanCount: route?.spans.length ?? 0,
       boundaryMarkerCount: route?.markers.length ?? 0,
       reconstructionLineCount: route?.reconstructions.length ?? 0,
+      reconstructionLineCoords: (() => {
+        const first = route?.reconstructions[0];
+        if (!first || first.coordinates.length === 0) return [];
+        const stride = Math.max(1, Math.ceil(first.coordinates.length / 200));
+        const sampled: [number, number][] = [];
+        for (let i = 0; i < first.coordinates.length; i += stride) {
+          sampled.push(first.coordinates[i] as [number, number]);
+        }
+        return sampled;
+      })(),
       /** Phase 19 — the compare overlay's observables. */
       compareOverlay: {
         visible: this.#compare !== null,

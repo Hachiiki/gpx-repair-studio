@@ -79,7 +79,11 @@ export function useCreateMap(): CreateMapBinding {
   const vertices = useCreateStore((s) => s.reconstruction.vertices);
   const roadLegs = useCreateStore((s) => s.roadLegs);
   const spacingM = useCreateStore((s) => s.spacingM);
-  const matchDistance = useCreateStore((s) => s.matchDistance)
+  const matchDistance = useCreateStore((s) => s.matchDistance);
+  // Task 74 — the human-like GPS plan rides the map's basis too: the
+  // review line is the FILE's line (wobble included), never a cleaner
+  // stand-in (the same subscription rule the export hook follows).
+  const wobbleSegments = useCreateStore((s) => s.wobbleSegments);
   // The line's remembered style — the resample fallback. The ACTIVE
   // chip state never redraws the placed route (the per-segment
   // contract), so it must not change the review track either.
@@ -137,12 +141,14 @@ export function useCreateMap(): CreateMapBinding {
       roadLegs,
       spacingM,
       matchDistance,
+      // Task 74 — the wobble plan is part of the map's basis.
+      wobbleSegments,
       // The line's remembered style (the resample fallback) — the
       // per-segment contract: vertices carry their own legStyles.
       pathStyle: lineStyle,
     });
     return track ? createTrackRouteView(track) : null;
-  }, [phase, stats, vertices, roadLegs, spacingM, matchDistance, lineStyle]);
+  }, [phase, stats, vertices, roadLegs, spacingM, matchDistance, wobbleSegments, lineStyle]);
 
   useEffect(() => {
     controllerRef.current?.setRoute(route);

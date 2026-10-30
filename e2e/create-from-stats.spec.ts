@@ -40,6 +40,8 @@ interface DrawSessionState {
   drawMode: boolean;
   vertexCount: number;
   chainCoordinates: [number, number][];
+  /** The RENDERED chain (road legs + the wobble plan's live geometry). */
+  renderedChainCoordinates: [number, number][];
   /** Task 72 — the copy/paste selection (map Shift+click / list ticks). */
   selectedVertexIds: string[];
   /** Screen positions of the vertex handles (for synthetic Shift+clicks). */
@@ -52,6 +54,8 @@ interface BridgeState {
   moving: boolean;
   drawSession: DrawSessionState | null;
   reconstructionLineCount: number;
+  /** Task 74 — the first reconstruction line's sampled coordinates. */
+  reconstructionLineCoords: [number, number][];
   /** Task 73 — the pace chart's map cursor (the hover sync). */
   chartCursor: { visible: boolean; position: { lat: number; lon: number } | null };
 }
@@ -798,6 +802,48 @@ test.describe("create from activity stats", () => {
       "Strong",
     );
 
+    // The DRAW MAP shows the plan live (the regression the user caught:
+    // the plan used to be invisible until export). The rendered draft —
+    // the same geometry the file will carry — leaves the ruler chord.
+    const wobbledDraft = await pollBridge(
+      page,
+      (s) => (s.drawSession?.renderedChainCoordinates.length ?? 0) > 10,
+    );
+    const legDeviation = (
+      rendered: [number, number][],
+      chord: [[number, number], [number, number]],
+      maxLat: number,
+    ) => {
+      const [[ax0, ay0], [bx0, by0]] = chord;
+      const cosLat = Math.cos((ay0 * Math.PI) / 180);
+      const ax = ax0 * 111320 * cosLat;
+      const ay = ay0 * 111320;
+      const bx = bx0 * 111320 * cosLat;
+      const by = by0 * 111320;
+      const len = Math.hypot(bx - ax, by - ay);
+      let max = 0;
+      for (const [lon, lat] of rendered) {
+        if (lat > maxLat + 1e-9) break; // the first leg only
+        const px = lon * 111320 * cosLat;
+        const py = lat * 111320;
+        const dev =
+          Math.abs((px - ax) * (by - ay) - (py - ay) * (bx - ax)) / len;
+        if (dev > max) max = dev;
+      }
+      return max;
+    };
+    // The chord comes from the user's anchors (the raw vertex chain);
+    // the deviation from the RENDERED line (the wobble's geometry).
+    const chain = wobbledDraft.drawSession!.chainCoordinates;
+    // Strong wobbles at σ ≈ 8.5 m — the drawn line must visibly breathe.
+    expect(
+      legDeviation(
+        wobbledDraft.drawSession!.renderedChainCoordinates,
+        [chain[0]!, chain[1]!],
+        chain[1]![1],
+      ),
+    ).toBeGreaterThan(5);
+
     // The drawn chain as the map recorded it, captured while the draw
     // session is still alive (map clicks land on whole pixels, so the
     // anchors are wherever the click resolved — the file must carry
@@ -818,8 +864,20 @@ test.describe("create from activity stats", () => {
     await page.getByTestId("use-drawn-distance-button").click();
     await expect(page.getByTestId("route-review-card")).toBeVisible();
 
+    // The REVIEW MAP renders the plan too (the second half of the
+    // regression: the map hook used to build its line without the wobble
+    // segments — a ruler-straight review over a wiggly file). The
+    // committed-reconstruction line is the file's geometry.
+    const reviewMap = await pollBridge(
+      page,
+      (s) => s.reconstructionLineCoords.length > 10,
+    );
+    expect(
+      legDeviation(reviewMap.reconstructionLineCoords, [chain[0]!, chain[1]!], chain[1]![1]),
+    ).toBeGreaterThan(5);
+
     // The file follows the plan: the user's anchors exact, the interior
-    // off the ruler chord (Strong wobbles at σ = 5 m).
+    // off the ruler chord (Strong wobbles at σ ≈ 8.5 m).
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       page.getByTestId("export-gpx-button").click(),

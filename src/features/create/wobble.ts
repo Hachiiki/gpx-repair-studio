@@ -19,14 +19,16 @@
  *     (vertex ids, route order) at an intensity, with its own seed. The
  *     paint-over rule (pace.ts's shared span machinery) resolves overlaps.
  *   - Geometry: every INTERPOLATED or ROAD point inside the span is
- *     displaced laterally by a mean-reverting OU process sampled along
- *     the path (σ by intensity, correlation length 45–100 m — the scale
- *     real GPS wander shows at running speeds), plus a small longitudinal
- *     jitter bounded well under half the local point gap (ordering can
- *     never flip). VERTEX points never move; displacement tapers to zero
- *     approaching every anchor (smoothstep over ≤ 35 m). A wobbled
- *     straight leg with no interior points (spacing "off") gets fill
- *     points first — wobble needs points to wobble.
+ *     displaced laterally by TWO summed OU streams sampled along the
+ *     path — a slow meander (the watch's position bias wandering over
+ *     tens of seconds of travel, σ by intensity up to ~8 m — city/
+ *     tree-cover numbers, not lab numbers) plus a fast per-fix scatter
+ *     (ρ ≈ 30–40 m) — plus a small longitudinal jitter bounded well
+ *     under half the local point gap (ordering can never flip). VERTEX
+ *     points never move; displacement tapers to zero approaching every
+ *     anchor (smoothstep over ≤ 35 m). A wobbled straight leg with no
+ *     interior points (spacing "off") gets fill points first — wobble
+ *     needs points to wobble.
  *   - Distances are recomputed geodesically after displacement, so the
  *     file's line IS the line the preview showed, and its length is the
  *     honest wiggly length (a hair longer than the ruler line, exactly
@@ -47,7 +49,7 @@
 import { geodesicDistanceMeters } from "@/lib/geo/geodesy";
 import type { PathPoint } from "@/features/reconstruction/resample";
 import type { ElevationSample } from "@/features/elevation/samples";
-import type { DrawVertex, VertexId } from "@/types/domain";
+import type { DrawVertex, LatLon, VertexId } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
 // Make-room (the wobble flavor)
@@ -212,14 +214,47 @@ function smoothstep(t: number): number {
 // Geometry wobble
 // ---------------------------------------------------------------------------
 
-/** Lateral + longitudinal amplitude scales per intensity. */
+/**
+ * Lateral + longitudinal amplitude scales per intensity. The lateral
+ * wander is TWO OU streams summed — a slow meander (position bias
+ * drifting across tens of seconds of travel: city GPS routinely wanders
+ * 5–15 m around the true line, so "strong" reads as urban-canyon
+ * conditions) plus a fast per-fix scatter that gives the line its GPS
+ * texture when zoomed to street level. Length honesty at the default 25 m
+ * spacing: subtle 0.2% / moderate 0.9% / strong 1.8% on a fully-wobbled
+ * line — inside the reconcile threshold's own noise band, never a detour.
+ */
 const WOBBLE_PARAMS: Record<
   WobbleIntensity,
-  { sigmaM: number; rhoM: number; longFactor: number }
+  {
+    sigmaM: number;
+    rhoM: number;
+    fastSigmaM: number;
+    fastRhoM: number;
+    longFactor: number;
+  }
 > = {
-  subtle: { sigmaM: 1.2, rhoM: 45, longFactor: 0.1 },
-  moderate: { sigmaM: 2.6, rhoM: 70, longFactor: 0.15 },
-  strong: { sigmaM: 5.0, rhoM: 100, longFactor: 0.2 },
+  subtle: {
+    sigmaM: 2.0,
+    rhoM: 180,
+    fastSigmaM: 1.2,
+    fastRhoM: 30,
+    longFactor: 0.12,
+  },
+  moderate: {
+    sigmaM: 5.0,
+    rhoM: 220,
+    fastSigmaM: 2.0,
+    fastRhoM: 35,
+    longFactor: 0.15,
+  },
+  strong: {
+    sigmaM: 8.5,
+    rhoM: 260,
+    fastSigmaM: 2.4,
+    fastRhoM: 40,
+    longFactor: 0.2,
+  },
 };
 
 /** The anchor taper's reach (meters), clamped by the span's own length. */
@@ -238,7 +273,10 @@ interface WobbleWindow {
 
 /** One window's live sampler state (built per call — never shared). */
 interface WindowState {
+  /** The slow meander stream. */
   lateral: (deltaSM: number) => number;
+  /** The fast per-fix scatter stream (summed onto the meander). */
+  fast: (deltaSM: number) => number;
   uniform: () => number;
   lastCumM: number;
 }
@@ -378,6 +416,11 @@ export function wobblePathPoints(
       const params = WOBBLE_PARAMS[window.intensity];
       state = {
         lateral: ouProcess(window.seed, params.sigmaM, params.rhoM),
+        fast: ouProcess(
+          (window.seed ^ 0x68bc21eb) >>> 0,
+          params.fastSigmaM,
+          params.fastRhoM,
+        ),
         uniform: mulberry32((window.seed ^ 0x9e3779b9) >>> 0),
         lastCumM: window.fromM,
       };
@@ -404,7 +447,7 @@ export function wobblePathPoints(
     const state = stateFor(window);
     const deltaSM = Math.max(0, point.cumDistanceM - state.lastCumM);
     state.lastCumM = point.cumDistanceM;
-    const lateral = state.lateral(deltaSM);
+    const lateral = state.lateral(deltaSM) + state.fast(deltaSM);
     // Taper: zero at every anchor (span ends + interior vertices).
     const taperReach = Math.min(TAPER_M, (window.toM - window.fromM) / 6);
     const taper =
@@ -460,17 +503,79 @@ export function wobblePathPoints(
 }
 
 // ---------------------------------------------------------------------------
+// The wobbled line as a draft-chain geometry (the draw map's live preview)
+// ---------------------------------------------------------------------------
+
+/** The joined geometry of a wobbled chain (the same shape the styled
+ * join returns — points plus one insertion midpoint per leg). */
+export interface WobbledChainGeometry {
+  points: LatLon[];
+  midpoints: LatLon[];
+}
+
+/**
+ * The half-distance point of a leg's run — ON the wiggly line, not the
+ * chord (the midpoint-insertion affordance must sit where the user sees
+ * the line). Pure; total over runs of at least one point.
+ */
+function runMidpoint(run: readonly PathPoint[]): LatLon {
+  const first = run[0]!;
+  const last = run[run.length - 1]!;
+  const halfAbs = first.cumDistanceM + (last.cumDistanceM - first.cumDistanceM) / 2;
+  for (let k = 1; k < run.length; k += 1) {
+    const prev = run[k - 1]!;
+    const point = run[k]!;
+    const span = point.cumDistanceM - prev.cumDistanceM;
+    if (point.cumDistanceM >= halfAbs || k === run.length - 1) {
+      const t = span > 0 ? (halfAbs - prev.cumDistanceM) / span : 0;
+      return {
+        lat: prev.lat + (point.lat - prev.lat) * t,
+        lon: prev.lon + (point.lon - prev.lon) * t,
+      };
+    }
+  }
+  return { lat: last.lat, lon: last.lon };
+}
+
+/**
+ * The wobbled path AS the draft chain's geometry: the path already is
+ * the chain (every drawn vertex embedded verbatim, road and curve
+ * interiors included by the resample), so the legs are the runs between
+ * consecutive vertex points. One midpoint per leg, on the rendered line.
+ * This is what the draw map renders for wobbled plans — the preview is
+ * the file's geometry, not a straight-line stand-in.
+ */
+export function wobbledChainGeometry(
+  path: readonly PathPoint[],
+): WobbledChainGeometry {
+  const points: LatLon[] = [];
+  const midpoints: LatLon[] = [];
+  let runStart = 0;
+  for (let i = 0; i < path.length; i += 1) {
+    points.push({ lat: path[i]!.lat, lon: path[i]!.lon });
+    const closesLeg =
+      path[i]!.vertexId !== undefined || i === path.length - 1;
+    if (!closesLeg) continue;
+    midpoints.push(runMidpoint(path.slice(runStart, i + 1)));
+    runStart = i;
+  }
+  return { points, midpoints };
+}
+
+// ---------------------------------------------------------------------------
 // The altimeter treatment (elevation noise for the file + its previews)
 // ---------------------------------------------------------------------------
 
-/** Fast + slow OU amplitudes per intensity (meters). */
+/** Fast + slow OU amplitudes per intensity (meters) — real barometric
+ * altimeter numbers: per-fix scatter of 1–3 m plus slow drift that
+ * accumulates several meters over an hour of recording. */
 const ELENOISE_PARAMS: Record<
   WobbleIntensity,
   { fastSigmaM: number; fastRhoM: number; slowSigmaM: number; slowRhoM: number }
 > = {
-  subtle: { fastSigmaM: 0.6, fastRhoM: 90, slowSigmaM: 1.0, slowRhoM: 900 },
-  moderate: { fastSigmaM: 1.3, fastRhoM: 90, slowSigmaM: 2.2, slowRhoM: 900 },
-  strong: { fastSigmaM: 2.4, fastRhoM: 90, slowSigmaM: 4.0, slowRhoM: 900 },
+  subtle: { fastSigmaM: 0.8, fastRhoM: 90, slowSigmaM: 1.2, slowRhoM: 900 },
+  moderate: { fastSigmaM: 1.6, fastRhoM: 90, slowSigmaM: 2.8, slowRhoM: 900 },
+  strong: { fastSigmaM: 3.0, fastRhoM: 90, slowSigmaM: 5.0, slowRhoM: 900 },
 };
 
 /**
